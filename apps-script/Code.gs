@@ -255,7 +255,6 @@ function memberFor_(email) {
   cache.put(ck, JSON.stringify(m), 21600); // 6h
   return m;
 }
-
 function getBootFor_(email) {
   var m = memberFor_(email);
   return {
