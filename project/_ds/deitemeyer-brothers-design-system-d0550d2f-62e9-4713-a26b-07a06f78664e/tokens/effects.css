@@ -1,0 +1,35 @@
+/* ============================================================
+   Deitemeyer Brothers — Effects: radius, borders, shadow, motion
+   Craftsman precision: confident straight lines, minimal rounding,
+   restrained shadows, purposeful motion.
+   ============================================================ */
+:root {
+  /* Corner radius — subtle, mostly square */
+  --radius-none: 0;
+  --radius-xs: 2px;
+  --radius-sm: 3px;   /* default control radius */
+  --radius-md: 5px;
+  --radius-lg: 8px;   /* cards, KPI banners */
+  --radius-pill: 999px;
+
+  /* Border widths */
+  --border-thin: 1px;
+  --border-med: 2px;
+  --border-thick: 3px;  /* accent underlines / emphasis rules */
+
+  /* Shadows — soft, grounded, low-spread (never neon glows) */
+  --shadow-xs: 0 1px 2px rgba(14,17,19,0.06);
+  --shadow-sm: 0 1px 3px rgba(14,17,19,0.08), 0 1px 2px rgba(14,17,19,0.06);
+  --shadow-md: 0 4px 12px rgba(14,17,19,0.08), 0 2px 4px rgba(14,17,19,0.06);
+  --shadow-lg: 0 12px 28px rgba(14,17,19,0.12), 0 4px 8px rgba(14,17,19,0.06);
+  --shadow-focus: 0 0 0 3px rgba(43,106,192,0.38);
+  /* Selected/active app card — navy ring, no glow */
+  --ring-selected: inset 0 0 0 2px var(--navy-700);
+
+  /* Motion — minimal and purposeful */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1); /* @kind other */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* @kind other */
+  --dur-fast: 120ms; /* @kind other */
+  --dur-base: 200ms; /* @kind other */
+  --dur-slow: 320ms; /* @kind other */
+}

@@ -1,0 +1,8 @@
+/* Deitemeyer Brothers webfonts.
+   NOTE: the logo wordmark is a proprietary heavy condensed italic face plus a
+   script ("Brothers" / "Better."). It is used as artwork only — never set as
+   type. Closest Google Fonts substitutes carry the system:
+   - Archivo        -> bold neo-grotesque headings (SALES KPI, MONDAY, JULY 27)
+   - Barlow         -> body / UI copy
+   - IBM Plex Mono  -> the signature uppercase labels, tags, and nav numbers */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');

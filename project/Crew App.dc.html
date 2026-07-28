@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/deitemeyer-brothers-design-system-d0550d2f-62e9-4713-a26b-07a06f78664e/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/deitemeyer-brothers-design-system-d0550d2f-62e9-4713-a26b-07a06f78664e/tokens/colors.css">
+<link rel="stylesheet" href="_ds/deitemeyer-brothers-design-system-d0550d2f-62e9-4713-a26b-07a06f78664e/tokens/typography.css">
+<link rel="stylesheet" href="_ds/deitemeyer-brothers-design-system-d0550d2f-62e9-4713-a26b-07a06f78664e/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/deitemeyer-brothers-design-system-d0550d2f-62e9-4713-a26b-07a06f78664e/tokens/effects.css">
+<link rel="stylesheet" href="_ds/deitemeyer-brothers-design-system-d0550d2f-62e9-4713-a26b-07a06f78664e/tokens/base.css">
+<link rel="stylesheet" href="_ds/deitemeyer-brothers-design-system-d0550d2f-62e9-4713-a26b-07a06f78664e/styles.css">
+<script src="_ds/deitemeyer-brothers-design-system-d0550d2f-62e9-4713-a26b-07a06f78664e/_ds_bundle.js"></script>
+<style>
+body{margin:0;background:#e7e5e0;font-family:'Barlow',system-ui,sans-serif}
+a{color:#1a4789;text-decoration:none}
+a:hover{color:#21569f;text-decoration:underline;text-underline-offset:3px}
+@keyframes dbflash{0%{opacity:0}10%{opacity:.95}100%{opacity:0}}
+@keyframes dbblink{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes dbrise{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes dbdrop{from{transform:translateY(-22px);opacity:0}to{transform:translateY(0);opacity:1}}
+</style>
+</helmet>
+
+<section id="t1" style="padding:44px 48px 56px;display:flex;flex-direction:column;gap:22px">
+
+<div style="display:flex;align-items:baseline;gap:11px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:5px 8px;background:#0e1113;color:#fff;border-radius:4px">1</span>
+<span style="font:700 13px/1.2 'Archivo',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#0e1113">Crew Member app — clock-in codes, capture, day log</span>
+</div>
+
+<div id="1a" style="display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:baseline;gap:9px">
+<span style="font:600 10.5px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:4px 8px;background:rgba(0,0,0,.08);color:#0e1113;border-radius:5px">1a</span>
+<span style="font:400 11px/1.3 'Barlow',sans-serif;color:rgba(0,0,0,.55)">Interactive — tap through it. Sun mode is on by default.</span>
+</div>
+
+<div style="display:flex;gap:30px;align-items:flex-start;flex-wrap:nowrap;width:max-content">
+
+<div style="width:392px;background:#fff;border:1px solid #e0dad0;border-radius:8px;padding:26px 26px 22px;display:flex;flex-direction:column;gap:22px">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div class="db-label" style="font-size:11px">01 · WHAT I ASSUMED</div>
+<div style="font:400 14px/1.62 'Barlow',sans-serif;color:#2b3033;display:flex;flex-direction:column;gap:7px">
+<div>One job per day, many <strong>clock-in codes</strong> against it. The code — not the job — is the thing a crew member switches all day, so the code is the loudest control on the home screen.</div>
+<div>Codes mirror JobTread cost codes and sync on clock-out. Nothing is entered twice.</div>
+<div>Photos are one tap plus one tag: <strong>Before / During / After</strong>. Everything else (area, code, time, who) is inferred.</div>
+<div>The app <strong>asks for photos at the moments they're actually owed</strong>, and only blocks when the answer is unambiguous: you said the code was finished, or you're ending the day. Everything else is a nudge, not a wall.</div>
+<div>Foreman is the same app with a crew block added — no separate build.</div>
+</div>
+</div>
+<hr style="border:0;border-top:1px solid #e0dad0;margin:0">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div class="db-label" style="font-size:11px">02 · WHY IT LOOKS LIKE THIS</div>
+<div style="font:400 14px/1.62 'Barlow',sans-serif;color:#2b3033;display:flex;flex-direction:column;gap:7px">
+<div><strong>Sun mode is the default</strong>, not the exception. Near-black ground with white type is the highest-contrast, lowest-glare combination on a phone at noon on a roof — and it's already the system's <span style="font-family:'IBM Plex Mono',monospace;font-size:12px">--surface-band</span> language. The toggle is top-right, one tap, no menu.</div>
+<div>Every primary control is <strong>76&nbsp;px tall minimum</strong>, full-bleed to the screen edges, with 14&nbsp;px of dead space between it and the next target. Nothing important is smaller than a gloved thumb.</div>
+<div><strong>Green means go, white means stop.</strong> Green is never decoration here — it's the clock-in action, the live dot, and the AFTER tag. Navy carries chrome only.</div>
+<div>Three tabs. No hamburger, no settings, no search.</div>
+</div>
+</div>
+<hr style="border:0;border-top:1px solid #e0dad0;margin:0">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div class="db-label" style="font-size:11px">03 · NEEDS YOUR CALL</div>
+<div style="font:400 14px/1.62 'Barlow',sans-serif;color:#2b3033;display:flex;flex-direction:column;gap:7px">
+<div>Real JobTread code list &amp; numbers — mine are plausible placeholders.</div>
+<div>Who gets the 5-minute notification besides the crew member — foreman only, or the office too?</div>
+<div>Should the 5-minute notification repeat, or fire once and leave the strip?</div>
+<div>Can a foreman override a missing after photo, or is the block absolute?</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:16px;align-items:center">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ sun }}" hint-size="402px,874px">
+
+<div style="{{ theme }}"><div style="height:100%;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--c-bg,#0e1113);font-family:'Barlow',system-ui,sans-serif">
+
+<sc-if value="{{ isJob }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1;display:flex;flex-direction:column;min-height:0;padding-top:62px">
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px 6px 20px;flex:none">
+<div style="display:flex;align-items:center;gap:11px;min-width:0">
+<img src="assets/db-timeclock.png" alt="DB Time Clock" width="55" height="55" style="width:55px;height:55px;border-radius:12px;display:block;flex:none">
+<div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+<div style="font:800 15px/1 'Archivo',sans-serif;letter-spacing:.01em;color:var(--c-fg,#fff);text-transform:uppercase;white-space:nowrap">DB Time Clock</div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.12em;color:var(--c-lab,#b9cdf0);white-space:nowrap">{{ whoLabel }}</div>
+</div>
+</div>
+<button type="button" onClick="{{ toggleSun }}" aria-label="Toggle sun mode" style="width:62px;height:52px;display:flex;align-items:center;justify-content:center;gap:0;background:var(--c-chip,rgba(255,255,255,.09));border:1px solid var(--c-line,rgba(255,255,255,.16));border-radius:5px;color:var(--c-sunico,#ffd84d);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"></circle><line x1="12" y1="1.6" x2="12" y2="4"></line><line x1="12" y1="20" x2="12" y2="22.4"></line><line x1="1.6" y1="12" x2="4" y2="12"></line><line x1="20" y1="12" x2="22.4" y2="12"></line><line x1="4.6" y1="4.6" x2="6.3" y2="6.3"></line><line x1="17.7" y1="17.7" x2="19.4" y2="19.4"></line><line x1="4.6" y1="19.4" x2="6.3" y2="17.7"></line><line x1="17.7" y1="6.3" x2="19.4" y2="4.6"></line></svg>
+</button>
+</div>
+
+<sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+<div style="flex:none;display:flex;align-items:center;gap:9px;padding:10px 20px;background:#b5892a;color:#12100a">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="2" y1="2" x2="22" y2="22"></line><path d="M8.6 16.5a5 5 0 0 1 6.8 0"></path><path d="M5 12.6a10 10 0 0 1 4.6-2.4"></path><path d="M19.7 12.6a10 10 0 0 0-4.3-2.5"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+<span style="font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase">No signal · {{ queueLabel }}</span>
+</div>
+</sc-if>
+
+<div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch">
+
+<div style="padding:14px 20px 0">
+<div style="background:var(--c-surf,#181c20);border:1px solid var(--c-line,rgba(255,255,255,.16));border-radius:8px;overflow:hidden">
+<div style="padding:16px 18px 15px;display:flex;flex-direction:column;gap:9px">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--c-lab,#b9cdf0)">TODAY'S JOB · JT&nbsp;#2841</div>
+<div style="font:800 27px/1.05 'Archivo',sans-serif;letter-spacing:-.01em;text-transform:uppercase;color:var(--c-fg,#fff)">4127 Lincoln Hwy</div>
+<div style="font:400 15px/1.3 'Barlow',sans-serif;color:var(--c-mut,rgba(255,255,255,.76))">Hoverman Residence · Van Wert</div>
+<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:3px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:6px 9px;border-radius:2px;background:var(--c-chip,rgba(255,255,255,.09));color:var(--c-mut,rgba(255,255,255,.76))">TEAR-OFF &amp; RE-ROOF</span>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:6px 9px;border-radius:2px;background:var(--c-chip,rgba(255,255,255,.09));color:var(--c-mut,rgba(255,255,255,.76))">DAY 2 OF 3</span>
+</div>
+</div>
+<button type="button" onClick="{{ openSchedule }}" style="width:100%;min-height:60px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 18px;background:var(--c-surf2,#22272b);border:0;border-top:1px solid var(--c-line,rgba(255,255,255,.16));color:var(--c-fg,#fff);cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:left">
+<span style="font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:var(--c-mut,rgba(255,255,255,.76));white-space:nowrap">1 JOB TODAY · SCHEDULE</span>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+</button>
+</div>
+</div>
+
+<sc-if value="{{ clockedIn }}" hint-placeholder-val="{{ false }}">
+<div style="padding:14px 20px 0">
+<div style="background:var(--c-band,#070e1c);border:1px solid var(--c-bandline,rgba(255,255,255,.14));border-radius:8px;padding:20px 18px 18px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="width:11px;height:11px;border-radius:50%;background:#3cc84a;animation:dbblink 1.6s ease-in-out infinite"></span>
+<span style="font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#7ef08a">ON THE CLOCK</span>
+</div>
+<div class="db-figures" style="font:800 62px/1 'Archivo',sans-serif;letter-spacing:-.03em;color:#fff">{{ elapsedText }}</div>
+<div style="display:flex;align-items:baseline;gap:10px">
+<span class="db-figures" style="font:600 15px/1 'IBM Plex Mono',monospace;letter-spacing:.06em;color:#7ba4dd">{{ activeNum }}</span>
+<span style="font:700 17px/1.1 'Archivo',sans-serif;letter-spacing:.02em;text-transform:uppercase;color:#fff">{{ activeName }}</span>
+</div>
+<div style="font:400 13px/1.4 'Barlow',sans-serif;color:rgba(255,255,255,.55)">Started {{ startedLabel }} · syncs to JobTread on clock-out</div>
+</div>
+</div>
+
+<div style="padding:12px 20px 0">
+<button type="button" onClick="{{ reminderAction }}" style="width:100%;min-height:var(--tap,76px);display:flex;align-items:center;gap:13px;padding:14px 15px;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:left;background:{{ remBg }};border:2px solid {{ remBorder }};color:{{ remFg }}">
+<span style="flex:none;display:flex;align-items:center;justify-content:center"><svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3.2"></circle></svg></span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase;opacity:.85">{{ remLabel }}</span>
+<span style="font:600 14.5px/1.3 'Barlow',sans-serif">{{ remBody }}</span>
+</span>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.8"><polyline points="9 18 15 12 9 6"></polyline></svg>
+</button>
+</div>
+
+<div style="padding:14px 20px 0;display:flex;flex-direction:column;gap:12px">
+<button type="button" onClick="{{ openCodes }}" style="width:100%;min-height:var(--tap,76px);display:flex;align-items:center;justify-content:center;gap:11px;background:transparent;border:2px solid var(--c-line2,rgba(255,255,255,.34));border-radius:6px;color:var(--c-fg,#fff);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+<span style="font:700 17px/1 'Archivo',sans-serif;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">Switch code</span>
+</button>
+<button type="button" onClick="{{ askClockOut }}" style="width:100%;min-height:var(--tap,76px);display:flex;align-items:center;justify-content:center;gap:12px;background:var(--c-stop,#fff);border:0;border-radius:6px;color:var(--c-stopfg,#0e1113);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>
+<span style="font:800 20px/1 'Archivo',sans-serif;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap">Clock out</span>
+</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ clockedOut }}" hint-placeholder-val="{{ true }}">
+<div style="padding:16px 20px 0">
+<button type="button" onClick="{{ openCodes }}" style="width:100%;min-height:132px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;background:#3cc84a;border:0;border-radius:8px;color:#0e1113;cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"></circle><polyline points="12 6.6 12 12 15.8 14"></polyline></svg>
+<span style="font:800 30px/1 'Archivo',sans-serif;letter-spacing:.03em;text-transform:uppercase">Clock in</span>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;opacity:.7">PICK A CODE TO START</span>
+</button>
+</div>
+</sc-if>
+
+<div style="padding:22px 20px 0">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--c-lab,#b9cdf0);margin-bottom:11px">TODAY ON THIS JOB</div>
+<div style="display:flex;flex-direction:column;border:1px solid var(--c-line,rgba(255,255,255,.16));border-radius:6px;overflow:hidden">
+<sc-for list="{{ entryRows }}" as="row" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;min-height:58px;padding:0 15px;background:var(--c-surf,#181c20);border-bottom:1px solid var(--c-line,rgba(255,255,255,.16))">
+<span class="db-figures" style="font:600 12px/1 'IBM Plex Mono',monospace;letter-spacing:.06em;color:var(--c-lab,#b9cdf0);width:34px;flex:none">{{ row.n }}</span>
+<span style="flex:1;min-width:0;font:600 14px/1.2 'Barlow',sans-serif;color:var(--c-fg,#fff);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ row.name }}</span>
+<span class="db-figures" style="font:700 15px/1 'Archivo',sans-serif;letter-spacing:.01em;color:var(--c-fg,#fff)">{{ row.dur }}</span>
+</div>
+</sc-for>
+<div style="display:flex;align-items:center;gap:12px;min-height:58px;padding:0 15px;background:var(--c-total,rgba(60,200,74,.12))">
+<span style="flex:1;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--c-acc,#7ef08a)">TOTAL TODAY</span>
+<span class="db-figures" style="font:800 19px/1 'Archivo',sans-serif;letter-spacing:-.01em;color:var(--c-acc,#7ef08a)">{{ totalToday }}</span>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ isForeman }}" hint-placeholder-val="{{ false }}">
+<div style="padding:22px 20px 0">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--c-lab,#b9cdf0)">CREW · <span style="color:var(--c-acc,#7ef08a)">{{ crewOnCount }} ON</span></span>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:var(--c-lab,#b9cdf0)">FOREMAN VIEW</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ crew }}" as="m" hint-placeholder-count="4">
+<button type="button" onClick="{{ m.toggle }}" style="display:flex;align-items:center;gap:13px;min-height:70px;padding:0 15px;background:var(--c-surf,#181c20);border:1px solid var(--c-line,rgba(255,255,255,.16));border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:left;width:100%">
+<span style="width:13px;height:13px;border-radius:50%;flex:none;background:{{ m.dot }}"></span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<span style="font:700 16px/1 'Archivo',sans-serif;letter-spacing:.01em;text-transform:uppercase;color:var(--c-fg,#fff)">{{ m.name }}</span>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:var(--c-lab,#b9cdf0)">{{ m.status }}</span>
+</span>
+<span class="db-figures" style="font:700 15px/1 'Archivo',sans-serif;color:var(--c-mut,rgba(255,255,255,.76))">{{ m.dur }}</span>
+</button>
+</sc-for>
+</div>
+<button type="button" onClick="{{ clockAll }}" style="margin-top:12px;width:100%;min-height:var(--tap,76px);display:flex;align-items:center;justify-content:center;gap:11px;background:var(--c-nav,#142a52);border:0;border-radius:6px;color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><polyline points="17 10 19.5 12.5 23 8"></polyline></svg>
+<span style="font:700 16px/1 'Archivo',sans-serif;letter-spacing:.04em;text-transform:uppercase">Clock in whole crew</span>
+</button>
+</div>
+</sc-if>
+
+<div style="height:26px"></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isCam }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1;display:flex;flex-direction:column;min-height:0;background:#080a0c;position:relative">
+
+<div style="flex:1;min-height:0;position:relative;background:#101418;overflow:hidden;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:100px 100px">
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;opacity:.34">
+<svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#fff">LIVE CAMERA</span>
+</div>
+<div style="position:absolute;top:20px;left:20px;width:34px;height:34px;border-left:2px solid rgba(255,255,255,.4);border-top:2px solid rgba(255,255,255,.4)"></div>
+<div style="position:absolute;top:20px;right:20px;width:34px;height:34px;border-right:2px solid rgba(255,255,255,.4);border-top:2px solid rgba(255,255,255,.4)"></div>
+<div style="position:absolute;bottom:20px;left:20px;width:34px;height:34px;border-left:2px solid rgba(255,255,255,.4);border-bottom:2px solid rgba(255,255,255,.4)"></div>
+<div style="position:absolute;bottom:20px;right:20px;width:34px;height:34px;border-right:2px solid rgba(255,255,255,.4);border-bottom:2px solid rgba(255,255,255,.4)"></div>
+
+<div style="position:absolute;top:70px;left:0;right:0;padding:0 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#fff;background:rgba(0,0,0,.6);padding:8px 10px;border-radius:3px">4127 LINCOLN HWY</span>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#0e1113;background:#3cc84a;padding:8px 10px;border-radius:3px">{{ camCodeLabel }}</span>
+</div>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#fff;background:rgba(0,0,0,.6);padding:8px 10px;border-radius:3px">{{ shotCountLabel }}</span>
+</div>
+
+<sc-if value="{{ afterRequired }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:130px;left:0;right:0;padding:0 16px;display:flex;justify-content:center">
+<span style="font:600 10.5px/1.4 'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase;background:#b5892a;color:#12100a;padding:11px 13px;border-radius:3px;text-align:center">{{ afterReqLabel }}</span>
+</div>
+</sc-if>
+
+<sc-if value="{{ recording }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:132px;left:0;right:0;display:flex;justify-content:center">
+<span style="display:inline-flex;align-items:center;gap:8px;background:rgba(192,57,43,.92);padding:9px 13px;border-radius:3px">
+<span style="width:9px;height:9px;border-radius:50%;background:#fff;animation:dbblink 1.1s ease-in-out infinite"></span>
+<span class="db-figures" style="font:600 12px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#fff">REC {{ recText }}</span>
+</span>
+</div>
+</sc-if>
+
+<sc-if value="{{ flash }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:#fff;animation:dbflash 260ms ease-out forwards;pointer-events:none"></div>
+</sc-if>
+</div>
+
+<div style="flex:none;background:#080a0c;padding:16px 16px 14px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;gap:8px">
+<button type="button" onClick="{{ setBefore }}" style="flex:1;min-height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:transparent;border:2px solid {{ beforeBorder }};background:{{ beforeBg }};color:{{ beforeFg }}">
+<span style="font:800 15px/1 'Archivo',sans-serif;letter-spacing:.05em;text-transform:uppercase">Before</span>
+<span class="db-figures" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;opacity:.68">{{ beforeCount }}</span>
+</button>
+<button type="button" onClick="{{ setDuring }}" style="flex:1;min-height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:transparent;border:2px solid {{ duringBorder }};background:{{ duringBg }};color:{{ duringFg }}">
+<span style="font:800 15px/1 'Archivo',sans-serif;letter-spacing:.05em;text-transform:uppercase">During</span>
+<span class="db-figures" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;opacity:.68">{{ duringCount }}</span>
+</button>
+<button type="button" onClick="{{ setAfter }}" style="flex:1;min-height:66px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:transparent;border:2px solid {{ afterBorder }};background:{{ afterBg }};color:{{ afterFg }}">
+<span style="font:800 15px/1 'Archivo',sans-serif;letter-spacing:.05em;text-transform:uppercase">After</span>
+<span class="db-figures" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;opacity:.68">{{ afterCount }}</span>
+</button>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:6px">
+<button type="button" onClick="{{ toggleMode }}" style="width:86px;height:86px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:6px;color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2"></rect></svg>
+<span style="font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.09em">{{ modeLabel }}</span>
+</button>
+
+<button type="button" onClick="{{ shoot }}" aria-label="Shutter" style="width:104px;height:104px;border-radius:50%;background:transparent;border:4px solid rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0;flex:none">
+<span style="width:82px;height:82px;border-radius:{{ shutterRadius }};background:{{ shutterFill }};display:block"></span>
+</button>
+
+<button type="button" onClick="{{ goLog }}" style="width:86px;height:86px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:#1b2024;position:relative;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0;display:flex;align-items:flex-end;justify-content:flex-start">
+<span style="position:absolute;inset:0;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0 7px,transparent 7px 14px)"></span>
+<span style="position:relative;font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:#fff;background:rgba(0,0,0,.65);padding:5px 6px;margin:6px">{{ lastShotLabel }}</span>
+</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLog }}" hint-placeholder-val="{{ false }}">
+<div style="flex:1;display:flex;flex-direction:column;min-height:0;padding-top:62px">
+<div style="flex:none;padding:8px 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--c-lab,#b9cdf0)">DAY LOG · JT&nbsp;#2841</div>
+<div style="font:800 25px/1 'Archivo',sans-serif;letter-spacing:-.01em;text-transform:uppercase;color:var(--c-fg,#fff);white-space:nowrap">Mon, Jul 27</div>
+</div>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:7px 9px;border-radius:2px;white-space:nowrap;flex:none;background:{{ syncBg }};color:{{ syncFg }}">{{ syncLabel }}</span>
+</div>
+
+<div style="flex:1;min-height:0;overflow:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:0 20px">
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--c-lab,#b9cdf0);white-space:nowrap;flex:none">PHOTOS · {{ photoCount }}</span>
+<button type="button" onClick="{{ goCam }}" style="min-height:44px;padding:0 12px;display:flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--c-line2,rgba(255,255,255,.34));border-radius:4px;color:var(--c-fg,#fff);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em">ADD</span>
+</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+<sc-for list="{{ photos }}" as="p" hint-placeholder-count="6">
+<div style="aspect-ratio:1/1;border-radius:5px;overflow:hidden;position:relative;background:#1b2024;border:1px solid var(--c-line,rgba(255,255,255,.16))">
+<span style="position:absolute;inset:0;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.055) 0 7px,transparent 7px 14px)"></span>
+<span style="position:absolute;top:0;left:0;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:5px 6px;background:{{ p.tagBg }};color:{{ p.tagFg }}">{{ p.tag }}</span>
+<span style="position:absolute;bottom:0;right:0;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.02em;padding:5px 6px;background:rgba(0,0,0,.6);color:#fff">{{ p.time }}</span>
+</div>
+</sc-for>
+</div>
+
+<div style="height:26px"></div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--c-lab,#b9cdf0);margin-bottom:10px">MATERIALS USED</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<sc-for list="{{ materials }}" as="mat" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:10px;padding:10px 10px 10px 15px;background:var(--c-surf,#181c20);border:1px solid var(--c-line,rgba(255,255,255,.16));border-radius:6px">
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<span style="font:600 14px/1.15 'Barlow',sans-serif;color:var(--c-fg,#fff)">{{ mat.name }}</span>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:var(--c-lab,#b9cdf0)">{{ mat.unit }}</span>
+</span>
+<button type="button" onClick="{{ mat.dec }}" aria-label="Less" style="width:52px;height:52px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--c-surf2,#22272b);border:1px solid var(--c-line,rgba(255,255,255,.16));border-radius:5px;color:var(--c-fg,#fff);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+</button>
+<span class="db-figures" style="min-width:46px;text-align:center;font:800 22px/1 'Archivo',sans-serif;letter-spacing:-.01em;color:var(--c-fg,#fff)">{{ mat.qty }}</span>
+<button type="button" onClick="{{ mat.inc }}" aria-label="More" style="width:52px;height:52px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--c-surf2,#22272b);border:1px solid var(--c-line,rgba(255,255,255,.16));border-radius:5px;color:var(--c-fg,#fff);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+</button>
+</div>
+</sc-for>
+</div>
+
+<div style="height:26px"></div>
+<div style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:var(--c-lab,#b9cdf0);margin-bottom:10px">NOTES TO THE OFFICE</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<sc-for list="{{ notes }}" as="note" hint-placeholder-count="2">
+<div style="padding:14px 15px;background:var(--c-surf,#181c20);border:1px solid var(--c-line,rgba(255,255,255,.16));border-left:3px solid var(--c-navline,#3cc84a);border-radius:6px;display:flex;flex-direction:column;gap:7px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:var(--c-lab,#b9cdf0)">{{ note.meta }}</span>
+<span style="font:400 14px/1.5 'Barlow',sans-serif;color:var(--c-fg,#fff)">{{ note.body }}</span>
+</div>
+</sc-for>
+</div>
+<button type="button" onClick="{{ addNote }}" style="margin-top:11px;width:100%;min-height:var(--tap,76px);display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;border:2px dashed var(--c-line2,rgba(255,255,255,.34));border-radius:6px;color:var(--c-fg,#fff);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+<span style="font:700 16px/1 'Archivo',sans-serif;letter-spacing:.04em;text-transform:uppercase">Add note</span>
+</button>
+
+<div style="height:22px"></div>
+<button type="button" onClick="{{ sendOffice }}" style="width:100%;min-height:var(--tap,76px);display:flex;align-items:center;justify-content:center;gap:11px;background:var(--c-nav,#142a52);border:0;border-radius:6px;color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+<span style="font:700 16px/1 'Archivo',sans-serif;letter-spacing:.04em;text-transform:uppercase">Send day to office</span>
+</button>
+<div style="font:400 12px/1.5 'Barlow',sans-serif;color:var(--c-mut,rgba(255,255,255,.76));text-align:center;margin-top:10px">Photos flow into the DB&nbsp;Cam report. Hours post to JobTread.</div>
+<div style="height:26px"></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showTabs }}" hint-placeholder-val="{{ true }}">
+<div style="flex:none;display:flex;background:var(--c-tabbg,#070e1c);border-top:1px solid var(--c-line,rgba(255,255,255,.16));padding-bottom:26px">
+<button type="button" onClick="{{ goJob }}" style="flex:1;min-height:var(--tap,76px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:transparent;border:0;border-top:3px solid {{ jobTabBar }};color:{{ jobTabFg }};cursor:pointer;-webkit-tap-highlight-color:transparent;margin-top:-1px">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"></circle><polyline points="12 6.6 12 12 15.8 14"></polyline></svg>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em">CLOCK</span>
+</button>
+<button type="button" onClick="{{ goCam }}" style="flex:1;min-height:var(--tap,76px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:transparent;border:0;border-top:3px solid {{ camTabBar }};color:{{ camTabFg }};cursor:pointer;-webkit-tap-highlight-color:transparent;margin-top:-1px">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em">CAPTURE</span>
+</button>
+<button type="button" onClick="{{ goLog }}" style="flex:1;min-height:var(--tap,76px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:transparent;border:0;border-top:3px solid {{ logTabBar }};color:{{ logTabFg }};cursor:pointer;-webkit-tap-highlight-color:transparent;margin-top:-1px">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="6" x2="21" y2="6"></line><line x1="10" y1="12" x2="21" y2="12"></line><line x1="10" y1="18" x2="21" y2="18"></line><polyline points="3 6 4.2 7.2 6.4 5"></polyline><polyline points="3 12 4.2 13.2 6.4 11"></polyline><polyline points="3 18 4.2 19.2 6.4 17"></polyline></svg>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em">DAY LOG</span>
+</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;z-index:80;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(0,0,0,.62)">
+<button type="button" onClick="{{ closeSheet }}" aria-label="Close" style="flex:1;background:transparent;border:0;cursor:pointer;min-height:70px"></button>
+<div style="flex:none;max-height:86%;display:flex;flex-direction:column;background:var(--c-bg,#0e1113);border-top:1px solid var(--c-line2,rgba(255,255,255,.34));border-radius:12px 12px 0 0;overflow:hidden;animation:dbrise 220ms cubic-bezier(.2,0,0,1)">
+<div style="flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 12px 14px 20px;border-bottom:1px solid var(--c-line,rgba(255,255,255,.16))">
+<span style="font:700 18px/1.1 'Archivo',sans-serif;letter-spacing:.03em;text-transform:uppercase;color:var(--c-fg,#fff);white-space:nowrap">{{ sheetTitle }}</span>
+<button type="button" onClick="{{ closeSheet }}" aria-label="Close" style="width:56px;height:56px;display:flex;align-items:center;justify-content:center;background:var(--c-chip,rgba(255,255,255,.09));border:0;border-radius:5px;color:var(--c-fg,#fff);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+</button>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:0 0 30px">
+
+<sc-if value="{{ sheetIsCodes }}" hint-placeholder-val="{{ true }}">
+<sc-for list="{{ codeRows }}" as="c" hint-placeholder-count="9">
+<button type="button" onClick="{{ c.pick }}" style="width:100%;min-height:82px;display:flex;align-items:center;gap:14px;padding:0 20px;background:{{ c.bg }};border:0;border-bottom:1px solid var(--c-line,rgba(255,255,255,.16));cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:left">
+<span class="db-figures" style="font:600 14px/1 'IBM Plex Mono',monospace;letter-spacing:.06em;color:{{ c.numFg }};width:40px;flex:none">{{ c.n }}</span>
+<span style="flex:1;min-width:0;font:700 18px/1.15 'Archivo',sans-serif;letter-spacing:.02em;text-transform:uppercase;color:{{ c.fg }}">{{ c.name }}</span>
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;color:{{ c.metaFg }}">{{ c.meta }}</span>
+</button>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ sheetIsPrompt }}" hint-placeholder-val="{{ false }}">
+<div style="padding:18px 20px 0;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:center;gap:13px;padding:16px 15px;border-radius:6px;background:{{ promptBg }};border:2px solid {{ promptBorder }};color:{{ promptFg }}">
+<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase;opacity:.85">{{ promptEyebrow }}</span>
+<span style="font:800 21px/1.1 'Archivo',sans-serif;letter-spacing:.01em;text-transform:uppercase">{{ promptTitle }}</span>
+</span>
+</div>
+<div style="font:400 15px/1.55 'Barlow',sans-serif;color:var(--c-mut,rgba(255,255,255,.76))">{{ promptBody }}</div>
+<sc-if value="{{ promptIsAfter }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:12px">
+<button type="button" onClick="{{ promptNo }}" style="flex:1;min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;background:transparent;border:2px solid var(--c-line2,rgba(255,255,255,.34));border-radius:6px;color:var(--c-fg,#fff);cursor:pointer;-webkit-tap-highlight-color:transparent">
+<span style="font:800 30px/1 'Archivo',sans-serif;letter-spacing:.04em;text-transform:uppercase">No</span>
+<span style="font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;opacity:.75">STILL GOING</span>
+</button>
+<button type="button" onClick="{{ promptYes }}" style="flex:1;min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;background:#3cc84a;border:2px solid #3cc84a;border-radius:6px;color:#0e1113;cursor:pointer;-webkit-tap-highlight-color:transparent">
+<span style="font:800 30px/1 'Archivo',sans-serif;letter-spacing:.04em;text-transform:uppercase">Yes</span>
+<span style="font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;opacity:.75">IT'S FINISHED</span>
+</button>
+</div>
+<div style="font:400 13.5px/1.5 'Barlow',sans-serif;color:var(--c-mut,rgba(255,255,255,.76))">{{ promptFine }}</div>
+</sc-if>
+<sc-if value="{{ promptIsBefore }}" hint-placeholder-val="{{ true }}">
+<button type="button" onClick="{{ promptShoot }}" style="width:100%;min-height:88px;display:flex;align-items:center;justify-content:center;gap:12px;background:#3cc84a;border:0;border-radius:6px;color:#0e1113;cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
+<span style="font:800 21px/1 'Archivo',sans-serif;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">{{ promptCta }}</span>
+</button>
+<button type="button" onClick="{{ promptSkip }}" style="width:100%;min-height:var(--tap,76px);display:flex;align-items:center;justify-content:center;background:transparent;border:2px solid var(--c-line2,rgba(255,255,255,.34));border-radius:6px;color:var(--c-mut,rgba(255,255,255,.76));cursor:pointer;-webkit-tap-highlight-color:transparent">
+<span style="font:600 12px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase">{{ promptSkipLabel }}</span>
+</button>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ sheetIsSchedule }}" hint-placeholder-val="{{ false }}">
+<div style="padding:18px 20px 0;display:flex;flex-direction:column;gap:12px">
+<sc-for list="{{ scheduleRows }}" as="s" hint-placeholder-count="3">
+<div style="padding:16px 16px;background:var(--c-surf,#181c20);border:1px solid var(--c-line,rgba(255,255,255,.16));border-left:3px solid {{ s.bar }};border-radius:6px;display:flex;flex-direction:column;gap:7px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:{{ s.dayFg }}">{{ s.day }}</span>
+<span style="font:800 20px/1.1 'Archivo',sans-serif;letter-spacing:-.01em;text-transform:uppercase;color:var(--c-fg,#fff)">{{ s.addr }}</span>
+<span style="font:400 14px/1.35 'Barlow',sans-serif;color:var(--c-mut,rgba(255,255,255,.76))">{{ s.detail }}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ sheetIsOut }}" hint-placeholder-val="{{ false }}">
+<div style="padding:18px 20px 0;display:flex;flex-direction:column;gap:16px">
+<div style="background:var(--c-band,#070e1c);border:1px solid var(--c-bandline,rgba(255,255,255,.14));border-radius:8px;padding:20px 18px;display:flex;flex-direction:column;gap:8px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#7ba4dd">TOTAL TODAY · JT&nbsp;#2841</span>
+<span class="db-figures" style="font:800 52px/1 'Archivo',sans-serif;letter-spacing:-.03em;color:#fff">{{ totalToday }}</span>
+<span style="font:400 14px/1.4 'Barlow',sans-serif;color:rgba(255,255,255,.6)">{{ outSummary }}</span>
+</div>
+<div style="display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:6px;background:{{ outGateBg }};border:2px solid {{ outGateBorder }};color:{{ outGateFg }}">
+<span style="flex:none;display:flex"><svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3.2"></circle></svg></span>
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+<span style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.12em;text-transform:uppercase;opacity:.85">{{ outGateLabel }}</span>
+<span style="font:600 14.5px/1.3 'Barlow',sans-serif">{{ outGateBody }}</span>
+</span>
+</div>
+<sc-if value="{{ needOutPhoto }}" hint-placeholder-val="{{ true }}">
+<button type="button" onClick="{{ goAfterPhoto }}" style="width:100%;min-height:var(--tap,76px);display:flex;align-items:center;justify-content:center;gap:11px;background:#3cc84a;border:0;border-radius:6px;color:#0e1113;cursor:pointer;-webkit-tap-highlight-color:transparent">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
+<span style="font:800 18px/1 'Archivo',sans-serif;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">Take the after photo</span>
+</button>
+</sc-if>
+<div style="font:400 14px/1.55 'Barlow',sans-serif;color:var(--c-mut,rgba(255,255,255,.76))">Hours post to JobTread against each code. You can't edit them after this — tell your foreman if something's off.</div>
+<button type="button" onClick="{{ confirmOut }}" style="width:100%;min-height:88px;display:flex;align-items:center;justify-content:center;gap:12px;border:0;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;background:{{ confirmBg }};color:{{ confirmFg }};opacity:{{ confirmOpacity }}">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>
+<span style="font:800 21px/1 'Archivo',sans-serif;letter-spacing:.05em;text-transform:uppercase">Confirm clock out</span>
+</button>
+</div>
+</sc-if>
+
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ notif }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:58px;left:10px;right:10px;z-index:95;animation:dbdrop 280ms cubic-bezier(.2,0,0,1)">
+<button type="button" onClick="{{ notifOpen }}" style="width:100%;display:flex;gap:12px;align-items:flex-start;padding:14px;background:rgba(24,28,32,.96);border:1px solid rgba(255,255,255,.18);border-radius:18px;box-shadow:0 12px 28px rgba(0,0,0,.45);color:#fff;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent">
+<img src="assets/db-timeclock.png" alt="" width="42" height="42" style="width:42px;height:42px;border-radius:10px;display:block;flex:none">
+<span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<span style="font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.12em;color:#b9cdf0">DB TIME CLOCK · NOW</span>
+<span style="font:700 15px/1.2 'Barlow',sans-serif;color:#fff">Before photo not taken</span>
+<span style="font:400 13px/1.35 'Barlow',sans-serif;color:rgba(255,255,255,.72)">{{ notifBody }}</span>
+</span>
+</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:16px;right:16px;bottom:122px;z-index:90;pointer-events:none;display:flex;justify-content:center">
+<span style="font:600 11px/1.3 'IBM Plex Mono',monospace;letter-spacing:.09em;text-transform:uppercase;background:#3cc84a;color:#0e1113;padding:14px 16px;border-radius:5px;text-align:center;animation:dbrise 180ms ease-out">{{ toast }}</span>
+</div>
+</sc-if>
+
+</div>
+</div>
+</x-import>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:9px">
+<div class="db-label" style="font-size:10px">JUMP TO A STATE</div>
+<div style="display:flex;flex-wrap:wrap;gap:7px">
+<button type="button" onClick="{{ stClockedOut }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:#fff;border:1px solid #d8dfe8;border-radius:4px;color:#0e1113;cursor:pointer">CLOCKED OUT</button>
+<button type="button" onClick="{{ stCodes }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:#fff;border:1px solid #d8dfe8;border-radius:4px;color:#0e1113;cursor:pointer">CODE PICKER</button>
+<button type="button" onClick="{{ stOnClock }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:#fff;border:1px solid #d8dfe8;border-radius:4px;color:#0e1113;cursor:pointer">ON THE CLOCK</button>
+<button type="button" onClick="{{ stCam }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:#fff;border:1px solid #d8dfe8;border-radius:4px;color:#0e1113;cursor:pointer">CAPTURE</button>
+<button type="button" onClick="{{ stLog }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:#fff;border:1px solid #d8dfe8;border-radius:4px;color:#0e1113;cursor:pointer">DAY LOG</button>
+<button type="button" onClick="{{ stForeman }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:{{ foremanBtnBg }};border:1px solid #d8dfe8;border-radius:4px;color:{{ foremanBtnFg }};cursor:pointer">FOREMAN MODE</button>
+<button type="button" onClick="{{ stNudge }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:#b5892a;border:1px solid #9a742216;border-radius:4px;color:#12100a;cursor:pointer">5-MIN NUDGE</button>
+<button type="button" onClick="{{ stOffline }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:{{ offlineBtnBg }};border:1px solid #d8dfe8;border-radius:4px;color:{{ offlineBtnFg }};cursor:pointer">OFFLINE</button>
+<button type="button" onClick="{{ toggleSun }}" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.09em;padding:10px 11px;background:{{ sunBtnBg }};border:1px solid #d8dfe8;border-radius:4px;color:{{ sunBtnFg }};cursor:pointer">SUN MODE</button>
+</div>
+</div>
+</div>
+
+<div style="width:330px;background:#0e1113;border-radius:8px;padding:26px 24px;display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div class="db-label db-label--on-dark" style="font-size:11px">THE FLOW <em>END TO END</em></div>
+<div style="display:flex;flex-direction:column;gap:11px;font:400 13.5px/1.5 'Barlow',sans-serif;color:rgba(255,255,255,.78)">
+<div style="display:flex;gap:11px"><span class="db-figures" style="font:600 11px/1.55 'IBM Plex Mono',monospace;color:#7ef08a;flex:none">01</span><span>Arrive. One green button. Tap it and the code list opens — you can't clock in without saying what you're doing.</span></div>
+<div style="display:flex;gap:11px"><span class="db-figures" style="font:600 11px/1.55 'IBM Plex Mono',monospace;color:#7ef08a;flex:none">02</span><span>Timer runs on the near-black band. Readable from arm's length in direct sun.</span></div>
+<div style="display:flex;gap:11px"><span class="db-figures" style="font:600 11px/1.55 'IBM Plex Mono',monospace;color:#7ef08a;flex:none">03</span><span>Move to a new task → SWITCH CODE asks one question: <strong>is this code finished?</strong> NO switches straight through. YES requires the after photo before the next code can start.</span></div>
+<div style="display:flex;gap:11px"><span class="db-figures" style="font:600 11px/1.55 'IBM Plex Mono',monospace;color:#7ef08a;flex:none">04</span><span>Photos are prompted, not remembered: a BEFORE sheet the moment a code starts (skippable, one photo clears it), an amber strip until it's satisfied, and a push notification at 5 minutes that reopens the photo screen and copies the office.</span></div>
+<div style="display:flex;gap:11px"><span class="db-figures" style="font:600 11px/1.55 'IBM Plex Mono',monospace;color:#7ef08a;flex:none">05</span><span>DAY LOG holds photos, material counts and notes. One send at the end.</span></div>
+<div style="display:flex;gap:11px"><span class="db-figures" style="font:600 11px/1.55 'IBM Plex Mono',monospace;color:#7ef08a;flex:none">06</span><span>CLOCK OUT shows the day's totals and will not commit without an after photo of the code you're on.</span></div>
+</div>
+</div>
+<hr style="border:0;border-top:1px solid rgba(255,255,255,.14);margin:0">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div class="db-label db-label--on-dark" style="font-size:11px">GLOVE <em>BUDGET</em></div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;justify-content:space-between;gap:10px;font:400 13px/1.4 'Barlow',sans-serif;color:rgba(255,255,255,.78)"><span>Clock in</span><span class="db-figures" style="color:#7ef08a">132 px</span></div>
+<div style="display:flex;justify-content:space-between;gap:10px;font:400 13px/1.4 'Barlow',sans-serif;color:rgba(255,255,255,.78)"><span>Shutter</span><span class="db-figures" style="color:#7ef08a">104 px</span></div>
+<div style="display:flex;justify-content:space-between;gap:10px;font:400 13px/1.4 'Barlow',sans-serif;color:rgba(255,255,255,.78)"><span>Code row</span><span class="db-figures" style="color:#7ef08a">82 px</span></div>
+<div style="display:flex;justify-content:space-between;gap:10px;font:400 13px/1.4 'Barlow',sans-serif;color:rgba(255,255,255,.78)"><span>Tabs, primary buttons</span><span class="db-figures" style="color:#7ef08a">76 px</span></div>
+<div style="display:flex;justify-content:space-between;gap:10px;font:400 13px/1.4 'Barlow',sans-serif;color:rgba(255,255,255,.78)"><span>Qty steppers</span><span class="db-figures" style="color:#7ef08a">52 px</span></div>
+<div style="display:flex;justify-content:space-between;gap:10px;font:400 13px/1.4 'Barlow',sans-serif;color:rgba(255,255,255,.5)"><span>iOS minimum</span><span class="db-figures">44 px</span></div>
+</div>
+</div>
+<hr style="border:0;border-top:1px solid rgba(255,255,255,.14);margin:0">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div class="db-label db-label--on-dark" style="font-size:11px">NEXT <em>STEPS</em></div>
+<div style="font:400 13.5px/1.5 'Barlow',sans-serif;color:rgba(255,255,255,.78)">Say the word and I'll add: an Android frame beside this one, a weekly timesheet screen, a foreman override for the photo block, or a light-mode-first variant to compare against sun mode.</div>
+</div>
+</div>
+
+</div>
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;sunMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Field conditions&quot;},&quot;role&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;crew&quot;,&quot;foreman&quot;],&quot;default&quot;:&quot;crew&quot;,&quot;tsType&quot;:&quot;'crew' | 'foreman'&quot;,&quot;section&quot;:&quot;Field conditions&quot;},&quot;offline&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Field conditions&quot;},&quot;tapTarget&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:112,&quot;min&quot;:56,&quot;max&quot;:112,&quot;step&quot;:4,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Ergonomics&quot;}}">
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.codes = [
+      { n: '100', name: 'Drive time' },
+      { n: '210', name: 'Tear-off' },
+      { n: '220', name: 'Deck repair' },
+      { n: '230', name: 'Dry-in' },
+      { n: '240', name: 'Shingle install' },
+      { n: '250', name: 'Metal & flashing' },
+      { n: '260', name: 'Gutter' },
+      { n: '900', name: 'Cleanup & haul' },
+      { n: '950', name: 'Punch list' },
+    ];
+    this.state = {
+      sun: true, role: 'crew', offline: false, tab: 'job',
+      clockedIn: false, codeIdx: null, elapsed: 0, startedAt: null,
+      sheet: null, promptKind: null, pendingSwitch: null,
+      afterRequired: false, nudged: false, escalated: false, notif: null, returnToClock: false,
+      capture: 'before', mode: 'photo', flash: false, rec: null,
+      toast: null, sent: false,
+      banked: { '100': 2520, '210': 8280 },
+      photos: [
+        { tag: 'before', time: '7:14a', code: '210' }, { tag: 'before', time: '7:16a', code: '210' },
+        { tag: 'before', time: '7:22a', code: '210' }, { tag: 'during', time: '9:05a', code: '210' },
+        { tag: 'during', time: '10:48a', code: '210' }, { tag: 'during', time: '11:31a', code: '210' },
+      ],
+      materials: [
+        { name: '30yr arch shingle', unit: 'BUNDLES', qty: 42 },
+        { name: 'Synthetic underlayment', unit: 'ROLLS', qty: 6 },
+        { name: 'Ice & water shield', unit: 'ROLLS', qty: 3 },
+        { name: 'Ridge vent', unit: 'FEET', qty: 40 },
+      ],
+      notes: [
+        { meta: '9:41A · 220 DECK REPAIR', body: 'North slope decking is soft around the chimney — about 4 sheets. Photos attached. Need Kyle to price it before we dry in.' },
+      ],
+      crew: [
+        { name: 'Tyler B.', on: true, code: '210', secs: 8280 },
+        { name: 'Marcus D.', on: true, code: '210', secs: 8280 },
+        { name: 'Wade K.', on: false, code: null, secs: 0 },
+        { name: 'Jesse P.', on: true, code: '900', secs: 3600 },
+      ],
+    };
+  }
+
+  componentDidMount() {
+    const p = this.props, s = {};
+    if (p.sunMode !== undefined) s.sun = !!p.sunMode;
+    if (p.role) s.role = p.role;
+    if (p.offline !== undefined) s.offline = !!p.offline;
+    if (Object.keys(s).length) this.setState(s);
+    this.timer = setInterval(() => {
+      const st = this.state;
+      if (st.clockedIn) this.setState(x => ({ elapsed: x.elapsed + 1 }));
+      if (st.rec !== null) this.setState(x => ({ rec: x.rec === null ? null : x.rec + 1 }));
+      this.checkNudge();
+    }, 1000);
+  }
+
+  componentDidUpdate(prev) {
+    if (prev.sunMode !== this.props.sunMode && this.props.sunMode !== undefined) this.setState({ sun: !!this.props.sunMode });
+    if (prev.role !== this.props.role && this.props.role) this.setState({ role: this.props.role });
+    if (prev.offline !== this.props.offline && this.props.offline !== undefined) this.setState({ offline: !!this.props.offline });
+  }
+
+  componentWillUnmount() { clearInterval(this.timer); if (this.toastT) clearTimeout(this.toastT); }
+
+  checkNudge() {
+    const s = this.state;
+    if (!s.clockedIn || s.nudged || s.codeIdx === null || s.elapsed < 300) return;
+    const n = this.codes[s.codeIdx].n;
+    if (s.photos.some(p => p.code === n && p.tag === 'before')) return;
+    this.fireNudge();
+  }
+
+  fireNudge() {
+    const s = this.state, c = s.codeIdx === null ? null : this.codes[s.codeIdx];
+    this.setState({
+      nudged: true, escalated: true, tab: 'job', sheet: 'prompt', promptKind: 'before',
+      notif: { body: (c ? c.n + ' ' + c.name.toLowerCase() : 'This code') + ' started ' + Math.max(5, Math.floor(s.elapsed / 60)) + ' minutes ago. Randy has been copied.' },
+    });
+    if (this.notifT) clearTimeout(this.notifT);
+    this.notifT = setTimeout(() => this.setState({ notif: null }), 7000);
+  }
+
+  afterShot(shot) {
+    const s = this.state;
+    if (shot.tag === 'after' && s.pendingSwitch !== null) {
+      setTimeout(() => this.startCode(this.state.pendingSwitch), 520);
+      return;
+    }
+    if (s.returnToClock) {
+      setTimeout(() => this.setState({ tab: 'job', returnToClock: false }), 640);
+    }
+  }
+
+  say(msg) {
+    if (this.toastT) clearTimeout(this.toastT);
+    this.setState({ toast: msg });
+    this.toastT = setTimeout(() => this.setState({ toast: null }), 2600);
+  }
+
+  hms(s) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    return h + ':' + String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0');
+  }
+  hm(s) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h > 0 ? h + 'h ' + String(m).padStart(2, '0') + 'm' : m + 'm';
+  }
+  mmss(s) { return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+  clockLabel(mins) {
+    const d = new Date(); d.setMinutes(d.getMinutes() - mins);
+    let h = d.getHours(); const ap = h >= 12 ? 'p' : 'a'; h = h % 12 || 12;
+    return h + ':' + String(d.getMinutes()).padStart(2, '0') + ap;
+  }
+
+  bank() {
+    const s = this.state;
+    if (s.codeIdx === null) return s.banked;
+    const key = this.codes[s.codeIdx].n;
+    return Object.assign({}, s.banked, { [key]: (s.banked[key] || 0) + s.elapsed });
+  }
+
+  pickCode(i) {
+    const s = this.state;
+    if (s.clockedIn && s.codeIdx === i) { this.setState({ sheet: null }); return; }
+    if (s.clockedIn) { this.setState({ sheet: 'prompt', promptKind: 'after', pendingSwitch: i }); return; }
+    this.startCode(i);
+  }
+
+  startCode(i) {
+    const s = this.state, c = this.codes[i];
+    const next = { clockedIn: true, codeIdx: i, elapsed: 0, sent: false, pendingSwitch: null,
+                   afterRequired: false, nudged: false, escalated: false, notif: null, returnToClock: false,
+                   sheet: 'prompt', promptKind: 'before', tab: 'job' };
+    if (s.clockedIn) next.banked = this.bank();
+    this.setState(next);
+    this.say((s.clockedIn ? 'Now on ' : 'On the clock · ') + c.n + ' ' + c.name);
+  }
+
+  renderVals() {
+    const s = this.state, sun = s.sun;
+    const theme = sun
+      ? { '--c-bg': '#0e1113', '--c-surf': '#181c20', '--c-surf2': '#22272b', '--c-line': 'rgba(255,255,255,.16)', '--c-line2': 'rgba(255,255,255,.34)', '--c-fg': '#ffffff', '--c-mut': 'rgba(255,255,255,.76)', '--c-lab': '#b9cdf0', '--c-acc': '#7ef08a', '--c-band': '#070e1c', '--c-bandline': 'rgba(255,255,255,.14)', '--c-chip': 'rgba(255,255,255,.09)', '--c-nav': '#1a4789', '--c-tabbg': '#070e1c', '--c-stop': '#ffffff', '--c-stopfg': '#0e1113', '--c-total': 'rgba(60,200,74,.14)', '--c-navline': '#3cc84a', '--c-sunico': '#ffd84d' }
+      : { '--c-bg': '#f4f6f9', '--c-surf': '#ffffff', '--c-surf2': '#e9edf3', '--c-line': '#d8dfe8', '--c-line2': '#b6c0cd', '--c-fg': '#0e1113', '--c-mut': '#2b3033', '--c-lab': '#474d51', '--c-acc': '#1e7a2f', '--c-band': '#0d1a33', '--c-bandline': 'rgba(255,255,255,.14)', '--c-chip': '#e9edf3', '--c-nav': '#1a4789', '--c-tabbg': '#142a52', '--c-stop': '#0e1113', '--c-stopfg': '#ffffff', '--c-total': '#e4f9e7', '--c-navline': '#1e7a2f', '--c-sunico': '#6b6f72' };
+    theme['--tap'] = (this.props.tapTarget || 76) + 'px';
+    theme.height = '100%';
+
+    const active = s.codeIdx === null ? null : this.codes[s.codeIdx];
+    const banked = this.bank();
+    const totalSecs = Object.keys(banked).reduce((a, k) => a + banked[k], 0);
+    const entryRows = Object.keys(banked).sort().map(k => {
+      const c = this.codes.find(x => x.n === k);
+      const live = !!active && active.n === k && s.clockedIn;
+      return { n: k, name: (c ? c.name : k).toUpperCase() + (live ? ' ·' : ''), dur: this.hm(banked[k]) };
+    });
+
+    const cap = s.capture;
+    const seg = (key) => cap === key
+      ? { border: '#3cc84a', bg: '#3cc84a', fg: '#0e1113' }
+      : { border: 'rgba(255,255,255,.28)', bg: 'transparent', fg: '#ffffff' };
+    const b = seg('before'), d = seg('during'), a = seg('after');
+    const count = (t) => String(s.photos.filter(p => p.tag === t).length).padStart(2, '0');
+
+    const tagStyles = {
+      before: ['rgba(255,255,255,.9)', '#0e1113'],
+      during: ['#1a4789', '#ffffff'],
+      after: ['#3cc84a', '#0e1113'],
+    };
+
+    const tabFg = (t) => s.tab === t ? '#ffffff' : 'rgba(255,255,255,.74)';
+    const tabBar = (t) => s.tab === t ? '#3cc84a' : 'transparent';
+
+    const codeRows = this.codes.map((c, i) => {
+      const isActive = s.codeIdx === i && s.clockedIn;
+      return {
+        n: c.n, name: c.name, pick: () => this.pickCode(i),
+        bg: isActive ? (sun ? 'rgba(60,200,74,.14)' : '#e4f9e7') : 'transparent',
+        fg: 'var(--c-fg,#fff)', numFg: 'var(--c-lab,#b9cdf0)',
+        metaFg: isActive ? (sun ? '#7ef08a' : '#1e7a2f') : 'var(--c-lab,#b9cdf0)',
+        meta: isActive ? 'RUNNING' : (banked[c.n] ? this.hm(banked[c.n]).toUpperCase() : ''),
+      };
+    });
+
+    const sheetTitles = { codes: s.clockedIn ? 'Switch code' : 'What are you doing?', schedule: 'Schedule', out: 'End of day', prompt: 'Photo check' };
+    const activeN = active ? active.n : null;
+    const codePhotos = s.photos.filter(p => p.code === activeN);
+    const hasTag = (t) => codePhotos.some(p => p.tag === t);
+    const afterShot = codePhotos.filter(p => p.tag === 'after').slice(-1)[0];
+    const needBefore = s.clockedIn && !hasTag('before');
+    const needDuring = s.clockedIn && !needBefore && s.elapsed > 2700 && !hasTag('during');
+    const remNeed = needBefore || needDuring || s.afterRequired;
+    const needOutPhoto = !afterShot;
+    const promptAfter = s.promptKind === 'after';
+    const nextCode = s.pendingSwitch === null ? null : this.codes[s.pendingSwitch];
+
+    return {
+      theme, sun,
+      isJob: s.tab === 'job', isCam: s.tab === 'cam', isLog: s.tab === 'log',
+      showTabs: true,
+      clockedIn: s.clockedIn, clockedOut: !s.clockedIn,
+      offline: s.offline, isForeman: s.role === 'foreman',
+      whoLabel: s.role === 'foreman' ? 'RANDY H. · FOREMAN' : 'TYLER B. · CREW',
+      queueLabel: (s.photos.length + 2) + ' items queued',
+      elapsedText: this.hms(s.elapsed),
+      activeNum: active ? active.n : '', activeName: active ? active.name.toUpperCase() : '',
+      startedLabel: this.clockLabel(Math.floor(s.elapsed / 60)),
+      entryRows, totalToday: this.hm(totalSecs),
+      crewOnCount: String(s.crew.filter(m => m.on).length),
+      crew: s.crew.map((m, i) => ({
+        name: m.name, dot: m.on ? '#3cc84a' : (sun ? 'rgba(255,255,255,.45)' : '#b6c0cd'),
+        status: m.on ? 'ON · ' + m.code + ' ' + (this.codes.find(c => c.n === m.code) || {}).name.toUpperCase() : 'NOT CLOCKED IN',
+        dur: m.on ? this.hm(m.secs) : '—',
+        toggle: () => this.setState(x => ({ crew: x.crew.map((q, j) => j === i ? Object.assign({}, q, { on: !q.on, code: q.on ? null : '210', secs: q.on ? 0 : 60 }) : q) })),
+      })),
+      clockAll: () => { this.setState(x => ({ crew: x.crew.map(q => q.on ? q : Object.assign({}, q, { on: true, code: '210', secs: 60 })) })); this.say('Whole crew on 210 tear-off'); },
+
+      camCodeLabel: active ? active.n + ' ' + active.name.toUpperCase() : 'NOT CLOCKED IN',
+      shotCountLabel: String(s.photos.length).padStart(2, '0') + ' TODAY',
+      recording: s.rec !== null, recText: this.mmss(s.rec || 0), flash: s.flash,
+      beforeBorder: b.border, beforeBg: b.bg, beforeFg: b.fg, beforeCount: count('before'),
+      duringBorder: d.border, duringBg: d.bg, duringFg: d.fg, duringCount: count('during'),
+      afterBorder: a.border, afterBg: a.bg, afterFg: a.fg, afterCount: count('after'),
+      modeLabel: s.mode === 'photo' ? 'VIDEO' : 'PHOTO',
+      shutterFill: s.rec !== null ? '#c0392b' : (s.mode === 'video' ? '#c0392b' : '#ffffff'),
+      shutterRadius: s.rec !== null ? '12px' : '50%',
+      lastShotLabel: String(s.photos.length).padStart(2, '0'),
+
+      photos: s.photos.slice().reverse().map(p => ({
+        tag: p.tag.toUpperCase(), time: p.time,
+        tagBg: tagStyles[p.tag][0], tagFg: tagStyles[p.tag][1],
+      })),
+      photoCount: String(s.photos.length).padStart(2, '0'),
+      materials: s.materials.map((m, i) => ({
+        name: m.name, unit: m.unit, qty: String(m.qty),
+        inc: () => this.setState(x => ({ materials: x.materials.map((q, j) => j === i ? Object.assign({}, q, { qty: q.qty + 1 }) : q), sent: false })),
+        dec: () => this.setState(x => ({ materials: x.materials.map((q, j) => j === i ? Object.assign({}, q, { qty: Math.max(0, q.qty - 1) }) : q), sent: false })),
+      })),
+      notes: s.notes,
+      addNote: () => { this.setState(x => ({ notes: x.notes.concat([{ meta: this.clockLabel(0).toUpperCase() + ' · ' + (active ? active.n + ' ' + active.name.toUpperCase() : 'NO CODE'), body: 'Voice note recorded — 0:14. Tap to play or type instead.' }]), sent: false })); this.say('Note added to the day log'); },
+      sendOffice: () => { this.setState({ sent: true }); this.say('Sent · photos to DB Cam, hours to JobTread'); },
+      syncLabel: s.offline ? 'QUEUED' : (s.sent ? 'SENT' : 'NOT SENT'),
+      syncBg: s.offline ? '#b5892a' : (s.sent ? '#3cc84a' : (sun ? 'rgba(255,255,255,.09)' : '#e9edf3')),
+      syncFg: s.offline ? '#12100a' : (s.sent ? '#0e1113' : (sun ? 'rgba(255,255,255,.62)' : '#474d51')),
+
+      scheduleRows: [
+        { day: 'TODAY · MON JUL 27', addr: '4127 Lincoln Hwy', detail: 'Hoverman Residence · Tear-off & re-roof · Day 2 of 3', bar: '#3cc84a', dayFg: sun ? '#7ef08a' : '#1e7a2f' },
+        { day: 'TOMORROW · TUE JUL 28', addr: '4127 Lincoln Hwy', detail: 'Hoverman Residence · Shingle install & cleanup · Day 3 of 3', bar: sun ? 'rgba(255,255,255,.2)' : '#b6c0cd', dayFg: 'var(--c-lab,#b9cdf0)' },
+        { day: 'WED JUL 29', addr: '812 S Washington St', detail: 'Bidlack · Standing-seam metal · Day 1 of 4', bar: sun ? 'rgba(255,255,255,.2)' : '#b6c0cd', dayFg: 'var(--c-lab,#b9cdf0)' },
+      ],
+      outSummary: entryRows.map(r => r.name.replace(' ·', '') + ' ' + r.dur).join(' · '),
+
+      sheetOpen: !!s.sheet, sheetTitle: sheetTitles[s.sheet] || '',
+      sheetIsCodes: s.sheet === 'codes', sheetIsSchedule: s.sheet === 'schedule', sheetIsOut: s.sheet === 'out',
+      codeRows,
+      closeSheet: () => this.setState({ sheet: null }),
+      openCodes: () => this.setState({ sheet: 'codes' }),
+      openSchedule: () => this.setState({ sheet: 'schedule' }),
+      askClockOut: () => this.setState({ sheet: 'out' }),
+      confirmOut: () => {
+        if (needOutPhoto) { this.say('After photo required before clock-out'); return; }
+        this.setState({ banked: this.bank(), clockedIn: false, codeIdx: null, elapsed: 0, sheet: null, pendingSwitch: null, promptKind: null });
+        this.say('Clocked out · ' + this.hm(totalSecs) + ' sent to JobTread');
+      },
+      goAfterPhoto: () => this.setState({ sheet: null, tab: 'cam', capture: 'after', returnToClock: true }),
+      needOutPhoto,
+      outGateBg: needOutPhoto ? '#b5892a' : 'transparent',
+      outGateBorder: needOutPhoto ? '#b5892a' : (sun ? 'rgba(126,240,138,.5)' : '#3cc84a'),
+      outGateFg: needOutPhoto ? '#12100a' : 'var(--c-fg,#fff)',
+      outGateLabel: needOutPhoto ? 'REQUIRED TO CLOCK OUT' : 'AFTER PHOTO · ON FILE',
+      outGateBody: needOutPhoto
+        ? 'One after photo of ' + (active ? active.n + ' ' + active.name.toLowerCase() : 'the work') + '.'
+        : (afterShot ? afterShot.time + ' · ' + (active ? active.n + ' ' + active.name.toLowerCase() : '') : 'Filed.'),
+      confirmBg: needOutPhoto ? 'var(--c-surf2,#22272b)' : 'var(--c-stop,#fff)',
+      confirmFg: needOutPhoto ? 'var(--c-mut,rgba(255,255,255,.76))' : 'var(--c-stopfg,#0e1113)',
+      confirmOpacity: needOutPhoto ? '.6' : '1',
+
+      showReminder: s.clockedIn,
+      remBg: remNeed ? '#b5892a' : 'transparent',
+      remBorder: remNeed ? '#b5892a' : (needOutPhoto ? 'var(--c-line2,rgba(255,255,255,.34))' : (sun ? 'rgba(126,240,138,.4)' : '#3cc84a')),
+      remFg: remNeed ? '#12100a' : 'var(--c-fg,#fff)',
+      remLabel: s.afterRequired ? 'AFTER PHOTO · BLOCKING THE SWITCH'
+        : (needBefore ? 'BEFORE PHOTO · REQUIRED'
+        : (needDuring ? 'PROGRESS PHOTO · DUE'
+        : (needOutPhoto ? 'AFTER PHOTO · DUE WHEN DONE' : 'PHOTO CHECK · CLEAR'))),
+      remBody: s.afterRequired ? 'Shoot the finished work to start ' + (nextCode ? nextCode.n + ' ' + nextCode.name.toLowerCase() : 'the next code') + '.'
+        : needBefore ? 'One shot of the area before you start.'
+        : (needDuring ? '45 minutes in — grab a during shot.'
+        : (needOutPhoto ? codePhotos.length + ' on file. You can\'t clock out without the after shot.'
+        : codePhotos.length + ' photos on this code. Nothing owed.')),
+      reminderAction: () => this.setState({ tab: 'cam', returnToClock: true, capture: (needBefore && !s.afterRequired) ? 'before' : (needDuring ? 'during' : 'after') }),
+
+      sheetIsPrompt: s.sheet === 'prompt',
+      promptEyebrow: promptAfter
+        ? 'FINISHED? · ' + (active ? active.n : '')
+        : (s.escalated ? '5 MINUTES IN · ' + (active ? active.n : '') : 'CODE STARTED · ' + (active ? active.n : '')),
+      promptTitle: promptAfter ? (active ? active.name : '') + ' done?' : (active ? active.name : ''),
+      promptBody: promptAfter
+        ? 'Is ' + (active ? active.n + ' ' + active.name.toLowerCase() : 'this code') + ' finished, or are you coming back to it?'
+        : (s.escalated
+          ? 'No before photo on this code and you have been on it five minutes. The office has been notified. Take it now — it is what protects this job.'
+          : 'One before photo of the area before you start. It protects the job and it feeds the DB Cam report.'),
+      promptCta: 'Take before photo',
+      promptSkipLabel: s.escalated ? 'Still not now' : 'Start without a photo',
+      promptBg: 'transparent',
+      promptBorder: promptAfter ? '#b5892a' : (s.escalated ? '#b5892a' : (sun ? 'rgba(126,240,138,.5)' : '#3cc84a')),
+      promptFg: 'var(--c-fg,#fff)',
+      promptShoot: () => this.setState({ sheet: null, tab: 'cam', capture: 'before', notif: null, returnToClock: true }),
+      promptSkip: () => this.setState({ sheet: null, promptKind: null, notif: null }),
+      promptIsAfter: promptAfter, promptIsBefore: s.sheet === 'prompt' && !promptAfter,
+      promptYes: () => { this.setState({ sheet: null, tab: 'cam', capture: 'after', afterRequired: true }); this.say('After photo required to start ' + (nextCode ? nextCode.n : '')); },
+      promptNo: () => { if (s.pendingSwitch !== null) this.startCode(s.pendingSwitch); else this.setState({ sheet: null }); },
+      promptFine: 'Yes → one after photo of the finished work, then ' + (nextCode ? nextCode.n + ' ' + nextCode.name.toLowerCase() : 'the next code') + ' starts. No → switch now, nothing owed.',
+      afterRequired: s.afterRequired,
+      afterReqLabel: 'AFTER PHOTO OF ' + (active ? active.n + ' ' + active.name.toUpperCase() : '') + ' REQUIRED TO START ' + (nextCode ? nextCode.n : ''),
+      notif: s.notif ? true : false,
+      notifBody: s.notif ? s.notif.body : '',
+      notifOpen: () => this.setState({ notif: null, tab: 'cam', capture: 'before', sheet: null, returnToClock: true }),
+      stNudge: () => { this.setState({ tab: 'job', clockedIn: true, codeIdx: 3, elapsed: 312, nudged: false, sheet: null, pendingSwitch: null, afterRequired: false }); setTimeout(() => this.fireNudge(), 400); },
+
+      toast: s.sheet ? null : s.toast,
+      jobTabFg: tabFg('job'), camTabFg: tabFg('cam'), logTabFg: tabFg('log'),
+      jobTabBar: tabBar('job'), camTabBar: tabBar('cam'), logTabBar: tabBar('log'),
+      goJob: () => this.setState(x => ({ tab: 'job', sheet: null, pendingSwitch: x.afterRequired ? x.pendingSwitch : null })),
+      goCam: () => this.setState({ tab: 'cam', sheet: null, returnToClock: false }),
+      goLog: () => this.setState(x => ({ tab: 'log', sheet: null, pendingSwitch: x.afterRequired ? x.pendingSwitch : null })),
+      toggleSun: () => this.setState(x => ({ sun: !x.sun })),
+      toggleMode: () => this.setState(x => ({ mode: x.mode === 'photo' ? 'video' : 'photo', rec: null })),
+      setBefore: () => this.setState({ capture: 'before' }),
+      setDuring: () => this.setState({ capture: 'during' }),
+      setAfter: () => this.setState({ capture: 'after' }),
+      shoot: () => {
+        const shot = { tag: s.capture, time: this.clockLabel(0), code: activeN };
+        if (s.mode === 'video') {
+          if (s.rec === null) { this.setState({ rec: 0 }); this.say('Recording ' + s.capture); return; }
+          this.setState(x => ({ rec: null, photos: x.photos.concat([shot]), sent: false }));
+          this.say('Clip saved · ' + s.capture);
+          this.afterShot(shot);
+          return;
+        }
+        this.setState(x => ({ flash: true, photos: x.photos.concat([shot]), sent: false }));
+        setTimeout(() => this.setState({ flash: false }), 280);
+        this.afterShot(shot);
+      },
+
+      stClockedOut: () => this.setState({ tab: 'job', clockedIn: false, codeIdx: null, elapsed: 0, sheet: null }),
+      stCodes: () => this.setState({ tab: 'job', sheet: 'codes' }),
+      stOnClock: () => this.setState({ tab: 'job', clockedIn: true, codeIdx: 1, elapsed: 8078, sheet: null }),
+      stCam: () => this.setState({ tab: 'cam', sheet: null }),
+      stLog: () => this.setState({ tab: 'log', sheet: null }),
+      stForeman: () => this.setState(x => ({ role: x.role === 'foreman' ? 'crew' : 'foreman', tab: 'job', sheet: null })),
+      stOffline: () => this.setState(x => ({ offline: !x.offline })),
+      foremanBtnBg: s.role === 'foreman' ? '#0e1113' : '#ffffff',
+      foremanBtnFg: s.role === 'foreman' ? '#ffffff' : '#0e1113',
+      offlineBtnBg: s.offline ? '#0e1113' : '#ffffff',
+      offlineBtnFg: s.offline ? '#ffffff' : '#0e1113',
+      sunBtnBg: sun ? '#0e1113' : '#ffffff',
+      sunBtnFg: sun ? '#ffffff' : '#0e1113',
+    };
+  }
+}
+</script>
+</body>
+</html>
