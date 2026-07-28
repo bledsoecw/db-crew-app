@@ -1,0 +1,123 @@
+/* Screenshot every screen against dev/mock.js. Nothing here ships.
+ *
+ *   node dev/preview.mjs [outDir]
+ *
+ * Needs a local static server on the port below and Playwright available.
+ * The Chromium flags give it a fake camera so the capture screen renders a
+ * real preview instead of the permission wall. */
+import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
+
+const OUT = process.argv[2] || './shots';
+const APP_URL = process.env.PREVIEW_URL || 'http://localhost:8100/';
+const mock = readFileSync(new URL('./mock.js', import.meta.url), 'utf8');
+
+const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium',
+  args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+});
+
+async function session(flags = {}) {
+  const ctx = await browser.newContext({
+    viewport: { width: 402, height: 874 },
+    deviceScaleFactor: 2,
+    permissions: ['camera'],
+  });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    // The sandbox has no CA for accounts.google.com; that's the environment.
+    if (/ERR_CERT_AUTHORITY_INVALID/.test(m.text())) return;
+    errs.push(m.text());
+  });
+  page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
+  await page.addInitScript(`window.__MOCK_FOREMAN=${!!flags.foreman};window.__MOCK_READONLY=${!!flags.readOnly};`);
+  await page.addInitScript(mock);
+  await page.goto(APP_URL, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1400);
+  return { ctx, page, errs };
+}
+
+const shot = (page, n) => page.screenshot({ path: `${OUT}/${n}.png` });
+const tap = async (page, sel, ms = 500) => { await page.locator(sel).first().click(); await page.waitForTimeout(ms); };
+
+const allErrs = [];
+
+// ---- crew: clocked out -> clock in -> owed -> switch -> blocked clock-out ----
+{
+  const { ctx, page, errs } = await session();
+  await shot(page, '01-clocked-out');
+
+  await tap(page, '#clockIn');
+  await shot(page, '02-code-picker');
+
+  await tap(page, '.coderow:has-text("Masonry Labor")', 800);
+  await shot(page, '03-before-prompt');
+
+  await tap(page, '#pSkip');
+  await shot(page, '04-on-clock-owed');
+
+  await tap(page, '#switchBtn');
+  await tap(page, '.coderow:has-text("Final Clean")', 700);
+  await shot(page, '05-finished-prompt');
+
+  await tap(page, '#pNo', 900);
+  await tap(page, '#pSkip');
+  await tap(page, '#clockOutBtn', 600);
+  await shot(page, '06-clock-out-blocked');
+
+  await tap(page, '#sheetClose');
+  await tap(page, '.tab[data-tab="cam"]', 1200);
+  await shot(page, '07-capture');
+
+  await tap(page, '.tab[data-tab="log"]', 600);
+  await shot(page, '08-day-log');
+
+  await tap(page, '.tab[data-tab="job"]', 400);
+  await tap(page, '#sunBtn', 500);
+  await shot(page, '09-day-mode');
+
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- foreman + the read-only bar ----
+{
+  const { ctx, page, errs } = await session({ foreman: true, readOnly: true });
+  await page.mouse.wheel(0, 1200);
+  await page.waitForTimeout(400);
+  await shot(page, '10-foreman-readonly');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- the 5-minute escalation, with the grace period shortened ----
+{
+  const ctx = await browser.newContext({ viewport: { width: 402, height: 874 }, deviceScaleFactor: 2, permissions: ['camera'] });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('console', (m) => { if (m.type() === 'error' && !/ERR_CERT_AUTHORITY_INVALID/.test(m.text())) errs.push(m.text()); });
+  page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
+  await page.addInitScript('window.__MOCK_FOREMAN=false;window.__MOCK_READONLY=false;');
+  await page.addInitScript(mock);
+  // Match both "/" and "/index.html" — the app is served from the directory URL.
+  await page.route((u) => u.pathname === '/' || u.pathname.endsWith('/index.html'), async (route) => {
+    const res = await route.fetch();
+    let body = await res.text();
+    body = body.replace('var BEFORE_GRACE_SEC = 5*60;', 'var BEFORE_GRACE_SEC = 3;');
+    await route.fulfill({ response: res, body });
+  });
+  await page.goto(APP_URL, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1400);
+  await tap(page, '#clockIn');
+  await tap(page, '.coderow:has-text("Masonry Labor")', 800);
+  await tap(page, '#pSkip');
+  await page.waitForTimeout(5200);
+  await shot(page, '11-nudge');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+await browser.close();
+console.log('CONSOLE ERRORS:', JSON.stringify([...new Set(allErrs)].slice(0, 12), null, 1));

@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DB Time Clock</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0e1113">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="app-icon-180.png">
+<link rel="icon" type="image/png" href="app-icon-192.png">
+<script src="config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="preload" as="font" type="font/woff2" href="fonts/archivo-800.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="fonts/barlow-400.woff2" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="fonts/plexmono-600.woff2" crossorigin>
+<style>
+/* The three design-system faces are served from this origin, not a CDN.
+   A crew member opening the app with no signal still gets the real
+   typography, and the service worker caches them with the shell.
+   209KB for all six weights. */
+@font-face{font-family:Archivo;src:url(fonts/archivo-700.woff2) format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:Archivo;src:url(fonts/archivo-800.woff2) format('woff2');font-weight:800;font-style:normal;font-display:swap}
+@font-face{font-family:Barlow;src:url(fonts/barlow-400.woff2) format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:Barlow;src:url(fonts/barlow-600.woff2) format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:Barlow;src:url(fonts/barlow-700.woff2) format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url(fonts/plexmono-600.woff2) format('woff2');font-weight:600;font-style:normal;font-display:swap}
+
+/* ===========================================================
+   Deitemeyer Brothers design system, sun mode by default.
+   Near-black ground + white type is the highest-contrast,
+   lowest-glare combination on a phone in direct sun. Day mode
+   is the indoor scheme, one tap away.
+   =========================================================== */
+:root{
+  --bg:#0e1113; --surf:#181c20; --surf2:#22272b;
+  --line:rgba(255,255,255,.16); --line2:rgba(255,255,255,.34);
+  --fg:#fff; --mut:rgba(255,255,255,.76); --lab:#b9cdf0; --acc:#7ef08a;
+  --band:#070e1c; --bandline:rgba(255,255,255,.14);
+  --chip:rgba(255,255,255,.09); --nav:#1a4789; --tabbg:#070e1c;
+  --stop:#fff; --stopfg:#0e1113; --total:rgba(60,200,74,.14);
+  --navline:#3cc84a; --sunico:#ffd84d; --codehi:rgba(60,200,74,.14);
+
+  /* these never flip: green means go, amber is the only warning voice */
+  --go:#3cc84a; --goink:#0e1113; --warn:#b5892a; --warnink:#12100a;
+  --rec:#c0392b; --live:#3cc84a; --livetext:#7ef08a;
+
+  --sat:env(safe-area-inset-top,12px); --sab:env(safe-area-inset-bottom,12px);
+  --head:Archivo,system-ui,sans-serif; --sans:Barlow,system-ui,sans-serif; --mono:'IBM Plex Mono',monospace;
+  --tap:76px;
+}
+[data-theme="day"]{
+  --bg:#f4f6f9; --surf:#fff; --surf2:#e9edf3;
+  --line:#d8dfe8; --line2:#b6c0cd;
+  --fg:#0e1113; --mut:#2b3033; --lab:#474d51; --acc:#1e7a2f;
+  --band:#0d1a33; --chip:#e9edf3; --tabbg:#142a52;
+  --stop:#0e1113; --stopfg:#fff; --total:#e4f9e7;
+  --navline:#1e7a2f; --sunico:#6b6f72; --codehi:#e4f9e7;
+}
+
+*{-webkit-tap-highlight-color:transparent;box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overscroll-behavior:none}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);-webkit-font-smoothing:antialiased;position:fixed;inset:0;overflow:hidden;width:100%}
+button{font-family:inherit;-webkit-user-select:none;user-select:none;border:none;background:none;color:inherit;cursor:pointer}
+button:active{opacity:.72}
+button[disabled]{cursor:default}
+.hidden{display:none !important}
+.view{position:absolute;inset:0 0 var(--tabh,96px) 0;display:none;flex-direction:column}
+.view.on{display:flex}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.tabular{font-variant-numeric:tabular-nums}
+
+/* ---- type helpers, straight from the design system ---- */
+.k{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--lab)}
+.k9{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
+.h-addr{font:800 27px/1.05 var(--head);letter-spacing:-.27px;text-transform:uppercase;color:var(--fg)}
+.body{font:400 15px/1.35 var(--sans);color:var(--mut)}
+
+/* ---------------- sign-in gate ---------------- */
+#gate{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:34px;background:var(--bg);z-index:200;text-align:center}
+#gate img{width:96px;height:96px;border-radius:20px}
+#gate .t{font:800 24px/1.1 var(--head);letter-spacing:.5px;text-transform:uppercase}
+#gate .s{font:400 14px/1.55 var(--sans);color:var(--mut);max-width:300px}
+#gateBtnWrap{min-height:44px;display:flex;align-items:center;justify-content:center}
+#gateErr{font:400 13px/1.5 var(--sans);color:#f0a9a0;max-width:300px}
+
+/* ---------------- header ---------------- */
+#hdr{padding:calc(var(--sat) + 3px) 8px 6px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
+#hdrL{display:flex;align-items:center;gap:11px;min-width:0}
+#hdrL img{width:55px;height:55px;border-radius:12px;flex:none}
+#hdrT{font:800 15px/1 var(--head);letter-spacing:.15px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hdrW{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sunBtn{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--sunico)}
+
+/* ---------------- banners ---------------- */
+.warnbar{display:flex;align-items:center;gap:9px;padding:10px 20px;background:var(--warn);color:var(--warnink);font:600 11px/1.3 var(--mono);letter-spacing:.99px;text-transform:uppercase;flex:none}
+.robar{background:var(--nav);color:#fff}
+
+/* ---------------- clock screen ---------------- */
+.pad{padding:0 20px}
+.card{background:var(--surf);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:14px}
+.card .in{padding:16px 18px 15px;display:flex;flex-direction:column;gap:9px}
+.card .sub{font:400 15px/1.3 var(--sans);color:var(--mut)}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:3px}
+.chip{background:var(--chip);color:var(--mut);border-radius:2px;padding:6px 9px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
+.cardbtn{min-height:60px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 18px;background:var(--surf2);border-top:1px solid var(--line);font:600 11px/1 var(--mono);letter-spacing:.99px;text-transform:uppercase;color:var(--mut)}
+
+#band{background:var(--band);border:1px solid var(--bandline);border-radius:8px;padding:20px 18px 18px;display:flex;flex-direction:column;gap:14px;margin-top:14px}
+#band .live{display:flex;align-items:center;gap:9px}
+#band .dot{width:11px;height:11px;border-radius:50%;background:var(--live);animation:pulse 1.6s ease-in-out infinite}
+#band .lbl{font:600 11px/1 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:var(--livetext)}
+#elapsed{font:800 62px/1 var(--head);letter-spacing:-1.86px;color:#fff}
+#bandCode{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+#bandCodeN{font:600 15px/1 var(--mono);letter-spacing:.9px;color:#7ba4dd}
+#bandCodeName{font:700 17px/1.1 var(--head);letter-spacing:.34px;text-transform:uppercase;color:#fff}
+#bandSub{font:400 13px/1.4 var(--sans);color:rgba(255,255,255,.55)}
+
+#remind{width:100%;min-height:var(--tap);display:flex;align-items:center;gap:13px;padding:14px 15px;border-radius:6px;border:2px solid var(--line2);margin-top:12px;text-align:left}
+#remind.owed{background:var(--warn);border-color:var(--warn);color:var(--warnink)}
+#remind.clear{border-color:rgba(126,240,138,.4)}
+[data-theme="day"] #remind.clear{border-color:#1e7a2f}
+#remind .rl{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;opacity:.85}
+#remind .rb{font:600 14.5px/1.3 var(--sans);margin-top:5px}
+#remind .rt{flex:1;min-width:0}
+
+.btn{width:100%;min-height:var(--tap);display:flex;align-items:center;justify-content:center;gap:11px;border-radius:6px;font-family:var(--head);text-transform:uppercase}
+.btn-out{border:2px solid var(--line2);color:var(--fg);font-weight:700;font-size:17px;letter-spacing:.68px}
+.btn-stop{background:var(--stop);color:var(--stopfg);font-weight:800;font-size:20px;letter-spacing:1px;gap:12px}
+.btn-nav{background:var(--nav);color:#fff;font-weight:700;font-size:16px;letter-spacing:.64px}
+.btn-go{background:var(--go);color:var(--goink);font-weight:800;font-size:18px;letter-spacing:.72px}
+#clockIn{min-height:132px;background:var(--go);color:var(--goink);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:16px}
+#clockIn .big{font:800 30px/1 var(--head);letter-spacing:.9px;text-transform:uppercase}
+#clockIn .sm{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;opacity:.7}
+.stack{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+
+.tbl{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:11px}
+.trow{min-height:58px;display:flex;align-items:center;gap:12px;padding:0 15px;background:var(--surf);border-bottom:1px solid var(--line)}
+.trow .n{width:52px;flex:none;font:600 12px/1 var(--mono);letter-spacing:.72px;color:var(--lab)}
+.trow .nm{flex:1;min-width:0;font:600 14px/1.2 var(--sans);text-transform:uppercase;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow .d{font:700 15px/1 var(--head);letter-spacing:.15px;color:var(--fg)}
+.ttotal{min-height:58px;display:flex;align-items:center;gap:12px;padding:0 15px;background:var(--total)}
+.ttotal .l{flex:1;font:600 11px/1 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:var(--acc)}
+.ttotal .v{font:800 19px/1 var(--head);letter-spacing:-.19px;color:var(--acc)}
+.sect{margin-top:22px}
+.secthead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
+
+.crewrow{min-height:70px;display:flex;align-items:center;gap:13px;padding:0 15px;background:var(--surf);border:1px solid var(--line);border-radius:6px}
+.crewrow .cd{width:13px;height:13px;border-radius:50%;flex:none;background:var(--line2)}
+.crewrow.on .cd{background:var(--live)}
+.crewrow .cn{font:700 16px/1 var(--head);letter-spacing:.16px;text-transform:uppercase}
+.crewrow .cs{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--lab);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crewrow .ct{font:700 15px/1 var(--head);color:var(--mut);flex:none}
+
+/* ---------------- camera ---------------- */
+#vCam{background:#080a0c}
+#vfWrap{flex:1;position:relative;overflow:hidden;background:#101418;min-height:0}
+#vf{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#camFallback{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:0 30px;text-align:center;color:rgba(255,255,255,.8)}
+.corner{position:absolute;width:34px;height:34px;border-color:rgba(255,255,255,.4);pointer-events:none}
+#stamps{position:absolute;top:calc(var(--sat) + 11px);left:0;right:0;padding:0 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;pointer-events:none}
+#stampsL{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:0}
+.stamp{background:rgba(0,0,0,.6);color:#fff;border-radius:3px;padding:8px 10px;font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stamp.go{background:var(--go);color:var(--goink);letter-spacing:.9px}
+#afterBar{position:absolute;top:calc(var(--sat) + 82px);left:16px;right:16px;display:none;justify-content:center;pointer-events:none}
+#afterBar span{background:var(--warn);color:var(--warnink);border-radius:3px;padding:11px 13px;font:600 10.5px/1.4 var(--mono);letter-spacing:.95px;text-transform:uppercase;text-align:center}
+#recPill{position:absolute;top:calc(var(--sat) + 84px);left:0;right:0;display:none;justify-content:center;pointer-events:none}
+#recPill .in{display:flex;align-items:center;gap:8px;background:rgba(192,57,43,.92);border-radius:3px;padding:9px 13px}
+#recPill .d{width:9px;height:9px;border-radius:50%;background:#fff;animation:pulse 1.1s infinite}
+#recPill .t{font:600 12px/1 var(--mono);letter-spacing:1.08px;color:#fff}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+#flash.go{animation:flashOut .26s ease-out forwards}
+#camDeck{flex:none;background:#080a0c;padding:16px 16px 14px;display:flex;flex-direction:column;gap:16px}
+#tagRow{display:flex;gap:8px}
+.tagbtn{flex:1;min-height:66px;border-radius:5px;border:2px solid rgba(255,255,255,.28);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#fff}
+.tagbtn.on{background:var(--go);border-color:var(--go);color:var(--goink)}
+.tagbtn .tl{font:800 15px/1 var(--head);letter-spacing:.75px;text-transform:uppercase}
+.tagbtn .tc{font:600 10px/1 var(--mono);letter-spacing:.9px;opacity:.68}
+#camCtl{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:6px}
+.sqbtn{width:86px;height:86px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#fff;flex:none;position:relative;overflow:hidden;background-size:cover;background-position:center}
+.sqbtn .sl{font:600 9.5px/1 var(--mono);letter-spacing:.86px;text-transform:uppercase}
+#shutter{width:104px;height:104px;border-radius:50%;border:4px solid rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;flex:none;padding:0}
+#shutterIn{width:82px;height:82px;border-radius:50%;background:#fff;transition:border-radius .18s}
+#shutterIn.vid{background:var(--rec)}
+#shutterIn.rec{border-radius:12px;background:var(--rec)}
+#lastCount{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.65);padding:5px 6px;font:600 9.5px/1 var(--mono);letter-spacing:.86px;color:#fff;border-radius:2px}
+
+/* ---------------- day log ---------------- */
+#logHead{padding:8px 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
+#logDate{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px}
+#syncBadge{padding:7px 9px;border-radius:2px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut);flex:none}
+#syncBadge.sent{background:var(--go);color:var(--goink)}
+#syncBadge.queued{background:var(--warn);color:var(--warnink)}
+#grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{position:relative;aspect-ratio:1;border-radius:5px;overflow:hidden;background:#1b2024;border:1px solid var(--line);background-size:cover;background-position:center}
+.tile .tg{position:absolute;top:0;left:0;padding:5px 6px;font:600 9px/1 var(--mono);letter-spacing:.81px;text-transform:uppercase}
+.tile .tm{position:absolute;bottom:0;right:0;padding:5px 6px;font:600 9px/1 var(--mono);letter-spacing:.18px;background:rgba(0,0,0,.6);color:#fff}
+.tile .up{position:absolute;inset:auto 0 0 0;height:3px;background:var(--warn)}
+.tg.before{background:rgba(255,255,255,.9);color:#0e1113}
+.tg.during{background:var(--nav);color:#fff}
+.tg.after{background:var(--go);color:#0e1113}
+.addbtn{min-height:44px;padding:0 12px;display:flex;align-items:center;gap:7px;border:1px solid var(--line2);border-radius:4px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--fg);flex:none}
+.notecard{padding:14px 15px;background:var(--surf);border:1px solid var(--line);border-left:3px solid var(--navline);border-radius:6px;display:flex;flex-direction:column;gap:7px}
+.notecard .nm{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--lab)}
+.notecard .nb{font:400 14px/1.5 var(--sans);color:var(--fg)}
+#noteBox{margin-top:11px;border:2px dashed var(--line2);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:12px}
+#noteText{width:100%;min-height:52px;resize:none;background:transparent;border:none;outline:none;color:var(--fg);font:400 16px/1.45 var(--sans)}
+#noteText::placeholder{color:var(--lab)}
+.foot{font:400 12px/1.5 var(--sans);color:var(--mut);text-align:center;margin-top:10px}
+
+/* ---------------- sheet ---------------- */
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:100;display:none;flex-direction:column;justify-content:flex-end}
+#scrim.on{display:flex}
+#scrimTap{flex:1;min-height:70px}
+#sheet{max-height:86%;display:flex;flex-direction:column;background:var(--bg);border-top:1px solid var(--line2);border-radius:12px 12px 0 0;animation:sheetUp .22s cubic-bezier(.2,0,0,1)}
+#sheetHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 12px 14px 20px;border-bottom:1px solid var(--line);flex:none}
+#sheetTitle{font:700 18px/1.1 var(--head);letter-spacing:.54px;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sheetClose{width:56px;height:56px;border-radius:5px;background:var(--chip);display:flex;align-items:center;justify-content:center;flex:none}
+#sheetBody{overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:30px}
+.coderow{width:100%;min-height:82px;display:flex;align-items:center;gap:14px;padding:0 20px;border-bottom:1px solid var(--line);text-align:left}
+.coderow.on{background:var(--codehi)}
+.coderow .cn{width:56px;flex:none;font:600 14px/1 var(--mono);letter-spacing:.84px;color:var(--lab)}
+.coderow .cname{flex:1;min-width:0;font:700 18px/1.15 var(--head);letter-spacing:.36px;text-transform:uppercase;color:var(--fg)}
+.coderow .cmeta{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--lab);flex:none}
+.coderow.on .cmeta{color:var(--acc)}
+.sheetpad{padding:18px 20px 0;display:flex;flex-direction:column;gap:16px}
+.promptbox{display:flex;align-items:center;gap:13px;padding:16px 15px;border-radius:6px;border:2px solid rgba(126,240,138,.5)}
+.promptbox.warn{border-color:var(--warn)}
+[data-theme="day"] .promptbox{border-color:#1e7a2f}
+.promptbox .pe{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;opacity:.85}
+.promptbox .pt{font:800 21px/1.1 var(--head);letter-spacing:.21px;text-transform:uppercase;margin-top:5px}
+.yn{display:flex;gap:12px}
+.ynbtn{flex:1;min-height:100px;border-radius:6px;border:2px solid var(--line2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:var(--fg)}
+.ynbtn.yes{background:var(--go);border-color:var(--go);color:var(--goink)}
+.ynbtn .yb{font:800 30px/1 var(--head);letter-spacing:1.2px;text-transform:uppercase}
+.ynbtn .ys{font:600 9.5px/1 var(--mono);letter-spacing:.86px;text-transform:uppercase;opacity:.75}
+.fine{font:400 13.5px/1.5 var(--sans);color:var(--mut)}
+.ctaBig{width:100%;min-height:88px;border-radius:6px;background:var(--go);color:var(--goink);display:flex;align-items:center;justify-content:center;gap:12px;font:800 21px/1 var(--head);letter-spacing:.84px;text-transform:uppercase}
+.skip{width:100%;min-height:var(--tap);border:2px solid var(--line2);border-radius:6px;font:600 12px/1 var(--mono);letter-spacing:1.08px;text-transform:uppercase;color:var(--mut)}
+#outBand{background:var(--band);border:1px solid var(--bandline);border-radius:8px;padding:20px 18px;display:flex;flex-direction:column;gap:8px}
+#outBand .l{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:#7ba4dd}
+#outBand .v{font:800 52px/1 var(--head);letter-spacing:-1.56px;color:#fff}
+#outBand .s{font:400 14px/1.4 var(--sans);color:rgba(255,255,255,.6)}
+#outConfirm{width:100%;min-height:88px;border-radius:6px;background:var(--stop);color:var(--stopfg);display:flex;align-items:center;justify-content:center;gap:12px;font:800 21px/1 var(--head);letter-spacing:1.05px;text-transform:uppercase}
+#outConfirm.blocked{background:var(--surf2);color:var(--mut);opacity:.6}
+.jobrow{width:100%;padding:16px;background:var(--surf);border:1px solid var(--line);border-left:3px solid var(--line2);border-radius:6px;display:flex;flex-direction:column;gap:7px;text-align:left}
+.jobrow.on{border-left-color:var(--go)}
+.jobrow .jd{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--lab)}
+.jobrow.on .jd{color:var(--acc)}
+.jobrow .ja{font:800 20px/1.1 var(--head);letter-spacing:-.2px;text-transform:uppercase;color:var(--fg)}
+.jobrow .jm{font:400 14px/1.35 var(--sans);color:var(--mut)}
+#jobSearch{width:100%;border:1.5px solid var(--line);border-radius:8px;background:var(--surf);padding:13px 14px;font:400 16px var(--sans);color:var(--fg);outline:none;-webkit-appearance:none}
+
+/* ---------------- tabs, toast, notification ---------------- */
+#tabs{position:absolute;left:0;right:0;bottom:0;display:flex;background:var(--tabbg);border-top:1px solid var(--line);padding-bottom:max(calc(var(--sab) - 8px),12px);z-index:60}
+.tab{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-top:3px solid transparent;margin-top:-1px;color:rgba(255,255,255,.74)}
+.tab.on{color:#fff;border-top-color:var(--go)}
+.tab .tl{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
+#toast{position:absolute;left:16px;right:16px;bottom:calc(var(--tabh,96px) + 20px);z-index:90;display:none;justify-content:center;pointer-events:none}
+#toast span{background:var(--go);color:var(--goink);border-radius:5px;padding:14px 16px;font:600 11px/1.3 var(--mono);letter-spacing:.99px;text-transform:uppercase;text-align:center}
+#toast.err span{background:var(--rec);color:#fff}
+#notif{position:absolute;top:var(--sat);left:10px;right:10px;z-index:95;display:none;animation:drop .28s cubic-bezier(.2,0,0,1)}
+#notif .in{display:flex;gap:12px;align-items:flex-start;padding:14px;background:rgba(24,28,32,.96);border:1px solid rgba(255,255,255,.18);border-radius:18px;box-shadow:0 12px 28px rgba(0,0,0,.45);text-align:left;width:100%}
+#notif img{width:42px;height:42px;border-radius:10px;flex:none}
+#notif .ne{font:600 9.5px/1 var(--mono);letter-spacing:1.14px;text-transform:uppercase;color:#b9cdf0}
+#notif .nt{font:700 15px/1.2 var(--sans);color:#fff;margin-top:4px}
+#notif .nb{font:400 13px/1.35 var(--sans);color:rgba(255,255,255,.72);margin-top:4px}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes flashOut{from{opacity:.95}to{opacity:0}}
+@keyframes sheetUp{from{transform:translateY(22px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes drop{from{transform:translateY(-22px);opacity:0}to{transform:translateY(0);opacity:1}}
+</style>
+</head>
+<body>
+
+<!-- ============ SIGN IN ============ -->
+<div id="gate">
+  <img src="app-icon-192.png" alt="">
+  <div class="t">DB Time Clock</div>
+  <div class="s">Sign in with your Deitemeyer Brothers Google account. Your hours post to JobTread under your name.</div>
+  <div id="gateBtnWrap"></div>
+  <div id="gateErr"></div>
+</div>
+
+<div id="app" class="hidden">
+
+  <!-- ============ CLOCK ============ -->
+  <div id="vClock" class="view on">
+    <div id="hdr">
+      <div id="hdrL">
+        <img src="app-icon-192.png" alt="DB Time Clock">
+        <div style="min-width:0">
+          <div id="hdrT">DB Time Clock</div>
+          <div id="hdrW"></div>
+        </div>
+      </div>
+      <button id="sunBtn" aria-label="Toggle sun mode">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.6v2.4M12 20v2.4M1.6 12H4M20 12h2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg>
+      </button>
+    </div>
+    <div id="offlineBar" class="warnbar hidden"></div>
+    <div id="roBar" class="warnbar robar hidden"></div>
+    <div class="scroll" style="padding-bottom:26px">
+      <div class="pad">
+        <div class="card" id="jobCard">
+          <div class="in">
+            <div class="k" id="jobK">Today's job</div>
+            <div class="h-addr" id="jobAddr">—</div>
+            <div class="sub" id="jobSub"></div>
+            <div class="chips" id="jobChips"></div>
+          </div>
+          <button class="cardbtn" id="pickJobBtn"><span id="pickJobLbl">Change job</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
+        <div id="onClock" class="hidden">
+          <div id="band">
+            <div class="live"><span class="dot"></span><span class="lbl">On the clock</span></div>
+            <div id="elapsed" class="tabular">0:00:00</div>
+            <div id="bandCode"><span id="bandCodeN" class="tabular"></span><span id="bandCodeName"></span></div>
+            <div id="bandSub"></div>
+          </div>
+          <button id="remind">
+            <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
+            <span class="rt"><span class="rl" id="remindL"></span><span class="rb" id="remindB" style="display:block"></span></span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.8;flex:none"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <div class="stack">
+            <button class="btn btn-out" id="switchBtn">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              Switch code
+            </button>
+            <button class="btn btn-stop" id="clockOutBtn">
+              <svg width="22" height="22" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>
+              Clock out
+            </button>
+          </div>
+        </div>
+
+        <button id="clockIn">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"/><polyline points="12 6.6 12 12 15.8 14"/></svg>
+          <span class="big">Clock in</span><span class="sm">Pick a code to start</span>
+        </button>
+
+        <div class="sect">
+          <div class="k">Today on this job</div>
+          <div class="tbl" id="dayTbl"></div>
+        </div>
+
+        <div class="sect hidden" id="crewSect">
+          <div class="secthead">
+            <div class="k" id="crewK">Crew</div>
+            <div class="k9" style="color:var(--lab)">Foreman view</div>
+          </div>
+          <div id="crewList" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CAPTURE ============ -->
+  <div id="vCam" class="view">
+    <div id="vfWrap">
+      <video id="vf" playsinline muted autoplay></video>
+      <div id="camFallback">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
+        <div class="body" style="color:rgba(255,255,255,.76)" id="camFbMsg">Tap to allow the camera.</div>
+        <div class="btn btn-go" style="max-width:260px;padding:0 22px;min-height:66px">Allow camera</div>
+      </div>
+      <i class="corner" style="top:20px;left:20px;border-left:2px solid;border-top:2px solid"></i>
+      <i class="corner" style="top:20px;right:20px;border-right:2px solid;border-top:2px solid"></i>
+      <i class="corner" style="bottom:20px;left:20px;border-left:2px solid;border-bottom:2px solid"></i>
+      <i class="corner" style="bottom:20px;right:20px;border-right:2px solid;border-bottom:2px solid"></i>
+      <div id="stamps">
+        <div id="stampsL"><span class="stamp" id="stampAddr"></span><span class="stamp go" id="stampCode"></span></div>
+        <span class="stamp" id="stampCount">00 today</span>
+      </div>
+      <div id="afterBar"><span id="afterBarT"></span></div>
+      <div id="recPill"><span class="in"><i class="d"></i><span class="t tabular" id="recT">00:00</span></span></div>
+      <div id="flash"></div>
+    </div>
+    <div id="camDeck">
+      <div id="tagRow">
+        <button class="tagbtn on" data-tag="before"><span class="tl">Before</span><span class="tc tabular">00</span></button>
+        <button class="tagbtn" data-tag="during"><span class="tl">During</span><span class="tc tabular">00</span></button>
+        <button class="tagbtn" data-tag="after"><span class="tl">After</span><span class="tc tabular">00</span></button>
+      </div>
+      <div id="camCtl">
+        <button class="sqbtn" id="modeBtn">
+          <span id="modeIcon"></span><span class="sl" id="modeLbl">Video</span>
+        </button>
+        <button id="shutter" aria-label="Shutter"><span id="shutterIn"></span></button>
+        <button class="sqbtn" id="lastShot"><span id="lastCount" class="tabular">00</span></button>
+      </div>
+    </div>
+    <input type="file" id="fileIn" accept="image/*" capture="environment" class="hidden">
+  </div>
+
+  <!-- ============ DAY LOG ============ -->
+  <div id="vLog" class="view">
+    <div id="logHead">
+      <div style="min-width:0">
+        <div class="k" id="logK">Day log</div>
+        <div id="logDate"></div>
+      </div>
+      <span id="syncBadge">Not sent</span>
+    </div>
+    <div class="scroll" style="padding:0 20px 26px">
+      <div class="secthead">
+        <div class="k" id="photoK">Photos · 00</div>
+        <button class="addbtn" id="addPhotoBtn">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add
+        </button>
+      </div>
+      <div id="grid"></div>
+      <div class="sect"><div class="k">Notes to the office</div></div>
+      <div id="noteList" style="display:flex;flex-direction:column;gap:9px"></div>
+      <div id="noteBox">
+        <textarea id="noteText" placeholder="What does the office need to know?"></textarea>
+        <button class="btn btn-go" id="addNoteBtn" style="min-height:64px;font-size:16px">Add note</button>
+      </div>
+      <div class="sect">
+        <button class="btn btn-nav" id="sendDayBtn">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send day to office
+        </button>
+        <div class="foot">Photos flow into the DB&nbsp;Cam report. Hours post to JobTread.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TABS ============ -->
+  <div id="tabs">
+    <button class="tab on" data-tab="job">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"/><polyline points="12 6.6 12 12 15.8 14"/></svg>
+      <span class="tl">Clock</span>
+    </button>
+    <button class="tab" data-tab="cam">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
+      <span class="tl">Capture</span>
+    </button>
+    <button class="tab" data-tab="log">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11M10 12h11M10 18h11"/><polyline points="3 6 4.2 7.2 6.4 5"/><polyline points="3 12 4.2 13.2 6.4 11"/><polyline points="3 18 4.2 19.2 6.4 17"/></svg>
+      <span class="tl">Day log</span>
+    </button>
+  </div>
+
+  <div id="toast"><span></span></div>
+  <button id="notif"><span class="in"><img src="app-icon-192.png" alt=""><span style="flex:1;min-width:0"><span class="ne" style="display:block">DB Time Clock · Now</span><span class="nt" style="display:block">Before photo not taken</span><span class="nb" style="display:block" id="notifBody"></span></span></span></button>
+</div>
+
+<!-- ============ SHEET ============ -->
+<div id="scrim">
+  <div id="scrimTap"></div>
+  <div id="sheet">
+    <div id="sheetHead">
+      <div id="sheetTitle"></div>
+      <button id="sheetClose" aria-label="Close">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===========================================================
+   DB TIME CLOCK — T1.1
+   Same shape as DB Cam Mobile: vanilla JS, no build step, one
+   file. Google sign-in -> Apps Script JSON API -> JobTread.
+   =========================================================== */
+var APP_BUILD = 'T1.1 (2026-07-28)';
+var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
+var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function uid(){ return 't' + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function pad2(n){ return (n<10?'0':'') + n; }
+
+/* ---- policy knobs. Every open question from the design review
+   lives here, so changing one is a one-line edit. Keep
+   BEFORE_GRACE_SEC in step with PUSH_GRACE_MINUTES in Code.gs. ---- */
+var BEFORE_GRACE_SEC = 5*60;      // before photo owed this long -> escalate
+var DURING_AFTER_SEC = 45*60;     // ask for a progress shot this far in
+var ESCALATION_CONTACT = 'the office';
+
+/* =========================================================
+   AUTH — identical to DB Cam Mobile: Google ID token once,
+   then a 30-day app session so the crew isn't re-prompted.
+   ========================================================= */
+var AUTH = { token:'', exp:0, waiters:[] };
+try {
+  var saved = JSON.parse(localStorage.getItem('dbtc_auth') || '{}');
+  if (saved && saved.token) { AUTH.token = saved.token; AUTH.exp = saved.exp || 0; }
+} catch(e){}
+
+function authFresh(){ return AUTH.token && (AUTH.exp - Date.now()/1000) > 90; }
+function authStore(tok){
+  AUTH.token = tok;
+  try { AUTH.exp = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; } catch(e){ AUTH.exp = 0; }
+  try { localStorage.setItem('dbtc_auth', JSON.stringify({ token:AUTH.token, exp:AUTH.exp })); } catch(e){}
+  var w = AUTH.waiters; AUTH.waiters = [];
+  w.forEach(function(fn){ fn(); });
+}
+function authClear(){
+  AUTH.token=''; AUTH.exp=0;
+  try { localStorage.removeItem('dbtc_auth'); } catch(e){}
+}
+function authOnCredential(resp){
+  if (!resp || !resp.credential) return;
+  authStore(resp.credential);
+  // Trade the short-lived Google token for a long app session immediately.
+  apiCall('exchangeSession', []).then(function(s){ if (s && s.token) authStore(s.token); })
+    .catch(function(){})
+    .then(start);
+}
+function authInitGis(){
+  if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(authInitGis, 300); return; }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: authOnCredential, auto_select: true });
+  google.accounts.id.renderButton($('gateBtnWrap'), { theme:'filled_black', size:'large', text:'signin_with', shape:'rectangular' });
+  google.accounts.id.prompt();
+}
+function requireSignIn(msg){
+  $('gate').classList.remove('hidden');
+  $('app').classList.add('hidden');
+  if (msg) $('gateErr').textContent = msg;
+  authInitGis();
+}
+
+/* ---- the API ---- */
+function apiCall(fn, args){
+  if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
+  return fetch(API_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'text/plain;charset=utf-8' },  // avoids the CORS preflight Apps Script can't answer
+    body: JSON.stringify({ t: AUTH.token, fn: fn, args: args || [] })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if (j && j.ok) return j.data;
+    var err = new Error((j && j.error) || 'Request failed');
+    err.auth = !!(j && j.auth);
+    err.readOnly = !!(j && j.readOnly);
+    if (err.auth) { authClear(); requireSignIn('Session expired — sign in again.'); }
+    throw err;
+  });
+}
+
+/* =========================================================
+   STATE
+   ========================================================= */
+var S = {
+  me:null, job:null, codes:[], open:null, entries:[], crew:[],
+  jobOptions:[], candidates:[],
+  tab:'job', sheet:null, promptKind:null, pendingCode:null,
+  afterRequired:false, nudged:false, escalated:false, returnToClock:false,
+  capture:'before', mode:'photo', recStart:0,
+  photos:[], notes:[], sent:false,
+  sun:true, writeEnabled:false, queued:0, online:navigator.onLine
+};
+
+function savePrefs(){
+  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, nudged:S.nudged })); } catch(e){}
+}
+function loadPrefs(){
+  try {
+    var p = JSON.parse(localStorage.getItem('dbtc_prefs') || '{}');
+    if (typeof p.sun === 'boolean') S.sun = p.sun;
+    if (Array.isArray(p.photos)) S.photos = p.photos.filter(sameDay);
+    if (Array.isArray(p.notes)) S.notes = p.notes.filter(sameDay);
+    S.nudged = !!p.nudged;
+    return p.jobId || '';
+  } catch(e){ return ''; }
+}
+function sameDay(x){
+  var d = new Date(x.at || 0), n = new Date();
+  return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
+}
+
+/* =========================================================
+   FORMAT
+   ========================================================= */
+function hms(sec){
+  sec = Math.max(0, Math.floor(sec));
+  return Math.floor(sec/3600) + ':' + pad2(Math.floor(sec%3600/60)) + ':' + pad2(sec%60);
+}
+function hm(sec){
+  sec = Math.max(0, Math.floor(sec));
+  var h = Math.floor(sec/3600), m = Math.floor(sec%3600/60);
+  return h ? (h + 'h ' + pad2(m) + 'm') : (m + 'm');
+}
+function mmss(sec){ return pad2(Math.floor(sec/60)) + ':' + pad2(Math.floor(sec%60)); }
+function clockLabel(d){
+  d = d ? new Date(d) : new Date();
+  var h = d.getHours(), ap = h>=12 ? 'p':'a';
+  h = h%12 || 12;
+  return h + ':' + pad2(d.getMinutes()) + ap;
+}
+function codeLabel(c){ return c ? ((c.number ? c.number + ' ' : '') + (c.name||'')) : ''; }
+/* Lowercases the name but keeps the code number intact, for mid-sentence use:
+   "04MA masonry labor". */
+function codeInline(c){ return c ? ((c.number ? c.number + ' ' : '') + String(c.name||'').toLowerCase()) : ''; }
+function sentenceCase(s){ s = String(s||''); return s.charAt(0).toUpperCase() + s.slice(1); }
+function openSeconds(){ return S.open ? Math.max(0, (Date.now() - new Date(S.open.startedAt).getTime())/1000) : 0; }
+
+/* =========================================================
+   TOAST + NOTIFICATION
+   ========================================================= */
+var toastT = null;
+function toast(msg, isErr){
+  var t = $('toast');
+  t.querySelector('span').textContent = msg;
+  t.classList.toggle('err', !!isErr);
+  t.style.display = 'flex';
+  clearTimeout(toastT);
+  toastT = setTimeout(function(){ t.style.display = 'none'; }, isErr ? 4200 : 2600);
+}
+var notifT = null;
+function showNotif(body){
+  $('notifBody').textContent = body;
+  $('notif').style.display = 'block';
+  clearTimeout(notifT);
+  notifT = setTimeout(function(){ $('notif').style.display = 'none'; }, 7000);
+  try {
+    if (window.Notification && Notification.permission === 'granted' && navigator.serviceWorker) {
+      navigator.serviceWorker.ready.then(function(reg){
+        reg.showNotification('Before photo not taken', { body: body, icon:'app-icon-192.png', badge:'app-icon-192.png', tag:'dbtc-before', data:{ kind:'before-photo' } });
+      });
+    }
+  } catch(e){}
+}
+
+/* =========================================================
+   PHOTO GATES — the rule the design is built on: ask at the
+   moment a photo is owed, and only block when the answer is
+   unambiguous (you said the code is finished, or you are
+   ending the day).
+   ========================================================= */
+function codePhotos(){
+  var id = S.open && S.open.code ? S.open.code.id : null;
+  return S.photos.filter(function(p){ return p.codeId === id; });
+}
+function hasTag(t){ return codePhotos().some(function(p){ return p.tag === t; }); }
+function needBefore(){ return !!S.open && !hasTag('before'); }
+function needDuring(){ return !!S.open && !needBefore() && openSeconds() > DURING_AFTER_SEC && !hasTag('during'); }
+function needAfterForOut(){ return !!S.open && !hasTag('after'); }
+
+/* The in-app half of the 5-minute escalation. This fires while the app is
+   running; the server-side sweep (sweepBeforePhotoNudges in Code.gs) is what
+   reaches a phone asleep in a pocket. Either way the amber strip on the clock
+   screen carries the requirement. */
+var nudgeTimer = null;
+function scheduleNudge(){
+  clearTimeout(nudgeTimer);
+  if (!S.open || S.nudged) return;
+  var left = BEFORE_GRACE_SEC - openSeconds();
+  nudgeTimer = setTimeout(checkNudge, Math.max(1000, left*1000 + 250));
+}
+function checkNudge(){
+  if (!S.open || S.nudged || !needBefore()) return;
+  if (openSeconds() < BEFORE_GRACE_SEC) { scheduleNudge(); return; }
+  S.nudged = true; S.escalated = true;
+  savePrefs();
+  // Claim this entry so the server-side sweep doesn't push a duplicate to a
+  // phone whose owner is already looking at the prompt.
+  if (S.open) apiCall('markNudged', [S.open.id]).catch(function(){});
+  var mins = Math.max(1, Math.round(BEFORE_GRACE_SEC/60));
+  // The code number is an identifier — never lowercase it.
+  showNotif(codeLabel(S.open.code) + ' started ' + mins + ' minute' + (mins===1?'':'s') +
+            ' ago. ' + sentenceCase(ESCALATION_CONTACT) + ' has been copied.');
+  setTab('job');
+  openSheet('prompt', 'before');
+}
+
+/* =========================================================
+   WEB PUSH — the nudge that reaches a pocketed phone.
+
+   Android: reliable. iPhone: iOS 16.4+ AND the app must be
+   installed to the Home Screen — a Safari tab gets nothing.
+   That's why the install step matters; pushEligible() below is
+   what the UI uses to tell the truth about it.
+
+   Sending happens server-side on a 5-minute sweep (see
+   sweepBeforePhotoNudges in Code.gs). This half is only about
+   getting a device token and handing it over.
+   ========================================================= */
+var FB_VERSION = '10.12.2';
+var pushState = 'unknown';   // unknown | unsupported | needs-install | off | on
+
+function pushConfigured(){
+  var c = (window.DBTC_CONFIG || {});
+  return !!(c.vapidKey && c.firebase && c.firebase.projectId && c.firebase.apiKey);
+}
+function isIOS(){ return /iP(hone|ad|od)/.test(navigator.userAgent); }
+function isInstalled(){
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
+function pushEligible(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !window.Notification) {
+    return isIOS() && !isInstalled() ? 'needs-install' : 'unsupported';
+  }
+  return 'ok';
+}
+
+function loadScript(src){
+  return new Promise(function(res, rej){
+    var s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = function(){ rej(new Error('Could not load ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+
+/* Called after a successful clock-in, which is both the moment the nudge
+   becomes relevant and a real user gesture (iOS requires one). */
+function enablePush(){
+  if (!pushConfigured()) { pushState = 'off'; return Promise.resolve(); }
+  var elig = pushEligible();
+  if (elig !== 'ok'){
+    pushState = elig;
+    if (elig === 'needs-install') toast('Add to Home Screen to get photo reminders');
+    return Promise.resolve();
+  }
+  if (Notification.permission === 'denied'){ pushState = 'off'; return Promise.resolve(); }
+
+  return Promise.resolve()
+    .then(function(){ return Notification.permission === 'granted' ? 'granted' : Notification.requestPermission(); })
+    .then(function(perm){
+      if (perm !== 'granted'){ pushState = 'off'; return; }
+      return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-app-compat.js')
+        .then(function(){ return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-messaging-compat.js'); })
+        .then(function(){ return navigator.serviceWorker.ready; })
+        .then(function(reg){
+          if (!firebase.apps.length) firebase.initializeApp(window.DBTC_CONFIG.firebase);
+          return firebase.messaging().getToken({
+            vapidKey: window.DBTC_CONFIG.vapidKey,
+            serviceWorkerRegistration: reg
+          });
+        })
+        .then(function(token){
+          if (!token) { pushState = 'off'; return; }
+          return apiCall('registerPushToken', [token, isIOS() ? 'ios' : 'android'])
+            .then(function(){ pushState = 'on'; });
+        });
+    })
+    .catch(function(e){
+      // Push is a nudge, never a dependency — the amber strip still carries
+      // the requirement, so a failure here is logged and swallowed.
+      pushState = 'off';
+      if (window.console) console.warn('push setup failed:', e && e.message);
+    });
+}
+
+/* A push tapped while the app was already open. */
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', function(e){
+    if (!e.data || e.data.kind !== 'open-before-photo') return;
+    $('notif').style.display = 'none';
+    closeSheet();
+    S.capture = 'before'; S.returnToClock = true;
+    setTab('cam');
+  });
+}
+/* ...and one tapped while it was closed, which reopens with ?shoot=before. */
+function handleShootParam(){
+  if (!/[?&]shoot=before/.test(location.search)) return;
+  history.replaceState(null, '', location.pathname);
+  S.capture = 'before'; S.returnToClock = true;
+  setTab('cam');
+}
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', S.sun ? 'sun' : 'day');
+  var m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.setAttribute('content', S.sun ? '#0e1113' : '#f4f6f9');
+}
+function measureTabs(){
+  document.documentElement.style.setProperty('--tabh', $('tabs').offsetHeight + 'px');
+}
+
+function render(){
+  applyTheme();
+  $('hdrW').textContent = S.me ? (S.me.name + ' · ' + (S.me.isForeman ? 'Foreman' : 'Crew')) : '';
+
+  var ob = $('offlineBar');
+  ob.classList.toggle('hidden', S.online);
+  ob.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l20 20M8.6 16.5a5 5 0 0 1 6.8 0M5 12.6a10 10 0 0 1 4.6-2.4M19.7 12.6a10 10 0 0 0-4.3-2.5"/><path d="M12 20h.01"/></svg><span>No signal · ' + (S.queued ? S.queued + (S.queued===1?' item':' items') + ' queued' : 'nothing waiting') + '</span>';
+  var rb = $('roBar');
+  rb.classList.toggle('hidden', S.writeEnabled);
+  rb.innerHTML = '<span>Read-only build · hours are not posting yet</span>';
+
+  renderJob();
+  renderClock();
+  renderDay();
+  renderCrew();
+  renderCam();
+  renderLog();
+}
+
+/* JobTread returns a full formatted address ("408 Euclid Ave, Van Wert, OH
+   45891, USA"). The street line is the part a crew member reads at a glance,
+   so it gets the big type and the rest goes to the sub line. */
+function streetOf(addr){ return String(addr||'').split(',')[0].trim(); }
+function cityOf(addr){
+  var parts = String(addr||'').split(',').map(function(s){ return s.trim(); });
+  return parts.length > 1 ? parts[1] : '';
+}
+/* Job names here are "260890 Webster_Foundation" — the number is already on
+   the label above, so drop it and make the rest readable. */
+function jobTitle(j){
+  return String((j && j.name) || '').replace(/^\d+\s*/, '').replace(/_/g, ' ').trim();
+}
+
+function renderJob(){
+  var j = S.job;
+  $('jobK').textContent = j ? ("Today's job · JT #" + (j.number || '')) : "Today's job";
+  $('jobAddr').textContent = j ? (streetOf(j.address) || jobTitle(j) || '—') : 'Pick a job';
+  $('jobSub').textContent = j
+    ? [j.customer, cityOf(j.address)].filter(Boolean).join(' · ')
+    : 'Tap below to choose where you are working.';
+  $('jobChips').innerHTML = j
+    ? [jobTitle(j)].filter(Boolean).map(function(x){ return '<span class="chip">' + esc(x) + '</span>'; }).join('')
+    : '';
+  // The job is locked while the clock runs — the hours already belong to it.
+  $('pickJobLbl').textContent = !j ? 'Pick a job' : S.open ? 'Job locked while the clock runs' : 'Change job';
+  $('pickJobBtn').disabled = !!S.open;
+  $('pickJobBtn').style.opacity = S.open ? .45 : 1;
+}
+
+function renderClock(){
+  var on = !!S.open;
+  $('onClock').classList.toggle('hidden', !on);
+  $('clockIn').classList.toggle('hidden', on);
+  $('clockIn').disabled = !S.job;
+  $('clockIn').style.opacity = S.job ? 1 : .45;
+  if (!on) return;
+
+  $('elapsed').textContent = hms(openSeconds());
+  $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
+  $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
+  $('bandSub').textContent = 'Started ' + clockLabel(S.open.startedAt) + ' · open in JobTread until you clock out';
+
+  var owed = needBefore() || needDuring() || S.afterRequired;
+  var r = $('remind');
+  r.classList.toggle('owed', owed);
+  r.classList.toggle('clear', !owed && !needAfterForOut());
+  var L, B;
+  if (S.afterRequired){
+    L = 'After photo · blocking the switch';
+    B = 'Shoot the finished work to start ' + (codeInline(S.pendingCode) || 'the next code') + '.';
+  } else if (needBefore()){
+    L = 'Before photo · required'; B = 'One shot of the area before you start.';
+  } else if (needDuring()){
+    L = 'Progress photo · due'; B = Math.round(DURING_AFTER_SEC/60) + ' minutes in — grab a during shot.';
+  } else if (needAfterForOut()){
+    L = 'After photo · due when done';
+    B = codePhotos().length + ' on file. You can’t clock out without the after shot.';
+  } else {
+    L = 'Photo check · clear'; B = codePhotos().length + ' photos on this code. Nothing owed.';
+  }
+  $('remindL').textContent = L;
+  $('remindB').textContent = B;
+}
+
+function renderDay(){
+  // Roll today's entries up by cost item; the open one counts live.
+  var by = {}, order = [];
+  S.entries.forEach(function(e){
+    if (!e.code) return;
+    var k = e.code.id;
+    if (!by[k]) { by[k] = { code:e.code, sec:0, live:false }; order.push(k); }
+    var sec = e.endedAt ? (new Date(e.endedAt) - new Date(e.startedAt))/1000 : 0;
+    if (!e.endedAt) { by[k].live = true; sec = Math.max(0, (Date.now() - new Date(e.startedAt))/1000); }
+    by[k].sec += sec;
+  });
+  var total = 0, html = '';
+  order.sort(function(a,b){ return String(by[a].code.number||'').localeCompare(String(by[b].code.number||'')); });
+  order.forEach(function(k){
+    var r = by[k]; total += r.sec;
+    html += '<div class="trow"><span class="n tabular">' + esc(r.code.number||'') + '</span>' +
+            '<span class="nm">' + esc(r.code.name||'') + (r.live ? ' ·' : '') + '</span>' +
+            '<span class="d tabular">' + hm(r.sec) + '</span></div>';
+  });
+  if (!order.length) html = '<div class="trow"><span class="nm" style="text-transform:none;font-weight:400;color:var(--mut)">Nothing on the clock yet today.</span></div>';
+  html += '<div class="ttotal"><span class="l">Total today</span><span class="v tabular">' + hm(total) + '</span></div>';
+  $('dayTbl').innerHTML = html;
+}
+
+function renderCrew(){
+  var show = !!(S.me && S.me.isForeman);
+  $('crewSect').classList.toggle('hidden', !show);
+  if (!show) return;
+  $('crewK').innerHTML = 'Crew · <span style="color:var(--acc)">' + S.crew.length + ' on</span>';
+  $('crewList').innerHTML = S.crew.map(function(c){
+    return '<div class="crewrow on"><span class="cd"></span>' +
+      '<span style="flex:1;min-width:0"><span class="cn" style="display:block">' + esc(c.name) + '</span>' +
+      '<span class="cs" style="display:block">' + esc(c.code || '—') + ' · ' + esc(c.job || '') + '</span></span>' +
+      '<span class="ct tabular">' + hm((c.minutes||0)*60) + '</span></div>';
+  }).join('') || '<div class="body">Nobody is on the clock right now.</div>';
+}
+
+function renderCam(){
+  $('stampAddr').textContent = S.job ? (streetOf(S.job.address) || jobTitle(S.job)) : 'No job';
+  $('stampCode').textContent = S.open ? codeLabel(S.open.code) : 'Not clocked in';
+  $('stampCount').textContent = pad2(S.photos.length) + ' today';
+  $('lastCount').textContent = pad2(S.photos.length);
+  var last = S.photos[S.photos.length-1];
+  $('lastShot').style.backgroundImage = last && last.thumb ? 'url(' + last.thumb + ')' : '';
+  var counts = { before:0, during:0, after:0 };
+  S.photos.forEach(function(p){ if (counts[p.tag] != null) counts[p.tag]++; });
+  [].forEach.call(document.querySelectorAll('.tagbtn'), function(b){
+    var t = b.getAttribute('data-tag');
+    b.classList.toggle('on', S.capture === t);
+    b.querySelector('.tc').textContent = pad2(counts[t]);
+  });
+  $('afterBar').style.display = S.afterRequired ? 'flex' : 'none';
+  if (S.afterRequired){
+    $('afterBarT').textContent = 'After photo of ' + codeLabel(S.open && S.open.code) + ' required to start ' + ((S.pendingCode && S.pendingCode.number) || '');
+  }
+  $('modeLbl').textContent = S.mode === 'photo' ? 'Video' : 'Photo';
+  $('modeIcon').innerHTML = S.mode === 'photo'
+    ? '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>'
+    : '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>';
+  var si = $('shutterIn');
+  si.classList.toggle('vid', S.mode === 'video' && !S.recStart);
+  si.classList.toggle('rec', !!S.recStart);
+}
+
+function renderLog(){
+  $('logK').textContent = 'Day log' + (S.job && S.job.number ? ' · JT #' + S.job.number : '');
+  $('logDate').textContent = new Date().toLocaleDateString('en-US',{ weekday:'short', month:'short', day:'numeric' });
+  var b = $('syncBadge');
+  b.className = '';
+  if (!S.online) { b.classList.add('queued'); b.textContent = 'Queued'; }
+  else if (S.sent) { b.classList.add('sent'); b.textContent = 'Sent'; }
+  else b.textContent = 'Not sent';
+  $('photoK').textContent = 'Photos · ' + pad2(S.photos.length);
+  $('grid').innerHTML = S.photos.slice().reverse().map(function(p){
+    return '<div class="tile" style="' + (p.thumb ? 'background-image:url(' + p.thumb + ')' : '') + '">' +
+      '<span class="tg ' + p.tag + '">' + p.tag + '</span>' +
+      '<span class="tm">' + esc(p.time) + '</span>' +
+      (p.pending ? '<span class="up"></span>' : '') + '</div>';
+  }).join('');
+  $('noteList').innerHTML = S.notes.map(function(n){
+    return '<div class="notecard"><span class="nm">' + esc(n.meta) + '</span><span class="nb">' + esc(n.body) + '</span></div>';
+  }).join('');
+}
+
+/* =========================================================
+   TABS + SHEET
+   ========================================================= */
+function setTab(t){
+  S.tab = t;
+  $('vClock').classList.toggle('on', t==='job');
+  $('vCam').classList.toggle('on', t==='cam');
+  $('vLog').classList.toggle('on', t==='log');
+  [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===t); });
+  if (t === 'cam') startCamera(); else stopCamera();
+  render();
+}
+
+function closeSheet(){ S.sheet = null; S.promptKind = null; $('scrim').classList.remove('on'); }
+
+function openSheet(kind, promptKind){
+  S.sheet = kind; S.promptKind = promptKind || null;
+  var title = kind==='codes' ? (S.open ? 'Switch code' : 'What are you doing?')
+            : kind==='jobs' ? 'Pick a job'
+            : kind==='out' ? 'End of day'
+            : 'Photo check';
+  $('sheetTitle').textContent = title;
+  $('sheetBody').innerHTML = kind==='codes' ? codesHtml()
+                            : kind==='jobs' ? jobsHtml()
+                            : kind==='out' ? outHtml()
+                            : promptHtml();
+  $('scrim').classList.add('on');
+  wireSheet();
+}
+
+function codesHtml(){
+  if (!S.codes.length) return '<div class="sheetpad"><div class="body">No labor cost codes on this job. Ask the office to add a labor line to the budget.</div></div>';
+  var bySec = {};
+  S.entries.forEach(function(e){
+    if (!e.code) return;
+    var sec = e.endedAt ? (new Date(e.endedAt)-new Date(e.startedAt))/1000 : Math.max(0,(Date.now()-new Date(e.startedAt))/1000);
+    bySec[e.code.id] = (bySec[e.code.id]||0) + sec;
+  });
+  return S.codes.map(function(c){
+    var running = S.open && S.open.code && S.open.code.id === c.id;
+    var banked = bySec[c.id] || 0;
+    return '<button class="coderow' + (running?' on':'') + '" data-code="' + esc(c.id) + '">' +
+      '<span class="cn tabular">' + esc(c.number||'') + '</span>' +
+      '<span class="cname">' + esc(c.name) + '</span>' +
+      '<span class="cmeta">' + (running ? 'Running' : (banked ? hm(banked) : '')) + '</span></button>';
+  }).join('');
+}
+
+function jobsHtml(){
+  var html = '<div class="sheetpad"><input id="jobSearch" placeholder="Search jobs by name, number or customer" autocomplete="off">';
+  html += '<div id="jobResults" style="display:flex;flex-direction:column;gap:12px">';
+  html += S.jobOptions.map(jobRowHtml).join('') || '<div class="body">Search for the job you are on.</div>';
+  html += '</div></div>';
+  return html;
+}
+function jobRowHtml(j){
+  var on = S.job && S.job.id === j.id;
+  return '<button class="jobrow' + (on?' on':'') + '" data-job="' + esc(j.id) + '">' +
+    '<span class="jd">' + (on ? 'Current job' : ('JT #' + esc(j.number||''))) + '</span>' +
+    '<span class="ja">' + esc(streetOf(j.address) || jobTitle(j)) + '</span>' +
+    '<span class="jm">' + esc([j.customer, cityOf(j.address), jobTitle(j)].filter(Boolean).join(' · ')) + '</span></button>';
+}
+
+function promptHtml(){
+  var isAfter = S.promptKind === 'after';
+  // Copy follows the config, so changing the grace period never leaves the
+  // screen saying "five minutes" when it means something else.
+  var graceMinutes = Math.max(1, Math.round(BEFORE_GRACE_SEC/60));
+  var code = S.open && S.open.code;
+  var eyebrow = isAfter ? ('Finished? · ' + ((code&&code.number)||''))
+              : S.escalated ? (graceMinutes + ' minute' + (graceMinutes===1?'':'s') + ' in · ' + ((code&&code.number)||''))
+              : ('Code started · ' + ((code&&code.number)||''));
+  var title = isAfter ? ((code&&code.name)||'This code') + ' done?' : ((code&&code.name)||'');
+  var body = isAfter
+    ? 'Is ' + codeInline(code) + ' finished, or are you coming back to it?'
+    : S.escalated
+      ? 'No before photo on this code and you have been on it ' + graceMinutes + ' minute' + (graceMinutes===1?'':'s') + '. ' + sentenceCase(ESCALATION_CONTACT) + ' has been notified. Take it now — it is what protects this job.'
+      : 'One before photo of the area before you start. It protects the job and it feeds the DB Cam report.';
+  var cam = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>';
+  var h = '<div class="sheetpad">' +
+    '<div class="promptbox' + ((isAfter||S.escalated)?' warn':'') + '">' + cam +
+      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc(eyebrow) + '</span>' +
+      '<span class="pt" style="display:block">' + esc(title) + '</span></span></div>' +
+    '<div class="body">' + esc(body) + '</div>';
+  if (isAfter){
+    h += '<div class="yn">' +
+      '<button class="ynbtn" id="pNo"><span class="yb">No</span><span class="ys">Still going</span></button>' +
+      '<button class="ynbtn yes" id="pYes"><span class="yb">Yes</span><span class="ys">It’s finished</span></button></div>' +
+      '<div class="fine">Yes → one after photo of the finished work, then ' + esc(codeInline(S.pendingCode) || 'the next code') + ' starts. No → switch now, nothing owed.</div>';
+  } else {
+    h += '<button class="ctaBig" id="pShoot">' + cam + 'Take before photo</button>' +
+         '<button class="skip" id="pSkip">' + (S.escalated ? 'Still not now' : 'Start without a photo') + '</button>';
+  }
+  return h + '</div>';
+}
+
+function outHtml(){
+  var blocked = needAfterForOut();
+  var total = 0, parts = [];
+  var by = {};
+  S.entries.forEach(function(e){
+    if (!e.code) return;
+    var sec = e.endedAt ? (new Date(e.endedAt)-new Date(e.startedAt))/1000 : Math.max(0,(Date.now()-new Date(e.startedAt))/1000);
+    by[e.code.id] = by[e.code.id] || { name:e.code.name, sec:0 };
+    by[e.code.id].sec += sec; total += sec;
+  });
+  Object.keys(by).forEach(function(k){ parts.push(by[k].name.toUpperCase() + ' ' + hm(by[k].sec)); });
+  var cam = '<svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>';
+  var after = codePhotos().filter(function(p){ return p.tag==='after'; }).slice(-1)[0];
+  return '<div class="sheetpad">' +
+    '<div id="outBand"><span class="l">Total today' + (S.job&&S.job.number ? ' · JT #' + esc(S.job.number) : '') + '</span>' +
+      '<span class="v tabular">' + hm(total) + '</span><span class="s">' + esc(parts.join(' · ')) + '</span></div>' +
+    '<div class="promptbox' + (blocked?' warn':'') + '" style="' + (blocked?'background:var(--warn);color:var(--warnink)':'') + '">' + cam +
+      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + (blocked ? 'Required to clock out' : 'After photo · on file') + '</span>' +
+      '<span class="rb" style="display:block;margin-top:5px">' + (blocked
+        ? ('One after photo of ' + esc(codeInline(S.open && S.open.code)) + '.')
+        : (after ? esc(after.time + ' · ' + codeInline(S.open && S.open.code)) : 'Filed.')) + '</span></span></div>' +
+    (blocked ? '<button class="btn btn-go" id="outShoot" style="min-height:var(--tap)">' + cam + 'Take the after photo</button>' : '') +
+    '<div class="body">Hours post to JobTread against each code. You can’t edit them after this — tell your foreman if something’s off.</div>' +
+    '<button id="outConfirm" class="' + (blocked?'blocked':'') + '"' + (blocked?' disabled':'') + '>' +
+      '<svg width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>Confirm clock out</button>' +
+  '</div>';
+}
+
+function wireSheet(){
+  [].forEach.call(document.querySelectorAll('.coderow'), function(b){
+    b.onclick = function(){ pickCode(b.getAttribute('data-code')); };
+  });
+  [].forEach.call(document.querySelectorAll('.jobrow'), function(b){
+    b.onclick = function(){ pickJob(b.getAttribute('data-job')); };
+  });
+  var srch = $('jobSearch');
+  if (srch){
+    var t = null;
+    srch.oninput = function(){
+      clearTimeout(t);
+      var term = srch.value.trim();
+      t = setTimeout(function(){
+        if (!term){ $('jobResults').innerHTML = S.jobOptions.map(jobRowHtml).join(''); wireSheet(); return; }
+        apiCall('searchJobs', [term]).then(function(list){
+          S.candidates = list || [];
+          $('jobResults').innerHTML = S.candidates.length ? S.candidates.map(jobRowHtml).join('') : '<div class="body">No jobs match that.</div>';
+          wireSheet();
+        }).catch(function(e){ toast(e.message, true); });
+      }, 320);
+    };
+  }
+  if ($('pNo')) $('pNo').onclick = promptNo;
+  if ($('pYes')) $('pYes').onclick = promptYes;
+  if ($('pShoot')) $('pShoot').onclick = promptShoot;
+  if ($('pSkip')) $('pSkip').onclick = function(){ closeSheet(); render(); };
+  if ($('outShoot')) $('outShoot').onclick = function(){ closeSheet(); S.capture='after'; S.returnToClock=true; setTab('cam'); };
+  if ($('outConfirm')) $('outConfirm').onclick = doClockOut;
+}
+
+/* =========================================================
+   ACTIONS
+   ========================================================= */
+function pickJob(jobId){
+  var j = null;
+  S.jobOptions.concat(S.candidates).forEach(function(x){ if (x.id === jobId) j = x; });
+  closeSheet();
+  if (j) S.job = j;
+  savePrefs();
+  render();
+  apiCall('getJobCodes', [jobId]).then(function(codes){ S.codes = codes || []; render(); })
+    .catch(function(e){ toast(e.message, true); });
+}
+
+function pickCode(codeId){
+  var c = null;
+  S.codes.forEach(function(x){ if (x.id === codeId) c = x; });
+  if (!c) return;
+  if (S.open && S.open.code && S.open.code.id === codeId){ closeSheet(); return; }
+  if (S.open){
+    // One question before a switch: is the code you're leaving finished?
+    S.pendingCode = c;
+    openSheet('prompt', 'after');
+    return;
+  }
+  closeSheet();
+  doClockIn(c);
+}
+
+function busy(on){ document.body.style.pointerEvents = on ? 'none' : ''; }
+
+function doClockIn(code){
+  if (!S.job) { toast('Pick a job first'); return; }
+  busy(true);
+  withCoords(function(coords){
+    apiCall('clockIn', [S.job.id, code.id, coords]).then(function(open){
+      S.open = open;
+      S.nudged = false; S.escalated = false; S.afterRequired = false; S.pendingCode = null;
+      S.capture = 'before';
+      savePrefs();
+      toast('On the clock · ' + codeLabel(code));
+      scheduleNudge();
+      enablePush();
+      openSheet('prompt', 'before');   // a code starting is when a before photo is owed
+      return refreshDay();
+    }).catch(showErr).then(function(){ busy(false); render(); });
+  });
+}
+
+function doSwitch(code){
+  busy(true);
+  withCoords(function(coords){
+    apiCall('switchCode', [S.job.id, code.id, coords]).then(function(open){
+      S.open = open;
+      S.nudged = false; S.escalated = false; S.afterRequired = false; S.pendingCode = null;
+      S.capture = 'before';
+      savePrefs();
+      toast('Now on ' + codeLabel(code));
+      scheduleNudge();
+      openSheet('prompt', 'before');
+      return refreshDay();
+    }).catch(showErr).then(function(){ busy(false); render(); });
+  });
+}
+
+function doClockOut(){
+  if (needAfterForOut()) { toast('After photo required before clock-out'); return; }
+  busy(true);
+  withCoords(function(coords){
+    apiCall('clockOut', [coords]).then(function(r){
+      S.open = null; S.afterRequired = false; S.pendingCode = null;
+      S.nudged = false; S.escalated = false;
+      clearTimeout(nudgeTimer);
+      if (r && r.entries) S.entries = r.entries;
+      savePrefs();
+      closeSheet();
+      toast('Clocked out · sent to JobTread');
+      return refreshDay();
+    }).catch(showErr).then(function(){ busy(false); render(); });
+  });
+}
+
+/* "YES — it's finished": an after photo is now required to start the next code. */
+function promptYes(){
+  S.afterRequired = true;
+  closeSheet();
+  S.capture = 'after';
+  setTab('cam');
+  toast('After photo required to start ' + ((S.pendingCode && S.pendingCode.number) || 'the next code'));
+}
+/* "NO — still going": switch straight through, nothing owed. */
+function promptNo(){
+  var c = S.pendingCode;
+  closeSheet();
+  if (c) doSwitch(c); else render();
+}
+function promptShoot(){
+  closeSheet();
+  S.capture = 'before';
+  S.returnToClock = true;
+  $('notif').style.display = 'none';
+  setTab('cam');
+}
+
+function showErr(e){
+  if (e && e.readOnly) toast('Read-only build — nothing was posted', true);
+  else toast((e && e.message) || 'Something went wrong', true);
+}
+
+function withCoords(cb){
+  if (!navigator.geolocation) { cb(null); return; }
+  var done = false;
+  var t = setTimeout(function(){ if (!done){ done = true; cb(null); } }, 2500);
+  navigator.geolocation.getCurrentPosition(function(p){
+    if (done) return; done = true; clearTimeout(t);
+    cb({ lat:p.coords.latitude, lng:p.coords.longitude });
+  }, function(){ if (!done){ done = true; clearTimeout(t); cb(null); } }, { timeout:2400, maximumAge:60000 });
+}
+
+function refreshDay(){
+  return apiCall('getMyDay', []).then(function(list){ S.entries = list || []; })
+    .catch(function(){});
+}
+
+/* =========================================================
+   CAMERA
+   ========================================================= */
+var camStream = null, recorder = null, recChunks = [], recTimer = null;
+
+function startCamera(){
+  if (camStream) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ camFallback('This browser cannot open the camera. Tap to use the phone camera instead.'); return; }
+  navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 } }, audio:false })
+    .then(function(st){
+      camStream = st;
+      $('vf').srcObject = st;
+      $('camFallback').style.display = 'none';
+    })
+    .catch(function(){ camFallback('Camera access is off. Turn it on in Settings, or tap to use the phone camera.'); });
+}
+function camFallback(msg){
+  $('camFbMsg').textContent = msg;
+  $('camFallback').style.display = 'flex';
+}
+function stopCamera(){
+  if (!camStream) return;
+  camStream.getTracks().forEach(function(t){ t.stop(); });
+  camStream = null;
+  $('vf').srcObject = null;
+}
+
+function shoot(){
+  if (!S.job){ toast('Pick a job first'); return; }
+  if (S.mode === 'video'){ toggleRecording(); return; }
+  if (!camStream){ $('fileIn').click(); return; }
+  var v = $('vf');
+  var c = document.createElement('canvas');
+  c.width = v.videoWidth || 1280; c.height = v.videoHeight || 720;
+  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  $('flash').classList.remove('go'); void $('flash').offsetWidth; $('flash').classList.add('go');
+  c.toBlob(function(blob){ if (blob) captured(blob, 'image/jpeg'); }, 'image/jpeg', 0.72);
+}
+
+function toggleRecording(){
+  if (recorder){ recorder.stop(); return; }
+  if (!camStream){ toast('Video needs the live camera'); return; }
+  var mime = ['video/mp4','video/webm;codecs=vp9','video/webm'].filter(function(m){
+    return window.MediaRecorder && MediaRecorder.isTypeSupported(m);
+  })[0];
+  if (!mime){ toast('This phone can’t record video in the browser', true); return; }
+  try {
+    recorder = new MediaRecorder(camStream, { mimeType: mime });
+  } catch(e){ toast('Could not start recording', true); return; }
+  recChunks = [];
+  recorder.ondataavailable = function(e){ if (e.data && e.data.size) recChunks.push(e.data); };
+  recorder.onstop = function(){
+    clearInterval(recTimer); recTimer = null;
+    S.recStart = 0; $('recPill').style.display = 'none';
+    var blob = new Blob(recChunks, { type: mime });
+    recorder = null; recChunks = [];
+    renderCam();
+    if (blob.size) captured(blob, mime);
+  };
+  recorder.start();
+  S.recStart = Date.now();
+  $('recPill').style.display = 'flex';
+  recTimer = setInterval(function(){ $('recT').textContent = mmss((Date.now()-S.recStart)/1000); }, 250);
+  renderCam();
+}
+
+function captured(blob, mime){
+  var tag = S.capture;
+  var codeId = S.open && S.open.code ? S.open.code.id : null;
+  var at = Date.now();
+  var id = uid();
+  makeThumb(blob).then(function(thumb){
+    var rec = { id:id, tag:tag, codeId:codeId, at:at, time:clockLabel(at), thumb:thumb, pending:true };
+    S.photos.push(rec);
+    savePrefs();
+    render();
+    enqueueUpload({ id:id, blob:blob, mime:mime, tag:tag, at:at, jobId:S.job.id,
+                    entryId: (S.open && S.open.id) || '', codeLabel: codeLabel(S.open && S.open.code) });
+    // The before requirement is satisfied — call off the escalation.
+    if (tag === 'before'){ S.escalated = false; $('notif').style.display = 'none'; clearTimeout(nudgeTimer); }
+    settleAfterShot(tag);
+  });
+}
+
+function settleAfterShot(tag){
+  if (tag === 'after' && S.afterRequired && S.pendingCode){
+    var c = S.pendingCode;
+    setTimeout(function(){ doSwitch(c); }, 520);
+    return;
+  }
+  if (S.returnToClock){
+    setTimeout(function(){ S.returnToClock = false; setTab('job'); }, 640);
+  }
+}
+
+function makeThumb(blob){
+  return new Promise(function(res){
+    if (!/^image\//.test(blob.type)) { res(''); return; }
+    var img = new Image(), url = URL.createObjectURL(blob);
+    img.onload = function(){
+      var s = 220 / Math.max(img.width, img.height);
+      var c = document.createElement('canvas');
+      c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      try { res(c.toDataURL('image/jpeg', 0.6)); } catch(e){ res(''); }
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); res(''); };
+    img.src = url;
+  });
+}
+
+/* =========================================================
+   UPLOAD QUEUE — IndexedDB, same shape as DB Cam Mobile.
+   Nothing in the UI waits on the network.
+   ========================================================= */
+var DB = null;
+function idb(){
+  if (DB) return Promise.resolve(DB);
+  return new Promise(function(res, rej){
+    var r = indexedDB.open('dbtc', 1);
+    r.onupgradeneeded = function(){ r.result.createObjectStore('q', { keyPath:'id' }); };
+    r.onsuccess = function(){ DB = r.result; res(DB); };
+    r.onerror = function(){ rej(r.error); };
+  });
+}
+function idbAll(){
+  return idb().then(function(db){
+    return new Promise(function(res){
+      var out = [], c = db.transaction('q').objectStore('q').openCursor();
+      c.onsuccess = function(e){ var cur = e.target.result; if (cur){ out.push(cur.value); cur.continue(); } else res(out); };
+      c.onerror = function(){ res([]); };
+    });
+  }).catch(function(){ return []; });
+}
+function idbPut(item){ return idb().then(function(db){ db.transaction('q','readwrite').objectStore('q').put(item); }); }
+function idbDel(id){ return idb().then(function(db){ db.transaction('q','readwrite').objectStore('q').delete(id); }); }
+
+function enqueueUpload(item){
+  idbPut(item).then(function(){ S.queued++; render(); pump(); });
+}
+
+var pumping = false;
+function pump(){
+  if (pumping || !S.online) return;
+  pumping = true;
+  idbAll().then(function(items){
+    S.queued = items.length;
+    render();
+    return items.reduce(function(chain, item){
+      return chain.then(function(){ return sendOne(item); });
+    }, Promise.resolve());
+  }).catch(function(){}).then(function(){
+    pumping = false;
+    idbAll().then(function(rest){ S.queued = rest.length; render(); });
+  });
+}
+
+function sendOne(item){
+  var name = fileName(item);
+  var desc = fileDescription(item);
+  return apiCall('createCaptureUploadRequest', [item.jobId, item.mime, item.blob.size, name])
+    .then(function(req){
+      var headers = {};
+      for (var h in (req.headers||{})) headers[h] = req.headers[h];
+      headers['Content-Type'] = headers['Content-Type'] || item.mime;
+      return fetch(req.url, { method: req.method || 'PUT', headers: headers, body: item.blob })
+        .then(function(r){ if (!r.ok) throw new Error('Upload failed (' + r.status + ')'); return req.uploadRequestId; });
+    })
+    .then(function(reqId){ return apiCall('finalizeCaptureUpload', [item.jobId, reqId, name, desc]); })
+    .then(function(){
+      return idbDel(item.id).then(function(){
+        S.photos.forEach(function(p){ if (p.id === item.id) p.pending = false; });
+        savePrefs(); render();
+      });
+    })
+    .catch(function(e){
+      // Leave it queued and stop the run; the next signal or app open retries.
+      if (e && e.readOnly){ idbDel(item.id); }
+      throw e;
+    });
+}
+
+/* The photo's description is the server's only trustworthy record of which
+   block of time a photo belongs to. `#TE:<timeEntryId>` is what
+   entryIdsWithBeforePhoto_() in Code.gs greps for — keep the two in step. */
+function fileDescription(item){
+  return '#' + item.tag.toUpperCase() +
+         (item.entryId ? ' #TE:' + item.entryId : '') +
+         (item.codeLabel ? ' ' + item.codeLabel : '');
+}
+
+function fileName(item){
+  var d = new Date(item.at);
+  var stamp = d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
+  var who = (S.me && S.me.name || '').split(/\s+/).map(function(w){ return w.charAt(0); }).join('').toUpperCase();
+  var ext = /video/.test(item.mime) ? (/mp4/.test(item.mime) ? '.mp4' : '.webm') : '.jpg';
+  return stamp + '-' + item.tag.toUpperCase() + (who ? '-' + who : '') + ext;
+}
+
+/* =========================================================
+   NOTES
+   ========================================================= */
+function addNote(){
+  var body = $('noteText').value.trim();
+  if (!body) return;
+  var meta = clockLabel() + ' · ' + (S.open ? codeLabel(S.open.code) : 'No code');
+  S.notes.push({ id:uid(), at:Date.now(), meta:meta, body:body });
+  $('noteText').value = '';
+  savePrefs(); render();
+  if (S.job){
+    apiCall('postJobNote', [S.job.id, body, S.me && S.me.name])
+      .then(function(){ toast('Note added to the job in JobTread'); })
+      .catch(function(e){ toast(e.readOnly ? 'Note saved locally — read-only build' : 'Note saved locally, will retry', true); });
+  }
+}
+
+/* =========================================================
+   BOOT
+   ========================================================= */
+function start(){
+  $('gate').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  measureTabs();
+  var lastJob = loadPrefs();
+  applyTheme();
+  setTab('job');
+
+  apiCall('getBoot', []).then(function(b){
+    S.me = b;
+    S.writeEnabled = !!b.writeEnabled;
+    return apiCall('getToday', [lastJob || null]);
+  }).then(function(t){
+    S.open = t.open;
+    S.job = t.job;
+    S.codes = t.codes || [];
+    S.entries = t.entries || [];
+    S.writeEnabled = !!t.writeEnabled;
+    if (S.open) scheduleNudge();
+    return apiCall('getJobOptions', [S.me.userId]);
+  }).then(function(list){
+    S.jobOptions = list || [];
+    if (S.me && S.me.isForeman) return apiCall('getCrewOnClock', []).then(function(c){ S.crew = c || []; });
+  }).catch(function(e){
+    if (!(e && e.auth)) toast(e.message || 'Could not reach JobTread', true);
+  }).then(function(){
+    render();
+    pump();
+    handleShootParam();
+    // Re-register on every launch: FCM tokens rotate, and a stale one is a
+    // nudge that silently goes nowhere.
+    if (S.open) enablePush();
+  });
+}
+
+/* ---- wiring ---- */
+$('sunBtn').onclick = function(){ S.sun = !S.sun; savePrefs(); render(); };
+$('pickJobBtn').onclick = function(){ if (!S.open) openSheet('jobs'); };
+$('clockIn').onclick = function(){ if (S.job) openSheet('codes'); };
+$('switchBtn').onclick = function(){ openSheet('codes'); };
+$('clockOutBtn').onclick = function(){ openSheet('out'); };
+$('remind').onclick = function(){
+  S.returnToClock = true;
+  S.capture = S.afterRequired ? 'after' : needBefore() ? 'before' : needDuring() ? 'during' : 'after';
+  setTab('cam');
+};
+$('sheetClose').onclick = function(){ closeSheet(); render(); };
+$('scrimTap').onclick = function(){ closeSheet(); render(); };
+$('shutter').onclick = shoot;
+$('modeBtn').onclick = function(){ if (recorder) return; S.mode = S.mode==='photo'?'video':'photo'; renderCam(); };
+$('lastShot').onclick = function(){ setTab('log'); };
+$('camFallback').onclick = function(){ $('fileIn').click(); };
+$('fileIn').onchange = function(){
+  var f = this.files && this.files[0];
+  this.value = '';
+  if (f) captured(f, f.type || 'image/jpeg');
+};
+$('addPhotoBtn').onclick = function(){ S.returnToClock = false; setTab('cam'); };
+$('addNoteBtn').onclick = addNote;
+$('sendDayBtn').onclick = function(){
+  S.sent = true; savePrefs(); render();
+  pump();
+  toast(S.online ? 'Sent · photos to DB Cam, hours to JobTread' : 'Queued · sends when you have signal');
+};
+$('notif').onclick = function(){ $('notif').style.display='none'; closeSheet(); S.capture='before'; S.returnToClock=true; setTab('cam'); };
+[].forEach.call(document.querySelectorAll('.tab'), function(b){
+  // A self-directed trip to the camera keeps you in the camera; a prompted one
+  // returns to the running clock.
+  b.onclick = function(){ if (b.getAttribute('data-tab')==='cam') S.returnToClock = false; setTab(b.getAttribute('data-tab')); };
+});
+[].forEach.call(document.querySelectorAll('.tagbtn'), function(b){
+  b.onclick = function(){ S.capture = b.getAttribute('data-tag'); renderCam(); };
+});
+
+window.addEventListener('online', function(){ S.online = true; render(); pump(); });
+window.addEventListener('offline', function(){ S.online = false; render(); });
+window.addEventListener('resize', measureTabs);
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState !== 'visible') return;
+  // A phone that spent an hour in a pocket should show the right number
+  // immediately, and any owed nudge should land now.
+  render();
+  checkNudge();
+  pump();
+  refreshDay().then(render);
+});
+
+/* the second hand */
+setInterval(function(){
+  if (!S.open) return;
+  $('elapsed').textContent = hms(openSeconds());
+  if (S.tab === 'job') { renderClock(); renderDay(); }
+}, 1000);
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+
+measureTabs();
+if (!API_URL || !GOOGLE_CLIENT_ID){
+  $('gateErr').textContent = 'config.js is not filled in yet — see SETUP.md.';
+  $('gate').classList.remove('hidden');
+} else if (authFresh()){
+  start();
+} else {
+  requireSignIn('');
+}
+</script>
+</body>
+</html>
