@@ -1045,7 +1045,11 @@ function renderVersion(){
   $('verTbl').innerHTML =
     '<div class="trow"><span class="nm">App</span><span class="d tabular">' + esc(APP_BUILD) + '</span></div>' +
     '<div class="trow"><span class="nm">API</span><span class="d tabular">' + esc(api || 'not reached') + '</span></div>' +
-    '<div class="trow"><span class="nm">Board</span><span class="d tabular">' + esc(board) + '</span></div>';
+    '<div class="trow"><span class="nm">Board</span><span class="d tabular">' + esc(board) + '</span></div>' +
+    (a && a.boardMs != null
+      ? '<div class="trow"><span class="nm">Board time</span><span class="d tabular">' +
+        (a.boardMs >= 1000 ? (a.boardMs/1000).toFixed(1) + 's' : a.boardMs + 'ms') + '</span></div>'
+      : '');
 
   var le = $('errBox'), e = S.lastErr;
   le.classList.toggle('hidden', !e);

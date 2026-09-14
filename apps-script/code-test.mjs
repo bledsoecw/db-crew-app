@@ -147,5 +147,42 @@ const sentWhere = JSON.parse(fetched[0].opts.payload).query
 t('memberFor_ filters on user.emailAddress, not user.email', sentWhere[0], ['user', 'emailAddress']);
 t('memberFor_ returns the resolved member', [me.userId, me.membershipId, me.name], ['u1', 'm1', 'Tyler B.']);
 
+// ---- a slow board must not be allowed to queue the clock behind it ----
+// UrlFetchApp has no timeout and Apps Script serialises executions per user,
+// so an overrunning board call stalls getBoot too. One slow answer trips a
+// breaker; the next calls skip the board instead of waiting again.
+//
+// The vm context has its own Date intrinsic, so the clock has to be installed
+// inside it — patching the host's Date.now is invisible to Code.gs.
+vm.runInContext(
+  'globalThis.__realNow = Date.now;' +
+  'Date.now = function(){ return globalThis.__now != null ? globalThis.__now : globalThis.__realNow(); };',
+  sandbox);
+const clearResponseCache = () =>
+  Object.keys(cacheStore).filter(k => k.startsWith('mj_')).forEach(k => delete cacheStore[k]);
+
+props = { BOARD_API_URL: 'https://ops.example.com', CREW_APP_SECRET: 's3cret' };
+cacheStore = {}; fetched = [];
+sandbox.getJobOptions = () => [{ id: 'j1', name: 'x', number: '1' }];
+sandbox.__now = 1000;
+fetchImpl = () => { sandbox.__now += 9000; return { code: 200, body: '{"crew":null,"visits":[]}' }; };
+
+const slow = sandbox.getMyJobs(ME);
+t('a slow call still returns its answer', [slow.source, slow.boardMs], ['board', 9000]);
+t('and trips the breaker', typeof cacheStore['board_slow'], 'string');
+
+clearResponseCache();
+const callsBefore = fetched.length;
+const next = sandbox.getMyJobs(ME);
+t('the next call skips the board entirely', fetched.length, callsBefore);
+t('and says why, over the fallback list', [next.source, next.reason, next.jobs.length], ['fallback', 'board-slow', 1]);
+
+// a quick board leaves the breaker alone
+cacheStore = {}; fetched = [];
+fetchImpl = () => { sandbox.__now += 300; return { code: 200, body: '{"crew":null,"visits":[]}' }; };
+const fast = sandbox.getMyJobs(ME);
+t('a fast call does not trip it', [fast.boardMs, cacheStore['board_slow']], [300, undefined]);
+sandbox.__now = null;
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

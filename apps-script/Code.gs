@@ -415,7 +415,14 @@ function getNearbyCandidates() {
 // ===========================================================
 
 var BOARD_LOOKAHEAD_DAYS = 13;   // today plus a fortnight: this week and next
-var BOARD_CACHE_SEC = 60;        // a re-opened app shouldn't re-hit the board
+var BOARD_CACHE_SEC = 120;       // a re-opened app shouldn't re-hit the board
+// UrlFetchApp has no timeout, and Apps Script runs one execution at a time per
+// user — so a board that answers slowly does not just delay this call, it
+// queues getBoot and getToday behind it and the whole app looks frozen. "Never
+// blocked by the board" has to cover slow as well as down, so a call that
+// overruns trips a breaker and the next few requests skip the board entirely.
+var BOARD_SLOW_MS = 8000;
+var BOARD_COOLDOWN_SEC = 300;
 var BOARD_MAX_SPAN_DAYS = 60;    // ceiling on a client-supplied range
 var BOARD_MAX_BACKDATE_DAYS = 30;
 
@@ -482,6 +489,14 @@ function getMyJobs(me, from, to) {
     return out;
   }
 
+  // Breaker open: the board overran recently, so don't queue behind it again.
+  var cache0 = CacheService.getScriptCache();
+  if (cache0.get('board_slow')) {
+    out.reason = 'board-slow';
+    out.jobs = fallbackJobs_(me);
+    return out;
+  }
+
   var ck = 'mj_' + Utilities.base64EncodeWebSafe(
     Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
       me.membershipId + '|' + from + '|' + to)).slice(0, 40);
@@ -489,7 +504,7 @@ function getMyJobs(me, from, to) {
   var hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) { /* fall through and refetch */ } }
 
-  var body;
+  var body, startedMs = Date.now(), elapsedMs = 0;
   try {
     var resp = UrlFetchApp.fetch(
       cfg.url + '/api/crew/assignments' +
@@ -501,6 +516,8 @@ function getMyJobs(me, from, to) {
         muteHttpExceptions: true,
         followRedirects: false   // a 307 to Google sign-in means the proxy matcher is wrong, not that we should follow it
       });
+    elapsedMs = Date.now() - startedMs;
+    if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
     var code = resp.getResponseCode();
     var text = resp.getContentText();
     if (code === 307 || code === 302) {
@@ -515,12 +532,16 @@ function getMyJobs(me, from, to) {
     }
     body = JSON.parse(text);
   } catch (e) {
+    elapsedMs = Date.now() - startedMs;
+    if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
     out.reason = 'board-unreachable';
+    out.boardMs = elapsedMs;
     out.jobs = fallbackJobs_(me);
     return out;
   }
 
   out.source = 'board';
+  out.boardMs = elapsedMs;
   out.crew = body.crew || null;
   out.visits = (body.visits || []).map(function (v) { return shapeVisit_(v, today); });
   out.visits.sort(function (a, b) {
@@ -563,6 +584,15 @@ function shapeVisit_(v, today) {
     jtype: v.jtype || '',
     material: v.material || null
   };
+}
+
+/* One slow answer is enough to stop asking for a while. The cost of a stale
+   job list is a crew member tapping refresh; the cost of not tripping is the
+   clock screen hanging behind a queued execution. */
+function tripBoardBreaker_(ms) {
+  try {
+    CacheService.getScriptCache().put('board_slow', String(ms), BOARD_COOLDOWN_SEC);
+  } catch (e) {}
 }
 
 // The pre-board answer to "which job am I on", kept as the fallback rather
