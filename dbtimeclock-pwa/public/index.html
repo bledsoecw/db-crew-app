@@ -461,6 +461,13 @@ button[disabled]{cursor:default}
         </button>
         <div class="foot">Photos flow into the DB&nbsp;Cam report. Hours post to JobTread.</div>
       </div>
+
+      <div class="sect">
+        <div class="k">Build</div>
+        <div class="tbl" id="verTbl"></div>
+        <button class="btn btn-out" id="updateBtn" style="margin-top:12px">Check for update</button>
+        <div class="foot">Clears this phone's copy of the app and reloads it. Your hours and any queued photos are untouched.</div>
+      </div>
     </div>
   </div>
 
@@ -526,7 +533,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.1 (2026-07-28)';
+var APP_BUILD = 'T1.2 (2026-09-14)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -541,6 +548,10 @@ function pad2(n){ return (n<10?'0':'') + n; }
 var BEFORE_GRACE_SEC = 5*60;      // before photo owed this long -> escalate
 var DURING_AFTER_SEC = 45*60;     // ask for a progress shot this far in
 var ESCALATION_CONTACT = 'the office';
+/* The board is a second system on the far side of Apps Script, which has no
+   request timeout of its own. Without a ceiling here a slow board leaves the
+   tab saying "Checking the board…" forever, with no way back. */
+var BOARD_WAIT_MS = 20000;
 
 /* =========================================================
    AUTH — identical to DB Cam Mobile: Google ID token once,
@@ -854,6 +865,7 @@ function render(){
   renderCrew();
   renderCam();
   renderLog();
+  renderVersion();
 }
 
 /* JobTread returns a full formatted address ("408 Euclid Ave, Van Wert, OH
@@ -985,6 +997,52 @@ function renderCam(){
   si.classList.toggle('rec', !!S.recStart);
 }
 
+/* Which halves are actually live. The two deploys are independent — Firebase
+   serves the app, Apps Script serves the API — so one can be stale while the
+   other is current, and until now there was no way to tell from the phone.
+   Deliberately readable even when getBoot failed: "API · not reached" is
+   itself the answer in that case. */
+function renderVersion(){
+  var api = (S.me && S.me.build) || '';
+  var a = S.assign;
+  var board = !a ? '—'
+            : a.source === 'board' ? (a.crew ? a.crew.name : 'connected, no crew')
+            : a.reason === 'not-configured' ? 'not set up'
+            : a.reason === 'board-slow' ? 'too slow'
+            : 'unreachable';
+  $('verTbl').innerHTML =
+    '<div class="trow"><span class="nm">App</span><span class="d tabular">' + esc(APP_BUILD) + '</span></div>' +
+    '<div class="trow"><span class="nm">API</span><span class="d tabular">' + esc(api || 'not reached') + '</span></div>' +
+    '<div class="trow"><span class="nm">Board</span><span class="d tabular">' + esc(board) + '</span></div>';
+}
+
+/* The service worker keeps a copy of the shell so the app opens with no
+   signal. That is also why a fresh deploy can appear not to have landed. This
+   throws that copy away and reloads; the clock is server-side and queued
+   captures live in IndexedDB, so neither is touched. */
+function forceUpdate(){
+  toast('Updating…');
+  var jobs = [];
+  try {
+    if (window.caches && caches.keys) {
+      jobs.push(caches.keys().then(function(keys){
+        return Promise.all(keys.map(function(k){ return caches.delete(k); }));
+      }));
+    }
+  } catch(e){}
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      jobs.push(navigator.serviceWorker.getRegistrations().then(function(rs){
+        return Promise.all(rs.map(function(r){ return r.update(); }));
+      }));
+    }
+  } catch(e){}
+  // Reload whatever happens — a failed cache purge must not strand the button.
+  Promise.all(jobs).catch(function(){}).then(function(){
+    setTimeout(function(){ location.reload(); }, 250);
+  });
+}
+
 function renderLog(){
   $('logK').textContent = 'Day log' + (S.job && S.job.number ? ' · JT #' + S.job.number : '');
   $('logDate').textContent = new Date().toLocaleDateString('en-US',{ weekday:'short', month:'short', day:'numeric' });
@@ -1032,13 +1090,21 @@ function loadAssignments(){
   if (S.assignLoading) return Promise.resolve();
   S.assignLoading = true;
   renderJobs();
-  return apiCall('getMyJobs', []).then(function(a){
+  // Apps Script offers no timeout on its own outbound call, so the ceiling has
+  // to live here. Whatever happens, this settles and the spinner state ends.
+  var late = null;
+  var guard = new Promise(function(_, reject){
+    late = setTimeout(function(){ reject(new Error('board-slow')); }, BOARD_WAIT_MS);
+  });
+  return Promise.race([apiCall('getMyJobs', []), guard]).then(function(a){
     S.assign = a || null;
-  }).catch(function(){
-    // getMyJobs already swallows board failures; reaching here means the
-    // script itself is unreachable, which the offline strip is already saying.
-    S.assign = { source:'fallback', reason:'unreachable', crew:null, visits:[], jobs:[] };
+  }).catch(function(e){
+    // getMyJobs swallows board failures itself, so reaching here means the
+    // board outlasted the ceiling or Apps Script is unreachable.
+    S.assign = { source:'fallback', crew:null, visits:[], jobs:[],
+                 reason: (e && e.message === 'board-slow') ? 'board-slow' : 'unreachable' };
   }).then(function(){
+    clearTimeout(late);
     S.assignLoading = false;
     render();
   });
@@ -1065,6 +1131,9 @@ function assignNote(a){
       return 'No crew is linked to your account yet — ask the office. Showing jobs you have recently clocked into.';
     case 'not-configured':
       return 'The production board is not connected yet. Showing jobs you have recently clocked into.';
+    case 'board-slow':
+      return 'The production board did not answer in ' + Math.round(BOARD_WAIT_MS/1000) +
+             ' seconds. Tap refresh to try again — showing jobs you have recently clocked into.';
     default:
       return 'Could not reach the production board. Showing jobs you have recently clocked into.';
   }
@@ -1718,6 +1787,7 @@ $('fileIn').onchange = function(){
 };
 $('addPhotoBtn').onclick = function(){ S.returnToClock = false; setTab('cam'); };
 $('addNoteBtn').onclick = addNote;
+$('updateBtn').onclick = forceUpdate;
 $('sendDayBtn').onclick = function(){
   S.sent = true; savePrefs(); render();
   pump();
