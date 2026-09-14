@@ -85,18 +85,37 @@ A real job's Labor lines, for shape: Project Management (C), Sales On-Site
 Support, Equipment Operation, Site Prep Labor, Demolition, Hauling & Disposal,
 Hand Excavation, Crew Labor, Masonry Labor, Final Clean.
 
-## People
+## People — the field is `emailAddress`, not `email`
 
-Google email → JobTread user, the same way DB Cam Mobile does it:
+**Corrected 2026-09-14 against the live API.** The query written here before was
+wrong and had never worked:
 
 ```
 organization.memberships
-  $: { where: [['user','email'], email], size: 1 }
-  nodes { id, user { id, name } }
+  $: { where: [['user','emailAddress'], email], size: 1 }
+  nodes { id, role { name }, user { id, name } }
 ```
 
-`user.id` is what `createTimeEntry.userId` wants; `membership.id` is what
-comment assignees want. Note `currentGrant.user` has no `email` field.
+`['user','email']` does not exist. Pave does not return an empty result for it —
+it **rejects the whole query**:
+
+```
+The field "email" does not exist at "membership"."user"
+```
+
+`memberFor_` wraps that call in a `try/catch` that falls through, so the thrown
+error became `userId === ''` and every single sign-in died on *"No JobTread user
+is linked to &lt;you&gt;. Ask the office to add you to the organization."* — a
+message that blames the org for a typo in the query. Nobody could use the app.
+
+The selectable field is `user.emailAddress`; there is no `user.email` to select
+or to filter on. `emailAddress` works in both positions.
+
+`user.id` is what `createTimeEntry.userId` wants; `membership.id` is what comment
+assignees and the Production Board's `Crew.leadMembershipId` want.
+`currentGrant.user` exposes neither address.
+
+**If DB Cam Mobile was copied from the same source, check it for the same line.**
 
 ## Photos
 

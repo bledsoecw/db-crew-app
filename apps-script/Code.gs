@@ -234,7 +234,11 @@ function memberFor_(email) {
       organization: {
         '$': { id: ORG },
         memberships: {
-          '$': { where: [['user', 'email'], email], size: 1 },
+          // The field is emailAddress. `email` does not exist on membership.user
+          // and Pave rejects the whole query with "The field \"email\" does not
+          // exist" — which this function's catch swallows, so every sign-in used
+          // to fail as "No JobTread user is linked to ...". Verified 2026-09-14.
+          '$': { where: [['user', 'emailAddress'], email], size: 1 },
           nodes: { id: {}, role: { name: {} }, user: { id: {}, name: {} } }
         }
       }

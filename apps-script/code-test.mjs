@@ -130,5 +130,22 @@ sandbox.getJobOptions = () => { throw new Error('pave down'); };
 r = sandbox.getMyJobs(ME);
 t('fallback survives getJobOptions throwing', [r.source, r.jobs.length], ['fallback',0]);
 
+// ---- memberFor_ must ask for a field JobTread actually has ----
+// This is the regression test for the bug that made every sign-in fail: the
+// lookup filtered on ['user','email'], which does not exist, so Pave rejected
+// the whole query and memberFor_'s catch turned that into "No JobTread user is
+// linked to you". The stub can't know JobTread's schema, so assert the field
+// name in the query that actually goes out.
+props = {}; cacheStore = {}; fetched = [];
+fetchImpl = () => ({ code: 200, body: JSON.stringify({
+  organization: { memberships: { nodes: [
+    { id: 'm1', role: { name: 'Crew' }, user: { id: 'u1', name: 'Tyler B.' } }
+  ] } } }) });
+const me = sandbox.memberFor_('tyler.b@deitemeyerbrothers.com');
+const sentWhere = JSON.parse(fetched[0].opts.payload).query
+  .organization.memberships.$.where;
+t('memberFor_ filters on user.emailAddress, not user.email', sentWhere[0], ['user', 'emailAddress']);
+t('memberFor_ returns the resolved member', [me.userId, me.membershipId, me.name], ['u1', 'm1', 'Tyler B.']);
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);
