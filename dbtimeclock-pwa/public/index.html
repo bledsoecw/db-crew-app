@@ -187,7 +187,11 @@ button[disabled]{cursor:default}
 #lastCount{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.65);padding:5px 6px;font:600 9.5px/1 var(--mono);letter-spacing:.86px;color:#fff;border-radius:2px}
 
 /* ---------------- day log ---------------- */
-#logHead{padding:8px 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
+/* Views start at inset 0 under a black-translucent status bar, so anything
+   anchored to the top has to clear the notch itself — same offset #hdr uses.
+   env() falls back to 12px off-device, which is why this only shows on a real
+   iPhone. */
+#logHead{padding:calc(var(--sat) + 8px) 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
 #logDate{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px}
 #syncBadge{padding:7px 9px;border-radius:2px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut);flex:none}
 #syncBadge.sent{background:var(--go);color:var(--goink)}
@@ -258,7 +262,7 @@ button[disabled]{cursor:default}
    tappable everywhere it can act: the address sets today's job, the nav row
    hands the street address to the phone's maps app. Both clear the
    gloved-thumb budget (88px / 76px). */
-#jobsHead{padding:8px 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
+#jobsHead{padding:calc(var(--sat) + 8px) 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
 #jobsCrew{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #jobsRefresh{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--mut)}
 #jobsSrc{font:600 12.5px/1.4 var(--sans);letter-spacing:.2px;text-transform:none}
