@@ -262,6 +262,9 @@ button[disabled]{cursor:default}
    tappable everywhere it can act: the address sets today's job, the nav row
    hands the street address to the phone's maps app. Both clear the
    gloved-thumb budget (88px / 76px). */
+#errBox{margin-top:11px;border:1px solid var(--rec);border-radius:6px;padding:13px 15px;background:rgba(192,57,43,.12)}
+#errBox .k{color:var(--rec)}
+#errBox .em{font:400 14px/1.45 var(--sans);color:var(--fg);margin-top:6px;word-break:break-word}
 #jobsHead{padding:calc(var(--sat) + 8px) 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
 #jobsCrew{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #jobsRefresh{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--mut)}
@@ -465,6 +468,7 @@ button[disabled]{cursor:default}
       <div class="sect">
         <div class="k">Build</div>
         <div class="tbl" id="verTbl"></div>
+        <div id="errBox" class="hidden"></div>
         <button class="btn btn-out" id="updateBtn" style="margin-top:12px">Check for update</button>
         <div class="foot">Clears this phone's copy of the app and reloads it. Your hours and any queued photos are untouched.</div>
       </div>
@@ -603,7 +607,23 @@ function apiCall(fn, args){
     method:'POST',
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },  // avoids the CORS preflight Apps Script can't answer
     body: JSON.stringify({ t: AUTH.token, fn: fn, args: args || [] })
-  }).then(function(r){ return r.json(); }).then(function(j){
+  }).then(function(r){
+    // Never let r.json() reject on its own. When Apps Script hands back a page
+    // instead of data — a sign-in interstitial, an authorisation notice, a
+    // stale /exec — WebKit rejects with the bare string "The string did not
+    // match the expected pattern", which names neither the cause nor the fix.
+    return r.text().then(function(txt){
+      try { return JSON.parse(txt); }
+      catch (pe) {
+        var looksHtml = /^\s*</.test(txt);
+        var err = new Error(looksHtml
+          ? 'The API returned a web page, not data (HTTP ' + r.status + '). Usually the Apps Script deployment is not set to "Anyone" access, or config.js has a stale /exec URL.'
+          : 'The API sent something unreadable (HTTP ' + r.status + '): ' + String(txt).slice(0, 120));
+        err.notJson = true;
+        throw err;
+      }
+    });
+  }).then(function(j){
     if (j && j.ok) return j.data;
     var err = new Error((j && j.error) || 'Request failed');
     err.auth = !!(j && j.auth);
@@ -623,7 +643,7 @@ var S = {
   afterRequired:false, nudged:false, escalated:false, returnToClock:false,
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
-  sun:true, writeEnabled:false, queued:0, online:navigator.onLine
+  sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null
 };
 
 function savePrefs(){
@@ -673,6 +693,18 @@ function openSeconds(){ return S.open ? Math.max(0, (Date.now() - new Date(S.ope
 /* =========================================================
    TOAST + NOTIFICATION
    ========================================================= */
+/* A toast is gone in four seconds and there is no console on a phone, so an
+   error that only toasts is an error nobody can report. Every raw failure is
+   also kept here and shown on the Day log's Build panel, naming the call that
+   produced it — the difference between "something went wrong" and a fault
+   somebody can act on. */
+function failed(where, e){
+  var msg = (e && e.message) || String(e || 'Unknown error');
+  S.lastErr = { where: where, msg: msg, at: Date.now() };
+  try { renderVersion(); } catch(_){}
+  toast(msg, true);
+}
+
 var toastT = null;
 function toast(msg, isErr){
   var t = $('toast');
@@ -1014,6 +1046,13 @@ function renderVersion(){
     '<div class="trow"><span class="nm">App</span><span class="d tabular">' + esc(APP_BUILD) + '</span></div>' +
     '<div class="trow"><span class="nm">API</span><span class="d tabular">' + esc(api || 'not reached') + '</span></div>' +
     '<div class="trow"><span class="nm">Board</span><span class="d tabular">' + esc(board) + '</span></div>';
+
+  var le = $('errBox'), e = S.lastErr;
+  le.classList.toggle('hidden', !e);
+  if (e){
+    le.innerHTML = '<div class="k">Last error · ' + esc(e.where) + ' · ' + esc(clockLabel(e.at)) + '</div>' +
+                   '<div class="em">' + esc(e.msg) + '</div>';
+  }
 }
 
 /* The service worker keeps a copy of the shell so the app opens with no
@@ -1368,7 +1407,7 @@ function wireSheet(){
           S.candidates = list || [];
           $('jobResults').innerHTML = S.candidates.length ? S.candidates.map(jobRowHtml).join('') : '<div class="body">No jobs match that.</div>';
           wireSheet();
-        }).catch(function(e){ toast(e.message, true); });
+        }).catch(function(e){ failed('searchJobs', e); });
       }, 320);
     };
   }
@@ -1391,7 +1430,7 @@ function pickJob(jobId){
   savePrefs();
   render();
   apiCall('getJobCodes', [jobId]).then(function(codes){ S.codes = codes || []; render(); })
-    .catch(function(e){ toast(e.message, true); });
+    .catch(function(e){ failed('getJobCodes', e); });
 }
 
 function pickCode(codeId){
@@ -1484,9 +1523,9 @@ function promptShoot(){
   setTab('cam');
 }
 
-function showErr(e){
+function showErr(e, where){
   if (e && e.readOnly) toast('Read-only build — nothing was posted', true);
-  else toast((e && e.message) || 'Something went wrong', true);
+  else failed(where || 'clock', e);
 }
 
 function withCoords(cb){
@@ -1748,7 +1787,7 @@ function start(){
     S.jobOptions = list || [];
     if (S.me && S.me.isForeman) return apiCall('getCrewOnClock', []).then(function(c){ S.crew = c || []; });
   }).catch(function(e){
-    if (!(e && e.auth)) toast(e.message || 'Could not reach JobTread', true);
+    if (!(e && e.auth)) failed('boot', e);
   }).then(function(){
     render();
     pump();
