@@ -36,8 +36,8 @@ files on Firebase Hosting.
 
 ## 4. Wire the pieces
 
-In `public/config.js` — this file is deliberately separate from `index.html`
-so app updates never clobber your settings:
+In `public/config.js` — kept separate from `index.html` so the settings are in
+one small file, and committed blank so they are never in the repository:
 
 ```js
 window.DBTC_CONFIG = {
@@ -62,6 +62,26 @@ In Apps Script > Project Settings > **Script Properties**:
 | `FCM_PROJECT_ID` | for push — the Firebase project id (see 4b) |
 | `FCM_SERVICE_ACCOUNT` | for push — the service account JSON key, pasted whole |
 | `PUSH_ENABLED` | for push — `true` to actually send |
+
+### Keep a copy of config.js outside the repo
+
+`firebase deploy` uploads `public/config.js` like any other file, so a fresh
+clone, a branch switch, or a merge that restores the committed copy will push
+the blank placeholder over your live settings and every phone will land on
+*"config.js is not filled in yet"*. The service worker hides it for a while —
+config.js is in the cached shell and the fetch handler is cache-first — so the
+outage tends to appear well after the deploy that caused it.
+
+Take a copy now:
+
+```
+curl.exe -s https://db-time-clock.web.app/config.js -o C:\dev\config-live-backup.js
+```
+
+`check-config.mjs` runs as a Firebase **predeploy** hook and stops the deploy if
+`apiUrl` or `clientId` is empty, or if `apiUrl` is not an Apps Script `/exec`
+URL. You should never see this fire — if you do, restore from the copy above
+and deploy again.
 
 ## 4b. Push notifications — the nudge that reaches a pocketed phone
 
