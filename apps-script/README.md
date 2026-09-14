@@ -21,6 +21,19 @@ Either way, after a code change: **Deploy > Manage deployments > edit the
 existing deployment > new version**, so the `/exec` URL the app is pointed at
 stays stable.
 
+## Tests
+
+```
+node code-test.mjs      # 25 assertions, no dependencies, no network
+```
+
+Covers `getMyJobs` — the one function here that depends on a second system.
+Code.gs is evaluated in a `vm` context with stubbed Apps Script services, so
+every branch the Production Board can put it in (unconfigured, 502, a 307
+sign-in bounce, a thrown request, an absurd date range) is reachable without a
+board to point at. The rule it exists to protect: **a board problem must never
+reach the clock.**
+
 Required Script Properties are listed in `../dbtimeclock-pwa/SETUP.md`.
 `WRITE_ENABLED` is the important one — it defaults to off, and the app cannot
 post anything to JobTread until you turn it on. `PUSH_ENABLED` plus

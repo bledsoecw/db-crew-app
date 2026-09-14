@@ -37,6 +37,34 @@
   ];
   function code(id) { return CODES.filter(function (c) { return c.id === id; })[0]; }
 
+  // ---- assigned jobs, as the Production Board returns them ----
+  // Shapes match CREW-ASSIGNMENTS-API.md: Visit joined to BoardJob, plus the
+  // material line, with day n of m already resolved by Code.gs.
+  function isoAdd(n) {
+    var d = new Date();
+    d.setDate(d.getDate() + n);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  var VISITS = [
+    { taskId: 't1', jobId: 'j_2841', jobNum: '26-0890', jobName: '260890 Webster_Foundation',
+      start: isoAdd(-1), end: isoAdd(1), days: 3, dayOf: 2, today: true,
+      crewNote: 'Dumpster on the north side. Gate code 1412 — do not block the neighbour\u2019s drive.',
+      cust: 'Noah Webster', city: 'Van Wert', address: '408 Euclid Ave, Van Wert, OH 45891, USA',
+      status: 'Production', jtype: 'Foundation',
+      material: { text: 'Material ordered \u2713', cls: 'good' } },
+    { taskId: 't2', jobId: 'j2', jobNum: '26-1045', jobName: '261045 Lucas_Roof',
+      start: isoAdd(2), end: isoAdd(2), days: 1, dayOf: null, today: false,
+      crewNote: '', cust: 'Lucas', city: 'Van Wert', address: '812 S Washington St, Van Wert, OH 45891, USA',
+      status: 'Production', jtype: 'Roofing',
+      material: { text: 'Pull from shop', cls: 'warn' } },
+    { taskId: 't3', jobId: 'j3', jobNum: '26-1102', jobName: '261102 Harmon_Siding',
+      start: isoAdd(7), end: isoAdd(8), days: 2, dayOf: null, today: false,
+      crewNote: 'Homeowner works nights — no compressor before 9am.',
+      cust: 'Dale Harmon', city: 'Delphos', address: '221 N Main St, Delphos, OH 45833, USA',
+      status: 'Production', jtype: 'Siding',
+      material: { text: 'PART ORDER \u2014 check first', cls: 'bad' } }
+  ];
+
   var ST = { open: null, entries: [], pushToken: null, nudged: null };
   // Two closed blocks already banked today, so the table has something in it.
   var t0 = Date.now() - 3 * 3600 * 1000;
@@ -57,6 +85,26 @@
     },
     getMyDay: function () { return ST.entries; },
     getJobCodes: function () { return CODES; },
+    getMyJobs: function () {
+      // __MOCK_NOBOARD exercises the fallback path — the board down, or not
+      // deployed yet. The clock must stay usable either way.
+      if (window.__MOCK_NOBOARD) {
+        return { source: 'fallback', reason: 'board-unreachable', crew: null,
+                 range: { from: isoAdd(0), to: isoAdd(13) }, visits: [],
+                 jobs: HANDLERS.getJobOptions() };
+      }
+      if (window.__MOCK_NOCREW) {
+        return { source: 'board', reason: 'no-crew', crew: null,
+                 range: { from: isoAdd(0), to: isoAdd(13) }, visits: [],
+                 jobs: HANDLERS.getJobOptions() };
+      }
+      return {
+        source: 'board', reason: '',
+        crew: { id: 'c1', name: 'Alberto', leadMembershipId: 'm1', leadUserName: 'Alberto Gonzalez' },
+        range: { from: isoAdd(0), to: isoAdd(13) },
+        visits: VISITS, jobs: []
+      };
+    },
     getJobOptions: function () { return [JOB, { id: 'j2', name: '261045 Lucas_Roof', number: '26-1045', customer: 'Lucas', address: '812 S Washington St, Van Wert, OH' }]; },
     searchJobs: function () { return [JOB]; },
     getCrewOnClock: function () {

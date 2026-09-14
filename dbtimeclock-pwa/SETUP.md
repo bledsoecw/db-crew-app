@@ -57,6 +57,8 @@ In Apps Script > Project Settings > **Script Properties**:
 | `APP_URL` | optional, `https://<project-id>.web.app` — makes the bare `/exec` link redirect to the app |
 | `WRITE_ENABLED` | **leave unset until you are ready.** `true` lets the app post time entries, photos and notes to JobTread. |
 | `WRITE_JOB_ALLOWLIST` | optional, a comma-separated list of job ids. While set, writes are refused for any other job — useful for a contained first test. |
+| `BOARD_API_URL` | for the My jobs tab — the Production Board origin, e.g. `https://ops.deitemeyerbrothers.com`. Leave unset and the tab falls back to recent jobs (see 4c). |
+| `CREW_APP_SECRET` | for the My jobs tab — the shared secret the board checks. Same value on both sides. |
 | `FCM_PROJECT_ID` | for push — the Firebase project id (see 4b) |
 | `FCM_SERVICE_ACCOUNT` | for push — the service account JSON key, pasted whole |
 | `PUSH_ENABLED` | for push — `true` to actually send |
@@ -114,6 +116,44 @@ Apps Script's quota at a 5-minute cadence.
 `BEFORE_GRACE_SEC` in `index.html` should agree, or the in-app prompt and the
 push will disagree about when the clock started ticking.
 
+## 4c. Assigned jobs — connecting the Production Board
+
+Without this the **My jobs** tab still works; it shows the jobs you have
+recently clocked into and says the board is not connected. With it, the tab
+shows the Install visits the office actually scheduled for your crew.
+
+This is a **read-only** connection. Nothing this app sends can change the board.
+
+1. Generate one secret and use the same value in both places:
+
+   ```
+   openssl rand -hex 32
+   ```
+
+2. In the Production Board's Vercel project: **Settings > Environment
+   Variables**, add `CREW_APP_SECRET` with that value, and redeploy. (The route
+   refuses to run when the variable is unset, rather than standing open.)
+3. In Apps Script > Project Settings > Script Properties, add the same
+   `CREW_APP_SECRET`, plus `BOARD_API_URL` set to the board's origin with no
+   trailing path — `https://ops.deitemeyerbrothers.com`.
+4. Open the app, go to **My jobs**, tap refresh. A crew with work booked shows
+   its visits; the header shows the crew name rather than yours.
+
+**If the tab says "Could not reach the production board":**
+
+| What you see | Usually means |
+| --- | --- |
+| Not connected yet | `BOARD_API_URL` or `CREW_APP_SECRET` is unset in Script Properties |
+| Could not reach it | the board is down, or the URL has a typo or a trailing path |
+| No crew is linked to your account | your Google account resolves to a JobTread membership that no crew in the board's roster lists as its lead — the office fixes this in the board's Operations tab |
+
+A 307 answer means `api/crew` is missing from the matcher exclusion in the
+board's `src/proxy.ts` — Apps Script sends no cookie, so the sign-in bounce
+catches the call. The app reports that case separately rather than calling it
+unreachable.
+
+The full request and response shape is in `../CREW-ASSIGNMENTS-API.md`.
+
 ## 5. Publish
 
 From `dbtimeclock-pwa/` (needs Node):
@@ -161,6 +201,7 @@ be opened locally. Nothing in `dev/` deploys — Firebase only publishes `public
 cd public && python3 -m http.server 8100     # in one shell
 node dev/preview.mjs ./shots                 # in another (needs playwright)
 node dev/push-test.mjs                       # exercises the push paths
+node ../apps-script/code-test.mjs            # getMyJobs, no deps, no network
 ```
 
 `push-test.mjs` fakes the browser push stack and the Firebase SDK, then checks
@@ -168,3 +209,17 @@ each branch: permission granted registers a token with the right VAPID key,
 denied and unconfigured stay silent, an iPhone in a Safari tab reports
 `needs-install`, and the `#TE:` description tag matches the regex the server
 sweep uses.
+
+The mock takes flags on `window`, set before the page loads, to reach the states
+that are otherwise hard to produce:
+
+| Flag | State |
+| --- | --- |
+| `__MOCK_FOREMAN` | the foreman crew block |
+| `__MOCK_READONLY` | the navy READ-ONLY BUILD bar |
+| `__MOCK_NOBOARD` | My jobs with the board unreachable — the fallback list |
+| `__MOCK_NOCREW` | My jobs with the board up but no crew linked to the account |
+
+The last two matter more than they look: the fallback is what a crew member sees
+on the morning the board is down, and it is the path that proves the clock is
+not blocked by it.

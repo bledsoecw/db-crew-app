@@ -253,6 +253,34 @@ button[disabled]{cursor:default}
 #jobSearch{width:100%;border:1.5px solid var(--line);border-radius:8px;background:var(--surf);padding:13px 14px;font:400 16px var(--sans);color:var(--fg);outline:none;-webkit-appearance:none}
 
 /* ---------------- tabs, toast, notification ---------------- */
+/* ---------------- my jobs ----------------
+   The Production Board's Install tasks for whoever is signed in. The card is
+   tappable everywhere it can act: the address sets today's job, the nav row
+   hands the street address to the phone's maps app. Both clear the
+   gloved-thumb budget (88px / 76px). */
+#jobsHead{padding:8px 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
+#jobsCrew{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#jobsRefresh{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--mut)}
+#jobsSrc{font:600 12.5px/1.4 var(--sans);letter-spacing:.2px;text-transform:none}
+.jcard{background:var(--surf);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:14px}
+.jcard.today{border-color:var(--go)}
+.jwhen{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--surf2);border-bottom:1px solid var(--line)}
+.jwhen .d{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab)}
+.jcard.today .jwhen .d{color:var(--acc)}
+.jwhen .n{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--mut);flex:none}
+.jmain{min-height:88px;width:100%;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;padding:15px 16px;text-align:left}
+.jmain .sub{font:400 15px/1.3 var(--sans);color:var(--mut)}
+.jmain .h-addr{font-size:23px}
+.jnav{min-height:var(--tap);width:100%;display:flex;align-items:center;gap:11px;padding:0 16px;border-top:1px solid var(--line);background:var(--surf2);color:var(--fg);font:700 14px/1 var(--head);letter-spacing:.56px;text-transform:uppercase}
+.jmat{display:flex;align-items:center;gap:10px;padding:13px 16px;border-top:1px solid var(--line);font:600 12px/1.3 var(--mono);letter-spacing:.72px;text-transform:uppercase}
+.jmat .dot{width:9px;height:9px;border-radius:50%;background:currentColor;flex:none}
+.jmat.good{color:var(--acc)}
+.jmat.warn{background:var(--warn);color:var(--warnink)}
+.jmat.bad{background:var(--rec);color:#fff}
+.jnote{padding:13px 16px;border-top:1px solid var(--line);font:400 14.5px/1.4 var(--sans);color:var(--mut)}
+.jnote .k{display:block;margin-bottom:5px}
+.jempty{padding:26px 4px;font:400 15px/1.45 var(--sans);color:var(--mut)}
+
 #tabs{position:absolute;left:0;right:0;bottom:0;display:flex;background:var(--tabbg);border-top:1px solid var(--line);padding-bottom:max(calc(var(--sab) - 8px),12px);z-index:60}
 .tab{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-top:3px solid transparent;margin-top:-1px;color:rgba(255,255,255,.74)}
 .tab.on{color:#fff;border-top-color:var(--go)}
@@ -432,11 +460,32 @@ button[disabled]{cursor:default}
     </div>
   </div>
 
+  <!-- ============ MY JOBS ============ -->
+  <div id="vJobs" class="view">
+    <div id="jobsHead">
+      <div style="min-width:0">
+        <div class="k" id="jobsK">My jobs</div>
+        <div id="jobsCrew">—</div>
+      </div>
+      <button id="jobsRefresh" aria-label="Refresh assigned jobs">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>
+      </button>
+    </div>
+    <div id="jobsSrc" class="warnbar robar hidden"></div>
+    <div class="scroll" style="padding:0 20px 26px">
+      <div id="jobsList"></div>
+    </div>
+  </div>
+
   <!-- ============ TABS ============ -->
   <div id="tabs">
     <button class="tab on" data-tab="job">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"/><polyline points="12 6.6 12 12 15.8 14"/></svg>
       <span class="tl">Clock</span>
+    </button>
+    <button class="tab" data-tab="jobs">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.9-7-10.4A7 7 0 0 1 19 10.6C19 16.1 12 21 12 21z"/><circle cx="12" cy="10.4" r="2.6"/></svg>
+      <span class="tl">My jobs</span>
     </button>
     <button class="tab" data-tab="cam">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
@@ -554,7 +603,7 @@ function apiCall(fn, args){
    ========================================================= */
 var S = {
   me:null, job:null, codes:[], open:null, entries:[], crew:[],
-  jobOptions:[], candidates:[],
+  jobOptions:[], candidates:[], assign:null, assignLoading:false,
   tab:'job', sheet:null, promptKind:null, pendingCode:null,
   afterRequired:false, nudged:false, escalated:false, returnToClock:false,
   capture:'before', mode:'photo', recStart:0,
@@ -795,6 +844,7 @@ function render(){
   rb.innerHTML = '<span>Read-only build · hours are not posting yet</span>';
 
   renderJob();
+  renderJobs();
   renderClock();
   renderDay();
   renderCrew();
@@ -952,13 +1002,164 @@ function renderLog(){
 }
 
 /* =========================================================
+   MY JOBS — the Production Board's Install tasks for whoever
+   is signed in.
+
+   The board resolves the crew (it owns the roster and its
+   aliases); this app only asks. getMyJobs never throws for a
+   board problem — it comes back source:'fallback' with the
+   recent-jobs list instead, because the clock is payroll and
+   cannot be blocked by the board being down.
+   ========================================================= */
+var DOW3 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function isoLocal(d){ d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
+
+/* Every job the assigned-jobs tab can offer, in the shape the clock screen
+   already renders — so tapping one is the same pickJob the sheet uses. */
+function assignedJobRows(){
+  var a = S.assign;
+  if (!a) return [];
+  return (a.visits || []).map(function(v){
+    return { id:v.jobId, name:v.jobName, number:v.jobNum, customer:v.cust, address:v.address };
+  }).concat(a.jobs || []);
+}
+
+function loadAssignments(){
+  if (S.assignLoading) return Promise.resolve();
+  S.assignLoading = true;
+  renderJobs();
+  return apiCall('getMyJobs', []).then(function(a){
+    S.assign = a || null;
+  }).catch(function(){
+    // getMyJobs already swallows board failures; reaching here means the
+    // script itself is unreachable, which the offline strip is already saying.
+    S.assign = { source:'fallback', reason:'unreachable', crew:null, visits:[], jobs:[] };
+  }).then(function(){
+    S.assignLoading = false;
+    render();
+  });
+}
+
+/* "Today · day 2 of 3" is what a crew member actually needs off a schedule —
+   which day of the stay this is, not a date they have to subtract from. */
+function visitWhen(v){
+  var span = v.days > 1 ? ' · ' + v.days + ' days' : '';
+  if (v.today) return v.days > 1 && v.dayOf ? 'Today · day ' + v.dayOf + ' of ' + v.days : 'Today';
+  if (v.start === isoLocal(new Date(Date.now() + 86400000))) return 'Tomorrow' + span;
+  var d = new Date(v.start + 'T12:00:00');
+  return isNaN(d) ? v.start : DOW3[d.getDay()] + ' ' + (d.getMonth()+1) + '/' + d.getDate() + span;
+}
+
+/* Why the list isn't the board's answer. Said plainly — a crew member who is
+   looking at a fallback list should know that's what it is. */
+function assignNote(a){
+  if (!a) return '';
+  if (a.source === 'board' && a.crew) return '';
+  switch (a.reason){
+    case 'no-membership':
+    case 'no-crew':
+      return 'No crew is linked to your account yet — ask the office. Showing jobs you have recently clocked into.';
+    case 'not-configured':
+      return 'The production board is not connected yet. Showing jobs you have recently clocked into.';
+    default:
+      return 'Could not reach the production board. Showing jobs you have recently clocked into.';
+  }
+}
+
+/* The board's own words, minus the trailing tick. Plex Mono is the only
+   self-hosted face carrying U+2713 and it draws it as a radical sign — "√" —
+   which reads as maths, not approval, at 12px on a phone in the sun. The
+   colour-coded dot already carries that signal, and the words still come from
+   materialWords() in the board so they stay defined in one place. */
+function matWords(t){ return String(t||'').replace(/[\u2713\u2714]\s*$/, '').trim(); }
+
+/* Hand the street address to whatever maps app the phone has. A geo: URL is
+   ignored by iOS, so this is the one form that opens Maps on both. */
+function navRowHtml(address){
+  if (!address) return '';
+  return '<a class="jnav" href="https://maps.google.com/?q=' + encodeURIComponent(address) + '" target="_blank" rel="noopener">' +
+    '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>Navigate</a>';
+}
+
+function visitCardHtml(v){
+  var street = streetOf(v.address) || jobTitle({ name:v.jobName }) || '—';
+  var sub = [v.cust, v.city || cityOf(v.address)].filter(Boolean).join(' · ');
+  var h = '<div class="jcard' + (v.today ? ' today' : '') + '">';
+  h += '<div class="jwhen"><span class="d">' + esc(visitWhen(v)) + '</span>' +
+       (v.jobNum ? '<span class="n">JT #' + esc(v.jobNum) + '</span>' : '') + '</div>';
+  h += '<button class="jmain" data-pick="' + esc(v.jobId) + '">' +
+       '<span class="h-addr">' + esc(street) + '</span>' +
+       (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</button>';
+  if (v.material && v.material.text){
+    var cls = v.material.cls === 'bad' ? 'bad' : v.material.cls === 'warn' ? 'warn' : 'good';
+    h += '<div class="jmat ' + cls + '"><span class="dot"></span>' + esc(matWords(v.material.text)) + '</div>';
+  }
+  if (v.crewNote) h += '<div class="jnote"><span class="k">From the office</span>' + esc(v.crewNote) + '</div>';
+  h += navRowHtml(v.address);
+  return h + '</div>';
+}
+
+/* The fallback list has no schedule behind it, so it says so rather than
+   borrowing the shape of a real assignment. */
+function recentCardHtml(j){
+  var sub = [j.customer, cityOf(j.address)].filter(Boolean).join(' · ');
+  return '<div class="jcard">' +
+    '<div class="jwhen"><span class="d">Recent</span>' +
+    (j.number ? '<span class="n">JT #' + esc(j.number) + '</span>' : '') + '</div>' +
+    '<button class="jmain" data-pick="' + esc(j.id) + '">' +
+    '<span class="h-addr">' + esc(streetOf(j.address) || jobTitle(j) || '—') + '</span>' +
+    (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</button>' +
+    navRowHtml(j.address) + '</div>';
+}
+
+function renderJobs(){
+  var a = S.assign;
+  $('jobsCrew').textContent = (a && a.crew && a.crew.name) || (S.me && S.me.name) || '—';
+  $('jobsK').textContent = a && a.crew ? 'My jobs · crew' : 'My jobs';
+
+  var note = assignNote(a);
+  var bar = $('jobsSrc');
+  bar.classList.toggle('hidden', !note);
+  bar.innerHTML = '<span>' + esc(note) + '</span>';
+
+  var html = '';
+  if (!a && S.assignLoading){
+    html = '<div class="jempty">Checking the board…</div>';
+  } else if (a && a.visits && a.visits.length){
+    html = a.visits.map(visitCardHtml).join('');
+  } else {
+    if (a && a.source === 'board' && a.crew){
+      html += '<div class="jempty">Nothing booked for ' + esc(a.crew.name) +
+              ' in the next two weeks. If that is wrong, the office has not put it on the board yet.</div>';
+    }
+    var recent = (a && a.jobs) || [];
+    html += recent.length ? recent.map(recentCardHtml).join('')
+                          : (html ? '' : '<div class="jempty">No assigned jobs yet.</div>');
+  }
+  $('jobsList').innerHTML = html;
+
+  [].forEach.call($('jobsList').querySelectorAll('[data-pick]'), function(b){
+    b.onclick = function(){
+      var id = b.getAttribute('data-pick');
+      // The job is locked while the clock runs — the hours already belong to it.
+      if (S.open){ toast('Clock out before changing job', true); return; }
+      pickJob(id);
+      setTab('job');
+    };
+  });
+}
+
+/* =========================================================
    TABS + SHEET
    ========================================================= */
 function setTab(t){
   S.tab = t;
   $('vClock').classList.toggle('on', t==='job');
+  $('vJobs').classList.toggle('on', t==='jobs');
   $('vCam').classList.toggle('on', t==='cam');
   $('vLog').classList.toggle('on', t==='log');
+  // First visit to the tab fetches; after that the refresh button is explicit.
+  if (t === 'jobs' && !S.assign && !S.assignLoading) loadAssignments();
   [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===t); });
   if (t === 'cam') startCamera(); else stopCamera();
   render();
@@ -1111,7 +1312,7 @@ function wireSheet(){
    ========================================================= */
 function pickJob(jobId){
   var j = null;
-  S.jobOptions.concat(S.candidates).forEach(function(x){ if (x.id === jobId) j = x; });
+  S.jobOptions.concat(S.candidates).concat(assignedJobRows()).forEach(function(x){ if (x.id === jobId) j = x; });
   closeSheet();
   if (j) S.job = j;
   savePrefs();
@@ -1479,6 +1680,9 @@ function start(){
     render();
     pump();
     handleShootParam();
+    // Deliberately after render(), and not in the chain above: the board is a
+    // second system and the clock must be usable before it answers, or not.
+    loadAssignments();
     // Re-register on every launch: FCM tokens rotate, and a stale one is a
     // nudge that silently goes nowhere.
     if (S.open) enablePush();
@@ -1496,6 +1700,7 @@ $('remind').onclick = function(){
   S.capture = S.afterRequired ? 'after' : needBefore() ? 'before' : needDuring() ? 'during' : 'after';
   setTab('cam');
 };
+$('jobsRefresh').onclick = function(){ S.assign = null; loadAssignments(); };
 $('sheetClose').onclick = function(){ closeSheet(); render(); };
 $('scrimTap').onclick = function(){ closeSheet(); render(); };
 $('shutter').onclick = shoot;

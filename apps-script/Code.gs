@@ -15,6 +15,8 @@
 //   SESSION_TTL_DAYS  optional, defaults to 30
 //   APP_URL           optional, makes the bare /exec link redirect
 //   WRITE_ENABLED     'true' to let the app post to JobTread
+//   BOARD_API_URL     the Production Board origin, for assigned jobs
+//   CREW_APP_SECRET   shared secret the board checks on /api/crew/assignments
 //   FCM_PROJECT_ID / FCM_SERVICE_ACCOUNT / PUSH_ENABLED  (push, see below)
 //
 // ---- READ THIS BEFORE FLIPPING WRITE_ENABLED ----
@@ -148,6 +150,7 @@ function doPost(e) {
       switchCode: switchCode,
       clockOut: clockOut,
       getMyDay: getMyDay,
+      getMyJobs: getMyJobs,
       registerPushToken: registerPushToken,
       unregisterPushToken: unregisterPushToken
     };
@@ -382,6 +385,186 @@ function getNearbyCandidates() {
     if (!page || out.length >= 150) break;
   }
   return out;
+}
+
+// ===========================================================
+// ASSIGNED JOBS — what the Production Board says this crew is on.
+//
+// The join is a JobTread membership id that already exists on
+// both sides: memberFor_(email).membershipId here, and
+// Crew.leadMembershipId in the board's roster. Google Workspace
+// account -> membership id -> crew, an exact match.
+//
+// The board resolves the crew, this app only asks. Crew names on
+// tasks are matched against the saved roster AND its aliases —
+// renaming a crew in the board's Operations tab auto-keeps the
+// old name so existing tasks don't come loose — and that roster
+// lives in a private Vercel Blob this script cannot read. A
+// first-name match against task names would look right and then
+// silently stop finding jobs after a rename.
+//
+// See CREW-ASSIGNMENTS-API.md for the contract both repos build to.
+//
+// Script Properties:
+//   BOARD_API_URL     https://ops.deitemeyerbrothers.com
+//   CREW_APP_SECRET   shared secret, same value as the board's env
+// ===========================================================
+
+var BOARD_LOOKAHEAD_DAYS = 13;   // today plus a fortnight: this week and next
+var BOARD_CACHE_SEC = 60;        // a re-opened app shouldn't re-hit the board
+var BOARD_MAX_SPAN_DAYS = 60;    // ceiling on a client-supplied range
+var BOARD_MAX_BACKDATE_DAYS = 30;
+
+function boardConfig_() {
+  var url = '', secret = '';
+  try {
+    var p = PropertiesService.getScriptProperties();
+    url = String(p.getProperty('BOARD_API_URL') || '').replace(/\/+$/, '');
+    secret = String(p.getProperty('CREW_APP_SECRET') || '');
+  } catch (e) { /* unconfigured reads as empty */ }
+  return { url: url, secret: secret };
+}
+
+// The script's own time zone, matching getMyDay's day boundary.
+function isoDay_(d) {
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function addDays_(iso, n) {
+  var d = new Date(iso + 'T12:00:00Z');   // midday, so a DST shift can't roll the date
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The crew member's assigned jobs, from the Production Board.
+ *
+ * Registered in WITH_USER, so `me` is resolved from the verified Google token
+ * and the membership id is never one the phone sent. A crew member must not be
+ * able to read another crew's schedule by editing a request.
+ *
+ * NEVER THROWS for a board problem. The clock is payroll and cannot be blocked
+ * by the board being down, unreachable or not yet deployed — every failure
+ * comes back as source:'fallback' with the recent-jobs list getJobOptions has
+ * always produced, and a reason the UI can show honestly.
+ */
+function getMyJobs(me, from, to) {
+  var today = isoDay_(new Date());
+  from = /^\d{4}-\d{2}-\d{2}$/.test(String(from || '')) ? from : today;
+  to = /^\d{4}-\d{2}-\d{2}$/.test(String(to || '')) ? to : addDays_(from, BOARD_LOOKAHEAD_DAYS);
+  // The app never sends a range, but a signed-in crew member could. The board
+  // is shared production and fetchVisits pages over the whole window, so the
+  // span is clamped here rather than trusted: this is the only caller that can
+  // choose how much work the board does.
+  var floor = addDays_(today, -BOARD_MAX_BACKDATE_DAYS);
+  if (from < floor) from = floor;
+  if (to < from) to = from;
+  var ceiling = addDays_(from, BOARD_MAX_SPAN_DAYS);
+  if (to > ceiling) to = ceiling;
+
+  var out = { source: 'fallback', reason: '', crew: null, range: { from: from, to: to }, visits: [], jobs: [] };
+
+  if (!me.membershipId) {
+    // Signed in, in the organization, but no membership the board can key on.
+    out.reason = 'no-membership';
+    out.jobs = fallbackJobs_(me);
+    return out;
+  }
+
+  var cfg = boardConfig_();
+  if (!cfg.url || !cfg.secret) {
+    out.reason = 'not-configured';
+    out.jobs = fallbackJobs_(me);
+    return out;
+  }
+
+  var ck = 'mj_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+      me.membershipId + '|' + from + '|' + to)).slice(0, 40);
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(ck);
+  if (hit) { try { return JSON.parse(hit); } catch (e) { /* fall through and refetch */ } }
+
+  var body;
+  try {
+    var resp = UrlFetchApp.fetch(
+      cfg.url + '/api/crew/assignments' +
+        '?membershipId=' + encodeURIComponent(me.membershipId) +
+        '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to),
+      {
+        method: 'get',
+        headers: { Authorization: 'Bearer ' + cfg.secret },
+        muteHttpExceptions: true,
+        followRedirects: false   // a 307 to Google sign-in means the proxy matcher is wrong, not that we should follow it
+      });
+    var code = resp.getResponseCode();
+    var text = resp.getContentText();
+    if (code === 307 || code === 302) {
+      out.reason = 'board-signin-bounce';   // add api/crew to the matcher in src/proxy.ts
+      out.jobs = fallbackJobs_(me);
+      return out;
+    }
+    if (code !== 200) {
+      out.reason = 'board-http-' + code;
+      out.jobs = fallbackJobs_(me);
+      return out;
+    }
+    body = JSON.parse(text);
+  } catch (e) {
+    out.reason = 'board-unreachable';
+    out.jobs = fallbackJobs_(me);
+    return out;
+  }
+
+  out.source = 'board';
+  out.crew = body.crew || null;
+  out.visits = (body.visits || []).map(function (v) { return shapeVisit_(v, today); });
+  out.visits.sort(function (a, b) {
+    return String(a.start).localeCompare(String(b.start)) || String(a.jobNum).localeCompare(String(b.jobNum));
+  });
+  if (!out.crew) out.reason = 'no-crew';
+
+  // A resolved crew with nothing booked is a real answer, not a failure — but
+  // the crew member still needs somewhere to clock in, so the recent-jobs list
+  // rides along rather than leaving them with an empty screen.
+  if (!out.visits.length) out.jobs = fallbackJobs_(me);
+
+  try { cache.put(ck, JSON.stringify(out), BOARD_CACHE_SEC); } catch (e) {}
+  return out;
+}
+
+// Day n of m, and the job shape the clock screen already knows how to render.
+function shapeVisit_(v, today) {
+  var days = Number(v.days) || 1;
+  var dayOf = null;
+  if (v.start && today >= v.start && (!v.end || today <= v.end)) {
+    var ms = new Date(today + 'T12:00:00Z') - new Date(v.start + 'T12:00:00Z');
+    dayOf = Math.min(days, Math.max(1, Math.round(ms / 86400000) + 1));
+  }
+  return {
+    taskId: v.taskId || '',
+    jobId: v.jobId || '',
+    jobNum: v.jobNum || '',
+    jobName: v.jobName || '',
+    start: v.start || '',
+    end: v.end || v.start || '',
+    days: days,
+    dayOf: dayOf,
+    today: !!(v.start && today >= v.start && (!v.end || today <= v.end)),
+    crewNote: v.crewNote || '',
+    cust: v.cust || '',
+    city: v.city || '',
+    address: v.address || '',
+    status: v.status || '',
+    jtype: v.jtype || '',
+    material: v.material || null
+  };
+}
+
+// The pre-board answer to "which job am I on", kept as the fallback rather
+// than removed: it is what keeps the clock working when the board is down.
+function fallbackJobs_(me) {
+  try { return getJobOptions(me.userId); } catch (e) { return []; }
 }
 
 // ===========================================================

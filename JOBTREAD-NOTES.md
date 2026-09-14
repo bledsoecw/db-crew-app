@@ -3,6 +3,10 @@
 Everything here was read from the live Pave API on 2026-07-28, not inferred.
 Read-only queries only — nothing was created, updated or deleted.
 
+The **Schedule** section was corrected on 2026-09-14 from the Production Board's
+source (`src/lib/jobtread/schedule.ts`, `src/lib/crews.ts`) rather than from a
+fresh Pave read — provenance noted so the difference is visible.
+
 ## The headline
 
 **The crew already clocks in through JobTread today.** The org has 5,831 time
@@ -110,8 +114,39 @@ server greps for that instead of trusting the client.
 
 ## Schedule
 
-There is a `tasks` collection (2,314 of them) but the ones I sampled had null
-`startDate`/`endDate`, so it is not a reliable source for "today's job" without
-more digging. This app resolves the job the way DB Cam Mobile does instead:
-recent jobs the user has clocked into, plus GPS proximity, plus a remembered
-last job — and the crew member can always pick.
+**Corrected 2026-09-14. The note that used to be here was written two weeks too
+early and sent the next reader down a dead end — it is kept below so the same
+sampling isn't repeated.**
+
+> ~~There is a `tasks` collection (2,314 of them) but the ones I sampled had null
+> `startDate`/`endDate`, so it is not a reliable source for "today's job"
+> without more digging.~~
+
+The schedule is the **Production Board** (`bledsoecw/DB_Production_Board`,
+`ops.deitemeyerbrothers.com`). Since its spreadsheet migration on **2026-08-10**
+it writes real Install tasks:
+
+| Field | Value |
+| --- | --- |
+| `taskType` | Install `22Pc9WLVvBn3` |
+| `name` | `Install — {crew name}` |
+| `startDate` / `endDate` | real dates, inclusive |
+| `description` | the office's note to the crew on that visit |
+| `assignedMembershipIds` | the crew lead's membership |
+
+The nulls sampled on 2026-07-28 were the *pre-migration* tasks, which are still
+in the collection. Those two weeks are the whole explanation.
+
+**Do not resolve crews from task names here.** The board matches a task's name
+suffix against its saved roster **and that crew's aliases** — renaming a crew in
+the board's Operations tab auto-keeps the old name so existing tasks don't come
+loose — and the roster lives in a private Vercel Blob that Apps Script cannot
+read. A first-name match would work until the first rename and then quietly stop
+finding jobs. The board resolves, this app asks: see `CREW-ASSIGNMENTS-API.md`.
+
+The join needs nothing added to either data model. `memberFor_(email).membershipId`
+here is the same JobTread `membership.id` the board stores as `Crew.leadMembershipId`.
+
+`getJobOptions` — recent time entries, GPS proximity, a remembered last job — is
+**kept as the fallback**, not replaced. The clock is payroll and cannot be
+blocked by the board being down.

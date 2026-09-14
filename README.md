@@ -12,6 +12,7 @@ this app deliberately mirrors so there is one pattern to maintain, not two.
 dbtimeclock-pwa/     the app: public/ deploys, dev/ is a local preview harness
 apps-script/         the API: Code.gs, pushed with clasp or pasted by hand
 JOBTREAD-NOTES.md    what the live JobTread org actually looks like
+CREW-ASSIGNMENTS-API.md  the contract with the Production Board
 project/, chats/     the original design handoff
 ```
 
@@ -48,6 +49,19 @@ jobs for a contained first test. See SETUP.md for the go-live sequence.
 ---
 
 ## How the app behaves
+
+**My jobs.** The second tab is the Production Board's answer to "where am I
+today": the Install visits assigned to your crew, resolved from your Google
+Workspace account through the JobTread membership id both systems already share.
+Each card carries the street address as one tap to the phone's maps app, whether
+the material is ordered or you are pulling from the shop, the office's note on
+that visit, and *day 2 of 3* on a multi-day stay. Tapping one makes it today's
+job — which also opens the right Labor code list with no picking.
+
+The board is a second system, so it is treated as one. If it is unreachable, not
+connected yet, or your account isn't linked to a crew, the tab says which of
+those it is and falls back to the jobs you have recently clocked into. **The
+clock is payroll and never waits on the board.**
 
 **Clock in.** One green 132px button. It opens the code list — you cannot clock
 in without saying what you are doing.
@@ -145,12 +159,28 @@ at it.
 | Should the push repeat if ignored | no, once per entry | the marker check in `sweepBeforePhotoNudges` |
 | When a progress photo is asked for | 45 minutes in | `DURING_AFTER_SEC` |
 | Can a foreman override a missing after photo | no, the block is absolute | not implemented — say the word |
-| Which job is "today's job" | resolved from your recent time entries, plus a picker | `getJobOptions` in `Code.gs` |
+| Which job is "today's job" | the Production Board's Install tasks, with the old picker as the fallback | `getMyJobs` in `Code.gs` |
 
-That last one deserves a note: there is a `tasks` collection in JobTread, but
-the ones I sampled had null start/end dates, so it isn't a reliable schedule
-source yet. If crews are scheduled somewhere I haven't found, point me at it and
-"today's job" can resolve itself with no picking at all.
+That last one used to read *"if crews are scheduled somewhere I haven't found,
+point me at it and 'today's job' can resolve itself with no picking at all."*
+They are: the **Production Board**. Since its spreadsheet migration on
+2026-08-10 it writes real Install tasks with real dates and the crew lead's
+membership as the assignee — the same JobTread `membership.id` this app already
+resolves from a Google sign-in. The nulls in the original sample were
+pre-migration tasks. See `CREW-ASSIGNMENTS-API.md` for the contract and
+`JOBTREAD-NOTES.md` for the corrected schema note.
+
+### Three the Crew App opened, and where each is actually blocked
+
+These came with the assigned-jobs work. Two of them are not policy questions —
+they are code, in *this* repo, and the board returning the right answer will not
+help until they are changed:
+
+| Question | Where it is blocked |
+| --- | --- |
+| **Jeff and Chris McGlone have no JobTread user at all.** They can sign in with Google, but nothing resolves to a crew until the office creates memberships. What should they see meanwhile? | `memberFor_` **throws** `"No JobTread user is linked to…"`, and `getBoot` calls it first — so today they don't reach a "no crew yet" screen, they hit a hard error on launch. Whatever they should see has to be handled in `memberFor_` / `getBootFor_`. |
+| **Subs.** Marcos, Jeremiah and Samuel have memberships and would resolve; the company-level ones don't. Proposed rule: *the job list serves anyone who resolves, the clock stays employees-only*, because clocking in is payroll and subs never had a clock. | `verifyIdToken_` rejects any address that is not `@deitemeyerbrothers.com` (`Code.gs:94`), and a sub's JobTread email is their own company's. This is the one security-relevant edit in the whole feature and shouldn't ride along inside a UI commit. |
+| **Language.** This app is English only (`<html lang="en">`, zero Spanish strings). DB CheckOut is Spanish-first. Same crews. | Not blocked — but decide before the crew sees it, not after. |
 
 Two smaller calls I made rather than guess:
 
@@ -181,4 +211,6 @@ Every screen was rendered and clicked through against `dev/mock.js` during the
 build — clocked out, code picker, before prompt, the amber owed state, the
 finished-code prompt, blocked clock-out, capture, day log, day mode, foreman
 view and the escalation. `dev/push-test.mjs` covers the push-registration
-branches (14 assertions).
+branches (14 assertions), and `apps-script/code-test.mjs` covers `getMyJobs`
+against a stubbed Apps Script runtime (25 assertions) — every state the
+Production Board can leave it in, without a board to point at.
