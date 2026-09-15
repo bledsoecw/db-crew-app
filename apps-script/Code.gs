@@ -17,7 +17,9 @@
 //   WRITE_ENABLED     'true' to let the app post to JobTread
 //   BOARD_API_URL     the Production Board origin, for assigned jobs
 //   CREW_APP_SECRET   shared secret the board checks on /api/crew/assignments
-//   ACCESS_FEED_URL   optional, DB Hub's App access feed (see below)
+//   ACCESS_FEED_URL   optional, DB Hub's App access feed (see below). With it set,
+//                     run installAccessFeedRefresh once: the feed is read from a
+//                     copy a trigger keeps warm, never fetched while a phone waits
 //   ACCESS_FEED_KEY   the feed key, if it isn't already baked into the URL
 //   FCM_PROJECT_ID / FCM_SERVICE_ACCOUNT / PUSH_ENABLED  (push, see below)
 //
@@ -106,33 +108,103 @@ function verifyIdToken_(idToken) {
 // app. Blank / no row = the default here (a JobTread membership is the
 // gate), 'Manager' also unlocks the crew block, 'Off' blocks the app.
 // The feed being unreachable never locks the crew out of the clock.
-function dbAccessRec_(email) {
+// ---- DB Hub's App access feed ------------------------------------------
+// The feed is read on EVERY request — doPost calls assertAccess_ before it
+// dispatches anything — so it must never be fetched on the request path.
+//
+// It used to be: a five-minute cache and, on a miss, an inline UrlFetchApp
+// call with the phone waiting. UrlFetchApp has no timeout, and the hub is
+// itself an Apps Script web app behind the /exec redirect, so every cold
+// reopen more than five minutes after the last stacked a second cold start in
+// front of the clock. Past the client's 25-second ceiling that was the
+// "api not reached / The API did not answer in 25 seconds" boot fault, and it
+// came back on every reopen because the breaker here only ever tripped on a
+// hub that was DOWN — a hub that answered correctly but slowly tripped
+// nothing, so the next cache expiry paid in full again (Carl, Sep 2026).
+//
+// Now a time-driven trigger (installAccessFeedRefresh, every 5 minutes) keeps
+// a copy warm and the request path only ever reads it: the cache first, then
+// a durable copy in Script Properties that survives a cache eviction, and past
+// ACCESS_FEED_MAX_AGE_SEC with no refresh, no opinion at all — so a trigger
+// that quietly died cannot leave a months-old roster in charge of the door.
+//
+// No copy at all reads as "no opinion", exactly as an unreachable hub always
+// has: the clock is payroll and the hub must never lock the crew out by
+// accident. That window is the minutes between a fresh deploy and the first
+// trigger run, and installAccessFeedRefresh runs one refresh immediately so
+// in practice there is none.
+var ACCESS_FEED_CACHE_SEC = 21600;        // CacheService's own ceiling (6h)
+var ACCESS_FEED_MAX_AGE_SEC = 24 * 3600;  // older than this = the trigger is dead, not the truth
+var ACCESS_FEED_PROP = 'dbaccess_copy_v1';
+var ACCESS_FEED_PROP_MAX = 9000;          // a Script Property holds 9KB
+
+function accessFeedUrl_() {
   var props = PropertiesService.getScriptProperties();
   var url = props.getProperty('ACCESS_FEED_URL') || '';
-  if (!url) return null;
+  if (!url) return '';
   if (url.indexOf('feed=') === -1) {
     var k = props.getProperty('ACCESS_FEED_KEY') || '';
-    if (!k) return null;
+    if (!k) return '';
     url += (url.indexOf('?') > -1 ? '&' : '?') + 'feed=' + encodeURIComponent(k);
   }
-  var cache = CacheService.getScriptCache();
-  var hit = cache.get('dbaccess_v1');
-  var feed = null;
-  if (hit) { try { feed = JSON.parse(hit); } catch (e) {} }
-  if (!feed || !feed.people) {
-    // A feed that isn't answering must cost one request, not every request.
-    // This fetch sits in front of the whole API — doPost calls assertAccess_
-    // before it dispatches anything — and UrlFetchApp has no timeout, so
-    // without this a hub that hangs makes the clock hang with it.
-    if (cache.get('dbaccess_down')) return null;
-    try {
-      var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-      if (resp.getResponseCode() !== 200) { cachePut_('dbaccess_down', 1, 120); return null; }
-      feed = JSON.parse(resp.getContentText());
-      if (!feed || !feed.people) { cachePut_('dbaccess_down', 1, 120); return null; }
-      cachePut_('dbaccess_v1', feed, 300);
-    } catch (e2) { cachePut_('dbaccess_down', 1, 120); return null; }
+  return url;
+}
+
+/** The warm copy, or null. Never fetches. */
+function accessFeedCopy_() {
+  var hit = cacheGet_('dbaccess_v1');
+  if (hit && hit.people) return hit;
+  var raw = '';
+  try { raw = PropertiesService.getScriptProperties().getProperty(ACCESS_FEED_PROP) || ''; } catch (e) {}
+  if (!raw) return null;
+  var copy = null;
+  try { copy = JSON.parse(raw); } catch (e2) { return null; }
+  if (!copy || !copy.feed || !copy.feed.people) return null;
+  if ((Date.now() - (Number(copy.at) || 0)) / 1000 > ACCESS_FEED_MAX_AGE_SEC) return null;
+  // Back into the cache so the next request doesn't read Properties again.
+  cachePut_('dbaccess_v1', copy.feed, ACCESS_FEED_CACHE_SEC);
+  return copy.feed;
+}
+
+/**
+ * Fetch the feed and store it. Runs from the trigger, never from doPost.
+ * Never throws: a bad answer leaves the last good copy in place, which is a
+ * better door than none — and the failure is logged where the executions
+ * list will show it, rather than surfacing on a phone.
+ */
+function refreshAccessFeed() {
+  var url = accessFeedUrl_();
+  if (!url) return 'ACCESS_FEED_URL is not set — nothing to refresh.';
+  var t0 = Date.now();
+  var feed = null, why = '';
+  try {
+    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) why = 'HTTP ' + resp.getResponseCode();
+    else {
+      try { feed = JSON.parse(resp.getContentText()); } catch (pe) { why = 'not JSON'; }
+      if (feed && !feed.people) { feed = null; why = 'no people map'; }
+    }
+  } catch (e) { why = (e && e.message) || String(e); }
+  var ms = Date.now() - t0;
+  if (!feed) {
+    console.warn('access feed: refresh failed after ' + ms + 'ms (' + why + '); keeping the last good copy');
+    return 'Refresh failed: ' + why;
   }
+  cachePut_('dbaccess_v1', feed, ACCESS_FEED_CACHE_SEC);
+  var copy = JSON.stringify({ at: Date.now(), feed: feed });
+  if (copy.length <= ACCESS_FEED_PROP_MAX) {
+    try { PropertiesService.getScriptProperties().setProperty(ACCESS_FEED_PROP, copy); } catch (e3) {}
+  } else {
+    console.warn('access feed: ' + copy.length + ' bytes is too big for a Script Property; cache only');
+  }
+  var n = 0; for (var k in feed.people) n++;
+  console.log('access feed: ' + n + ' people in ' + ms + 'ms');
+  return 'Refreshed: ' + n + ' people in ' + ms + 'ms.';
+}
+
+function dbAccessRec_(email) {
+  var feed = accessFeedCopy_();
+  if (!feed) return null;
   return feed.people[String(email || '').toLowerCase()] || null;
 }
 
@@ -1362,6 +1434,25 @@ function installNudgeTrigger() {
   }
   ScriptApp.newTrigger('sweepBeforePhotoNudges').timeBased().everyMinutes(5).create();
   return 'Sweep installed — runs every 5 minutes.';
+}
+
+/** Run once from the Apps Script editor. Idempotent. Refreshes the feed on
+ *  the spot too, so there is no fail-open gap before the first tick. */
+function installAccessFeedRefresh() {
+  var existing = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < existing.length; i++) {
+    if (existing[i].getHandlerFunction() === 'refreshAccessFeed') ScriptApp.deleteTrigger(existing[i]);
+  }
+  ScriptApp.newTrigger('refreshAccessFeed').timeBased().everyMinutes(5).create();
+  return 'Access feed refresh installed — runs every 5 minutes. First run: ' + refreshAccessFeed();
+}
+
+function removeAccessFeedRefresh() {
+  var existing = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < existing.length; i++) {
+    if (existing[i].getHandlerFunction() === 'refreshAccessFeed') ScriptApp.deleteTrigger(existing[i]);
+  }
+  return 'Access feed refresh removed.';
 }
 
 function removeNudgeTrigger() {

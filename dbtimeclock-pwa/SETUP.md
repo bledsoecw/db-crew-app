@@ -68,7 +68,7 @@ In Apps Script > Project Settings > **Script Properties**:
 | `FCM_PROJECT_ID` | for push — the Firebase project id (see 4b) |
 | `FCM_SERVICE_ACCOUNT` | for push — the service account JSON key, pasted whole |
 | `PUSH_ENABLED` | for push — `true` to actually send |
-| `ACCESS_FEED_URL` | optional — DB Hub's access feed (the access-"Anyone" hub deployment's `/exec` URL; `?accessfeed=1` in the hub prints it). With it set, the hub's **App access** panel controls who may use the clock: blank = JobTread membership decides (as before), `Manager` also unlocks the crew block, `Off` blocks the person. Unset or unreachable = everything works as before. |
+| `ACCESS_FEED_URL` | optional — DB Hub's access feed (the access-"Anyone" hub deployment's `/exec` URL; `?accessfeed=1` in the hub prints it). With it set, the hub's **App access** panel controls who may use the clock: blank = JobTread membership decides (as before), `Manager` also unlocks the crew block, `Off` blocks the person. Unset or unreachable = everything works as before. **Then run `installAccessFeedRefresh` once in the Apps Script editor** — a trigger refreshes the feed every 5 minutes and the API only ever reads that copy. Without the trigger the gate has no opinion (everyone JobTread admits gets in), and it is never fetched while a phone waits: the hub is another Apps Script, and fetching it inline on a cold cache is what put the clock past its 25-second boot ceiling on every reopen. |
 | `ACCESS_FEED_KEY` | the feed key `?accessfeed=1` prints (skip if the key is already baked into `ACCESS_FEED_URL`) |
 
 ### Keep a copy of config.js outside the repo

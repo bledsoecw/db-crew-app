@@ -37,4 +37,6 @@ reach the clock.**
 Required Script Properties are listed in `../dbtimeclock-pwa/SETUP.md`.
 `WRITE_ENABLED` is the important one — it defaults to off, and the app cannot
 post anything to JobTread until you turn it on. `PUSH_ENABLED` plus
-`installNudgeTrigger` turn on the notification sweep.
+`installNudgeTrigger` turn on the notification sweep. If `ACCESS_FEED_URL` is set,
+`installAccessFeedRefresh` keeps DB Hub's access feed warm — required, or the gate
+has no opinion; `removeAccessFeedRefresh` undoes it.

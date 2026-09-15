@@ -241,36 +241,69 @@ t('a failing extra returns empty, not an error', [x3.codes.length, x3.jobOptions
 // The hub decides who may use the clock, but it must never be able to lock
 // the crew out by accident: unset, empty, or unreachable is "no opinion", not
 // a denial. Only an explicit Off / left-the-company row closes the door.
+//
+// And it must never be FETCHED on the request path. The hub is another Apps
+// Script; fetching it inline on a cold cache put a second cold start in front
+// of the clock and past the 25-second boot ceiling on every reopen. A trigger
+// keeps a copy warm (refreshAccessFeed); doPost only ever reads it.
 props = {}; cacheStore = {}; fetched = [];
 t('no feed configured -> no opinion', sandbox.assertAccess_(ME.email), null);
 t('no feed configured -> nothing fetched', fetched.length, 0);
+t('no feed configured -> refresh says so', /not set/.test(sandbox.refreshAccessFeed()), true);
+t('   ...and fetched nothing', fetched.length, 0);
 
+// The request path reads; it never fetches — even cold, even when the hub
+// would answer instantly and say Off. This is the whole fix.
 props = { ACCESS_FEED_URL: 'https://hub.example.com/exec', ACCESS_FEED_KEY: 'k' };
 cacheStore = {}; fetched = [];
-fetchImpl = () => ({ code: 500, body: 'hub is down' });
-t('unreachable feed -> no opinion', sandbox.assertAccess_(ME.email), null);
+fetchImpl = () => ({ code: 200, body: JSON.stringify({ people: { [ME.email]: { timeClock: 'Off' } } }) });
+t('cold copy -> request path has no opinion', sandbox.assertAccess_(ME.email), null);
+t('cold copy -> request path fetched NOTHING', fetched.length, 0);
+
+const denied = () => { try { sandbox.assertAccess_(ME.email); return ''; } catch (e) { return String(e.message).slice(0, 10); } };
+
+// The trigger does the fetching, once, and the request path reads the result.
+t('refresh fetches once', (sandbox.refreshAccessFeed(), fetched.length), 1);
 t('feed key appended to the url', /[?&]feed=k$/.test(fetched[0].url), true);
-// This fetch sits in front of every call doPost dispatches, so a hub that is
-// down has to cost one request, not one per request.
-const afterFirstFeed = fetched.length;
-sandbox.assertAccess_(ME.email);
-t('a down feed is asked once, not every time', fetched.length, afterFirstFeed);
+t('warm copy -> access turned Off -> NO_ACCESS', denied(), 'NO_ACCESS:');
+t('reading the copy fetched nothing more', fetched.length, 1);
+
+// A cache eviction is not an outage: the durable copy in Properties answers.
+cacheStore = {};
+t('cache evicted -> durable copy still denies', denied(), 'NO_ACCESS:');
+t('   ...without fetching', fetched.length, 1);
+
+// A trigger that quietly died must not leave a stale roster in charge.
+cacheStore = {};
+props[sandbox.ACCESS_FEED_PROP] = JSON.stringify({ at: Date.now() - 2 * 24 * 3600 * 1000,
+  feed: { people: { [ME.email]: { timeClock: 'Off' } } } });
+t('copy older than a day -> no opinion', sandbox.assertAccess_(ME.email), null);
+
+// A hub that is down keeps the last good copy rather than opening the door.
+cacheStore = {}; fetched = []; delete props[sandbox.ACCESS_FEED_PROP];
+fetchImpl = () => ({ code: 200, body: JSON.stringify({ people: { [ME.email]: { timeClock: 'Off' } } }) });
+sandbox.refreshAccessFeed();
+fetchImpl = () => ({ code: 500, body: 'hub is down' });
+t('failed refresh says so', /failed/i.test(sandbox.refreshAccessFeed()), true);
+t('failed refresh keeps the last good copy', denied(), 'NO_ACCESS:');
 
 const denial = rec => {
-  cacheStore = {}; fetched = [];
+  cacheStore = {}; fetched = []; delete props[sandbox.ACCESS_FEED_PROP];
   fetchImpl = () => ({ code: 200, body: JSON.stringify({ people: { [ME.email]: rec } }) });
-  try { sandbox.assertAccess_(ME.email); return ''; } catch (e) { return String(e.message).slice(0, 10); }
+  sandbox.refreshAccessFeed();
+  return denied();
 };
-t('access turned Off -> NO_ACCESS', denial({ timeClock: 'Off' }), 'NO_ACCESS:');
 t('someone who left -> NO_ACCESS', denial({ status: 'Left 2026-01-02' }), 'NO_ACCESS:');
 t('a blank row still passes', denial({ timeClock: '' }), '');
 
-cacheStore = {}; fetched = [];
+cacheStore = {}; fetched = []; delete props[sandbox.ACCESS_FEED_PROP];
 fetchImpl = () => ({ code: 200, body: JSON.stringify({ people: { [ME.email]: { timeClock: 'Manager' } } }) });
+sandbox.refreshAccessFeed();
 t('a hub Manager gets the crew block', sandbox.bootProfile_(ME).isForeman, true);
 
-cacheStore = {}; fetched = [];
+cacheStore = {}; fetched = []; delete props[sandbox.ACCESS_FEED_PROP];
 fetchImpl = () => ({ code: 200, body: '{"people":{}}' });
+sandbox.refreshAccessFeed();
 t('no row -> JobTread role decides', sandbox.bootProfile_(ME).isForeman, false);
 t('getStart agrees with getBoot about foreman', sandbox.getStart(ME, null).me.isForeman, false);
 
