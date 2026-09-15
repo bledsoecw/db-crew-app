@@ -603,13 +603,30 @@ function requireSignIn(msg){
 }
 
 /* ---- the API ---- */
-function apiCall(fn, args){
-  if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
-  return fetch(API_URL, {
+/* Apps Script runs ONE execution at a time per user. Reopening the app fires
+   start(), pump() and refreshDay() at once, and tapping My jobs adds a fourth
+   — several calls racing for one slot. On a phone that surfaced as Safari's
+   "Load failed" and a 404 on the /exec redirect, both of which came good when
+   the crew member refreshed by hand. The crew member should not be the retry
+   mechanism, so the client queues its own calls and retries the transient
+   ones. */
+var API_TIMEOUT_MS = 25000;
+var API_TRIES = 3;
+var apiChain = Promise.resolve();
+
+function apiWait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+function apiAttempt(fn, args, attempt){
+  var ctl = window.AbortController ? new AbortController() : null;
+  var timer = setTimeout(function(){ if (ctl) ctl.abort(); }, API_TIMEOUT_MS);
+  var opts = {
     method:'POST',
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },  // avoids the CORS preflight Apps Script can't answer
     body: JSON.stringify({ t: AUTH.token, fn: fn, args: args || [] })
-  }).then(function(r){
+  };
+  if (ctl) opts.signal = ctl.signal;
+
+  return fetch(API_URL, opts).then(function(r){
     // Never let r.json() reject on its own. When Apps Script hands back a page
     // instead of data — a sign-in interstitial, an authorisation notice, a
     // stale /exec — WebKit rejects with the bare string "The string did not
@@ -622,6 +639,10 @@ function apiCall(fn, args){
           ? 'The API returned a web page, not data (HTTP ' + r.status + '). Usually the Apps Script deployment is not set to "Anyone" access, or config.js has a stale /exec URL.'
           : 'The API sent something unreadable (HTTP ' + r.status + '): ' + String(txt).slice(0, 120));
         err.notJson = true;
+        // A 404 on the one-shot /macros/echo redirect, or a 5xx, is worth
+        // another go. A sign-in page served with a 200 is not — that is
+        // configuration, and retrying only delays saying so.
+        err.transient = (r.status === 404 || r.status >= 500);
         throw err;
       }
     });
@@ -630,9 +651,34 @@ function apiCall(fn, args){
     var err = new Error((j && j.error) || 'Request failed');
     err.auth = !!(j && j.auth);
     err.readOnly = !!(j && j.readOnly);
-    if (err.auth) { authClear(); requireSignIn('Session expired — sign in again.'); }
+    err.answered = true;   // the server gave a real reply; asking again changes nothing
     throw err;
-  });
+  }).catch(function(e){
+    var retryable = !e.answered && !e.auth && e.name !== 'AbortError' && (e.transient || !e.notJson);
+    if (retryable && attempt < API_TRIES) {
+      return apiWait(300 * Math.pow(3, attempt - 1)).then(function(){
+        return apiAttempt(fn, args, attempt + 1);
+      });
+    }
+    if (e.name === 'AbortError') {
+      var t = new Error('The API did not answer in ' + Math.round(API_TIMEOUT_MS / 1000) + ' seconds.');
+      t.timedOut = true;
+      throw t;
+    }
+    if (e.auth) { authClear(); requireSignIn('Session expired — sign in again.'); }
+    throw e;
+  }).then(function(v){ clearTimeout(timer); return v; },
+          function(e){ clearTimeout(timer); throw e; });
+}
+
+/* One at a time, in order. The server serialises anyway; doing it here means
+   the queue is visible and a failure cannot break the chain for what follows. */
+function apiCall(fn, args){
+  if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
+  var run = function(){ return apiAttempt(fn, args, 1); };
+  var p = apiChain.then(run, run);
+  apiChain = p.then(function(){}, function(){});
+  return p;
 }
 
 /* =========================================================
