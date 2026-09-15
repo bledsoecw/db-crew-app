@@ -469,6 +469,7 @@ button[disabled]{cursor:default}
         <div class="k">Build</div>
         <div class="tbl" id="verTbl"></div>
         <div id="errBox" class="hidden"></div>
+        <button class="btn btn-out hidden" id="copyDiagBtn" style="margin-top:12px">Copy diagnostics</button>
         <button class="btn btn-out hidden" id="pushBtn" style="margin-top:12px">Turn on notifications</button>
         <button class="btn btn-out" id="updateBtn" style="margin-top:12px">Check for update</button>
         <div class="foot">Clears this phone's copy of the app and reloads it. Your hours and any queued photos are untouched.</div>
@@ -704,7 +705,11 @@ function failed(where, e){
   // Safari's DOM exceptions carry messages like a bare "Type error". The name
   // is the only thing that distinguishes them, so it rides along.
   if (e && e.name && msg.replace(/\s/g,'').toLowerCase().indexOf(e.name.toLowerCase()) === -1) msg = e.name + ': ' + msg;
-  S.lastErr = { where: where, msg: msg, at: Date.now() };
+  var stack = '';
+  try {
+    stack = String((e && e.stack) || '').split('\n').slice(0, 4).join('\n');
+  } catch (_){}
+  S.lastErr = { where: where, msg: msg, at: Date.now(), stack: stack };
   try { renderVersion(); } catch(_){}
   toast(msg, true);
 }
@@ -868,13 +873,25 @@ function enablePush(){
     .then(function(){ return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-messaging-compat.js'); })
     .then(function(){ step = 'waiting for the service worker'; return navigator.serviceWorker.ready; })
     .then(function(reg){
-      step = 'asking Firebase for a device token';
       var bad = vapidProblem();
       if (bad) throw new Error(bad);
+      step = 'starting Firebase';
       if (!firebase.apps.length) firebase.initializeApp(window.DBTC_CONFIG.firebase);
-      return firebase.messaging().getToken({
-        vapidKey: window.DBTC_CONFIG.vapidKey,
-        serviceWorkerRegistration: reg
+      step = 'checking Firebase messaging support';
+      // Only some builds expose this; when it is there it answers the question
+      // directly instead of leaving a DOM TypeError to be interpreted.
+      var sup = (firebase.messaging && typeof firebase.messaging.isSupported === 'function')
+        ? Promise.resolve(firebase.messaging.isSupported()).catch(function(){ return true; })
+        : Promise.resolve(true);
+      return sup.then(function(ok){
+        if (!ok) throw new Error('Firebase reports that messaging is not supported in this browser. On an iPhone that means iOS below 16.4, or the app is not running from the Home Screen icon.');
+        step = 'starting Firebase messaging';
+        var messaging = firebase.messaging();
+        step = 'asking Firebase for a device token';
+        return messaging.getToken({
+          vapidKey: window.DBTC_CONFIG.vapidKey,
+          serviceWorkerRegistration: reg
+        });
       });
     })
     .then(function(token){
@@ -1110,6 +1127,8 @@ function renderVersion(){
                  : 'Turn on notifications';
   pb.disabled = blocked;
   pb.style.opacity = blocked ? .5 : 1;
+
+  $('copyDiagBtn').classList.toggle('hidden', !S.lastErr);
 
   var le = $('errBox'), e = S.lastErr;
   le.classList.toggle('hidden', !e);
@@ -1890,6 +1909,42 @@ $('fileIn').onchange = function(){
 };
 $('addPhotoBtn').onclick = function(){ S.returnToClock = false; setTab('cam'); };
 $('addNoteBtn').onclick = addNote;
+/* Getting a fault off a phone has meant retyping what a four-second toast
+   said. This is the whole state in one paste. */
+$('copyDiagBtn').onclick = function(){
+  var c = (window.DBTC_CONFIG || {}), fb = c.firebase || {}, e = S.lastErr || {};
+  var lines = [
+    'app      ' + APP_BUILD,
+    'api      ' + ((S.me && S.me.build) || 'not reached'),
+    'user     ' + ((S.me && S.me.name) || '—') + ' / ' + ((S.me && S.me.role) || '—'),
+    'board    ' + (S.assign ? (S.assign.source + (S.assign.reason ? ' · ' + S.assign.reason : '') +
+                   (S.assign.boardMs != null ? ' · ' + S.assign.boardMs + 'ms' : '')) : '—'),
+    'push     ' + pushWords() + ' (state ' + pushState + ')',
+    'config   apiUrl ' + (c.apiUrl ? 'set' : 'MISSING') + ', clientId ' + (c.clientId ? 'set' : 'MISSING') +
+             ', fb.apiKey ' + (fb.apiKey ? 'set' : 'MISSING') + ', fb.projectId ' + (fb.projectId || 'MISSING') +
+             ', vapidKey ' + (c.vapidKey ? String(c.vapidKey).length + ' chars' : 'MISSING'),
+    'device   ' + (isInstalled() ? 'installed' : 'browser tab') + ', ' + (isIOS() ? 'iOS' : 'other') +
+             ', notifications ' + ((window.Notification && Notification.permission) || 'n/a') +
+             ', online ' + S.online,
+    'ua       ' + navigator.userAgent,
+    e.where ? ('error    ' + e.where + ' · ' + clockLabel(e.at) + '\n         ' + e.msg) : 'error    none',
+    e.stack ? ('stack    ' + e.stack.replace(/\n/g, '\n         ')) : ''
+  ].filter(Boolean).join('\n');
+
+  var done = function(ok){ toast(ok ? 'Diagnostics copied' : 'Could not copy — screenshot this tab', !ok); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(lines).then(function(){ done(true); }, function(){ showDiag(lines); });
+  } else { showDiag(lines); }
+
+  // No clipboard permission: put it on screen so it can at least be read.
+  function showDiag(t){
+    $('errBox').classList.remove('hidden');
+    $('errBox').innerHTML = '<div class="k">Diagnostics · select and copy</div>' +
+      '<div class="em" style="white-space:pre-wrap;user-select:text;-webkit-user-select:text">' + esc(t) + '</div>';
+    done(false);
+  }
+};
+
 $('pushBtn').onclick = function(){
   toast('Asking for permission…');
   enablePush().then(function(){
