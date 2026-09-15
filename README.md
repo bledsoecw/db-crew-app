@@ -112,6 +112,20 @@ dropped connection can't lose time.
 **Foreman** is the same app with a crew block added, driven by the JobTread role
 on your membership. No separate build.
 
+**Boot draws the clock before it has everything.** The first call asks only what
+the screen can't be drawn without — am I on the clock, on what job, what have I
+logged today — and that's three Pave queries at most. The code list, the recent-
+jobs picker and the crew block are all behind a tap, so they arrive a few
+seconds later in a second call that nothing waits on. Tap faster than it
+answers and the sheet says it's still loading, then fills itself in.
+
+This isn't a nicety. Every one of those Pave queries is a sequential round trip
+inside a single Apps Script execution, and finding a job's ten budget lines
+means paging through its 294 Labor cost items three times. Asking for all of it
+at once put boot over the 25-second ceiling and failed it outright. The code
+list is cached for 15 minutes and the recent-jobs list for 5, so the second call
+is usually nearly free.
+
 ### The gloved-thumb budget
 
 | Control | Height |

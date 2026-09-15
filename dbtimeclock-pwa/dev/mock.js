@@ -82,8 +82,13 @@
     getStart: function (jobId) {
       var b = HANDLERS.getBoot();
       var t = HANDLERS.getToday(jobId);
-      return { me: b, open: t.open, job: t.job, codes: t.codes, entries: t.entries,
-               writeEnabled: t.writeEnabled, jobOptions: HANDLERS.getJobOptions(),
+      return { me: b, open: t.open, job: t.job, entries: t.entries, writeEnabled: t.writeEnabled };
+    },
+    // Set __MOCK_SLOWEXTRAS to watch the sheets while the extras are still in
+    // flight — the state a real phone is in for the first few seconds of boot.
+    getExtras: function (jobId) {
+      var b = HANDLERS.getBoot();
+      return { codes: jobId ? CODES : [], jobOptions: HANDLERS.getJobOptions(),
                crew: b.isForeman ? HANDLERS.getCrewOnClock() : [] };
     },
     getToday: function () {
@@ -156,11 +161,16 @@
       // it itself, so that it can tell a page from JSON. A stub with only
       // json() silently breaks every screen in the harness.
       var text = JSON.stringify(out);
-      return Promise.resolve({
+      var res = {
         ok: true, status: 200,
         text: function () { return Promise.resolve(text); },
         json: function () { return Promise.resolve(JSON.parse(text)); }
-      });
+      };
+      // The first seconds of a real boot: the clock is drawn, the code list
+      // and job picker are not here yet. Hard to catch by hand, easy to break.
+      var hold = (body.fn === 'getExtras' && Number(window.__MOCK_SLOWEXTRAS)) || 0;
+      if (!hold) return Promise.resolve(res);
+      return new Promise(function (ok) { setTimeout(function () { ok(res); }, hold); });
     }
     if (u.indexOf('mock.local/put') !== -1) return Promise.resolve({ ok: true, status: 200 });
     return realFetch(url, opts);

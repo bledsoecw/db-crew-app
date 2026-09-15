@@ -34,7 +34,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.3 (2026-09-15)';
+var APP_BUILD = 'T1.4 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -120,13 +120,18 @@ function dbAccessRec_(email) {
   var feed = null;
   if (hit) { try { feed = JSON.parse(hit); } catch (e) {} }
   if (!feed || !feed.people) {
+    // A feed that isn't answering must cost one request, not every request.
+    // This fetch sits in front of the whole API — doPost calls assertAccess_
+    // before it dispatches anything — and UrlFetchApp has no timeout, so
+    // without this a hub that hangs makes the clock hang with it.
+    if (cache.get('dbaccess_down')) return null;
     try {
       var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-      if (resp.getResponseCode() !== 200) return null;
+      if (resp.getResponseCode() !== 200) { cachePut_('dbaccess_down', 1, 120); return null; }
       feed = JSON.parse(resp.getContentText());
-      if (!feed || !feed.people) return null;
-      cache.put('dbaccess_v1', JSON.stringify(feed), 300);
-    } catch (e2) { return null; }
+      if (!feed || !feed.people) { cachePut_('dbaccess_down', 1, 120); return null; }
+      cachePut_('dbaccess_v1', feed, 300);
+    } catch (e2) { cachePut_('dbaccess_down', 1, 120); return null; }
   }
   return feed.people[String(email || '').toLowerCase()] || null;
 }
@@ -190,6 +195,7 @@ function doPost(e) {
     // never with a user id sent by the client.
     var WITH_USER = {
       getStart: getStart,
+      getExtras: getExtras,
       getToday: getToday,
       clockIn: clockIn,
       switchCode: switchCode,
@@ -342,6 +348,11 @@ function bootProfile_(m) {
 // plus whatever the app remembered last. You can always pick.
 // ===========================================================
 function getJobOptions(userId) {
+  var ck = userId ? 'jo_' + userId : '';
+  if (ck) {
+    var cached = cacheGet_(ck);
+    if (cached) return cached;
+  }
   var jobIds = [], seen = {}, lastByJob = {};
   if (userId) {
     try {
@@ -368,6 +379,7 @@ function getJobOptions(userId) {
   var rich = fetchJobs_({ 'in': [{ field: 'id' }, jobIds.map(function (id) { return { value: id }; })] }, jobIds.length);
   rich.forEach(function (r) { if (lastByJob[r.id]) r.lastWorked = lastByJob[r.id]; });
   rich.sort(function (a, b) { return String(b.lastWorked || '').localeCompare(String(a.lastWorked || '')); });
+  if (ck) cachePut_(ck, rich, JOBS_CACHE_SEC);
   return rich;
 }
 
@@ -667,8 +679,31 @@ function fallbackJobs_(me) {
 //      `document` isn't queryable in a where clause, so it is
 //      selected and filtered here.
 // ===========================================================
+// A job's budget lines change on the office's timescale, not the crew's, and
+// finding the ten that matter costs three full pages of Pave. Fifteen minutes
+// is long enough that re-opening the app during a shift is free, short enough
+// that a labor line added this morning is pickable before lunch.
+var CODES_CACHE_SEC = 900;
+var JOBS_CACHE_SEC = 300;
+
+/* A cache miss must never be an error: CacheService throws on a value over
+   100KB, and a code list that won't fit is still a perfectly good answer. */
+function cachePut_(key, value, sec) {
+  try { CacheService.getScriptCache().put(key, JSON.stringify(value), sec); } catch (e) {}
+}
+
+function cacheGet_(key) {
+  try {
+    var hit = CacheService.getScriptCache().get(key);
+    return hit ? JSON.parse(hit) : null;
+  } catch (e) { return null; }
+}
+
 function getJobCodes(jobId) {
   if (!jobId) throw new Error('Missing job id.');
+  var ck = 'jc_' + jobId;
+  var cached = cacheGet_(ck);
+  if (cached) return cached;
   var out = [], seen = {}, page = null;
   for (var i = 0; i < 4; i++) {
     var arg = { where: [['costType', 'name'], 'Labor'], size: 100 };
@@ -709,6 +744,7 @@ function getJobCodes(jobId) {
   out.sort(function (a, b) {
     return String(a.number).localeCompare(String(b.number)) || String(a.name).localeCompare(String(b.name));
   });
+  cachePut_(ck, out, CODES_CACHE_SEC);
   return out;
 }
 
@@ -775,36 +811,51 @@ function getToday(me, jobId) {
   };
 }
 
-// Everything the app needs to start, in ONE execution.
+// Boot, in two calls: what the screen cannot draw without, then the rest.
 //
-// Boot used to be four round trips — getBoot, getToday, getJobOptions and,
-// for anyone whose role matches foreman, getCrewOnClock. Apps Script runs one
-// execution at a time per user, so those queued; each paid its own cold start,
-// and each was another chance for the /macros/echo redirect to come back 404.
-// On a phone that was ten to twenty seconds of empty screen.
+// It used to be four round trips — getBoot, getToday, getJobOptions and, for a
+// foreman, getCrewOnClock. Apps Script runs one execution at a time per user,
+// so those queued; each paid its own cold start, and each was another chance
+// for the /macros/echo redirect to come back 404. Collapsing all four into one
+// execution fixed the queueing and created a worse problem: one call carrying
+// seven to eight sequential Pave round trips, which on a real job (294 Labor
+// cost items, so getJobCodes pages three times) overran the client's 25-second
+// ceiling and boot failed outright.
 //
-// The same Pave queries, in one execution. The work is unchanged; the waiting
-// is not.
+// So the split is by what the first screen actually needs. getStart is the
+// clock: am I on it, on what job, what have I logged today — three Pave calls
+// at most. Everything else is behind a tap, so getExtras fetches it after the
+// app is already drawn and usable.
 function getStart(me, jobId) {
   // Same profile getBoot returns, built the same way — so a DB Hub 'Manager'
   // grant still unlocks the crew block on the path the app actually boots by.
   var boot = bootProfile_(me);
-  var isForeman = !!boot.isForeman;
-  var today = getToday(me, jobId);
-  var out = {
+  var open = openEntryFor_(me.userId);
+  var job = null;
+  if (open && open.job) job = open.job;
+  else if (jobId) {
+    var jl = fetchJobs_(['id', jobId], 1);
+    job = jl.length ? jl[0] : null;
+  }
+  return {
     me: boot,
-    open: today.open,
-    job: today.job,
-    codes: today.codes,
-    entries: today.entries,
-    writeEnabled: today.writeEnabled,
-    jobOptions: [],
-    crew: []
+    open: open,
+    job: job,
+    entries: getMyDay(me),
+    writeEnabled: writeEnabled_()
   };
-  // Neither of these is worth failing the whole start for: without the job
-  // list you can still search, and the crew block is a foreman's extra.
+}
+
+// The rest of the start: the code list for the job we landed on, the recent
+// jobs the picker opens with, and the foreman's crew block. None of it is on
+// screen until someone taps something, and none of it is worth failing for —
+// without the job list you can still search, without the codes the sheet says
+// so and reloads.
+function getExtras(me, jobId) {
+  var out = { codes: [], jobOptions: [], crew: [] };
+  if (jobId) { try { out.codes = getJobCodes(jobId); } catch (e) {} }
   try { out.jobOptions = getJobOptions(me.userId); } catch (e) {}
-  if (isForeman) { try { out.crew = getCrewOnClock(); } catch (e) {} }
+  if (bootProfile_(me).isForeman) { try { out.crew = getCrewOnClock(); } catch (e) {} }
   return out;
 }
 

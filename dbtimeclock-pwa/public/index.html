@@ -539,7 +539,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.3 (2026-09-15)';
+var APP_BUILD = 'T1.4 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -697,7 +697,8 @@ function apiCall(fn, args){
    ========================================================= */
 var S = {
   me:null, job:null, codes:[], open:null, entries:[], crew:[],
-  jobOptions:[], candidates:[], assign:null, assignLoading:false, assignAt:0, assignStale:false,
+  jobOptions:[], candidates:[], extrasLoading:false,
+  assign:null, assignLoading:false, assignAt:0, assignStale:false,
   tab:'job', sheet:null, promptKind:null, pendingCode:null,
   afterRequired:false, nudged:false, escalated:false, returnToClock:false,
   capture:'before', mode:'photo', recStart:0,
@@ -1317,6 +1318,26 @@ function keepFresh(a){
   saveAssign();
 }
 
+/* The code list, the recent-jobs picker and the foreman's crew block are all
+   behind a tap, so they load after the clock is already on screen. Nothing
+   waits on this. If someone taps faster than it answers, the sheet says it is
+   still loading and redraws itself when the answer lands. */
+function loadExtras(){
+  if (!S.me || S.extrasLoading) return Promise.resolve();
+  S.extrasLoading = true;
+  return apiCall('getExtras', [(S.job && S.job.id) || null]).then(function(d){
+    S.codes = d.codes || [];
+    S.jobOptions = d.jobOptions || [];
+    S.crew = d.crew || [];
+  }).catch(function(e){
+    failed('extras', e);
+  }).then(function(){
+    S.extrasLoading = false;
+    render();
+    if (S.sheet === 'codes' || S.sheet === 'jobs') openSheet(S.sheet, S.promptKind);
+  });
+}
+
 function loadAssignments(){
   if (S.assignLoading) return Promise.resolve();
   S.assignLoading = true;
@@ -1503,7 +1524,10 @@ function openSheet(kind, promptKind){
 }
 
 function codesHtml(){
-  if (!S.codes.length) return '<div class="sheetpad"><div class="body">No labor cost codes on this job. Ask the office to add a labor line to the budget.</div></div>';
+  if (!S.codes.length) return '<div class="sheetpad"><div class="body">' +
+    (S.extrasLoading ? 'Loading this job&rsquo;s code list&hellip;'
+      : 'No labor cost codes on this job. Ask the office to add a labor line to the budget.') +
+    '</div></div>';
   var bySec = {};
   S.entries.forEach(function(e){
     if (!e.code) return;
@@ -1523,7 +1547,9 @@ function codesHtml(){
 function jobsHtml(){
   var html = '<div class="sheetpad"><input id="jobSearch" placeholder="Search jobs by name, number or customer" autocomplete="off">';
   html += '<div id="jobResults" style="display:flex;flex-direction:column;gap:12px">';
-  html += S.jobOptions.map(jobRowHtml).join('') || '<div class="body">Search for the job you are on.</div>';
+  html += S.jobOptions.map(jobRowHtml).join('') ||
+    '<div class="body">' + (S.extrasLoading ? 'Loading your recent jobs&hellip;'
+      : 'Search for the job you are on.') + '</div>';
   html += '</div></div>';
   return html;
 }
@@ -1980,17 +2006,16 @@ function start(){
   applyTheme();
   setTab('job');
 
-  // One call, not four. getStart does the same Pave work server-side in a
-  // single Apps Script execution — see the comment above it in Code.gs.
+  // Only what the clock screen cannot be drawn without: am I on the clock, on
+  // what job, what have I logged today. Three Pave calls at most, so this
+  // answers in seconds instead of overrunning the 25-second ceiling — the code
+  // list, the job picker and the crew block follow in loadExtras().
   apiCall('getStart', [lastJob || null]).then(function(d){
     S.me = d.me;
     S.writeEnabled = !!d.writeEnabled;
     S.open = d.open;
     S.job = d.job;
-    S.codes = d.codes || [];
     S.entries = d.entries || [];
-    S.jobOptions = d.jobOptions || [];
-    S.crew = d.crew || [];
     if (S.open) scheduleNudge();
   }).catch(function(e){
     if (!(e && e.auth)) failed('boot', e);
@@ -1998,6 +2023,7 @@ function start(){
     render();
     pump();
     handleShootParam();
+    loadExtras();
     // Deliberately after render(), and not in the chain above: the board is a
     // second system and the clock must be usable before it answers, or not.
     loadAssignments();

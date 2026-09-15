@@ -184,30 +184,58 @@ const fast = sandbox.getMyJobs(ME);
 t('a fast call does not trip it', [fast.boardMs, cacheStore['board_slow']], [300, undefined]);
 sandbox.__now = null;
 
-// ---- getStart: one execution, everything the app boots with ----
-// Boot was four sequential Apps Script executions, each queued behind the
-// last. This asserts the single call carries all four payloads.
+// ---- the code list is pages of Pave, so it is cached ----
+// A real job carries 294 Labor cost items, which is three full pages to find
+// the ten that are actually budget lines. Budgets change on the office's
+// timescale, so the second ask inside the window must cost nothing.
 props = {}; cacheStore = {}; fetched = [];
-sandbox.getToday = () => ({ open: null, job: { id: 'j1' }, codes: [{ id: 'ci1' }], entries: [], writeEnabled: false });
-sandbox.getJobOptions = () => [{ id: 'j1' }, { id: 'j2' }];
-sandbox.getCrewOnClock = () => [{ name: 'Alberto' }];
+fetchImpl = () => ({ code: 200, body: JSON.stringify({
+  job: { costItems: { nextPage: null, nodes: [
+    { id: 'ci1', name: 'Crew Labor', costCode: { number: '01GR', name: 'General Requirements' } },
+    { id: 'ci2', name: 'Copy on an estimate', document: { id: 'd1' }, costCode: { number: '01GR' } }
+  ] } } }) });
+t('getJobCodes drops the per-document copies', sandbox.getJobCodes('j1').map(c => c.id), ['ci1']);
+const afterFirst = fetched.length;
+t('a second ask is served from cache', [sandbox.getJobCodes('j1').map(c => c.id), fetched.length], [['ci1'], afterFirst]);
+t('a different job is not', [sandbox.getJobCodes('j2').length, fetched.length > afterFirst], [1, true]);
+
+// ---- boot: the clock first, everything else after ----
+// Collapsing all of boot into one call fixed the queueing and created a worse
+// problem — seven-plus sequential Pave round trips in a single execution, which
+// overran the client's 25-second ceiling and failed boot outright. getStart
+// must stay down to what the first screen cannot be drawn without. The code
+// list, the job picker and the crew block are all behind a tap, so they belong
+// in getExtras, after the app is already usable.
+props = {}; cacheStore = {}; fetched = [];
+let calls = [];
+sandbox.openEntryFor_ = () => { calls.push('open'); return null; };
+sandbox.fetchJobs_ = () => { calls.push('job'); return [{ id: 'j1' }]; };
+sandbox.getMyDay = () => { calls.push('day'); return []; };
+sandbox.getJobCodes = () => { calls.push('codes'); return [{ id: 'ci1' }]; };
+sandbox.getJobOptions = () => { calls.push('options'); return [{ id: 'j1' }, { id: 'j2' }]; };
+sandbox.getCrewOnClock = () => { calls.push('crew'); return [{ name: 'Alberto' }]; };
 
 const crewMe = { ...ME, role: 'Crew' };
-const s1 = sandbox.getStart(crewMe, null);
+const s1 = sandbox.getStart(crewMe, 'j1');
 t('getStart carries the profile', [s1.me.name, s1.me.userId, s1.me.build], ['Tyler B.', 'u1', sandbox.APP_BUILD]);
-t('getStart carries today', [s1.job.id, s1.codes.length], ['j1', 1]);
-t('getStart carries the job list', s1.jobOptions.length, 2);
-t('a crew member gets no crew block', [s1.me.isForeman, s1.crew.length], [false, 0]);
+t('getStart carries the clock', [s1.job.id, s1.open, s1.entries.length], ['j1', null, 0]);
+t('getStart stops at what the screen needs', calls, ['open', 'job', 'day']);
+
+calls = [];
+const x1 = sandbox.getExtras(crewMe, 'j1');
+t('getExtras carries the codes and the picker', [x1.codes.length, x1.jobOptions.length], [1, 2]);
+t('a crew member gets no crew block', [x1.crew.length, calls.indexOf('crew')], [0, -1]);
 
 const bossMe = { ...ME, role: 'Sales Team Manager' };
-const s2 = sandbox.getStart(bossMe, null);
-t('a manager is a foreman and gets the crew block', [s2.me.isForeman, s2.crew.length], [true, 1]);
+t('a manager is a foreman', sandbox.getStart(bossMe, null).me.isForeman, true);
+t('and gets the crew block', sandbox.getExtras(bossMe, 'j1').crew.length, 1);
 
-// the two extras must never take the start down with them
+// no extra is worth failing for, and none may take the others down with it
+sandbox.getJobCodes = () => { throw new Error('pave down'); };
 sandbox.getJobOptions = () => { throw new Error('pave down'); };
 sandbox.getCrewOnClock = () => { throw new Error('pave down'); };
-const s3 = sandbox.getStart(bossMe, null);
-t('a failing job list does not fail the start', [s3.me.name, s3.jobOptions.length, s3.crew.length], ['Tyler B.', 0, 0]);
+const x3 = sandbox.getExtras(bossMe, 'j1');
+t('a failing extra returns empty, not an error', [x3.codes.length, x3.jobOptions.length, x3.crew.length], [0, 0, 0]);
 
 // ---- DB Hub's "App access" panel ----
 // The hub decides who may use the clock, but it must never be able to lock
@@ -222,6 +250,11 @@ cacheStore = {}; fetched = [];
 fetchImpl = () => ({ code: 500, body: 'hub is down' });
 t('unreachable feed -> no opinion', sandbox.assertAccess_(ME.email), null);
 t('feed key appended to the url', /[?&]feed=k$/.test(fetched[0].url), true);
+// This fetch sits in front of every call doPost dispatches, so a hub that is
+// down has to cost one request, not one per request.
+const afterFirstFeed = fetched.length;
+sandbox.assertAccess_(ME.email);
+t('a down feed is asked once, not every time', fetched.length, afterFirstFeed);
 
 const denial = rec => {
   cacheStore = {}; fetched = [];
