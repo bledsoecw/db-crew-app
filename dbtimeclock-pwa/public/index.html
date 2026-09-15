@@ -658,7 +658,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.6 (2026-09-15)';
+var APP_BUILD = 'T1.7 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -2819,10 +2819,12 @@ function enqueueUpload(item){
   idbPut(item).then(function(){ S.queued++; render(); pump(); });
 }
 
-var pumping = false;
+var pumping = false, pumpTimer = null, pumpFails = 0;
+var PUMP_RETRY_MS = [20000, 60000, 180000, 300000];
 function pump(){
   if (pumping || !S.online) return;
   pumping = true;
+  clearTimeout(pumpTimer);
   idbAll().then(function(items){
     S.queued = items.length;
     render();
@@ -2833,33 +2835,70 @@ function pump(){
     pumping = false;
     idbAll().then(function(rest){
       S.queued = rest.length; render();
-      // A log waiting on its photos can go now.
-      if (!rest.length) dlRetryPending();
+      if (!rest.length){ pumpFails = 0; dlRetryPending(); return; }
+      // Something is still queued after a failed run. It used to wait for the
+      // next open or reconnect; now it tries again on its own, backing off,
+      // and a log waiting on it is told rather than left hanging.
+      var ms = PUMP_RETRY_MS[Math.min(pumpFails++, PUMP_RETRY_MS.length - 1)];
+      pumpTimer = setTimeout(pump, ms);
+      dlRetryPending();
     });
+  });
+}
+function photoRec(id){ return S.photos.filter(function(p){ return p.id === id; })[0] || null; }
+/* Small images go through the API as base64 when the direct PUT is refused
+   (a CORS answer, a proxy, an iOS quirk). Videos are too big for that path. */
+var FALLBACK_UPLOAD_MAX = 8 * 1024 * 1024;
+function blobToBase64(blob){
+  return new Promise(function(res, rej){
+    var r = new FileReader();
+    r.onload = function(){ res(String(r.result).split(',')[1] || ''); };
+    r.onerror = function(){ rej(r.error || new Error('Could not read the photo')); };
+    r.readAsDataURL(blob);
   });
 }
 
 function sendOne(item){
   var name = fileName(item);
   var desc = fileDescription(item);
-  return apiCall('createCaptureUploadRequest', [item.jobId, item.mime, item.blob.size, name])
-    .then(function(req){
-      var headers = {};
-      for (var h in (req.headers||{})) headers[h] = req.headers[h];
-      headers['Content-Type'] = headers['Content-Type'] || item.mime;
-      return fetch(req.url, { method: req.method || 'PUT', headers: headers, body: item.blob })
-        .then(function(r){ if (!r.ok) throw new Error('Upload failed (' + r.status + ')'); return req.uploadRequestId; });
+  var direct = function(){
+    return apiCall('createCaptureUploadRequest', [item.jobId, item.mime, item.blob.size, name])
+      .then(function(req){
+        var headers = {};
+        for (var h in (req.headers||{})) headers[h] = req.headers[h];
+        headers['Content-Type'] = headers['Content-Type'] || item.mime;
+        return fetch(req.url, { method: req.method || 'PUT', headers: headers, body: item.blob })
+          .then(function(r){ if (!r.ok) throw new Error('Upload failed (' + r.status + ')'); return req.uploadRequestId; })
+          .catch(function(e){ e.directPut = true; throw e; });
+      })
+      .then(function(reqId){ return apiCall('finalizeCaptureUpload', [item.jobId, reqId, name, desc]); });
+  };
+  var viaApi = function(){
+    return blobToBase64(item.blob).then(function(b64){
+      return apiCall('uploadCapture', [item.jobId, b64, item.mime, name, desc]);
+    });
+  };
+  return direct()
+    .catch(function(e){
+      // The signed URL refused the browser's PUT: a photo can still go
+      // through the API. A read-only refusal or a JobTread error is not
+      // something a second path fixes.
+      if (e && e.directPut && !e.readOnly && item.blob.size <= FALLBACK_UPLOAD_MAX && /^image\//.test(item.mime)) return viaApi();
+      throw e;
     })
-    .then(function(reqId){ return apiCall('finalizeCaptureUpload', [item.jobId, reqId, name, desc]); })
     .then(function(res){
       return idbDel(item.id).then(function(){
-        S.photos.forEach(function(p){ if (p.id === item.id){ p.pending = false; p.fileId = (res && res.fileId) || p.fileId || ''; } });
+        var p = photoRec(item.id);
+        if (p){ p.pending = false; p.err = ''; p.fileId = (res && res.fileId) || p.fileId || ''; }
         savePrefs(); render();
       });
     })
     .catch(function(e){
-      // Leave it queued and stop the run; the next signal or app open retries.
-      if (e && e.readOnly){ idbDel(item.id); }
+      // Stays queued for the next run. The photo says why, so a stuck upload
+      // is never a silent one — and a log waiting on it stops waiting.
+      var p = photoRec(item.id);
+      if (p){ p.err = (e && e.readOnly) ? 'read-only build' : ((e && e.message) || 'upload failed'); savePrefs(); }
+      failed('photo upload', e, true);
       throw e;
     });
 }
@@ -2900,6 +2939,7 @@ function fileName(item){
    sign-off, makes the sent log ping the same people in the feed.
    ========================================================= */
 var DL_KEY = 'dbtc_daylog';
+var DL_PHOTO_WAIT_MS = 2 * 60 * 1000;
 var dlStore = {};
 try { dlStore = JSON.parse(localStorage.getItem(DL_KEY) || '{}') || {}; } catch(e){ dlStore = {}; }
 function dlPersist(){ try { localStorage.setItem(DL_KEY, JSON.stringify(dlStore)); } catch(e){} }
@@ -2999,6 +3039,7 @@ function dlPayload(e){
     problems: e.problems || '',
     notes: (e.notes || []).filter(function(n){ return !n.later; }).map(function(n){ return { time: n.time, body: n.body, urgent: !!n.urgent }; }),
     photos: photos.map(function(p){ return { fileId: p.fileId, name: p.name || '', tag: p.tag, time: p.time }; }),
+    photosPending: e.photosPending || 0,
     hours: e.date === isoLocal() ? hoursFor(e.jobId) : [],
     checks: checksFor(e.jobId)
   };
@@ -3026,16 +3067,26 @@ function dlFlush(k){
   if (!S.me) return Promise.resolve();
   if (!S.online){ e.err = 'offline'; dlPersist(); renderLogStatus(); return Promise.resolve(); }
   // The photos ride by reference, so the log waits for them to be uploaded;
-  // the queue calls back here when it empties.
-  var waiting = photosFor(e.jobId, e.date).filter(function(p){ return p.pending; }).length;
-  if (waiting){ e.err = 'uploading:' + waiting; dlPersist(); renderLogStatus(); pump(); return Promise.resolve(); }
+  // the queue calls back here as it drains. But not forever: a photo that has
+  // failed (a read-only build, a refused upload) or one still not up after
+  // DL_PHOTO_WAIT_MS goes to DB Cam when it can, and the log goes now and
+  // says how many it left behind.
+  var pend = photosFor(e.jobId, e.date).filter(function(p){ return p.pending; });
+  var stillTrying = pend.filter(function(p){ return !p.err; }).length;
+  if (!e.waitSince) e.waitSince = Date.now();
+  if (stillTrying && Date.now() - e.waitSince < DL_PHOTO_WAIT_MS){
+    e.err = 'uploading:' + stillTrying; dlPersist(); renderLogStatus(); pump();
+    dlSchedule(k, 5000);
+    return Promise.resolve();
+  }
+  e.photosPending = pend.length;
   e.sending = true; e.err = '';
   renderLogStatus();
   return apiCall('sendDailyLog', [dlPayload(e)]).then(function(r){
     e.sending = false;
     r = r || {};
     e.sent = { at: Date.now(), id: r.dailyLogId || '', assigned: r.assigned || [], unresolved: r.unresolved || [],
-               commented: !!r.commented, flag: r.flag || '', photos: r.photos || 0 };
+               commented: !!r.commented, flag: r.flag || '', photos: r.photos || 0, left: e.photosPending || 0 };
     e.wantSend = false; e.err = ''; e.prompt = false;
     dlRetries[k] = 0;
     dlPersist();
@@ -3062,7 +3113,7 @@ function dlStatus(e){
   if (e.sent) return { cls: 'ok', text: 'Sent ' + clockLabel(e.sent.at), tick: true };
   if (e.sending) return { cls: '', text: 'Sending…' };
   if (e.wantSend){
-    if (e.err && e.err.indexOf('uploading:') === 0) return { cls: '', text: 'Waiting for ' + e.err.slice(10) + ' photo' + (e.err.slice(10) === '1' ? '' : 's') + ' to upload…' };
+    if (e.err && e.err.indexOf('uploading:') === 0) return { cls: '', text: 'Waiting for ' + e.err.slice(10) + ' photo' + (e.err.slice(10) === '1' ? '' : 's') + ' to upload… up to 2 min' };
     if (e.err && e.err !== 'retry' && e.err !== 'offline') return { cls: 'bad', text: e.err };
     return { cls: 'bad', text: 'Not sent — will retry' };
   }
@@ -3142,13 +3193,15 @@ function dlBodyHtml(cur, e, date){
     h += '<div class="row"><span>Hours today</span><b class="tabular">' + hm(tot * 60) + '</b></div>';
   } else if (date === today) h += '<div class="row"><span>Hours today</span><b>Not on the clock here</b></div>';
   if (ck) h += '<div class="row"><span>Site checks</span><b>' + esc(ck.words || '') + (ck.magnetBy ? ' · magnet by ' + esc(ck.magnetBy) : '') + '</b></div>';
-  h += '<div class="row"><span>Photos</span><b>' + photos.length + (pending ? ' · ' + pending + ' uploading' : '') + '</b></div>';
+  var bad = photos.filter(function(p){ return p.pending && p.err; });
+  h += '<div class="row"><span>Photos</span><b>' + photos.length + (pending - bad.length > 0 ? ' · ' + (pending - bad.length) + ' uploading' : '') +
+       (bad.length ? ' · ' + bad.length + ' not uploaded: ' + esc(bad[0].err) : '') + '</b></div>';
   h += '</div>';
   if (photos.length){
     h += '<div id="grid" style="margin-top:10px">' + photos.slice().reverse().map(function(p){
       return '<div class="tile" style="' + (p.thumb ? 'background-image:url(' + p.thumb + ')' : '') + '">' +
         '<span class="tg ' + esc(p.tag) + '">' + esc(p.tag) + '</span><span class="tm">' + esc(p.time) + '</span>' +
-        (p.pending ? '<span class="up"></span>' : '') + '</div>';
+        (p.pending ? '<span class="up"' + (p.err ? ' style="background:var(--rec)"' : '') + '></span>' : '') + '</div>';
     }).join('') + '</div>';
   }
   if (date === today && S.job && S.job.id === cur.id){
@@ -3160,7 +3213,8 @@ function dlBodyHtml(cur, e, date){
     var to = e.sent.assigned.length ? 'to ' + esc(e.sent.assigned.join(', ')) : 'with nobody to assign it to';
     h += '<div class="dlsent" style="margin-top:18px"><div class="t">Sent ' + esc(clockLabel(e.sent.at)) + '</div>' +
          '<div class="s">On the job as a daily log, ' + to + (e.sent.commented ? '. They were also pinged in the activity feed' + (e.sent.flag === 'problems' ? ' about the problems' : ' about the crew still on site') + '.' : '.') +
-         (e.sent.unresolved.length ? ' Could not find ' + esc(e.sent.unresolved.join(', ')) + ' in JobTread.' : '') + '</div></div>';
+         (e.sent.unresolved.length ? ' Could not find ' + esc(e.sent.unresolved.join(', ')) + ' in JobTread.' : '') +
+         (e.sent.left ? ' Sent without ' + e.sent.left + ' photo' + (e.sent.left === 1 ? '' : 's') + ' that had not uploaded; they land in DB Cam on the job when they do.' : '') + '</div></div>';
     h += '<div class="dlq"><span class="k">Add to the sent log</span><textarea id="dlLater" placeholder="Something after the send — it goes on the log as a note."></textarea>' +
          '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:10px;min-height:60px;font-size:15px">Add to the log</button></div>';
     var later = (e.notes || []).filter(function(n){ return n.later; });
@@ -3183,10 +3237,11 @@ function dlBodyHtml(cur, e, date){
        '<div class="fine" style="margin-top:6px">Anything here pings the PM and sales in the activity feed when the log is sent.</div></div>';
   var notes = (d.notes || []);
   h += '<div class="dlq"><span class="k">Notes during the day' + (notes.length ? ' · ' + notes.length : '') + '</span>' +
+       '<div class="fine" style="margin:-2px 0 8px">A timestamped line in tonight’s log, typed when it happens. Tick the box and it also goes to the PM right now.</div>' +
        (notes.length ? '<div style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px">' + notes.map(noteCardHtml).join('') + '</div>' : '') +
        '<textarea id="dlNote" placeholder="Something worth a line in the log — or for the office right now"></textarea>' +
        '<button class="urgentrow' + (S.dlUrgent ? ' on' : '') + '" id="dlUrgent"><span class="box">' + CK_TICK_SM + '</span>Office needs this now — send it to the PM straight away</button>' +
-       '<button class="btn btn-out" id="dlAddNote" style="min-height:60px;font-size:15px">Add note</button></div>';
+       '<button class="btn btn-out" id="dlAddNote" style="min-height:60px;font-size:15px">Add to the log</button></div>';
   var people = [];
   if (v && v.pm) people.push(v.pm);
   (v && v.reps || []).forEach(function(r){ if (people.indexOf(r) === -1) people.push(r); });
@@ -3372,6 +3427,7 @@ $('copyDiagBtn').onclick = function(){
     'push     ' + pushWords() + ' (state ' + pushState + ')',
     'checks   ' + ckDiag(),
     'daylog   ' + dlDiag(),
+    'photos   ' + S.queued + ' queued' + (function(){ var b = S.photos.filter(function(p){ return p.pending && p.err; })[0]; return b ? ' · ' + b.err : ''; })(),
     'config   apiUrl ' + (c.apiUrl ? 'set' : 'MISSING') + ', clientId ' + (c.clientId ? 'set' : 'MISSING') +
              ', fb.apiKey ' + (fb.apiKey ? 'set' : 'MISSING') + ', fb.projectId ' + (fb.projectId || 'MISSING') +
              ', vapidKey ' + (c.vapidKey ? String(c.vapidKey).length + ' chars' : 'MISSING'),

@@ -112,6 +112,7 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   check('condition chips toggle', [await cls(page, '[data-tog="crewOnSite"][data-val="true"]'), await cls(page, '[data-tog="tarped"][data-val="true"]')], ['togbtn on warn', 'togbtn on']);
   await page.locator('#dlProb').fill('Short 8 pieces of drip edge.');
   await page.locator('#dlNote').fill('Homeowner asked about the trailer spot');
+  check('the note button says where a note goes', await txt(page, '#dlAddNote'), 'Add to the log');
   await tap(page, '#dlAddNote', 300);
   check('a plain note stays in the draft', [await page.locator('.notecard').count(), (await grab(page, '__NOTES')).length], [1, 0]);
   await page.locator('#dlNote').fill('Need drip edge before 3');
@@ -236,6 +237,38 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await page.evaluate(() => { window.__MOCK_LOGFAIL = false; dlRetryPending(); });
   await page.waitForTimeout(1200);
   check('the retry lands', [/^Sent/.test(await txt(page, '#syncBadge')), (await grab(page, '__LOGS')).length], [true, 1]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- a photo that cannot upload: the log says so and goes anyway ----
+{
+  const { ctx, page, errs } = await boot({}, 'window.__MOCK_READONLY=true;');
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await shoot(page);
+  await page.waitForTimeout(1500);
+  const p = await page.evaluate(() => S.photos.map((x) => ({ pending: x.pending, err: x.err, fileId: x.fileId || '' })));
+  check('a read-only refusal is written on the photo, not hidden', p, [{ pending: true, err: 'read-only build', fileId: '' }]);
+  await tap(page, '.tab[data-tab="log"]', 400);
+  check('...and the summary says so', /1notuploaded:read-onlybuild/.test(await compact(page, '.dlsum')), true);
+  check('...and the Build panel has the reason', await page.evaluate(() => S.lastErr && S.lastErr.where), 'photo upload');
+  await page.evaluate(() => { window.__MOCK_READONLY = false; });   // writes on for the log itself
+  await page.locator('#dlDone').fill('Done.');
+  await tap(page, '#dlSend', 400);
+  await tap(page, '#slYes', 1500);
+  const logs = await grab(page, '__LOGS');
+  check('the log does not wait on a photo that cannot upload', [logs.length, logs[0].photos, logs[0].photosPending], [1, [], 1]);
+  check('...and says it went without it', /Sent without 1 photo/.test(await txt(page, '.dlsent .s')), true);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  const { ctx, page, errs } = await boot({}, 'window.__MOCK_PUTREFUSED=true;');
+  await shoot(page);
+  await page.waitForTimeout(1800);
+  const p = await page.evaluate(() => S.photos.map((x) => ({ pending: x.pending, fileId: x.fileId })));
+  const via = await grab(page, '__VIAAPI');
+  check('a refused direct PUT falls back to the API and still lands', [p, via.length, via[0] && via[0].mime], [[{ pending: false, fileId: 'f1' }], 1, 'image/jpeg']);
   check('no page errors', errs, []);
   await ctx.close();
 }

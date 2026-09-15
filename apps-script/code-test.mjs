@@ -566,6 +566,9 @@ jtCalls.length = 0;
 r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: true, checks: { words: 'Signed off — Tyler · Sep 15', magnetBy: null, signedOff: 'Tyler · Sep 15' } });
 t('...but not once it is signed off', [r.flag, jtCalls.map(c => c[0])], ['', ['dailyLog']]);
 t('a bad date falls back to the script\'s today', sandbox.sendDailyLog(ME, { ...LOG, date: 'soon' }).date, today);
+jtCalls.length = 0;
+sandbox.sendDailyLog(ME, { ...LOG, photos: [], photosPending: 2 });
+t('photos left uploading are named in the log', jtCalls[0][1].notes.indexOf('2 more still uploading from the phone when this was sent') > -1, true);
 
 jtCalls.length = 0;
 r = sandbox.addDailyLogNote(ME, 'j9', 'dl1', 'Kenton dropped the returns at 5.');

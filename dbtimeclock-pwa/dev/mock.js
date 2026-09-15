@@ -263,7 +263,17 @@
       ST.open = null;
       return { ok: true, entries: ST.entries };
     },
-    createCaptureUploadRequest: function () { return { uploadRequestId: 'ur1', url: 'https://mock.local/put', method: 'PUT', headers: {} }; },
+    // A read-only build refuses the upload request the way Code.gs does.
+    createCaptureUploadRequest: function () {
+      if (window.__MOCK_READONLY) throw new Error('READ_ONLY: this deployment cannot post to JobTread yet.');
+      return { uploadRequestId: 'ur1', url: 'https://mock.local/put', method: 'PUT', headers: {} };
+    },
+    // The base64 path the app falls back to when the direct PUT is refused.
+    uploadCapture: function (jobId, b64, mime, name) {
+      window.__VIAAPI = window.__VIAAPI || [];
+      window.__VIAAPI.push({ jobId: jobId, bytes: b64.length, mime: mime, name: name });
+      return { ok: true, fileId: 'f' + (++ST.files) };
+    },
     finalizeCaptureUpload: function () { return { ok: true, fileId: 'f' + (++ST.files) }; },
     // A note to the office; with the fourth argument it is assigned to the PM.
     postJobNote: function (jobId, message, author, assignPm) {
@@ -323,7 +333,8 @@
       if (!hold) return Promise.resolve(res);
       return new Promise(function (ok) { setTimeout(function () { ok(res); }, hold); });
     }
-    if (u.indexOf('mock.local/put') !== -1) return Promise.resolve({ ok: true, status: 200 });
+    // __MOCK_PUTREFUSED: the signed URL refuses the browser's PUT (a CORS answer).
+    if (u.indexOf('mock.local/put') !== -1) return window.__MOCK_PUTREFUSED ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve({ ok: true, status: 200 });
     return realFetch(url, opts);
   };
 })();
