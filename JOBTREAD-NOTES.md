@@ -198,3 +198,36 @@ membership and never from typed text.
 `PUT /api/crew/checks`, both on the board, through `saveSiteChecks` in
 `Code.gs`. Who may tick is the JobTread role **Site Manager** on the
 membership; the board answers 403 for anyone else. See `CREW-ASSIGNMENTS-API.md`.
+
+## Daily logs
+
+**Verified against the schema on 2026-09-15**, read-only, plus one read of the
+org's logs (88 of them, the owner's dictation: "Report via Tyler we were short
+eight pieces of drip edge … Tyler left about 430 and so I don't know the
+condition of the job").
+
+`createDailyLog` takes `jobId`, `date`, `notes` (up to 10,000 characters),
+`files` (up to 100 — a new `uploadRequestId`, or `copyFromFileId` to attach a
+file already on the job without a second upload; `name` required),
+`assignees` (up to 100, `{ membership: { membershipId } }`, or by role or
+user) and `notify` (default true). It answers `createdDailyLog { id }`.
+**There is no `updateDailyLog`** — only create and delete — so the app sends a
+log once and anything later is a comment on it: `createComment` accepts
+`targetType: 'dailyLog'`, and comments take `assignees` the same way.
+`fileTargetType` includes `dailyLog`. A daily log reads back as `id, date,
+notes, user, job, files, comments, createdAt` plus weather fields
+(`weatherCondition, minTemperature, maxTemperature, rainfallAmount,
+snowfallAmount, windSpeed`), all nullable.
+
+The job's people are option custom fields holding user names: **Project
+Manager** `22PC4DSTx7tg` (one value) and **Sales Rep** `22PBzhswJYd8` (can hold
+several — 26-1490 carries Shawn Deitemeyer and Jenn Grubb). The same ids the
+board uses (`src/lib/jobtread/ids.ts`). A name resolves to a membership with
+`organization.memberships where [['user','name'], name]`; the org has 48
+internal memberships and the names are unique.
+
+`sendDailyLog` in `Code.gs` writes exactly this: one log, assigned to the PM
+and the reps, photos by `copyFromFileId`, and a job comment assigned to the
+same people only when the log carries a problem or a crew left on site without
+a sign-off. The author of the log in JobTread is the grant's user, so the notes
+open with the site manager's name.

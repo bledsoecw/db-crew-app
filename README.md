@@ -120,6 +120,45 @@ banner at the top of the clock screen and the day list — "Yesterday's roof at
 Courtney isn't signed off" — and tapping it opens that checklist. That is the
 sentence the owner has been writing in a daily log by hand.
 
+**Day log.** The site manager's own record of the day, on the job, in place of
+the owner's second-hand dictation ("Report via Tyler we were short eight pieces
+of drip edge … Tyler left about 430 and so I don't know the condition of the
+job"). One draft per job per day, kept on the phone and touched by anything
+that happens on that roof — a clock-in, a photo, a tick, a note — so a day with
+two roofs has two drafts, and the tab shows one chip per roof. The summary is
+what the phone already knows: the hours by code, the site checks in the board's
+words, the photos taken there. The three questions are what that dictation has
+been reconstructing: what got done; the condition when you left, with chips for
+crew still on site or gone, tarped or not, and the time; problems, extras and
+returns. Notes during the day collect into the draft; one marked "office needs
+this now" also goes straight to the PM as an assigned comment on the job.
+
+**Send today's log** writes one JobTread daily log on the job, assigned to the
+job's Project Manager and Sales Reps with notify on, with the day's photos
+attached by reference — they stay in DB Cam and the PM opens one thing. A
+problem, or a crew left on site without a sign-off, also posts a one-line
+comment assigned to the same people, so the activity feed only lights up when
+something needs a decision. It is sent once — JobTread has no update for daily
+logs — and anything after that is added as a note on the log. A dead spot or a
+JobTread hiccup keeps the draft and retries; the log also waits for its photos
+to finish uploading. The moments that ask for it: finishing the "before the
+site manager leaves" phase, signing off, and moving to another roof. The
+morning banner nags for yesterday's log the way it nags for a missing sign-off.
+
+**Where am I tomorrow.** My jobs is grouped by day under Today, Tomorrow, Thu
+9/17, with a fourteen-day strip on top, a dot per booked visit, tap to jump.
+Each roofing card says which crew you are with ("with Platinum"), read from the
+task the site checks sit on. A roof that has not started shows only its Site
+checks button, not "not started". When nothing is on the clock, the day's one
+booked roof becomes today's job on its own; two roofs put a chooser on the
+clock screen, once. On the clock, "Change job" becomes **Move to another job**:
+the entry here closes and one opens at the next roof in a single call, after
+the same finished-question as any code switch, and the roof you left is owed
+its log. With push on, an hourly sweep sends each phone one line the evening
+before — "Tomorrow: 812 S Washington St · Lucas · with Platinum · Material
+ordered" — and "Schedule changed" when the next few days move. See SETUP.md
+§4b for `installSchedulePushTrigger`.
+
 **Clock in.** One green 132px button. It opens the code list — you cannot clock
 in without saying what you are doing.
 
@@ -281,12 +320,16 @@ here. Same faces, no network.
 Every screen was rendered and clicked through against `dev/mock.js` during the
 build — clocked out, code picker, before prompt, the amber owed state, the
 finished-code prompt, blocked clock-out, capture, day log, day mode, foreman
-view, the escalation, and the site checks — the card line, the list, a
-signature, read-only, and the nudge. `dev/push-test.mjs` covers the
-push-registration branches (14 assertions), `dev/checks-test.mjs` drives the
-site checks end to end in the real page (73 checks: one save per burst, the
-whole state every time, the sign-off, the board's 403 going read-only, a dead
-spot, a 502, the unsaved state surviving a reload), and
-`apps-script/code-test.mjs` covers `getMyJobs` and `saveSiteChecks` against a
-stubbed Apps Script runtime (101 assertions) — every state the Production
-Board can leave them in, without a board to point at.
+view, the escalation, the site checks — the card line, the list, a signature,
+read-only, and the nudge — the week view, the two-roof morning and the day
+log. `dev/push-test.mjs` covers the push-registration branches (14
+assertions), `dev/checks-test.mjs` drives the site checks end to end in the
+real page (one save per burst, the whole state every time, the sign-off, the
+board's 403 going read-only, a dead spot, a 502, the unsaved state surviving a
+reload), `dev/daylog-test.mjs` drives the week strip, today's job from the
+schedule, a move between roofs and the day log (the draft, the notes, a photo
+by reference, the send and what it carries, yesterday's log, a dead spot and a
+JobTread hiccup), and `apps-script/code-test.mjs` covers `getMyJobs`,
+`saveSiteChecks`, `sendDailyLog` and the schedule sweep against a stubbed Apps
+Script runtime (131 assertions) — every state the Production Board and
+JobTread can leave them in, without either to point at.

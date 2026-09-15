@@ -25,6 +25,8 @@
 //                     copy a trigger keeps warm, never fetched while a phone waits
 //   ACCESS_FEED_KEY   the feed key, if it isn't already baked into the URL
 //   FCM_PROJECT_ID / FCM_SERVICE_ACCOUNT / PUSH_ENABLED  (push, see below)
+//                     With push on, run installSchedulePushTrigger once as well:
+//                     the evening "Tomorrow: …" line and "Schedule changed".
 //
 // ---- READ THIS BEFORE FLIPPING WRITE_ENABLED ----
 // This org's time clock is LIVE. There were 5,831 real time
@@ -39,7 +41,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.5 (2026-09-15)';
+var APP_BUILD = 'T1.6 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -312,6 +314,8 @@ function doPost(e) {
       getMyDay: getMyDay,
       getMyJobs: getMyJobs,
       saveSiteChecks: saveSiteChecks,
+      sendDailyLog: sendDailyLog,
+      addDailyLogNote: addDailyLogNote,
       registerPushToken: registerPushToken,
       unregisterPushToken: unregisterPushToken
     };
@@ -709,20 +713,11 @@ function getMyJobs(me, from, to) {
 
   var body, startedMs = Date.now(), elapsedMs = 0;
   try {
-    var resp = UrlFetchApp.fetch(
-      cfg.url + '/api/crew/assignments' +
-        '?membershipId=' + encodeURIComponent(me.membershipId) +
-        '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to),
-      {
-        method: 'get',
-        headers: { Authorization: 'Bearer ' + cfg.secret },
-        muteHttpExceptions: true,
-        followRedirects: false   // a 307 to Google sign-in means the proxy matcher is wrong, not that we should follow it
-      });
+    var resp = fetchAssignmentsRaw_(cfg, me.membershipId, from, to);
     elapsedMs = Date.now() - startedMs;
     if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
-    var code = resp.getResponseCode();
-    var text = resp.getContentText();
+    var code = resp.code;
+    var text = resp.text;
     if (code === 307 || code === 302) {
       out.reason = 'board-signin-bounce';   // add api/crew to the matcher in src/proxy.ts
       out.jobs = fallbackJobs_(me);
@@ -756,6 +751,8 @@ function getMyJobs(me, from, to) {
     return String(a.start).localeCompare(String(b.start)) || String(a.jobNum).localeCompare(String(b.jobNum));
   });
   if (!out.crew) out.reason = 'no-crew';
+  // Two labels the cards and the daily log want. Never allowed to fail the list.
+  try { enrichVisits_(out.visits); } catch (eEnrich) { /* labels only */ }
 
   // A resolved crew with nothing booked is a real answer, not a failure — but
   // the crew member still needs somewhere to clock in, so the recent-jobs list
@@ -766,6 +763,22 @@ function getMyJobs(me, from, to) {
 
   try { cache.put(ck, JSON.stringify(out), BOARD_CACHE_SEC); } catch (e) {}
   return out;
+}
+
+// The one HTTP call to the board's assignments route, shared with the schedule
+// sweep. Throws on a network failure; the callers decide what that means.
+function fetchAssignmentsRaw_(cfg, membershipId, from, to) {
+  var resp = UrlFetchApp.fetch(
+    cfg.url + '/api/crew/assignments' +
+      '?membershipId=' + encodeURIComponent(membershipId) +
+      '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to),
+    {
+      method: 'get',
+      headers: { Authorization: 'Bearer ' + cfg.secret },
+      muteHttpExceptions: true,
+      followRedirects: false   // a 307 to Google sign-in means the proxy matcher is wrong, not that we should follow it
+    });
+  return { code: resp.getResponseCode(), text: resp.getContentText() };
 }
 
 // Day n of m, and the job shape the clock screen already knows how to render.
@@ -813,6 +826,303 @@ function tripBoardBreaker_(ms) {
 // than removed: it is what keeps the clock working when the board is down.
 function fallbackJobs_(me) {
   try { return getJobOptions(me.userId); } catch (e) { return []; }
+}
+
+// ---- the job's people, and who is on the roof with you --------------------
+// The Project Manager and Sales Rep fields on the job — the same custom fields
+// the board reads (its src/lib/jobtread/ids.ts; verified live 2026-09-15).
+// Option fields holding user names; Sales Rep can hold several.
+var CF_SALES_REP = '22PBzhswJYd8';
+var CF_PROJECT_MANAGER = '22PC4DSTx7tg';
+
+/**
+ * Two labels, read in two Pave calls and never allowed to fail the list:
+ *
+ *   alongside  the crew whose line the site checks sit on — "with Platinum"
+ *              for a site manager overseeing them. It is that task's own name
+ *              minus its "Install —" prefix: a LABEL, not crew resolution (the
+ *              board resolves crews against its roster and aliases; this app
+ *              still asks it). Suppressed when the list is on this visit's own
+ *              task — that is your own crew.
+ *   pm / reps  the job's Project Manager and Sales Reps, as names. The daily
+ *              log is assigned to them and the confirm sheet names them.
+ */
+function enrichVisits_(visits) {
+  visits.forEach(function (v) { v.alongside = null; v.pm = ''; v.reps = []; });
+  if (!visits.length) return;
+  var taskIds = [], jobIds = [], seenT = {}, seenJ = {};
+  visits.forEach(function (v) {
+    var tid = v.checks && v.checks.taskId;
+    if (tid && tid !== v.taskId && !seenT[tid]) { seenT[tid] = 1; taskIds.push(tid); }
+    if (v.jobId && !seenJ[v.jobId]) { seenJ[v.jobId] = 1; jobIds.push(v.jobId); }
+  });
+  if (taskIds.length) {
+    try {
+      var dt = pave({
+        organization: {
+          '$': { id: ORG },
+          tasks: { '$': { where: { and: [['id', 'in', taskIds]] }, size: 50 }, nodes: { id: {}, name: {} } }
+        }
+      });
+      var byTask = {};
+      ((((dt.organization || {}).tasks || {}).nodes) || []).forEach(function (t) { byTask[t.id] = crewLabelFromTaskName_(t.name); });
+      visits.forEach(function (v) {
+        var tid = v.checks && v.checks.taskId;
+        if (tid && tid !== v.taskId && byTask[tid]) v.alongside = byTask[tid];
+      });
+    } catch (e1) { /* a label */ }
+  }
+  if (jobIds.length) {
+    try {
+      var people = jobPeopleByIds_(jobIds);
+      visits.forEach(function (v) { var p = people[v.jobId]; if (p) { v.pm = p.pm; v.reps = p.reps; } });
+    } catch (e2) { /* a label */ }
+  }
+}
+
+/** "Roof install — Platinum (Shingle)" -> "Platinum (Shingle)"; anything else -> null. */
+function crewLabelFromTaskName_(name) {
+  var m = /install\s*[—–-]\s*(.+)$/i.exec(String(name || ''));
+  var label = m ? m[1].trim() : '';
+  return label || null;
+}
+
+/** { jobId: { pm, reps[] } } for the given jobs, one Pave call. */
+function jobPeopleByIds_(jobIds) {
+  var d = pave({
+    organization: {
+      '$': { id: ORG },
+      jobs: {
+        '$': { where: { and: [['id', 'in', jobIds]] }, size: 50 },
+        nodes: {
+          id: {},
+          customFieldValues: {
+            '$': { size: 10, where: [['customField', 'id'], 'in', [CF_PROJECT_MANAGER, CF_SALES_REP]] },
+            nodes: { customField: { id: {} }, value: {} }
+          }
+        }
+      }
+    }
+  });
+  var out = {};
+  ((((d.organization || {}).jobs || {}).nodes) || []).forEach(function (j) {
+    var pm = '', reps = [];
+    (((j.customFieldValues || {}).nodes) || []).forEach(function (c) {
+      var id = (c.customField || {}).id, val = String(c.value == null ? '' : c.value).trim();
+      if (!val) return;
+      if (id === CF_PROJECT_MANAGER) { if (!pm) pm = val; }
+      else if (id === CF_SALES_REP && reps.indexOf(val) === -1) reps.push(val);
+    });
+    out[j.id] = { pm: pm, reps: reps };
+  });
+  return out;
+}
+
+/** A membership id for a user name, as the PM and Sales Rep fields carry it.
+ *  null when nobody in the org has that name; cached either way. */
+function membershipByName_(name) {
+  name = String(name || '').trim();
+  if (!name) return null;
+  var ck = 'mbn_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, name.toLowerCase())).slice(0, 40);
+  var hit = cacheGet_(ck);
+  if (hit) return hit.id || null;
+  var id = null;
+  try {
+    var d = pave({
+      organization: {
+        '$': { id: ORG },
+        memberships: { '$': { where: [['user', 'name'], name], size: 1 }, nodes: { id: {} } }
+      }
+    });
+    var ns = (((d.organization || {}).memberships || {}).nodes) || [];
+    if (ns.length) id = ns[0].id || null;
+  } catch (e) { id = null; }
+  cachePut_(ck, { id: id }, 21600);
+  return id;
+}
+
+/** [{membership:{membershipId}}] for a list of names, plus who resolved and who didn't. */
+function assigneesFor_(names) {
+  var assignees = [], assigned = [], unresolved = [];
+  (names || []).forEach(function (n) {
+    if (!n || assigned.indexOf(n) !== -1 || unresolved.indexOf(n) !== -1) return;
+    var mid = membershipByName_(n);
+    if (mid) { assignees.push({ membership: { membershipId: mid } }); assigned.push(n); }
+    else unresolved.push(n);
+  });
+  return { assignees: assignees, assigned: assigned, unresolved: unresolved };
+}
+
+// ===========================================================
+// THE DAILY LOG — the site manager's own record of the day, on the job.
+//
+// The org's daily logs are the owner's second-hand dictation ("Report via
+// Tyler we were short eight pieces of drip edge … Tyler left about 430 and
+// so I don't know the condition of the job"). This is the person who was on
+// the roof writing it, from what the phone already knows — the hours, the
+// site checks, the photos — plus three short answers.
+//
+// One JobTread daily log per site manager per job per day, sent ONCE: there
+// is no update call for daily logs (verified against the schema), only
+// create and delete, so anything after the send is a comment on the log.
+//
+// It is assigned to the job's Project Manager and Sales Reps with notify on —
+// JobTread's own way of pointing a record at people. A one-line comment on
+// the job, assigned to the same people, goes out only when the log carries
+// something that needs a decision: problems, extras or returns, or a crew
+// left on site without a sign-off. A comment on every routine log is the
+// noise that buries daily-log notifications today.
+//
+// Photos are attached by reference (copyFromFileId): they stay in DB Cam on
+// the job, and the log carries them too, so the PM opens one thing.
+// ===========================================================
+var DAILY_LOG_NOTES_MAX = 10000;   // JobTread's ceiling, verified
+
+function sendDailyLog(me, log) {
+  log = log || {};
+  var jobId = String(log.jobId || '').trim();
+  if (!jobId) throw new Error('Missing job id.');
+  assertWrite_(jobId);
+  var date = /^\d{4}-\d{2}-\d{2}$/.test(String(log.date || '')) ? log.date : isoDay_(new Date());
+
+  var people = { pm: '', reps: [] };
+  try { people = jobPeopleByIds_([jobId])[jobId] || people; } catch (e0) { /* assign nobody rather than fail */ }
+  var who = assigneesFor_([people.pm].concat(people.reps || []));
+
+  var text = dailyLogText_(me, log).slice(0, DAILY_LOG_NOTES_MAX);
+  var files = [];
+  (log.photos || []).forEach(function (p) {
+    if (!p || !p.fileId || files.length >= 100) return;
+    files.push({ copyFromFileId: String(p.fileId), name: String(p.name || 'Photo').replace(/[\/\\]+/g, '-') });
+  });
+  var args = { jobId: jobId, date: date, notes: text, assignees: who.assignees, notify: true };
+  if (files.length) args.files = files;
+  var d = pave({ createDailyLog: { '$': args, createdDailyLog: { id: {} } } });
+  var id = (((d.createDailyLog || {}).createdDailyLog) || {}).id;
+  if (!id) throw new Error('createDailyLog failed: ' + JSON.stringify(d).slice(0, 200));
+
+  var flag = dailyLogFlag_(log);
+  var commented = false;
+  if (flag) {
+    try {
+      pave({
+        createComment: {
+          '$': { targetType: 'job', targetId: jobId, message: dailyLogPointer_(me, log, flag), assignees: who.assignees },
+          createdComment: { id: {} }
+        }
+      });
+      commented = true;
+    } catch (e3) { /* the log is in; the pointer is best effort, and the app says so */ }
+  }
+  return { ok: true, dailyLogId: id, date: date, assigned: who.assigned, unresolved: who.unresolved,
+           flag: flag, commented: commented, photos: files.length };
+}
+
+/** What needs a decision: '' when nothing does. */
+function dailyLogFlag_(log) {
+  if (String(log.problems || '').trim()) return 'problems';
+  if (log.crewOnSite === true && !(log.checks && log.checks.signedOff)) return 'crew-on-site';
+  return '';
+}
+
+function dailyLogPointer_(me, log, flag) {
+  var label = String(log.jobLabel || log.jobId || '').trim();
+  var day = fmtDayShort_(log.date);
+  var what = flag === 'problems'
+    ? String(log.problems || '').trim().split(/\r?\n/)[0].slice(0, 160)
+    : 'crew still on site' + (log.leftAt ? ' when ' + firstName_(me.name) + ' left at ' + log.leftAt : '') + ', not signed off';
+  return '📋 Site log ' + day + ' — ' + label + ': ' + what + ' — full log under Daily Logs. (' + me.name + ')';
+}
+
+/** Plain text, in the order the owner's own log reads. */
+function dailyLogText_(me, log) {
+  var L = [];
+  L.push('Site manager\'s log — ' + me.name + ' · ' + fmtDayLong_(log.date));
+  var head = [String(log.jobLabel || '').trim(), log.alongside ? 'with ' + log.alongside : ''].filter(Boolean).join(' · ');
+  if (head) L.push(head);
+  L.push('');
+  L.push('WHAT GOT DONE');
+  L.push(String(log.done || '').trim() || '—');
+  L.push('');
+  L.push('CONDITION WHEN I LEFT');
+  var cond = [];
+  if (log.crewOnSite === true) cond.push('Crew still on site'); else if (log.crewOnSite === false) cond.push('Crew gone');
+  if (log.tarped === true) cond.push('Tarped'); else if (log.tarped === false) cond.push('Not tarped');
+  if (log.leftAt) cond.push('Left at ' + String(log.leftAt).trim());
+  if (cond.length) L.push(cond.join(' · '));
+  var condText = String(log.condition || '').trim();
+  if (condText) L.push(condText); else if (!cond.length) L.push('—');
+  L.push('');
+  L.push('PROBLEMS, EXTRAS, RETURNS');
+  L.push(String(log.problems || '').trim() || 'None');
+  L.push('');
+  var ck = log.checks || {};
+  if (ck.words || ck.magnetBy) {
+    L.push('SITE CHECKS');
+    L.push([ck.words, ck.magnetBy ? 'Magnet run by ' + ck.magnetBy : ''].filter(Boolean).join(' · '));
+    L.push('');
+  }
+  var hrs = (log.hours || []).filter(function (h) { return h && (Number(h.minutes) || 0) > 0; });
+  if (hrs.length) {
+    L.push('HOURS (' + firstName_(me.name) + ')');
+    var tot = 0;
+    hrs.forEach(function (h) {
+      tot += Number(h.minutes) || 0;
+      L.push(((h.number ? h.number + ' ' : '') + (h.name || '')).trim() + ' — ' + hm_(h.minutes));
+    });
+    L.push('Total ' + hm_(tot));
+    L.push('');
+  }
+  var notes = (log.notes || []).filter(function (n) { return n && String(n.body || '').trim(); });
+  if (notes.length) {
+    L.push('NOTES DURING THE DAY');
+    notes.forEach(function (n) {
+      L.push((n.time ? n.time + '  ' : '') + String(n.body).trim() + (n.urgent ? '  (sent to the office at the time)' : ''));
+    });
+    L.push('');
+  }
+  var photos = (log.photos || []).filter(function (p) { return p && p.fileId; });
+  if (photos.length) {
+    var byTag = {};
+    photos.forEach(function (p) { var t = String(p.tag || 'photo').toLowerCase(); byTag[t] = (byTag[t] || 0) + 1; });
+    var parts = ['before', 'during', 'after'].filter(function (t) { return byTag[t]; }).map(function (t) { return byTag[t] + ' ' + t; });
+    L.push('PHOTOS');
+    L.push(photos.length + ' attached' + (parts.length ? ' (' + parts.join(', ') + ')' : '') + ' · also in DB Cam on the job');
+    L.push('');
+  }
+  L.push('— sent from DB Time Clock');
+  return L.join('\n');
+}
+
+function firstName_(name) { return String(name || '').trim().split(/\s+/)[0] || 'me'; }
+function hm_(minutes) {
+  var m = Math.max(0, Math.round(Number(minutes) || 0)), h = Math.floor(m / 60);
+  return h ? h + 'h ' + (m % 60 < 10 ? '0' : '') + (m % 60) + 'm' : m + 'm';
+}
+function fmtDayLong_(iso) {
+  try { return Utilities.formatDate(new Date(iso + 'T12:00:00Z'), 'UTC', 'EEE MMM d'); } catch (e) { return String(iso || ''); }
+}
+function fmtDayShort_(iso) {
+  var m = /^\d{4}-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? String(Number(m[1])) + '/' + String(Number(m[2])) : String(iso || '');
+}
+
+/** Something added after the log was sent: a comment on the log itself. */
+function addDailyLogNote(me, jobId, dailyLogId, message) {
+  if (!jobId) throw new Error('Missing job id.');
+  if (!dailyLogId) throw new Error('Missing daily log id.');
+  message = String(message || '').trim();
+  if (!message) throw new Error('Empty note.');
+  assertWrite_(jobId);
+  var d = pave({
+    createComment: {
+      '$': { targetType: 'dailyLog', targetId: dailyLogId, message: me.name + ': ' + message },
+      createdComment: { id: {}, createdAt: {} }
+    }
+  });
+  var c = ((d.createComment || {}).createdComment) || {};
+  return { ok: true, id: c.id, at: c.createdAt };
 }
 
 // ===========================================================
@@ -1304,22 +1614,34 @@ function finalizeFileRecord_(jobId, uploadRequestId, fileName, description) {
   return { ok: true, fileId: file.id, name: file.name || fileName, thumbUrl: thumbUrl };
 }
 
-// A note to the office lands as a comment on the job.
-function postJobNote(jobId, message, authorName) {
+// A note to the office lands as a comment on the job. With `assignPm` it is
+// also assigned to the job's Project Manager (or, with none, the first Sales
+// Rep), which is what makes it reach somebody rather than sit in the feed —
+// the "office needs this now" note from the Day log.
+function postJobNote(jobId, message, authorName, assignPm) {
   if (!jobId) throw new Error('Missing job id.');
   message = String(message || '').trim();
   if (!message) throw new Error('Empty note.');
   assertWrite_(jobId);
   authorName = String(authorName || '').trim();
   if (authorName) message = authorName + ': ' + message;
+  var args = { targetType: 'job', targetId: jobId, message: message };
+  var assigned = [];
+  if (assignPm) {
+    try {
+      var people = jobPeopleByIds_([jobId])[jobId] || { pm: '', reps: [] };
+      var who = assigneesFor_(people.pm ? [people.pm] : (people.reps || []).slice(0, 1));
+      if (who.assignees.length) { args.assignees = who.assignees; assigned = who.assigned; }
+    } catch (e) { /* unassigned beats unsent */ }
+  }
   var d = pave({
     createComment: {
-      '$': { targetType: 'job', targetId: jobId, message: message },
+      '$': args,
       createdComment: { id: {}, message: {}, createdAt: {} }
     }
   });
   var c = ((d.createComment || {}).createdComment) || {};
-  return { ok: true, id: c.id, at: c.createdAt };
+  return { ok: true, id: c.id, at: c.createdAt, assigned: assigned };
 }
 
 // ===========================================================
@@ -1363,8 +1685,10 @@ function pushEnabled_() {
 function registerPushToken(me, token, platform) {
   token = String(token || '').trim();
   if (!token) throw new Error('Missing push token.');
+  // membershipId rides along so the schedule sweep can ask the board for this
+  // person without a lookup per device.
   PropertiesService.getScriptProperties().setProperty('pt_' + me.userId, JSON.stringify({
-    token: token, platform: String(platform || ''), name: me.name, at: Date.now()
+    token: token, platform: String(platform || ''), name: me.name, membershipId: me.membershipId || '', at: Date.now()
   }));
   return { ok: true };
 }
@@ -1425,10 +1749,17 @@ function fcmAccessToken_() {
  * Send one push. Returns { ok } or { ok:false, stale:true } when FCM says the
  * token is dead, so the sweep can clean it up.
  */
-function sendPush_(token, title, body, data) {
+function sendPush_(token, title, body, data, opts) {
+  opts = opts || {};
   var projectId = PropertiesService.getScriptProperties().getProperty('FCM_PROJECT_ID');
   if (!projectId) throw new Error('Set the FCM_PROJECT_ID Script Property.');
 
+  // The tag and the kind ride in `data` too: sw.js shows the notification
+  // itself and reads them from there.
+  var tag = opts.tag || 'dbtc-before';
+  var payload = {};
+  for (var k in (data || {})) payload[k] = String(data[k]);
+  payload.tag = tag;
   var msg = {
     message: {
       token: token,
@@ -1439,13 +1770,13 @@ function sendPush_(token, title, body, data) {
           body: body,
           icon: '/app-icon-192.png',
           badge: '/app-icon-192.png',
-          tag: 'dbtc-before',
-          requireInteraction: true
+          tag: tag,
+          requireInteraction: opts.requireInteraction !== false
         },
-        fcmOptions: { link: (PropertiesService.getScriptProperties().getProperty('APP_URL') || '/') },
-        headers: { Urgency: 'high', TTL: '900' }
+        fcmOptions: { link: opts.link || (PropertiesService.getScriptProperties().getProperty('APP_URL') || '/') },
+        headers: { Urgency: 'high', TTL: opts.ttl || '900' }
       },
-      data: data || {}
+      data: payload
     }
   };
 
@@ -1601,6 +1932,142 @@ function markNudged(timeEntryId) {
   if (!timeEntryId) return { ok: false };
   PropertiesService.getScriptProperties().setProperty('nudged_' + timeEntryId, String(Date.now()));
   return { ok: true };
+}
+
+// ---- the schedule pushes -------------------------------------------------
+// "Where am I in the morning" should not need the app opened. Hourly, for
+// every registered phone:
+//   - after PLAN_PUSH_HOUR local, once per day: "Tomorrow: 812 S Washington
+//     St · Lucas · with Platinum · Material ordered". Nothing booked, nothing
+//     sent — and if the office books something later in the evening, the next
+//     hour sends it.
+//   - "Schedule changed" when the next few days differ from the last snapshot
+//     for that person: added, moved, removed. The first run only takes the
+//     snapshot. Not sent in the same run as the tomorrow line — that line
+//     already carries the change.
+// One board call per phone per hour; the board's window for three days is
+// light, and it is the same route the tab reads.
+var PLAN_PUSH_HOUR = 16;
+var SCHED_LOOKAHEAD_DAYS = 2;
+
+function sweepSchedulePushes() {
+  if (!pushEnabled_()) return { skipped: 'PUSH_ENABLED is not true' };
+  var cfg = boardConfig_();
+  if (!cfg.url || !cfg.secret) return { skipped: 'board not configured' };
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var now = new Date(), today = isoDay_(now), tomorrow = addDays_(today, 1);
+  var hour = Number(Utilities.formatDate(now, Session.getScriptTimeZone(), 'H'));
+  var appUrl = String(all.APP_URL || '').replace(/\/+$/, '');
+  var out = { devices: 0, plans: 0, changes: 0, failed: 0 };
+  var pushOpts = { tag: 'dbtc-schedule', link: (appUrl || '') + '/?tab=jobs', requireInteraction: false, ttl: '43200' };
+
+  for (var k in all) {
+    if (k.indexOf('pt_') !== 0) continue;
+    var rec = null;
+    try { rec = JSON.parse(all[k]); } catch (e) {}
+    if (!rec || !rec.token || !rec.membershipId) continue;   // re-registers with a membership on the next launch
+    var userId = k.slice(3);
+    out.devices++;
+
+    var visits;
+    try {
+      var r = fetchAssignmentsRaw_(cfg, rec.membershipId, today, addDays_(today, SCHED_LOOKAHEAD_DAYS));
+      if (r.code !== 200) { out.failed++; continue; }
+      visits = (JSON.parse(r.text).visits || []).map(function (v) { return shapeVisit_(v, today); });
+      try { enrichVisits_(visits); } catch (e2) { /* labels */ }
+    } catch (e3) { out.failed++; continue; }
+
+    var sentPlan = false;
+    var planKey = 'plan_' + userId + '_' + tomorrow;
+    if (hour >= PLAN_PUSH_HOUR && !all[planKey]) {
+      var tv = visits.filter(function (v) { return v.start && v.start <= tomorrow && (v.end || v.start) >= tomorrow; });
+      if (tv.length) {
+        var res = sendPush_(rec.token, 'Tomorrow', planLine_(tv), { kind: 'schedule', date: tomorrow }, pushOpts);
+        if (res.ok) { props.setProperty(planKey, '1'); out.plans++; sentPlan = true; }
+        else { out.failed++; if (res.stale) props.deleteProperty(k); }
+      }
+    }
+
+    var snap = scheduleSnapshot_(visits);
+    var prevKey = 'sched_' + userId, prev = all[prevKey];
+    if (prev != null && prev !== snap && !sentPlan) {
+      var res2 = sendPush_(rec.token, 'Schedule changed', changeLine_(prev, snap), { kind: 'schedule' }, pushOpts);
+      if (res2.ok) out.changes++; else out.failed++;
+    }
+    if (prev !== snap) props.setProperty(prevKey, snap);
+  }
+
+  // Yesterday's markers.
+  for (var k2 in all) {
+    if (k2.indexOf('plan_') === 0 && k2.slice(k2.lastIndexOf('_') + 1) < today) props.deleteProperty(k2);
+  }
+  return out;
+}
+
+/** "812 S Washington St · Lucas · with Platinum · Material ordered", or "2 jobs: Courtney, then Lucas". */
+function planLine_(tv) {
+  if (tv.length > 1) {
+    return tv.length + ' jobs: ' + tv.map(function (v) { return v.cust || v.jobNum; }).join(', then ');
+  }
+  var v = tv[0];
+  var street = String(v.address || '').split(',')[0].trim();
+  var mat = v.material && v.material.text ? String(v.material.text).replace(/[\u2713\u2714]\s*$/, '').trim() : '';
+  return [street || v.cust || v.jobNum, street ? v.cust : '', v.alongside ? 'with ' + v.alongside : '', mat]
+    .filter(Boolean).join(' · ');
+}
+
+/** One line per visit, sorted, so two answers compare as strings. */
+function scheduleSnapshot_(visits) {
+  return visits.map(function (v) {
+    return [v.taskId, v.jobNum, v.cust || '', v.start, v.end || v.start].join('|');
+  }).sort().join('\n');
+}
+
+function changeLine_(prev, snap) {
+  var parse = function (s) {
+    var m = {};
+    String(s || '').split('\n').forEach(function (line) {
+      if (!line) return;
+      var p = line.split('|');
+      m[p[0]] = { jobNum: p[1], cust: p[2], start: p[3], end: p[4] };
+    });
+    return m;
+  };
+  var a = parse(prev), b = parse(snap), parts = [];
+  var name = function (x) { return x.cust || x.jobNum; };
+  for (var id in b) {
+    if (!a[id]) parts.push('Added: ' + name(b[id]) + ' ' + fmtDayShortDow_(b[id].start));
+    else if (a[id].start !== b[id].start || a[id].end !== b[id].end) parts.push('Moved: ' + name(b[id]) + ' to ' + fmtDayShortDow_(b[id].start));
+  }
+  for (var id2 in a) if (!b[id2]) parts.push('Removed: ' + name(a[id2]));
+  if (!parts.length) return 'Your next few days changed — open My jobs.';
+  var line = parts.slice(0, 3).join('. ') + (parts.length > 3 ? ' +' + (parts.length - 3) + ' more' : '');
+  return line.length > 180 ? line.slice(0, 177) + '…' : line;
+}
+
+function fmtDayShortDow_(iso) {
+  var d = new Date(String(iso) + 'T12:00:00Z');
+  if (isNaN(d)) return String(iso || '');
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] + ' ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate();
+}
+
+/** Run once from the Apps Script editor. Idempotent. Runs a sweep on the spot. */
+function installSchedulePushTrigger() {
+  var existing = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < existing.length; i++) {
+    if (existing[i].getHandlerFunction() === 'sweepSchedulePushes') ScriptApp.deleteTrigger(existing[i]);
+  }
+  ScriptApp.newTrigger('sweepSchedulePushes').timeBased().everyHours(1).create();
+  return 'Schedule pushes installed — hourly. First run: ' + JSON.stringify(sweepSchedulePushes());
+}
+
+function removeSchedulePushTrigger() {
+  var existing = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < existing.length; i++) {
+    if (existing[i].getHandlerFunction() === 'sweepSchedulePushes') ScriptApp.deleteTrigger(existing[i]);
+  }
+  return 'Schedule pushes removed.';
 }
 
 // ---- one-time setup ------------------------------------------------------

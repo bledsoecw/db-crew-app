@@ -345,6 +345,63 @@ button[disabled]{cursor:default}
 .ckmiss{display:flex;flex-direction:column;gap:7px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--surf)}
 .ckmiss .m{font:400 14px/1.35 var(--sans);color:var(--fg)}
 
+/* ---------------- week view ----------------
+   Fourteen days as chips, a dot per booked visit; the cards below grouped
+   under day headings. Nothing here is data the tab didn't already have. */
+#weekStrip{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 20px 10px;scrollbar-width:none;flex:none}
+#weekStrip::-webkit-scrollbar{display:none}
+.wday{flex:none;width:52px;min-height:62px;border-radius:6px;border:1px solid var(--line);background:var(--surf);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--mut)}
+.wday .dn{font:600 9.5px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
+.wday .dd{font:800 17px/1 var(--head)}
+.wday .dots{display:flex;gap:3px;height:6px}
+.wday .dots i{width:6px;height:6px;border-radius:50%;background:var(--acc)}
+.wday.today{border-color:var(--go);color:var(--fg)}
+.wday.booked{color:var(--fg)}
+.wday.empty{opacity:.4}
+.dayhead{display:flex;align-items:baseline;gap:10px;margin:24px 0 -6px}
+.dayhead .dt{font:700 13px/1 var(--head);letter-spacing:.3px;text-transform:uppercase;color:var(--mut)}
+.jwith{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--lab);margin-top:2px;display:block}
+.todaypick{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+
+/* ---------------- day log ----------------
+   One draft per job per day. The summary is what the phone already knows;
+   the three questions are what the owner's hand-written log has been
+   reconstructing. */
+.dlchips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+.dlchips::-webkit-scrollbar{display:none}
+.dlchip{flex:none;min-height:48px;padding:0 14px;border-radius:6px;border:1.5px solid var(--line2);display:flex;align-items:center;gap:8px;color:var(--fg);font:700 14px/1 var(--head);letter-spacing:.3px;text-transform:uppercase}
+.dlchip.on{background:var(--codehi);border-color:var(--go)}
+.dlchip .st{width:8px;height:8px;border-radius:50%;background:var(--line2);flex:none}
+.dlchip .st.sent{background:var(--go)}
+.dlchip .st.draft{background:var(--ckamber)}
+.dlsum{border:1px solid var(--line);border-radius:8px;background:var(--surf);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.dlsum .row{display:flex;justify-content:space-between;gap:12px;font:400 14px/1.35 var(--sans);color:var(--mut)}
+.dlsum .row b{color:var(--fg);font-weight:600;text-align:right}
+.dlq{margin-top:18px}
+.dlq .k{margin-bottom:8px;display:block}
+.dlq textarea{width:100%;min-height:78px;resize:none;border:1.5px solid var(--line);border-radius:8px;background:var(--surf);padding:12px 13px;color:var(--fg);font:400 16px/1.45 var(--sans);outline:none;-webkit-appearance:none}
+.dlq textarea::placeholder{color:var(--lab)}
+.tog{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.togbtn{min-height:44px;padding:0 13px;border-radius:6px;border:1.5px solid var(--line2);font:600 11px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--mut)}
+.togbtn.on{background:var(--go);border-color:var(--go);color:var(--goink)}
+.togbtn.on.warn{background:var(--warn);border-color:var(--warn);color:var(--warnink)}
+.dlleft{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.dlleft .k{margin:0;flex:none}
+.dlleft input{flex:1;min-width:0;min-height:44px;border:1.5px solid var(--line);border-radius:6px;background:var(--surf);padding:8px 12px;color:var(--fg);font:400 16px var(--sans);outline:none;-webkit-appearance:none}
+.dlleft input::placeholder{color:var(--lab)}
+.dlstatus{padding:8px 9px;border-radius:2px;font:600 10px/1.3 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut);display:inline-flex;align-items:center;gap:6px;flex:none;max-width:50%;text-align:right}
+.dlstatus.ok{background:var(--go);color:var(--goink)}
+.dlstatus.bad{background:var(--warn);color:var(--warnink)}
+.urgentrow{display:flex;align-items:center;gap:10px;min-height:44px;font:600 13px/1.3 var(--sans);color:var(--mut);text-align:left;width:100%}
+.urgentrow .box{width:26px;height:26px;border-radius:6px;border:2px solid var(--line2);display:flex;align-items:center;justify-content:center;color:transparent;flex:none}
+.urgentrow.on{color:var(--fg)}
+.urgentrow.on .box{background:var(--warn);border-color:var(--warn);color:var(--warnink)}
+.notecard.urgent{border-left-color:var(--warn)}
+.dlsent{border:1px solid rgba(126,240,138,.45);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;background:var(--surf)}
+[data-theme="day"] .dlsent{border-color:#1e7a2f}
+.dlsent .t{font:800 17px/1.1 var(--head);text-transform:uppercase;color:var(--acc)}
+.dlsent .s{font:400 14px/1.4 var(--sans);color:var(--mut)}
+
 #tabs{position:absolute;left:0;right:0;bottom:0;display:flex;background:var(--tabbg);border-top:1px solid var(--line);padding-bottom:max(calc(var(--sab) - 8px),12px);z-index:60}
 .tab{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-top:3px solid transparent;margin-top:-1px;color:rgba(255,255,255,.74)}
 .tab.on{color:#fff;border-top-color:var(--go)}
@@ -408,6 +465,7 @@ button[disabled]{cursor:default}
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
+        <div id="todayPick" class="todaypick hidden"></div>
 
         <div id="onClock" class="hidden">
           <div id="band">
@@ -502,26 +560,8 @@ button[disabled]{cursor:default}
       <span id="syncBadge">Not sent</span>
     </div>
     <div class="scroll" style="padding:0 20px 26px">
-      <div class="secthead">
-        <div class="k" id="photoK">Photos · 00</div>
-        <button class="addbtn" id="addPhotoBtn">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add
-        </button>
-      </div>
-      <div id="grid"></div>
-      <div class="sect"><div class="k">Notes to the office</div></div>
-      <div id="noteList" style="display:flex;flex-direction:column;gap:9px"></div>
-      <div id="noteBox">
-        <textarea id="noteText" placeholder="What does the office need to know?"></textarea>
-        <button class="btn btn-go" id="addNoteBtn" style="min-height:64px;font-size:16px">Add note</button>
-      </div>
-      <div class="sect">
-        <button class="btn btn-nav" id="sendDayBtn">
-          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          Send day to office
-        </button>
-        <div class="foot">Photos flow into the DB&nbsp;Cam report. Hours post to JobTread.</div>
-      </div>
+      <div id="dlChips" class="dlchips"></div>
+      <div id="dlBody"></div>
 
       <div class="sect">
         <div class="k">Build</div>
@@ -548,6 +588,7 @@ button[disabled]{cursor:default}
     </div>
     <div id="jobsSrc" class="warnbar robar hidden"></div>
     <button id="jobsNudge" class="nudge hidden"></button>
+    <div id="weekStrip"></div>
     <div class="scroll" style="padding:0 20px 26px">
       <div id="jobsList"></div>
     </div>
@@ -566,6 +607,7 @@ button[disabled]{cursor:default}
     </div>
     <div id="ckState"><span id="ckWords" class="jck none"></span><span id="ckSave" class="cksave hidden"></span></div>
     <div id="ckRo" class="warnbar robar hidden"></div>
+    <button id="ckNudge" class="nudge hidden"></button>
     <div class="scroll" style="padding:0 20px 26px">
       <div id="ckBody"></div>
     </div>
@@ -616,7 +658,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.5 (2026-09-15)';
+var APP_BUILD = 'T1.6 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -790,19 +832,22 @@ var S = {
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
   checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
+  dlJobId:null, dlDate:'', pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null
 };
 
 function savePrefs(){
-  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, nudged:S.nudged, push:pushState })); } catch(e){}
+  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, nudged:S.nudged, push:pushState, jobPickedDay:S.jobPickedDay })); } catch(e){}
 }
 function loadPrefs(){
   try {
     var p = JSON.parse(localStorage.getItem('dbtc_prefs') || '{}');
     if (typeof p.sun === 'boolean') S.sun = p.sun;
-    if (Array.isArray(p.photos)) S.photos = p.photos.filter(sameDay);
+    // Yesterday's photos stay a day, so yesterday's log can still carry them.
+    if (Array.isArray(p.photos)) S.photos = p.photos.filter(recentDay);
     if (Array.isArray(p.notes)) S.notes = p.notes.filter(sameDay);
     S.nudged = !!p.nudged;
+    S.jobPickedDay = String(p.jobPickedDay || '');
     // The device stays registered across launches; only this page's memory of
     // it is lost. Restoring it stops the Build panel claiming "not checked
     // yet" about a phone that is already receiving nudges.
@@ -813,6 +858,10 @@ function loadPrefs(){
 function sameDay(x){
   var d = new Date(x.at || 0), n = new Date();
   return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
+}
+function recentDay(x){
+  var d = isoLocal(new Date(x.at || 0));
+  return d === isoLocal() || d === isoLocal(new Date(Date.now() - 86400000));
 }
 
 /* =========================================================
@@ -1072,10 +1121,16 @@ function enablePush(){
 }
 
 function handleShootParam(){
-  if (!/[?&]shoot=before/.test(location.search)) return;
-  history.replaceState(null, '', location.pathname);
-  S.capture = 'before'; S.returnToClock = true;
-  setTab('cam');
+  var q = location.search;
+  if (/[?&]shoot=before/.test(q)){
+    history.replaceState(null, '', location.pathname);
+    S.capture = 'before'; S.returnToClock = true;
+    setTab('cam');
+    return;
+  }
+  // A schedule push lands on My jobs.
+  var m = /[?&]tab=(jobs|log|job)\b/.exec(q);
+  if (m){ history.replaceState(null, '', location.pathname); setTab(m[1]); }
 }
 
 /* =========================================================
@@ -1111,6 +1166,7 @@ function render(){
   renderVersion();
   renderNudge();
   renderChecks();
+  renderTodayPick();
 }
 
 /* JobTread returns a full formatted address ("408 Euclid Ave, Van Wert, OH
@@ -1137,10 +1193,31 @@ function renderJob(){
   $('jobChips').innerHTML = j
     ? [jobTitle(j)].filter(Boolean).map(function(x){ return '<span class="chip">' + esc(x) + '</span>'; }).join('')
     : '';
-  // The job is locked while the clock runs — the hours already belong to it.
-  $('pickJobLbl').textContent = !j ? 'Pick a job' : S.open ? 'Job locked while the clock runs' : 'Change job';
-  $('pickJobBtn').disabled = !!S.open;
-  $('pickJobBtn').style.opacity = S.open ? .45 : 1;
+  // While the clock runs the hours belong to this job, so "change" becomes a
+  // move: the entry here closes and one opens at the next roof, in one call.
+  $('pickJobLbl').textContent = !j ? 'Pick a job' : S.open ? 'Move to another job' : 'Change job';
+  $('pickJobBtn').disabled = false;
+  $('pickJobBtn').style.opacity = 1;
+}
+
+/* Two roofs booked today and nothing on the clock: ask, once, on the screen
+   the app opens to. One roof needs no asking — seedTodayJob() sets it. */
+function renderTodayPick(){
+  var el = $('todayPick'), today = isoLocal();
+  var show = !S.open && S.todayChoices.length > 1 && S.jobPickedDay !== today &&
+             !(S.job && S.todayChoices.some(function(v){ return v.jobId === S.job.id; }));
+  el.classList.toggle('hidden', !show);
+  if (!show) return;
+  el.innerHTML = '<div class="k">Booked today · which one are you at?</div>' + S.todayChoices.map(function(v){
+    return '<button class="btn btn-out" data-today="' + esc(v.jobId) + '" style="justify-content:flex-start;padding:0 16px;text-align:left">' +
+      esc((v.cust || v.jobNum || '') + (streetOf(v.address) ? ' · ' + streetOf(v.address) : '')) + '</button>';
+  }).join('');
+  [].forEach.call(el.querySelectorAll('[data-today]'), function(b){
+    b.onclick = function(){
+      var v = S.todayChoices.filter(function(x){ return x.jobId === b.getAttribute('data-today'); })[0];
+      if (v) pickJobObj(visitAsJob(v), false);
+    };
+  });
 }
 
 function renderClock(){
@@ -1329,25 +1406,7 @@ function forceUpdate(){
   });
 }
 
-function renderLog(){
-  $('logK').textContent = 'Day log' + (S.job && S.job.number ? ' · JT #' + S.job.number : '');
-  $('logDate').textContent = new Date().toLocaleDateString('en-US',{ weekday:'short', month:'short', day:'numeric' });
-  var b = $('syncBadge');
-  b.className = '';
-  if (!S.online) { b.classList.add('queued'); b.textContent = 'Queued'; }
-  else if (S.sent) { b.classList.add('sent'); b.textContent = 'Sent'; }
-  else b.textContent = 'Not sent';
-  $('photoK').textContent = 'Photos · ' + pad2(S.photos.length);
-  $('grid').innerHTML = S.photos.slice().reverse().map(function(p){
-    return '<div class="tile" style="' + (p.thumb ? 'background-image:url(' + p.thumb + ')' : '') + '">' +
-      '<span class="tg ' + p.tag + '">' + p.tag + '</span>' +
-      '<span class="tm">' + esc(p.time) + '</span>' +
-      (p.pending ? '<span class="up"></span>' : '') + '</div>';
-  }).join('');
-  $('noteList').innerHTML = S.notes.map(function(n){
-    return '<div class="notecard"><span class="nm">' + esc(n.meta) + '</span><span class="nb">' + esc(n.body) + '</span></div>';
-  }).join('');
-}
+function renderLog(){ renderDayLog(); }
 
 /* =========================================================
    MY JOBS — the Production Board's Install tasks for whoever
@@ -1421,6 +1480,7 @@ function keepFresh(a, askedAt){
   S.assignStale = false;
   saveAssign();
   ckReconcile(S.assign);
+  seedTodayJob();
 }
 
 /* The code list, the recent-jobs picker and the foreman's crew block are all
@@ -1546,18 +1606,60 @@ function visitCardHtml(v){
        (v.jobNum ? '<span class="n">JT #' + esc(v.jobNum) + '</span>' : '') + '</div>';
   h += '<button class="jmain" data-pick="' + esc(v.jobId) + '">' +
        '<span class="h-addr">' + esc(street) + '</span>' +
-       (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</button>';
+       (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') +
+       (v.alongside ? '<span class="jwith">with ' + esc(v.alongside) + '</span>' : '') + '</button>';
   if (v.material && v.material.text){
     var cls = v.material.cls === 'bad' ? 'bad' : v.material.cls === 'warn' ? 'warn' : 'good';
     h += '<div class="jmat ' + cls + '"><span class="dot"></span>' + esc(matWords(v.material.text)) + '</div>';
   }
-  h += checksLineHtml(v);
+  // "Not started" on next Thursday's roof is true and useless: the words
+  // appear once the visit has begun. The button is always there.
+  if (!v.start || v.start <= isoLocal()) h += checksLineHtml(v);
   if (v.crewNote) h += '<div class="jnote"><span class="k">From the office</span>' + esc(v.crewNote) + '</div>';
   h += navRowHtml(v.address);
   if (v.checks && v.checks.taskId){
     h += '<button class="jbtn" data-checks="' + esc(v.checks.taskId) + '">Site checks' + CK_CHEV + '</button>';
   }
   return h + '</div>';
+}
+
+function addDaysLocal(iso, n){
+  var d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return isoLocal(d);
+}
+function dayLabel(iso, today){
+  if (iso === today) return 'Today';
+  if (iso === addDaysLocal(today, 1)) return 'Tomorrow';
+  var d = new Date(iso + 'T12:00:00');
+  return isNaN(d) ? iso : DOW3[d.getDay()] + ' ' + (d.getMonth()+1) + '/' + d.getDate();
+}
+function fullDate(iso){
+  var d = new Date(iso + 'T12:00:00');
+  return isNaN(d) ? '' : d.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+}
+/* Fourteen chips from today, a dot per visit on that day. Tapping one scrolls
+   to the heading that visit sits under — a multi-day stay is listed once. */
+function renderWeekStrip(vs, today){
+  var el = $('weekStrip'), html = '';
+  for (var i = 0; i < 14; i++){
+    var iso = addDaysLocal(today, i);
+    var on = vs.filter(function(v){ return v.start && v.start <= iso && (v.end || v.start) >= iso; });
+    var d = new Date(iso + 'T12:00:00');
+    var target = on.length ? ((on[0].start > today) ? on[0].start : today) : '';
+    html += '<button class="wday' + (iso === today ? ' today' : '') + (on.length ? ' booked' : ' empty') + '"' +
+            (target ? ' data-day="' + esc(target) + '"' : ' disabled') + '>' +
+            '<span class="dn">' + DOW3[d.getDay()] + '</span><span class="dd">' + d.getDate() + '</span>' +
+            '<span class="dots">' + on.slice(0, 3).map(function(){ return '<i></i>'; }).join('') + '</span></button>';
+  }
+  el.innerHTML = html;
+  el.classList.toggle('hidden', !vs.length);
+  [].forEach.call(el.querySelectorAll('[data-day]'), function(b){
+    b.onclick = function(){
+      var h = document.getElementById('day-' + b.getAttribute('data-day'));
+      if (h) h.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+  });
 }
 
 /* The fallback list has no schedule behind it, so it says so rather than
@@ -1584,16 +1686,28 @@ function renderJobs(){
   bar.innerHTML = '<span>' + esc(note) + '</span>';
 
   var html = '';
+  var today = isoLocal(), vs = (a && a.visits) || [];
   if (!a && S.assignLoading){
     html = '<div class="jempty">Checking the board…</div>';
   } else {
-    // Today and onwards first, soonest first (the board's order). A visit that
-    // has ended sits below them — it is on the list for its site checks, not
-    // as somewhere to go — and is never shown as though it were today's.
-    var today = isoLocal(), vs = (a && a.visits) || [];
+    // Today and onwards, grouped under the day each visit is next on; a
+    // three-day install that began yesterday sits under Today. A visit that
+    // has ended sits at the bottom — it is on the list for its site checks
+    // and its log, not as somewhere to go.
     var upcoming = vs.filter(function(v){ return !v.end || v.end >= today; });
     var past = vs.filter(function(v){ return v.end && v.end < today; }).reverse();
-    html = upcoming.map(visitCardHtml).join('');
+    var days = {}, order = [];
+    upcoming.forEach(function(v){
+      var key = (v.start && v.start > today) ? v.start : today;
+      if (!days[key]){ days[key] = []; order.push(key); }
+      days[key].push(v);
+    });
+    order.sort();
+    order.forEach(function(key){
+      html += '<div class="dayhead" id="day-' + esc(key) + '"><span class="k">' + esc(dayLabel(key, today)) + '</span>' +
+              '<span class="dt">' + esc(fullDate(key)) + '</span></div>';
+      html += days[key].map(visitCardHtml).join('');
+    });
     if (!upcoming.length){
       if (a && a.source === 'board' && a.crew){
         html += '<div class="jempty">Nothing booked for ' + esc(a.crew.name) +
@@ -1603,15 +1717,20 @@ function renderJobs(){
       html += recent.length ? recent.map(recentCardHtml).join('')
                             : (html || past.length ? '' : '<div class="jempty">No assigned jobs yet.</div>');
     }
-    html += past.map(visitCardHtml).join('');
+    if (past.length){
+      html += '<div class="dayhead" id="day-past"><span class="k">Ended</span><span class="dt">' + esc(fullDate(past[0].end)) + '</span></div>';
+      html += past.map(visitCardHtml).join('');
+    }
   }
   $('jobsList').innerHTML = html;
+  renderWeekStrip(vs, today);
 
   [].forEach.call($('jobsList').querySelectorAll('[data-pick]'), function(b){
     b.onclick = function(){
       var id = b.getAttribute('data-pick');
-      // The job is locked while the clock runs — the hours already belong to it.
-      if (S.open){ toast('Clock out before changing job', true); return; }
+      // On the clock, a tap here is a move: the entry closes and one opens at
+      // the next roof once a code is picked.
+      if (S.open){ S.moving = true; pickJob(id); return; }
       pickJob(id);
       setTab('job');
     };
@@ -1768,6 +1887,15 @@ function ckTouch(v, mutate){
   e.dirty = true; e.seq = (e.seq || 0) + 1; e.at = Date.now(); e.err = '';
   ckPersist();
   ckSchedule(v.checks.taskId, CHECKS_SAVE_DEBOUNCE_MS);
+  // Activity on a roof starts its log for the day.
+  dlTouch(v.jobId, isoLocal(), dlInfoFor(v.jobId));
+  // Finishing the "before the site manager leaves" phase is the moment the
+  // log is meant to go — the phase before the last, whatever it is called.
+  var sh = ckShape();
+  if (sh && sh.phases.length > 1){
+    var hp = sh.phases[sh.phases.length - 2].key, st = e.state;
+    if (ckLinesOf(hp).length && ckLinesOf(hp).every(function(l){ return l.value === 'signedOff' || !!st.done[l.key]; })) dlPromptFor(v.jobId);
+  }
 }
 
 /* ---- saving: one PUT per burst, the whole state every time ---- */
@@ -1807,8 +1935,11 @@ function ckFlush(tid, opts){
     e.inflight = false;
     r = r || {};
     if (r.status === 200 && r.body && r.body.checks){
+      var wasSigned = !!e.state.signedOff;
       ckAdopt(e, r.body.checks, sentSeq);
       ckRetries[tid] = 0;
+      // A signature that just landed is the other moment the log should go.
+      if (!wasSigned && e.state.signedOff){ var sv = visitForChecks(tid); if (sv) dlPromptFor(sv.jobId); }
       if (e.dirty) ckSchedule(tid, 300);   // taps landed while this was in flight
       else ckRefreshWords();
       renderChecksAfterSave();
@@ -1932,16 +2063,44 @@ function nudgeText(v){
   var when = isNaN(d) ? v.end : DOW3[d.getDay()] + ' ' + (d.getMonth()+1) + '/' + d.getDate();
   return 'The roof at ' + who + ' from ' + when + ' isn’t signed off';
 }
+/* One list, most pressing first: a log to send now (you just left, or handed
+   over, or signed off), yesterday's roof unsigned, yesterday's log unsent. */
+function nudgeItems(){
+  var items = [], today = isoLocal(), yday = isoLocal(new Date(Date.now() - 86400000));
+  for (var k in dlStore){
+    var e = dlStore[k];
+    if (!e || e.sent || e.wantSend) continue;
+    var who = e.cust || e.jobLabel || e.jobNum;
+    if (e.date === today && e.prompt){
+      items.push({ kind: 'log-now', k: 'Day log', at: e.promptAt || e.at || 0, text: 'Send today’s log for ' + who + '?', go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
+    } else if (e.date === yday && dlHasContent(e)){
+      items.push({ kind: 'log-late', k: 'Day log', at: e.at || 0, text: 'Yesterday’s log for ' + who + ' wasn’t sent', go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
+    }
+  }
+  nudgeVisits().forEach(function(v){
+    items.push({ kind: 'unsigned', k: 'Site checks', at: 0, text: nudgeText(v), go: function(){ openChecks(v.checks.taskId); } });
+  });
+  // Most pressing kind first; within a kind, the most recent moment first —
+  // the roof you just left, before the one you handed over this morning.
+  var rank = { 'log-now': 0, 'unsigned': 1, 'log-late': 2 };
+  items.sort(function(a, b){ return (rank[a.kind] - rank[b.kind]) || ((b.at || 0) - (a.at || 0)); });
+  return items;
+}
 function renderNudge(){
-  var list = nudgeVisits();
-  ['clockNudge', 'jobsNudge'].forEach(function(id){
+  var list = nudgeItems();
+  ['clockNudge', 'jobsNudge', 'ckNudge'].forEach(function(id){
     var el = $(id);
-    el.classList.toggle('hidden', !list.length);
-    if (!list.length) return;
-    var v = list[0];
-    el.innerHTML = '<span style="flex:1;min-width:0"><span class="nk">Site checks</span><span class="nt">' + esc(nudgeText(v)) +
-      (list.length > 1 ? ' · +' + (list.length - 1) + ' more' : '') + '</span></span>' + CK_CHEV;
-    el.onclick = function(){ openChecks(v.checks.taskId); };
+    if (!el) return;
+    // The checklist screen only carries the "send now" prompt for its own job.
+    var mine = id === 'ckNudge'
+      ? list.filter(function(it){ return it.kind === 'log-now' && S.checksVisit && it.text.indexOf(S.checksVisit.cust || '\u0000') > -1; })
+      : list;
+    el.classList.toggle('hidden', !mine.length);
+    if (!mine.length) return;
+    var it = mine[0];
+    el.innerHTML = '<span style="flex:1;min-width:0"><span class="nk">' + esc(it.k) + '</span><span class="nt">' + esc(it.text) +
+      (mine.length > 1 ? ' · +' + (mine.length - 1) + ' more' : '') + '</span></span>' + CK_CHEV;
+    el.onclick = it.go;
   });
 }
 
@@ -2182,11 +2341,12 @@ function closeSheet(){ S.sheet = null; S.promptKind = null; $('scrim').classList
 
 function openSheet(kind, promptKind){
   S.sheet = kind; S.promptKind = promptKind || null;
-  var title = kind==='codes' ? (S.open ? 'Switch code' : 'What are you doing?')
-            : kind==='jobs' ? 'Pick a job'
+  var title = kind==='codes' ? (S.pendingJob ? 'Code at ' + (S.pendingJob.customer || streetOf(S.pendingJob.address) || 'the next job') : S.open ? 'Switch code' : 'What are you doing?')
+            : kind==='jobs' ? (S.open ? 'Move to which job?' : 'Pick a job')
             : kind==='out' ? 'End of day'
             : kind==='signoff' ? 'Sign off'
             : kind==='unsign' ? 'Unsign'
+            : kind==='sendlog' ? 'Send today’s log'
             : 'Photo check';
   $('sheetTitle').textContent = title;
   $('sheetBody').innerHTML = kind==='codes' ? codesHtml()
@@ -2194,6 +2354,7 @@ function openSheet(kind, promptKind){
                             : kind==='out' ? outHtml()
                             : kind==='signoff' ? signoffHtml()
                             : kind==='unsign' ? unsignHtml()
+                            : kind==='sendlog' ? sendLogHtml()
                             : promptHtml();
   $('scrim').classList.add('on');
   wireSheet();
@@ -2262,7 +2423,8 @@ function promptHtml(){
     h += '<div class="yn">' +
       '<button class="ynbtn" id="pNo"><span class="yb">No</span><span class="ys">Still going</span></button>' +
       '<button class="ynbtn yes" id="pYes"><span class="yb">Yes</span><span class="ys">It’s finished</span></button></div>' +
-      '<div class="fine">Yes → one after photo of the finished work, then ' + esc(codeInline(S.pendingCode) || 'the next code') + ' starts. No → switch now, nothing owed.</div>';
+      '<div class="fine">Yes → one after photo of the finished work, then ' + esc(codeInline(S.pendingCode) || 'the next code') +
+         (S.pendingJob ? ' at ' + esc(S.pendingJob.customer || streetOf(S.pendingJob.address) || 'the next job') : '') + ' starts. No → switch now, nothing owed.</div>';
   } else {
     h += '<button class="ctaBig" id="pShoot">' + cam + 'Take before photo</button>' +
          '<button class="skip" id="pSkip">' + (S.escalated ? 'Still not now' : 'Start without a photo') + '</button>';
@@ -2331,6 +2493,8 @@ function wireSheet(){
   if ($('skYes')) $('skYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, true); render(); };
   if ($('ukNo')) $('ukNo').onclick = function(){ closeSheet(); };
   if ($('ukYes')) $('ukYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, false); render(); };
+  if ($('slNo')) $('slNo').onclick = function(){ closeSheet(); };
+  if ($('slYes')) $('slYes').onclick = function(){ closeSheet(); dlQueueSend(S.dlJobId, S.dlDate || isoLocal()); render(); };
 }
 
 /* =========================================================
@@ -2339,12 +2503,52 @@ function wireSheet(){
 function pickJob(jobId){
   var j = null;
   S.jobOptions.concat(S.candidates).concat(assignedJobRows()).forEach(function(x){ if (x.id === jobId) j = x; });
+  if (!j){ closeSheet(); render(); return; }
+  pickJobObj(j, false);
+}
+function visitAsJob(v){ return { id:v.jobId, name:v.jobName, number:v.jobNum, customer:v.cust, address:v.address }; }
+/* `seeded`: the schedule chose, not a finger — an explicit pick today wins
+   over any later seeding. On the clock this is the start of a move: the next
+   job's codes load and the code sheet opens for it. */
+function pickJobObj(j, seeded){
   closeSheet();
-  if (j) S.job = j;
+  if (S.open && j.id !== (S.job && S.job.id)){
+    S.moving = true; S.pendingJob = j;
+    render();
+    apiCall('getJobCodes', [j.id]).then(function(codes){
+      if (!S.pendingJob || S.pendingJob.id !== j.id) return;
+      S.codes = codes || [];
+      openSheet('codes');
+    }).catch(function(e){ cancelMove(); failed('getJobCodes', e); });
+    return;
+  }
+  S.job = j;
+  S.dlJobId = j.id;
+  if (!seeded) S.jobPickedDay = isoLocal();
   savePrefs();
   render();
-  apiCall('getJobCodes', [jobId]).then(function(codes){ S.codes = codes || []; render(); })
+  apiCall('getJobCodes', [j.id]).then(function(codes){ S.codes = codes || []; render(); })
     .catch(function(e){ failed('getJobCodes', e); });
+}
+function cancelMove(){
+  S.pendingJob = null; S.pendingCode = null; S.moving = false;
+  if (S.job) apiCall('getJobCodes', [S.job.id]).then(function(codes){ S.codes = codes || []; render(); }).catch(function(){});
+  render();
+}
+/* Nothing on the clock and the board says where you are: one roof needs no
+   picking, two ask once (renderTodayPick). A pick made today is never undone. */
+function seedTodayJob(){
+  if (!S.booted || !S.assign) return;
+  var today = isoLocal();
+  var tv = (S.assign.visits || []).filter(function(v){ return v.start && v.start <= today && (v.end || v.start) >= today; });
+  S.todayChoices = tv;
+  if (S.open || !tv.length) return;
+  if (S.job && tv.some(function(v){ return v.jobId === S.job.id; })) return;
+  if (S.jobPickedDay === today) return;
+  if (tv.length === 1){
+    pickJobObj(visitAsJob(tv[0]), true);
+    toast('Today’s job: ' + (tv[0].cust || tv[0].jobNum) + ' · from the board');
+  }
 }
 
 function pickCode(codeId){
@@ -2373,6 +2577,7 @@ function doClockIn(code){
       S.nudged = false; S.escalated = false; S.afterRequired = false; S.pendingCode = null;
       S.capture = 'before';
       savePrefs();
+      dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
       toast('On the clock · ' + codeLabel(code));
       scheduleNudge();
       enablePush();
@@ -2384,17 +2589,28 @@ function doClockIn(code){
 
 function doSwitch(code){
   busy(true);
+  var target = S.pendingJob || S.job, prev = S.job;
   withCoords(function(coords){
-    apiCall('switchCode', [S.job.id, code.id, coords]).then(function(open){
+    apiCall('switchCode', [target.id, code.id, coords]).then(function(open){
       S.open = open;
       S.nudged = false; S.escalated = false; S.afterRequired = false; S.pendingCode = null;
       S.capture = 'before';
+      if (S.pendingJob){
+        // Moved: the hours now belong to the next roof, and the one just left
+        // is owed its log.
+        S.job = S.pendingJob; S.pendingJob = null; S.moving = false;
+        S.dlJobId = S.job.id; S.jobPickedDay = isoLocal();
+        if (prev && prev.id !== S.job.id) dlPromptFor(prev.id);
+        dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
+        toast('Now at ' + (S.job.customer || streetOf(S.job.address) || 'the next job') + ' · ' + codeLabel(code));
+      } else {
+        toast('Now on ' + codeLabel(code));
+      }
       savePrefs();
-      toast('Now on ' + codeLabel(code));
       scheduleNudge();
       openSheet('prompt', 'before');
       return refreshDay();
-    }).catch(showErr).then(function(){ busy(false); render(); });
+    }).catch(function(e){ if (S.pendingJob) cancelMove(); showErr(e); }).then(function(){ busy(false); render(); });
   });
 }
 
@@ -2529,12 +2745,16 @@ function captured(blob, mime){
   var at = Date.now();
   var id = uid();
   makeThumb(blob).then(function(thumb){
-    var rec = { id:id, tag:tag, codeId:codeId, at:at, time:clockLabel(at), thumb:thumb, pending:true };
+    var item = { id:id, blob:blob, mime:mime, tag:tag, at:at, jobId:S.job.id,
+                 entryId: (S.open && S.open.id) || '', codeLabel: codeLabel(S.open && S.open.code) };
+    // The record knows its job and its file name, so the day's log can find
+    // it and attach it once JobTread has given it an id.
+    var rec = { id:id, tag:tag, codeId:codeId, at:at, time:clockLabel(at), thumb:thumb, pending:true, jobId:S.job.id, name:fileName(item) };
     S.photos.push(rec);
+    dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
     savePrefs();
     render();
-    enqueueUpload({ id:id, blob:blob, mime:mime, tag:tag, at:at, jobId:S.job.id,
-                    entryId: (S.open && S.open.id) || '', codeLabel: codeLabel(S.open && S.open.code) });
+    enqueueUpload(item);
     // The before requirement is satisfied — call off the escalation.
     if (tag === 'before'){ S.escalated = false; $('notif').style.display = 'none'; clearTimeout(nudgeTimer); }
     settleAfterShot(tag);
@@ -2611,7 +2831,11 @@ function pump(){
     }, Promise.resolve());
   }).catch(function(){}).then(function(){
     pumping = false;
-    idbAll().then(function(rest){ S.queued = rest.length; render(); });
+    idbAll().then(function(rest){
+      S.queued = rest.length; render();
+      // A log waiting on its photos can go now.
+      if (!rest.length) dlRetryPending();
+    });
   });
 }
 
@@ -2627,9 +2851,9 @@ function sendOne(item){
         .then(function(r){ if (!r.ok) throw new Error('Upload failed (' + r.status + ')'); return req.uploadRequestId; });
     })
     .then(function(reqId){ return apiCall('finalizeCaptureUpload', [item.jobId, reqId, name, desc]); })
-    .then(function(){
+    .then(function(res){
       return idbDel(item.id).then(function(){
-        S.photos.forEach(function(p){ if (p.id === item.id) p.pending = false; });
+        S.photos.forEach(function(p){ if (p.id === item.id){ p.pending = false; p.fileId = (res && res.fileId) || p.fileId || ''; } });
         savePrefs(); render();
       });
     })
@@ -2658,20 +2882,405 @@ function fileName(item){
 }
 
 /* =========================================================
-   NOTES
+   THE DAY LOG — the site manager's own record of the day, on
+   the job, in place of the owner's second-hand dictation.
+
+   One draft per job per day, kept on the phone, sent ONCE as a
+   JobTread daily log assigned to the job's PM and sales reps —
+   there is no update call for daily logs, so anything after the
+   send is a comment on it. The summary is what the phone already
+   knows: the hours by code, the site checks in the board's
+   words, the photos taken here. The three questions are what the
+   owner's log has been reconstructing: what got done, the
+   condition when you left, problems and extras and returns.
+
+   Notes during the day collect into the draft; one marked
+   "office needs this now" also goes straight to the PM as an
+   assigned comment. A problem, or a crew left on site without a
+   sign-off, makes the sent log ping the same people in the feed.
    ========================================================= */
-function addNote(){
-  var body = $('noteText').value.trim();
-  if (!body) return;
-  var meta = clockLabel() + ' · ' + (S.open ? codeLabel(S.open.code) : 'No code');
-  S.notes.push({ id:uid(), at:Date.now(), meta:meta, body:body });
-  $('noteText').value = '';
-  savePrefs(); render();
-  if (S.job){
-    apiCall('postJobNote', [S.job.id, body, S.me && S.me.name])
-      .then(function(){ toast('Note added to the job in JobTread'); })
-      .catch(function(e){ toast(e.readOnly ? 'Note saved locally — read-only build' : 'Note saved locally, will retry', true); });
+var DL_KEY = 'dbtc_daylog';
+var dlStore = {};
+try { dlStore = JSON.parse(localStorage.getItem(DL_KEY) || '{}') || {}; } catch(e){ dlStore = {}; }
+function dlPersist(){ try { localStorage.setItem(DL_KEY, JSON.stringify(dlStore)); } catch(e){} }
+function dlKey(jobId, date){ return jobId + '|' + date; }
+function dlGet(jobId, date){ return dlStore[dlKey(jobId, date)] || null; }
+function dlHasContent(e){
+  return !!(e && (String(e.done||'').trim() || String(e.condition||'').trim() || String(e.problems||'').trim() ||
+            e.crewOnSite != null || e.tarped != null || (e.notes && e.notes.length) || e.activity));
+}
+/* Start, or refresh, the day's draft for a job. `info` is the job's label
+   and people from the visit, kept on the draft so it still reads right after
+   the visit has left the two-week window. */
+function dlTouch(jobId, date, info){
+  if (!jobId) return null;
+  var k = dlKey(jobId, date), e = dlStore[k];
+  if (!e){
+    e = dlStore[k] = { jobId:jobId, date:date, jobLabel:'', jobNum:'', cust:'', address:'', alongside:null, pm:'', reps:[],
+                       done:'', condition:'', crewOnSite:null, tarped:null, leftAt:'', problems:'', notes:[],
+                       sent:null, wantSend:false, sending:false, err:'', prompt:false, activity:false, at:Date.now(), seq:0 };
   }
+  if (info) for (var f in info){ if (info[f] != null && info[f] !== '' && !(Array.isArray(info[f]) && !info[f].length)) e[f] = info[f]; }
+  e.activity = true;
+  e.at = Date.now();
+  dlPersist();
+  return e;
+}
+function dlInfoFor(jobId){
+  var v = visitByJob(jobId);
+  if (v) return { jobLabel: jobLabelOf(v), jobNum: v.jobNum, cust: v.cust, address: v.address, alongside: v.alongside || null, pm: v.pm || '', reps: v.reps || [] };
+  var j = S.job && S.job.id === jobId ? S.job : null;
+  if (!j) S.jobOptions.concat(S.candidates).forEach(function(x){ if (x.id === jobId) j = x; });
+  if (j) return { jobLabel: [j.number, j.customer || jobTitle(j)].filter(Boolean).join(' '), jobNum: j.number, cust: j.customer || jobTitle(j), address: j.address };
+  return null;
+}
+function visitByJob(jobId){
+  var a = S.assign; if (!a || !a.visits) return null;
+  var today = isoLocal();
+  var vs = a.visits.filter(function(v){ return v.jobId === jobId; });
+  // The visit running today, else the nearest.
+  return vs.filter(function(v){ return v.start <= today && (v.end || v.start) >= today; })[0] || vs[0] || null;
+}
+/* The moments a log should go: leaving a roof, handing over, signing off. */
+function dlPromptFor(jobId){
+  var e = dlTouch(jobId, isoLocal(), dlInfoFor(jobId));
+  if (e && !e.sent){ e.prompt = true; e.promptAt = Date.now(); dlPersist(); }
+  try { renderNudge(); } catch (err) {}
+}
+function openLog(jobId, date){
+  S.dlJobId = jobId; S.dlDate = date || isoLocal();
+  setTab('log');
+  var sc = $('vLog').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
+}
+function dlSet(jobId, date, field, value){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  e[field] = value; e.seq = (e.seq || 0) + 1;
+  dlPersist();
+  renderLogStatus();
+}
+
+/* ---- what the phone already knows about the day on this job ---- */
+function hoursFor(jobId){
+  var by = {}, order = [];
+  S.entries.forEach(function(en){
+    if (!en.code || !en.job || en.job.id !== jobId) return;
+    var k = en.code.id;
+    if (!by[k]){ by[k] = { number: en.code.number || '', name: en.code.name || '', minutes: 0, live:false }; order.push(k); }
+    var sec = en.endedAt ? (new Date(en.endedAt) - new Date(en.startedAt))/1000 : Math.max(0, (Date.now() - new Date(en.startedAt))/1000);
+    if (!en.endedAt) by[k].live = true;
+    by[k].minutes += sec / 60;
+  });
+  return order.map(function(k){ var h = by[k]; h.minutes = Math.round(h.minutes); return h; });
+}
+function leftAtFor(jobId){
+  var last = '';
+  S.entries.forEach(function(en){ if (en.job && en.job.id === jobId && en.endedAt && (!last || en.endedAt > last)) last = en.endedAt; });
+  return last ? clockLabel(last) : '';
+}
+function photosFor(jobId, date){
+  return S.photos.filter(function(p){ return p.jobId === jobId && isoLocal(new Date(p.at || 0)) === date; });
+}
+function checksFor(jobId){
+  var v = visitByJob(jobId);
+  if (!v || !v.checks || !v.checks.taskId) return null;
+  var st = ckStateFor(v);
+  return { words: v.checks.words || '', magnetBy: st.magnetBy || null, signedOff: st.signedOff || null };
+}
+function firstNames(list){ return (list || []).map(function(n){ return String(n).split(/\s+/)[0]; }).join(', '); }
+
+/* ---- sending ---- */
+function dlPayload(e){
+  var photos = photosFor(e.jobId, e.date).filter(function(p){ return p.fileId; });
+  return {
+    jobId: e.jobId, date: e.date, jobLabel: e.jobLabel || e.jobId, alongside: e.alongside || null,
+    done: e.done || '', condition: e.condition || '', crewOnSite: e.crewOnSite, tarped: e.tarped,
+    leftAt: (e.leftAt || '').trim() || (e.date === isoLocal() ? leftAtFor(e.jobId) : ''),
+    problems: e.problems || '',
+    notes: (e.notes || []).filter(function(n){ return !n.later; }).map(function(n){ return { time: n.time, body: n.body, urgent: !!n.urgent }; }),
+    photos: photos.map(function(p){ return { fileId: p.fileId, name: p.name || '', tag: p.tag, time: p.time }; }),
+    hours: e.date === isoLocal() ? hoursFor(e.jobId) : [],
+    checks: checksFor(e.jobId)
+  };
+}
+function dlQueueSend(jobId, date){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  e.wantSend = true; e.err = ''; e.prompt = false;
+  dlPersist();
+  dlFlush(dlKey(jobId, date));
+}
+var dlTimers = {}, dlRetries = {};
+function dlSchedule(k, ms){ clearTimeout(dlTimers[k]); dlTimers[k] = setTimeout(function(){ delete dlTimers[k]; dlFlush(k); }, ms); }
+function dlRetryLater(k){
+  var n = dlRetries[k] || 0; dlRetries[k] = n + 1;
+  dlSchedule(k, CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)]);
+}
+function dlRetryPending(){
+  for (var k in dlStore){ var e = dlStore[k]; if (e && e.wantSend && !e.sent && !e.sending) dlSchedule(k, 150); }
+}
+function dlFlush(k){
+  var e = dlStore[k];
+  if (!e || !e.wantSend || e.sent || e.sending) return Promise.resolve();
+  clearTimeout(dlTimers[k]);
+  if (!S.me) return Promise.resolve();
+  if (!S.online){ e.err = 'offline'; dlPersist(); renderLogStatus(); return Promise.resolve(); }
+  // The photos ride by reference, so the log waits for them to be uploaded;
+  // the queue calls back here when it empties.
+  var waiting = photosFor(e.jobId, e.date).filter(function(p){ return p.pending; }).length;
+  if (waiting){ e.err = 'uploading:' + waiting; dlPersist(); renderLogStatus(); pump(); return Promise.resolve(); }
+  e.sending = true; e.err = '';
+  renderLogStatus();
+  return apiCall('sendDailyLog', [dlPayload(e)]).then(function(r){
+    e.sending = false;
+    r = r || {};
+    e.sent = { at: Date.now(), id: r.dailyLogId || '', assigned: r.assigned || [], unresolved: r.unresolved || [],
+               commented: !!r.commented, flag: r.flag || '', photos: r.photos || 0 };
+    e.wantSend = false; e.err = ''; e.prompt = false;
+    dlRetries[k] = 0;
+    dlPersist();
+    toast('Log sent' + (e.sent.assigned.length ? ' to ' + firstNames(e.sent.assigned) : ''));
+    render();
+  }).catch(function(err){
+    e.sending = false;
+    if (err && err.readOnly){
+      e.wantSend = false; e.err = '';
+      dlPersist(); renderLogStatus();
+      toast('Read-only build — the log was not sent', true);
+      return;
+    }
+    // A JobTread hiccup ("Pave error …") is retried; the API refusing the
+    // request itself is not — asking again changes nothing.
+    if (err && err.answered && !/^Pave/.test(String(err.message || ''))){ e.err = 'Not sent — ' + (err.message || 'the API refused it'); }
+    else { e.err = 'retry'; dlRetryLater(k); }
+    dlPersist(); renderLogStatus();
+    failed('daily log', err, true);
+  });
+}
+function dlStatus(e){
+  if (!e) return { cls: '', text: 'Not started' };
+  if (e.sent) return { cls: 'ok', text: 'Sent ' + clockLabel(e.sent.at), tick: true };
+  if (e.sending) return { cls: '', text: 'Sending…' };
+  if (e.wantSend){
+    if (e.err && e.err.indexOf('uploading:') === 0) return { cls: '', text: 'Waiting for ' + e.err.slice(10) + ' photo' + (e.err.slice(10) === '1' ? '' : 's') + ' to upload…' };
+    if (e.err && e.err !== 'retry' && e.err !== 'offline') return { cls: 'bad', text: e.err };
+    return { cls: 'bad', text: 'Not sent — will retry' };
+  }
+  return { cls: '', text: dlHasContent(e) ? 'Draft' : 'Not started' };
+}
+function dlDiag(){
+  var n = 0; for (var k in dlStore){ if (dlStore[k] && dlStore[k].wantSend && !dlStore[k].sent) n++; }
+  return n + ' unsent';
+}
+
+/* ---- the screen ---- */
+function dlJobsFor(date){
+  var today = isoLocal(), map = {}, order = [];
+  var add = function(id, info){
+    if (!id) return;
+    if (!map[id]){ map[id] = { id:id, jobNum:'', cust:'', label:'', address:'' }; order.push(id); }
+    for (var f in info) if (info[f]) map[id][f] = info[f];
+  };
+  if (date === today){
+    (S.assign && S.assign.visits || []).filter(function(v){ return v.start && v.start <= today && (v.end || v.start) >= today; })
+      .forEach(function(v){ add(v.jobId, { jobNum:v.jobNum, cust:v.cust, label:v.cust || jobTitle({ name:v.jobName }), address:v.address }); });
+    if (S.job) add(S.job.id, { jobNum:S.job.number, cust:S.job.customer, label:S.job.customer || jobTitle(S.job), address:S.job.address });
+  }
+  for (var k in dlStore){
+    var e = dlStore[k];
+    if (e && e.date === date) add(e.jobId, { jobNum:e.jobNum, cust:e.cust, label:e.cust || e.jobLabel, address:e.address });
+  }
+  return order.map(function(id){ return map[id]; });
+}
+function renderLogStatus(){
+  var date = S.dlDate || isoLocal();
+  var e = S.dlJobId ? dlGet(S.dlJobId, date) : null;
+  var st = dlStatus(e), b = $('syncBadge');
+  b.className = 'dlstatus ' + st.cls;
+  b.innerHTML = esc(st.text) + (st.tick ? CK_TICK_SM : '');
+}
+function renderDayLog(){
+  var today = isoLocal(), date = S.dlDate || today;
+  if (date !== today && date !== isoLocal(new Date(Date.now() - 86400000))) date = S.dlDate = today;
+  var jobs = dlJobsFor(date);
+  if (!S.dlJobId || !jobs.some(function(j){ return j.id === S.dlJobId; })){
+    S.dlJobId = (date === today && S.job && jobs.some(function(j){ return j.id === S.job.id; })) ? S.job.id : (jobs[0] ? jobs[0].id : null);
+  }
+  var cur = jobs.filter(function(j){ return j.id === S.dlJobId; })[0] || null;
+  $('logK').textContent = 'Day log' + (cur && cur.jobNum ? ' · JT #' + cur.jobNum : '');
+  var dd = new Date(date + 'T12:00:00');
+  $('logDate').textContent = (date === today ? '' : 'Yesterday · ') + dd.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  renderLogStatus();
+  $('dlChips').innerHTML = jobs.length > 1 ? jobs.map(function(j){
+    var e = dlGet(j.id, date), st = e && e.sent ? 'sent' : (dlHasContent(e) ? 'draft' : '');
+    return '<button class="dlchip' + (j.id === S.dlJobId ? ' on' : '') + '" data-dljob="' + esc(j.id) + '"><span class="st ' + st + '"></span>' + esc(j.label || j.jobNum) + '</button>';
+  }).join('') : '';
+  [].forEach.call($('dlChips').querySelectorAll('[data-dljob]'), function(b){
+    b.onclick = function(){ S.dlJobId = b.getAttribute('data-dljob'); renderDayLog(); };
+  });
+  // Never rebuild under a finger typing in one of the fields. A tapped
+  // button also holds focus for a moment, and that must not block the redraw.
+  var body = $('dlBody'), ae = document.activeElement;
+  var typing = ae && body.contains(ae) && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT');
+  if (typing) return;
+  var html = cur ? dlBodyHtml(cur, dlGet(cur.id, date), date) : '<div class="jempty">Pick a job on the Clock tab, or tap one under My jobs, and today’s log starts here.</div>';
+  if (body.__dl === html) return;
+  body.innerHTML = html;
+  body.__dl = html;
+  wireDayLog(cur, date);
+}
+function dlBodyHtml(cur, e, date){
+  var today = isoLocal(), h = '';
+  var v = visitByJob(cur.id), ck = checksFor(cur.id), hrs = date === today ? hoursFor(cur.id) : [];
+  var photos = photosFor(cur.id, date), pending = photos.filter(function(p){ return p.pending; }).length;
+  var tot = 0; hrs.forEach(function(x){ tot += x.minutes; });
+  // What the phone already knows.
+  h += '<div class="dlsum">';
+  h += '<div class="row"><span>' + (date === today ? 'Today at' : 'At') + '</span><b>' + esc(streetOf(cur.address) || cur.label || cur.jobNum) + (v && v.alongside ? ' · with ' + esc(v.alongside) : '') + '</b></div>';
+  if (hrs.length){
+    hrs.forEach(function(x){ h += '<div class="row"><span>' + esc((x.number ? x.number + ' ' : '') + x.name) + (x.live ? ' ·' : '') + '</span><b class="tabular">' + hm(x.minutes * 60) + '</b></div>'; });
+    h += '<div class="row"><span>Hours today</span><b class="tabular">' + hm(tot * 60) + '</b></div>';
+  } else if (date === today) h += '<div class="row"><span>Hours today</span><b>Not on the clock here</b></div>';
+  if (ck) h += '<div class="row"><span>Site checks</span><b>' + esc(ck.words || '') + (ck.magnetBy ? ' · magnet by ' + esc(ck.magnetBy) : '') + '</b></div>';
+  h += '<div class="row"><span>Photos</span><b>' + photos.length + (pending ? ' · ' + pending + ' uploading' : '') + '</b></div>';
+  h += '</div>';
+  if (photos.length){
+    h += '<div id="grid" style="margin-top:10px">' + photos.slice().reverse().map(function(p){
+      return '<div class="tile" style="' + (p.thumb ? 'background-image:url(' + p.thumb + ')' : '') + '">' +
+        '<span class="tg ' + esc(p.tag) + '">' + esc(p.tag) + '</span><span class="tm">' + esc(p.time) + '</span>' +
+        (p.pending ? '<span class="up"></span>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
+  if (date === today && S.job && S.job.id === cur.id){
+    h += '<button class="addbtn" id="dlAddPhoto" style="margin-top:10px">' +
+         '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add photo</button>';
+  }
+
+  if (e && e.sent){
+    var to = e.sent.assigned.length ? 'to ' + esc(e.sent.assigned.join(', ')) : 'with nobody to assign it to';
+    h += '<div class="dlsent" style="margin-top:18px"><div class="t">Sent ' + esc(clockLabel(e.sent.at)) + '</div>' +
+         '<div class="s">On the job as a daily log, ' + to + (e.sent.commented ? '. They were also pinged in the activity feed' + (e.sent.flag === 'problems' ? ' about the problems' : ' about the crew still on site') + '.' : '.') +
+         (e.sent.unresolved.length ? ' Could not find ' + esc(e.sent.unresolved.join(', ')) + ' in JobTread.' : '') + '</div></div>';
+    h += '<div class="dlq"><span class="k">Add to the sent log</span><textarea id="dlLater" placeholder="Something after the send — it goes on the log as a note."></textarea>' +
+         '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:10px;min-height:60px;font-size:15px">Add to the log</button></div>';
+    var later = (e.notes || []).filter(function(n){ return n.later; });
+    if (later.length) h += '<div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">' + later.map(noteCardHtml).join('') + '</div>';
+    return h;
+  }
+
+  var d = e || {};
+  h += '<div class="dlq"><span class="k">What got done</span><textarea id="dlDone" placeholder="Tear-off and dry-in, north side shingled…">' + esc(d.done || '') + '</textarea></div>';
+  h += '<div class="dlq"><span class="k">Condition when you left</span>' +
+       '<div class="tog">' +
+         '<button class="togbtn' + (d.crewOnSite === true ? ' on warn' : '') + '" data-tog="crewOnSite" data-val="true">Crew still on site</button>' +
+         '<button class="togbtn' + (d.crewOnSite === false ? ' on' : '') + '" data-tog="crewOnSite" data-val="false">Crew gone</button>' +
+         '<button class="togbtn' + (d.tarped === true ? ' on' : '') + '" data-tog="tarped" data-val="true">Tarped</button>' +
+         '<button class="togbtn' + (d.tarped === false ? ' on warn' : '') + '" data-tog="tarped" data-val="false">Not tarped</button>' +
+       '</div>' +
+       '<div class="dlleft"><span class="k">Left at</span><input id="dlLeft" value="' + esc(d.leftAt || '') + '" placeholder="' + esc(leftAtFor(cur.id) || '4:30') + '" autocomplete="off"></div>' +
+       '<textarea id="dlCond" placeholder="Decking, what is open, what the crew still has to do…">' + esc(d.condition || '') + '</textarea></div>';
+  h += '<div class="dlq"><span class="k">Problems, extras, returns</span><textarea id="dlProb" placeholder="Short drip edge, two boxes of staples, or nothing">' + esc(d.problems || '') + '</textarea>' +
+       '<div class="fine" style="margin-top:6px">Anything here pings the PM and sales in the activity feed when the log is sent.</div></div>';
+  var notes = (d.notes || []);
+  h += '<div class="dlq"><span class="k">Notes during the day' + (notes.length ? ' · ' + notes.length : '') + '</span>' +
+       (notes.length ? '<div style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px">' + notes.map(noteCardHtml).join('') + '</div>' : '') +
+       '<textarea id="dlNote" placeholder="Homeowner asked about the trailer spot…"></textarea>' +
+       '<button class="urgentrow' + (S.dlUrgent ? ' on' : '') + '" id="dlUrgent"><span class="box">' + CK_TICK_SM + '</span>Office needs this now — send it to the PM straight away</button>' +
+       '<button class="btn btn-out" id="dlAddNote" style="min-height:60px;font-size:15px">Add note</button></div>';
+  var people = [];
+  if (v && v.pm) people.push(v.pm);
+  (v && v.reps || []).forEach(function(r){ if (people.indexOf(r) === -1) people.push(r); });
+  h += '<div class="sect"><button class="btn btn-go" id="dlSend" style="min-height:88px;font-size:20px">' +
+       '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
+       (date === today ? 'Send today’s log' : 'Send yesterday’s log') + '</button>' +
+       '<div class="foot">Goes on the job as a daily log' + (people.length ? ', assigned to ' + esc(people.join(', ')) : ', assigned to the job’s PM and sales rep') + '. Hours and photos are already in JobTread; this is the day in your words.</div></div>';
+  return h;
+}
+function noteCardHtml(n){
+  return '<div class="notecard' + (n.urgent ? ' urgent' : '') + '"><span class="nm">' + esc(n.time || '') +
+    (n.urgent ? ' · ' + (n.posted ? 'sent to ' + esc(n.to || 'the office') : 'sending to the office…') : '') + (n.later ? ' · added after the send' : '') +
+    '</span><span class="nb">' + esc(n.body) + '</span></div>';
+}
+function wireDayLog(cur, date){
+  if (!cur) return;
+  var body = $('dlBody');
+  var ta = function(id, field){ var el = $(id); if (el) el.oninput = function(){ dlSet(cur.id, date, field, el.value); }; };
+  ta('dlDone', 'done'); ta('dlCond', 'condition'); ta('dlProb', 'problems'); ta('dlLeft', 'leftAt');
+  [].forEach.call(body.querySelectorAll('[data-tog]'), function(b){
+    b.onclick = function(){
+      var f = b.getAttribute('data-tog'), val = b.getAttribute('data-val') === 'true';
+      var e = dlGet(cur.id, date);
+      dlSet(cur.id, date, f, (e && e[f] === val) ? null : val);   // tap again to clear
+      renderDayLog();
+    };
+  });
+  var urg = $('dlUrgent');
+  if (urg) urg.onclick = function(){ S.dlUrgent = !S.dlUrgent; urg.classList.toggle('on', S.dlUrgent); };
+  var add = $('dlAddNote');
+  if (add) add.onclick = function(){
+    var text = ($('dlNote') && $('dlNote').value || '').trim();
+    if (!text) return;
+    dlAddNote(cur.id, date, text, !!S.dlUrgent);
+    S.dlUrgent = false;
+    renderDayLog();
+  };
+  var send = $('dlSend');
+  if (send) send.onclick = function(){ S.dlJobId = cur.id; S.dlDate = date; openSheet('sendlog'); };
+  var ap = $('dlAddPhoto');
+  if (ap) ap.onclick = function(){ S.returnToClock = false; setTab('cam'); };
+  var lb = $('dlLaterBtn');
+  if (lb) lb.onclick = function(){
+    var text = ($('dlLater') && $('dlLater').value || '').trim();
+    var e = dlGet(cur.id, date);
+    if (!text || !e || !e.sent) return;
+    var n = { id: uid(), at: Date.now(), time: clockLabel(), body: text, later: true };
+    e.notes.push(n); dlPersist(); renderDayLog();
+    apiCall('addDailyLogNote', [cur.id, e.sent.id, text]).then(function(){ toast('Added to the log'); })
+      .catch(function(err){ toast(err && err.readOnly ? 'Read-only build — kept on the phone' : 'Kept on the phone — could not reach JobTread', true); });
+  };
+}
+function dlAddNote(jobId, date, text, urgent){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e) return;
+  var n = { id: uid(), at: Date.now(), time: clockLabel(), body: text, urgent: !!urgent, posted: false };
+  e.notes.push(n); e.seq = (e.seq || 0) + 1;
+  dlPersist();
+  if (!urgent) return;
+  apiCall('postJobNote', [jobId, text, S.me && S.me.name, true]).then(function(r){
+    n.posted = true; n.to = (r && r.assigned && r.assigned[0]) || 'the office';
+    dlPersist(); toast('Sent to ' + n.to); renderDayLog();
+  }).catch(function(err){
+    toast(err && err.readOnly ? 'Read-only build — it stays in the log' : 'Could not reach the office now — it stays in the log', true);
+    n.urgent = false; dlPersist(); renderDayLog();
+  });
+}
+/* The confirm: who it goes to, what rides along. */
+function sendLogHtml(){
+  var date = S.dlDate || isoLocal(), jobs = dlJobsFor(date);
+  var cur = jobs.filter(function(j){ return j.id === S.dlJobId; })[0];
+  if (!cur) return '';
+  var e = dlGet(cur.id, date) || {}, v = visitByJob(cur.id);
+  var photos = photosFor(cur.id, date), pending = photos.filter(function(p){ return p.pending; }).length;
+  var people = [];
+  if (v && v.pm) people.push(v.pm + ' (PM)');
+  (v && v.reps || []).forEach(function(r){ if (people.indexOf(r) === -1) people.push(r + ' (sales)'); });
+  var flag = String(e.problems || '').trim() ? 'problems' : (e.crewOnSite === true && !(checksFor(cur.id) || {}).signedOff ? 'crew' : '');
+  var lines = [];
+  lines.push(photos.length + ' photo' + (photos.length === 1 ? '' : 's') + (pending ? ', ' + pending + ' still uploading — it waits for them' : ''));
+  var ck = checksFor(cur.id); if (ck && ck.words) lines.push(ck.words);
+  var hrs = date === isoLocal() ? hoursFor(cur.id) : []; if (hrs.length){ var tot = 0; hrs.forEach(function(x){ tot += x.minutes; }); lines.push(hm(tot * 60) + ' on the clock here'); }
+  var notes = (e.notes || []).filter(function(n){ return !n.later; }); if (notes.length) lines.push(notes.length + ' note' + (notes.length === 1 ? '' : 's'));
+  return '<div class="sheetpad">' +
+    '<div class="promptbox' + (flag ? ' warn' : '') + '">' +
+      '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
+      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc(cur.jobNum ? 'JT #' + cur.jobNum : 'Daily log') + '</span>' +
+      '<span class="pt" style="display:block">' + esc(cur.label || cur.jobNum) + '</span></span></div>' +
+    '<div class="body">To ' + (people.length ? esc(people.join(', ')) : 'the job’s PM and sales rep') + ', as a daily log on the job.' +
+      (flag === 'problems' ? ' The problems also ping them in the activity feed.' : flag === 'crew' ? ' A crew still on site without a sign-off also pings them in the activity feed.' : '') + '</div>' +
+    '<div class="ckmiss">' + lines.map(function(l){ return '<span class="m">· ' + esc(l) + '</span>'; }).join('') + '</div>' +
+    '<div class="fine">Sent once. Anything after that is added to the log as a note.</div>' +
+    '<div class="yn"><button class="ynbtn" id="slNo"><span class="yb">No</span><span class="ys">Not yet</span></button>' +
+    '<button class="ynbtn yes" id="slYes"><span class="yb">Yes</span><span class="ys">Send</span></button></div></div>';
 }
 
 /* =========================================================
@@ -2702,6 +3311,8 @@ function start(){
   }).catch(function(e){
     if (!(e && e.auth)) failed('boot', e);
   }).then(function(){
+    S.booted = true;
+    seedTodayJob();        // from the schedule already on the phone, if any
     render();
     pump();
     handleShootParam();
@@ -2710,8 +3321,9 @@ function start(){
     // second system and the clock must be usable before it answers, or not.
     loadAssignments();
     // Anything ticked in a dead spot last time goes now — after the clock's
-    // own calls, never ahead of them.
+    // own calls, never ahead of them. A log that was waiting, likewise.
     ckRetryPending();
+    dlRetryPending();
     // Re-register on every launch: FCM tokens rotate, and a stale one is a
     // nudge that silently goes nowhere. Once permission is granted this needs
     // no gesture — requestPermission is never reached — so it can run at boot
@@ -2723,7 +3335,7 @@ function start(){
 
 /* ---- wiring ---- */
 $('sunBtn').onclick = function(){ S.sun = !S.sun; savePrefs(); render(); };
-$('pickJobBtn').onclick = function(){ if (!S.open) openSheet('jobs'); };
+$('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
 $('clockIn').onclick = function(){ if (S.job) openSheet('codes'); };
 $('switchBtn').onclick = function(){ openSheet('codes'); };
 $('clockOutBtn').onclick = function(){ openSheet('out'); };
@@ -2734,8 +3346,10 @@ $('remind').onclick = function(){
 };
 $('jobsRefresh').onclick = function(){ S.assign = null; loadAssignments(); };
 $('ckBack').onclick = function(){ setTab('jobs'); };
-$('sheetClose').onclick = function(){ closeSheet(); render(); };
-$('scrimTap').onclick = function(){ closeSheet(); render(); };
+// Backing out of a move (X or the scrim before a code is chosen) puts the
+// current job's codes back; a chosen code carries the move through the prompt.
+$('sheetClose').onclick = function(){ if (S.moving && S.pendingJob && !S.afterRequired) cancelMove(); closeSheet(); render(); };
+$('scrimTap').onclick = function(){ if (S.moving && S.pendingJob && !S.afterRequired) cancelMove(); closeSheet(); render(); };
 $('shutter').onclick = shoot;
 $('modeBtn').onclick = function(){ if (recorder) return; S.mode = S.mode==='photo'?'video':'photo'; renderCam(); };
 $('lastShot').onclick = function(){ setTab('log'); };
@@ -2745,8 +3359,6 @@ $('fileIn').onchange = function(){
   this.value = '';
   if (f) captured(f, f.type || 'image/jpeg');
 };
-$('addPhotoBtn').onclick = function(){ S.returnToClock = false; setTab('cam'); };
-$('addNoteBtn').onclick = addNote;
 /* Getting a fault off a phone has meant retyping what a four-second toast
    said. This is the whole state in one paste. */
 $('copyDiagBtn').onclick = function(){
@@ -2759,6 +3371,7 @@ $('copyDiagBtn').onclick = function(){
                    (S.assign.boardMs != null ? ' · ' + S.assign.boardMs + 'ms' : '')) : '—'),
     'push     ' + pushWords() + ' (state ' + pushState + ')',
     'checks   ' + ckDiag(),
+    'daylog   ' + dlDiag(),
     'config   apiUrl ' + (c.apiUrl ? 'set' : 'MISSING') + ', clientId ' + (c.clientId ? 'set' : 'MISSING') +
              ', fb.apiKey ' + (fb.apiKey ? 'set' : 'MISSING') + ', fb.projectId ' + (fb.projectId || 'MISSING') +
              ', vapidKey ' + (c.vapidKey ? String(c.vapidKey).length + ' chars' : 'MISSING'),
@@ -2793,11 +3406,6 @@ $('pushBtn').onclick = function(){
   });
 };
 $('updateBtn').onclick = forceUpdate;
-$('sendDayBtn').onclick = function(){
-  S.sent = true; savePrefs(); render();
-  pump();
-  toast(S.online ? 'Sent · photos to DB Cam, hours to JobTread' : 'Queued · sends when you have signal');
-};
 $('notif').onclick = function(){ $('notif').style.display='none'; closeSheet(); S.capture='before'; S.returnToClock=true; setTab('cam'); };
 [].forEach.call(document.querySelectorAll('.tab'), function(b){
   // A self-directed trip to the camera keeps you in the camera; a prompted one
@@ -2808,7 +3416,7 @@ $('notif').onclick = function(){ $('notif').style.display='none'; closeSheet(); 
   b.onclick = function(){ S.capture = b.getAttribute('data-tag'); renderCam(); };
 });
 
-window.addEventListener('online', function(){ S.online = true; render(); pump(); ckRetryPending(); });
+window.addEventListener('online', function(){ S.online = true; render(); pump(); ckRetryPending(); dlRetryPending(); });
 window.addEventListener('offline', function(){ S.online = false; render(); });
 window.addEventListener('resize', measureTabs);
 // A phone going in a pocket mid-list: send what is unsaved now, best effort.
@@ -2817,6 +3425,7 @@ window.addEventListener('pagehide', ckFlushAll);
 document.addEventListener('visibilitychange', function(){
   if (document.visibilityState !== 'visible'){ ckFlushAll(); return; }
   ckRetryPending();
+  dlRetryPending();
   // A phone that spent an hour in a pocket should show the right number
   // immediately, and any owed nudge should land now.
   render();
@@ -2832,7 +3441,16 @@ setInterval(function(){
   if (S.tab === 'job') { renderClock(); renderDay(); }
 }, 1000);
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(function(){});
+  // A tapped notification while the app is already open: the worker says
+  // where to go rather than reloading the page.
+  navigator.serviceWorker.addEventListener('message', function(ev){
+    var m = ev.data || {};
+    if (m.kind === 'open-before-photo'){ S.capture = 'before'; S.returnToClock = true; setTab('cam'); }
+    else if (m.kind === 'open-tab' && /^(jobs|log|job)$/.test(m.tab)) setTab(m.tab);
+  });
+}
 
 measureTabs();
 if (!API_URL || !GOOGLE_CLIENT_ID){

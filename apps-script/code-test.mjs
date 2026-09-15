@@ -20,11 +20,17 @@ const src = readFileSync(new URL('./Code.gs', import.meta.url), 'utf8');
 let props = {}, cacheStore = {}, fetched = [];
 let fetchImpl = () => ({ code: 200, body: '{"crew":null,"visits":[]}' });
 const sandbox = {
-  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] ?? null, setProperty: (k,v)=>{props[k]=v;} }) },
+  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] ?? null, setProperty: (k,v)=>{props[k]=v;},
+    getProperties: () => ({ ...props }), deleteProperty: k => { delete props[k]; } }) },
   CacheService: { getScriptCache: () => ({ get: k => cacheStore[k] ?? null, put: (k,v)=>{cacheStore[k]=v;}, remove: k => { delete cacheStore[k]; } }) },
   Session: { getScriptTimeZone: () => 'America/New_York' },
   Utilities: {
-    formatDate: (d, tz, fmt) => new Date(d.getTime() - 4*3600*1000).toISOString().slice(0,10),
+    formatDate: (d, tz, fmt) => {
+      if (fmt === 'H') return String(sandbox.__hour != null ? sandbox.__hour : new Date(d.getTime() - 4*3600*1000).getUTCHours());
+      if (fmt === 'EEE MMM d') { const x = new Date(d); return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][x.getUTCDay()] + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][x.getUTCMonth()] + ' ' + x.getUTCDate(); }
+      return new Date(d.getTime() - 4*3600*1000).toISOString().slice(0,10);
+    },
+    computeRsaSha256Signature: () => Buffer.from('sig'),
     base64EncodeWebSafe: b => Buffer.from(typeof b === 'string' ? b : Buffer.from(b)).toString('base64url'),
     computeDigest: (_a, s) => Buffer.from(String(s)),
     DigestAlgorithm: { SHA_256: 1 },
@@ -32,6 +38,7 @@ const sandbox = {
   },
   UrlFetchApp: { fetch: (url, opts) => { fetched.push({url, opts}); const r = fetchImpl(url, opts);
     return { getResponseCode: () => r.code, getContentText: () => r.body }; } },
+  ScriptApp: { getProjectTriggers: () => [], deleteTrigger: () => {}, newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }) }) }) },
   console,
 };
 vm.createContext(sandbox);
@@ -457,6 +464,153 @@ const km = sandbox.memberFor_('kentonmccomas@gmail.com');
 const secondWhere = JSON.parse(fetched[1].opts.payload).query.organization.memberships.$.where;
 t('an exact miss retries with like', [lookups, secondWhere[0], secondWhere[1], secondWhere[2]], [2, ['user', 'emailAddress'], 'like', 'kentonmccomas@gmail.com']);
 t('and resolves the membership and the JobTread role', [km.userId, km.membershipId, km.role], ['u7', 'm7', 'Site Manager']);
+
+
+// ============================================================
+// THE DAY, ON THE JOB — labels on the list, the daily log, the pushes.
+// ============================================================
+// A router: the board's GET, then Pave by what the query asks for.
+const paveOf = (opts) => { try { return JSON.parse(opts.payload).query; } catch { return null; } };
+function route(handlers) {
+  return (url, opts) => {
+    if (url.indexOf('/api/crew/assignments') > -1) return handlers.board(url, opts);
+    if (url.indexOf('oauth2.googleapis.com/token') > -1) return { code: 200, body: '{"access_token":"at","expires_in":3600}' };
+    if (url.indexOf('fcm.googleapis.com') > -1) { pushes.push(JSON.parse(opts.payload).message); return handlers.fcm ? handlers.fcm() : { code: 200, body: '{}' }; }
+    const q = paveOf(opts) || {};
+    if (q.organization && q.organization.tasks) return handlers.tasks ? handlers.tasks(q) : { code: 200, body: '{"organization":{"tasks":{"nodes":[]}}}' };
+    if (q.organization && q.organization.jobs && q.organization.jobs.nodes && q.organization.jobs.nodes.customFieldValues) return handlers.people ? handlers.people(q) : { code: 200, body: '{"organization":{"jobs":{"nodes":[]}}}' };
+    if (q.organization && q.organization.memberships) return handlers.member ? handlers.member(q) : { code: 200, body: '{"organization":{"memberships":{"nodes":[]}}}' };
+    if (q.createDailyLog) return handlers.dailyLog ? handlers.dailyLog(q) : { code: 200, body: '{"createDailyLog":{"createdDailyLog":{"id":"dl1"}}}' };
+    if (q.createComment) return handlers.comment ? handlers.comment(q) : { code: 200, body: '{"createComment":{"createdComment":{"id":"c1","createdAt":"2026-09-15T20:00:00Z"}}}' };
+    return { code: 200, body: '{}' };
+  };
+}
+let pushes = [];
+const PEOPLE = (q) => ({ code: 200, body: JSON.stringify({ organization: { jobs: { nodes: [
+  { id: 'j9', customFieldValues: { nodes: [
+    { customField: { id: sandbox.CF_PROJECT_MANAGER }, value: 'Dave Elick' },
+    { customField: { id: sandbox.CF_SALES_REP }, value: 'Shawn Deitemeyer' },
+    { customField: { id: sandbox.CF_SALES_REP }, value: 'Jenn Grubb' } ] } },
+  { id: 'j1', customFieldValues: { nodes: [] } } ] } } }) });
+const MEMBERS = { 'Dave Elick': 'm_dave', 'Shawn Deitemeyer': 'm_shawn' };
+const MEMBER = (q) => { const name = q.organization.memberships.$.where[1]; const id = MEMBERS[name];
+  return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes: id ? [{ id }] : [] } } }) }; };
+const BOARD = (visits) => () => ({ code: 200, body: JSON.stringify({ crew: { id: 'c9', name: 'Tyler' }, checklist: SHAPE, visits }) });
+const VIS = [
+  { taskId: 't_mine', jobId: 'j9', jobNum: '26-1490', cust: 'Courtney', address: '1140 Bittersweet Ln, Ohio City, OH 45874, USA',
+    start: sandbox.addDays_(today, 1), end: sandbox.addDays_(today, 1), days: 1, material: { text: 'Material ordered ✓', cls: 'good' },
+    checks: { taskId: 't_roof', state: { done: {}, magnetBy: null, signedOff: null }, progress: [], words: 'Site checks not started' } },
+  { taskId: 't_own', jobId: 'j1', jobNum: '26-0890', cust: 'Noah Webster', start: today, end: today, days: 1,
+    checks: { taskId: 't_own', state: { done: {}, magnetBy: null, signedOff: null }, progress: [], words: 'Site checks not started' } }
+];
+
+// ---- getMyJobs carries who is on the roof with you, and the job's people ----
+props = { BOARD_API_URL: 'https://ops.example.com', CREW_APP_SECRET: 's3cret' };
+cacheStore = {}; fetched = []; sandbox.__now = null;
+fetchImpl = route({ board: BOARD(VIS),
+  tasks: () => ({ code: 200, body: JSON.stringify({ organization: { tasks: { nodes: [{ id: 't_roof', name: 'Roof install — Platinum (Shingle)' }] } } }) }),
+  people: PEOPLE });
+r = sandbox.getMyJobs(ME);
+// The list comes back sorted by start, so find each visit by its task.
+const mine = r.visits.find(v => v.taskId === 't_mine'), own = r.visits.find(v => v.taskId === 't_own');
+t('alongside is the checklist task\'s crew, as a label', mine.alongside, 'Platinum (Shingle)');
+t('...and never your own crew', own.alongside, null);
+t('the job\'s PM and every sales rep, as names', [mine.pm, mine.reps, own.pm, own.reps], ['Dave Elick', ['Shawn Deitemeyer', 'Jenn Grubb'], '', []]);
+t('only the list\'s task is asked for, not the visit\'s own', JSON.parse(fetched[1].opts.payload).query.organization.tasks.$.where.and[0][2], ['t_roof']);
+t('crewLabelFromTaskName_ handles the plain prefix', [sandbox.crewLabelFromTaskName_('Install — Tyler'), sandbox.crewLabelFromTaskName_('Order materials')], ['Tyler', null]);
+
+cacheStore = {}; fetched = [];
+fetchImpl = route({ board: BOARD(VIS), tasks: () => { throw new Error('pave down'); }, people: () => { throw new Error('pave down'); } });
+r = sandbox.getMyJobs(ME);
+t('labels failing never fail the list', [r.source, r.visits.length, r.visits[0].alongside, r.visits[0].pm], ['board', 2, null, '']);
+
+// ---- the daily log ----
+const LOG = { jobId: 'j9', date: '2026-09-15', jobLabel: '26-1490 Courtney', alongside: 'Platinum (Shingle)',
+  done: 'Tear-off and dry-in, north side shingled.', condition: 'Two sheets of decking replaced.', crewOnSite: true, tarped: true, leftAt: '4:30',
+  problems: 'Short 8 pieces of drip edge, one box of nails.',
+  notes: [{ time: '10:12a', body: 'Homeowner asked about the trailer spot', urgent: false }, { time: '2:40p', body: 'Need drip edge', urgent: true }],
+  photos: [{ fileId: 'f1', name: 'a.jpg', tag: 'before' }, { fileId: 'f2', name: 'b/c.jpg', tag: 'after' }, { name: 'not-uploaded.jpg', tag: 'after' }],
+  hours: [{ number: '04MA', name: 'Masonry Labor', minutes: 138 }, { number: '02ST-1', name: 'Site Prep Labor', minutes: 42 }],
+  checks: { words: 'Handing over — 7 of 7 done', magnetBy: 'Kenton', signedOff: null } };
+
+props = {}; cacheStore = {}; fetched = [];
+let threw2 = '';
+try { sandbox.sendDailyLog(ME, LOG); } catch (e) { threw2 = e.message; }
+t('a read-only build sends no log', threw2.indexOf('READ_ONLY'), 0);
+
+props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+const jtCalls = [];
+fetchImpl = route({ people: PEOPLE, member: MEMBER,
+  dailyLog: (q) => { jtCalls.push(['dailyLog', q.createDailyLog.$]); return { code: 200, body: '{"createDailyLog":{"createdDailyLog":{"id":"dl1"}}}' }; },
+  comment: (q) => { jtCalls.push(['comment', q.createComment.$]); return { code: 200, body: '{"createComment":{"createdComment":{"id":"c1"}}}' }; } });
+r = sandbox.sendDailyLog(ME, LOG);
+const dl = jtCalls.find(c => c[0] === 'dailyLog')[1];
+t('one daily log on the job, dated, notify on', [dl.jobId, dl.date, dl.notify], ['j9', '2026-09-15', true]);
+t('assigned to the PM and the reps JobTread knows', dl.assignees, [{ membership: { membershipId: 'm_dave' } }, { membership: { membershipId: 'm_shawn' } }]);
+t('photos ride by reference, only the uploaded ones, names made safe', dl.files, [{ copyFromFileId: 'f1', name: 'a.jpg' }, { copyFromFileId: 'f2', name: 'b-c.jpg' }]);
+const N = dl.notes;
+t('the notes read in the owner\'s order', [N.indexOf('WHAT GOT DONE') > -1, N.indexOf('WHAT GOT DONE') < N.indexOf('CONDITION WHEN I LEFT'), N.indexOf('CONDITION WHEN I LEFT') < N.indexOf('PROBLEMS, EXTRAS, RETURNS')], [true, true, true]);
+t('...with the condition chips, the checks, the hours and the photo count',
+  ['Crew still on site · Tarped · Left at 4:30', 'Handing over — 7 of 7 done · Magnet run by Kenton', '04MA Masonry Labor — 2h 18m', 'Total 3h 00m', '2 attached (1 before, 1 after)', 'with Platinum (Shingle)', '(sent to the office at the time)'].map(x => N.indexOf(x) > -1), [true, true, true, true, true, true, true]);
+t('the answer says who was assigned and who could not be', [r.dailyLogId, r.assigned, r.unresolved, r.photos], ['dl1', ['Dave Elick', 'Shawn Deitemeyer'], ['Jenn Grubb'], 2]);
+const cm = jtCalls.find(c => c[0] === 'comment')[1];
+t('a problem pings the same people in the feed, once', [r.flag, r.commented, cm.targetType, cm.targetId, cm.assignees.length, cm.message.indexOf('Short 8 pieces of drip edge') > -1], ['problems', true, 'job', 'j9', 2, true]);
+
+jtCalls.length = 0;
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false });
+t('a routine day is the log alone, no comment', [r.flag, r.commented, jtCalls.map(c => c[0])], ['', false, ['dailyLog']]);
+jtCalls.length = 0;
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: true });
+t('a crew left on site without a sign-off is flagged', [r.flag, r.commented, jtCalls[1][1].message.indexOf('crew still on site when Tyler left at 4:30') > -1], ['crew-on-site', true, true]);
+jtCalls.length = 0;
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: true, checks: { words: 'Signed off — Tyler · Sep 15', magnetBy: null, signedOff: 'Tyler · Sep 15' } });
+t('...but not once it is signed off', [r.flag, jtCalls.map(c => c[0])], ['', ['dailyLog']]);
+t('a bad date falls back to the script\'s today', sandbox.sendDailyLog(ME, { ...LOG, date: 'soon' }).date, today);
+
+jtCalls.length = 0;
+r = sandbox.addDailyLogNote(ME, 'j9', 'dl1', 'Kenton dropped the returns at 5.');
+t('a later note is a comment on the log itself, signed', [jtCalls[0][1].targetType, jtCalls[0][1].targetId, jtCalls[0][1].message], ['dailyLog', 'dl1', 'Tyler B.: Kenton dropped the returns at 5.']);
+
+jtCalls.length = 0;
+r = sandbox.postJobNote('j9', 'Need drip edge now', 'Tyler B.', true);
+t('an urgent note is assigned to the PM', [jtCalls[0][1].assignees, r.assigned], [[{ membership: { membershipId: 'm_dave' } }], ['Dave Elick']]);
+jtCalls.length = 0;
+sandbox.postJobNote('j9', 'FYI', 'Tyler B.');
+t('a plain note is not', 'assignees' in jtCalls[0][1], false);
+
+// ---- the pushes: "Tomorrow: …" once, after four, and "Schedule changed" ----
+props = { BOARD_API_URL: 'https://ops.example.com', CREW_APP_SECRET: 's3cret', PUSH_ENABLED: 'true', FCM_PROJECT_ID: 'p',
+  FCM_SERVICE_ACCOUNT: JSON.stringify({ client_email: 'a@b', private_key: 'k' }), APP_URL: 'https://db-time-clock.web.app/' };
+cacheStore = {}; fetched = []; pushes = [];
+sandbox.registerPushToken(ME, 'tok-1', 'ios');
+t('the token record carries the membership', JSON.parse(props['pt_u1']).membershipId, 'm1');
+fetchImpl = route({ board: BOARD(VIS),
+  tasks: () => ({ code: 200, body: JSON.stringify({ organization: { tasks: { nodes: [{ id: 't_roof', name: 'Roof install — Platinum' }] } } }) }),
+  people: PEOPLE });
+sandbox.__hour = 9;
+let sw = sandbox.sweepSchedulePushes();
+t('before four o\'clock: only the snapshot is taken', [sw.devices, sw.plans, sw.changes, pushes.length, typeof props['sched_u1']], [1, 0, 0, 0, 'string']);
+sandbox.__hour = 17;
+sw = sandbox.sweepSchedulePushes();
+t('after four: one "Tomorrow" line', [sw.plans, pushes.length, pushes[0].notification.title, pushes[0].notification.body],
+  [1, 1, 'Tomorrow', '1140 Bittersweet Ln · Courtney · with Platinum · Material ordered']);
+t('...tagged and linked to My jobs, not the camera', [pushes[0].data.kind, pushes[0].data.tag, pushes[0].webpush.fcmOptions.link, pushes[0].webpush.notification.requireInteraction], ['schedule', 'dbtc-schedule', 'https://db-time-clock.web.app/?tab=jobs', false]);
+sw = sandbox.sweepSchedulePushes();
+t('...and only once a day', [sw.plans, pushes.length], [0, 1]);
+const MOVED = [{ ...VIS[0], start: sandbox.addDays_(today, 2), end: sandbox.addDays_(today, 2) }, VIS[1],
+  { taskId: 't_new', jobId: 'j5', jobNum: '26-1102', cust: 'Dale Harmon', start: sandbox.addDays_(today, 2), end: sandbox.addDays_(today, 2), days: 1, checks: null }];
+fetchImpl = route({ board: BOARD(MOVED), people: PEOPLE });
+sw = sandbox.sweepSchedulePushes();
+t('a changed schedule is one push naming the change', [sw.changes, pushes[1].notification.title, pushes[1].notification.body],
+  [1, 'Schedule changed', 'Moved: Courtney to ' + sandbox.fmtDayShortDow_(sandbox.addDays_(today, 2)) + '. Added: Dale Harmon ' + sandbox.fmtDayShortDow_(sandbox.addDays_(today, 2))]);
+sw = sandbox.sweepSchedulePushes();
+t('...and not again for the same schedule', [sw.changes, pushes.length], [0, 2]);
+fetchImpl = route({ board: () => ({ code: 502, body: '{"error":"x"}' }) });
+sw = sandbox.sweepSchedulePushes();
+t('a board failure is counted, never thrown', [sw.failed, pushes.length], [1, 2]);
+props.PUSH_ENABLED = 'false';
+t('push off -> nothing runs', sandbox.sweepSchedulePushes().skipped, 'PUSH_ENABLED is not true');
+sandbox.__hour = null;
 
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

@@ -77,7 +77,7 @@ In Apps Script > Project Settings > **Script Properties**:
 | `EXTRA_ALLOWED_EMAILS` | optional — comma-separated Google addresses let through the sign-in beside the company domain, without a code change. The two site managers on Gmail are already in `SITE_MANAGER_EMAILS` in `Code.gs`; this is for the next one. It is an explicit list, never a domain. |
 | `FCM_PROJECT_ID` | for push — the Firebase project id (see 4b) |
 | `FCM_SERVICE_ACCOUNT` | for push — the service account JSON key, pasted whole |
-| `PUSH_ENABLED` | for push — `true` to actually send |
+| `PUSH_ENABLED` | for push — `true` to actually send. Gates the photo nudge and the schedule pushes alike. |
 | `ACCESS_FEED_URL` | optional — DB Hub's access feed (the access-"Anyone" hub deployment's `/exec` URL; `?accessfeed=1` in the hub prints it). With it set, the hub's **App access** panel controls who may use the clock: blank = JobTread membership decides (as before), `Manager` also unlocks the crew block, `Off` blocks the person. Unset or unreachable = everything works as before. **Then run `installAccessFeedRefresh` once in the Apps Script editor** — a trigger refreshes the feed every 5 minutes and the API only ever reads that copy. Without the trigger the gate has no opinion (everyone JobTread admits gets in), and it is never fetched while a phone waits: the hub is another Apps Script, and fetching it inline on a cold cache is what put the clock past its 25-second boot ceiling on every reopen. |
 | `ACCESS_FEED_KEY` | the feed key `?accessfeed=1` prints (skip if the key is already baked into `ACCESS_FEED_URL`) |
 
@@ -142,6 +142,14 @@ Script, no Cloud Functions and no Blaze plan.)*
    when asked. Then run **`testPushToMe`** from the editor — it pushes to your
    own device, ignoring grace periods. If it lands on your lock screen, you're
    done.
+7. Run **`installSchedulePushTrigger`** once as well. Hourly, for every
+   registered phone, it asks the board for the next three days and sends one
+   line the evening before — "Tomorrow: 812 S Washington St · Lucas · with
+   Platinum · Material ordered" — after 4pm, once a day, only when something
+   is booked; and "Schedule changed" when those days differ from the last look
+   (added, moved, removed). Tapping either opens My jobs.
+   `removeSchedulePushTrigger` undoes it. Phones registered before this build
+   re-register on their next launch; until then the sweep skips them.
 
 **How the sweep decides.** Every 5 minutes it asks JobTread for open time
 entries, and for photos whose description contains `#TE:<timeEntryId>` — the

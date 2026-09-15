@@ -209,6 +209,14 @@ the board's own gate. `index.html` holds the ticks local-first (one PUT per
 burst, kept in localStorage until the board has taken them) and draws every
 line and phase from `checklist` — nothing about the list is hardcoded here.
 
+Two labels this app adds to each visit after the GET, from JobTread directly
+and never fatally: `alongside`, the crew whose line `checks.taskId` sits on
+("Platinum"), read as that task's name minus its "Install —" prefix — a label,
+not crew resolution, and suppressed on the visit's own task; and `pm` /
+`reps`, the job's Project Manager and Sales Rep fields, which the daily log is
+assigned to. If the board ever sends these itself they should replace the
+lookups here.
+
 ## Scope boundary
 
 This app reads **only** Install tasks `22Pc9WLVvBn3`. DB CheckOut

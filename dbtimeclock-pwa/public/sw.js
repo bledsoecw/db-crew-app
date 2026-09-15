@@ -2,7 +2,7 @@
    Navigation: network-first (a fresh build wins), cache fallback so the app
    still opens with no signal. Same-origin assets: cache-first. Cross-origin
    (the Apps Script API, JobTread's CDN, FCM): never touched. */
-var CACHE = 'dbtc-t1-3';
+var CACHE = 'dbtc-t1-4';
 var SHELL = ['./', './index.html', './config.js', './manifest.json',
              './app-icon-180.png', './app-icon-192.png', './app-icon-512.png', './app-icon-maskable.png',
              './fonts/archivo-700.woff2', './fonts/archivo-800.woff2',
@@ -51,28 +51,32 @@ self.addEventListener('push', function (e) {
   catch (err) { p = { notification: { title: 'DB Time Clock', body: e.data ? e.data.text() : '' } }; }
   var n = p.notification || {};
   var d = p.data || {};
+  // The tag and the kind ride in data (sendPush_ puts them there): a schedule
+  // line must not replace a photo nudge, and it need not stay on screen.
   e.waitUntil(self.registration.showNotification(n.title || 'DB Time Clock', {
     body: n.body || '',
     icon: 'app-icon-192.png',
     badge: 'app-icon-192.png',
-    tag: n.tag || 'dbtc-before',
+    tag: d.tag || n.tag || 'dbtc-before',
     renotify: true,
-    requireInteraction: true,
+    requireInteraction: d.kind !== 'schedule',
     data: d
   }));
 });
 
-/* Tapping the before-photo reminder opens the app straight onto the camera. */
+/* Tapping the before-photo reminder opens the app straight onto the camera;
+   tapping a schedule line opens My jobs. */
 self.addEventListener('notificationclick', function (e) {
   e.notification.close();
   var data = e.notification.data || {};
+  var schedule = data.kind === 'schedule';
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
     for (var i = 0; i < list.length; i++) {
       if ('focus' in list[i]) {
-        list[i].postMessage({ kind: 'open-before-photo', data: data });
+        list[i].postMessage(schedule ? { kind: 'open-tab', tab: 'jobs' } : { kind: 'open-before-photo', data: data });
         return list[i].focus();
       }
     }
-    if (clients.openWindow) return clients.openWindow('./?shoot=before');
+    if (clients.openWindow) return clients.openWindow(schedule ? './?tab=jobs' : './?shoot=before');
   }));
 });

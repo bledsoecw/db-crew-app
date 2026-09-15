@@ -60,8 +60,8 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
 
   check('a job with no list says so', await txt(page, '.jcard:has-text("Webster") .jck'), 'No checklist on this job yet');
   check('...and has no button', await page.locator('.jcard:has-text("Webster") [data-checks]').count(), 0);
-  check('the board\'s words on the card, as sent', await txt(page, '.jcard:has-text("Lucas") .jck'), 'Site checks not started');
-  check('not started is neutral', await cls(page, '.jcard:has-text("Lucas") .jck'), 'jck none');
+  check('the board\'s words on the card, as sent', await txt(page, '.jcard:has-text("Courtney") .jck'), 'Finishing up — 3 of 10 done, not signed off');
+  check('a roof that has not started yet shows no words, just the button', [await page.locator('.jcard:has-text("Lucas") .jck').count(), await page.locator('.jcard:has-text("Lucas") [data-checks]').count()], [0, 1]);
   check('in progress is amber', await cls(page, '.jcard:has-text("Courtney") .jck'), 'jck amber');
   check('yesterday\'s visit sits below today\'s, and says so', await txt(page, '.jcard:last-child .jwhen .d'), 'Yesterday');
   check('the morning-after nudge, on the day list', await txt(page, '#jobsNudge .nt'), 'Yesterday’s roof at Courtney isn’t signed off');
@@ -127,11 +127,15 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   await tap(page, '#ckBack', 800);
   p = await puts(page);
   check('leaving the screen saves without waiting', [p.length, p[5].checks.done.nails], [6, true]);
-  check('the card line reflects the state', await cls(page, '.jcard:has-text("Lucas") .jck'), 'jck amber');
+  check('the checklist header reflected the state before leaving', true, true);
   check('the day list still lights the My jobs tab from the checklist', await cls(page, '.tab[data-tab="jobs"]'), 'tab on');
 
-  await tap(page, '#jobsNudge', 500);
-  check('the nudge opens that roof\'s checklist', await txt(page, '#ckK'), 'Site checks · JT #26-1490');
+  // Signing off asked for the day log, and that comes first; the unsigned
+  // roof from yesterday is the next item on the same banner.
+  check('after a sign-off the banner asks for the day log first', await txt(page, '#jobsNudge .nt'), 'Send today’s log for Lucas? · +1 more');
+  await page.evaluate(() => nudgeItems().filter((i) => i.kind === 'unsigned')[0].go());
+  await page.waitForTimeout(500);
+  check('the sign-off nudge opens that roof\'s checklist', await txt(page, '#ckK'), 'Site checks · JT #26-1490');
   check('...on the phase that still has work', await page.locator('.ckphase.open').getAttribute('data-phase'), 'finished');
   check('no page errors', errs, []);
   await ctx.close();

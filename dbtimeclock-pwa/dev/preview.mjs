@@ -32,7 +32,7 @@ async function session(flags = {}) {
     errs.push(m.text());
   });
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
-  await page.addInitScript(`window.__MOCK_FOREMAN=${!!flags.foreman};window.__MOCK_READONLY=${!!flags.readOnly};window.__MOCK_NOTMANAGER=${!!flags.notManager};`);
+  await page.addInitScript(`window.__MOCK_FOREMAN=${!!flags.foreman};window.__MOCK_READONLY=${!!flags.readOnly};window.__MOCK_NOTMANAGER=${!!flags.notManager};window.__MOCK_TWO_TODAY=${!!flags.twoToday};`);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1400);
@@ -131,6 +131,38 @@ const allErrs = [];
   await tap(page, '[data-checks="t2roof"]', 600);
   await tap(page, '.ckrow[data-line="address"]', 2300);
   await shot(page, '19-checklist-readonly');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- the week, the two-roof morning, and the day log ----
+{
+  const { ctx, page, errs } = await session();
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await shot(page, '20-week-view');
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await page.locator('#dlDone').fill('Tear-off and dry-in, north side shingled. Two sheets of decking replaced.');
+  await tap(page, '[data-tog="crewOnSite"][data-val="true"]', 150);
+  await tap(page, '[data-tog="tarped"][data-val="true"]', 150);
+  await page.locator('#dlProb').fill('Short 8 pieces of drip edge, one box of nails.');
+  await page.locator('#dlNote').fill('Homeowner asked about the trailer spot');
+  await tap(page, '#dlAddNote', 300);
+  await shot(page, '21-day-log');
+  await page.mouse.wheel(0, 1400);
+  await page.waitForTimeout(300);
+  await shot(page, '22-day-log-send');
+  await tap(page, '#dlSend', 500);
+  await shot(page, '23-day-log-confirm');
+  await tap(page, '#slYes', 1500);
+  await page.mouse.wheel(0, -2000);
+  await page.waitForTimeout(300);
+  await shot(page, '24-day-log-sent');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+{
+  const { ctx, page, errs } = await session({ twoToday: true });
+  await shot(page, '25-two-roofs-today');
   allErrs.push(...errs);
   await ctx.close();
 }

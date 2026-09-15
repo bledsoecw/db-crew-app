@@ -24,11 +24,13 @@ stays stable.
 ## Tests
 
 ```
-node code-test.mjs      # 101 assertions, no dependencies, no network
+node code-test.mjs      # 131 assertions, no dependencies, no network
 ```
 
-Covers `getMyJobs` and `saveSiteChecks` — the two functions here that depend
-on a second system — plus the sign-in allow-list and the membership lookup.
+Covers `getMyJobs` and `saveSiteChecks` — the functions here that depend on
+the Production Board — plus the sign-in allow-list, the membership lookup, the
+daily log (`sendDailyLog`, `addDailyLogNote`, the PM-assigned note) and the
+schedule sweep (`sweepSchedulePushes`), with JobTread and FCM stubbed by URL.
 Code.gs is evaluated in a `vm` context with stubbed Apps Script services, so
 every branch the Production Board can put it in (unconfigured, 502, a 307
 sign-in bounce, a thrown request, an absurd date range) is reachable without a
