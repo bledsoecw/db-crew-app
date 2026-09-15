@@ -33,11 +33,24 @@ window.DBTC_CONFIG = {
   clientId: '',
 
   // ---- Push notifications (optional) ----
+  // Paste the whole object from Firebase console > Project settings > General
+  // > your web app > Config. Only apiKey, projectId, messagingSenderId and
+  // appId are used, but the extras are harmless and keep it a straight copy.
   firebase: {
     apiKey: '',
+    authDomain: '',
     projectId: '',
+    storageBucket: '',
     messagingSenderId: '',
     appId: ''
   },
-  vapidKey: ''
+  // Project settings > Cloud Messaging > Web Push certificates > Key pair.
+  // NOT part of the config object above — a separate credential, 87-88
+  // characters starting with "B".
+  vapidKey: '',
+
+  // Optional. Pins the Firebase SDK loaded from gstatic. Leave it out to use
+  // the version the app ships with. Set it to try a newer or older one when a
+  // browser update breaks push — the app reports the URL if it cannot load.
+  // fbVersion: '12.19.0'
 };

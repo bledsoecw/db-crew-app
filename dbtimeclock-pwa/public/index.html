@@ -792,7 +792,17 @@ function checkNudge(){
    sweepBeforePhotoNudges in Code.gs). This half is only about
    getting a device token and handing it over.
    ========================================================= */
-var FB_VERSION = '10.12.2';
+/* The Firebase SDK is loaded from gstatic at this version. 10.12.2 shipped in
+   May 2024 and threw a bare TypeError out of its own Headers constructor on
+   Safari 26 / iOS 18.7 — a two-year-old library against a browser that got
+   stricter. Overridable from config.js as fbVersion so a version can be tried
+   without a code change; a wrong one fails loudly with the URL it could not
+   load, rather than silently. */
+var FB_VERSION_DEFAULT = '12.19.0';
+/* Read when it is used, not when this file is parsed. config.js does load
+   first, so a parse-time read would work — but only because of an ordering
+   nobody states, and it silently fell back the moment anything set it later. */
+function fbVersion(){ return String((window.DBTC_CONFIG || {}).fbVersion || FB_VERSION_DEFAULT); }
 var pushState = 'unknown';   // unknown | unsupported | needs-install | off | on
 
 function pushConfigured(){
@@ -868,9 +878,9 @@ function enablePush(){
           : 'The permission prompt closed without an answer. Tap the button again and choose Allow.');
       }
       step = 'loading the Firebase SDK';
-      return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-app-compat.js');
+      return loadScript('https://www.gstatic.com/firebasejs/' + fbVersion() + '/firebase-app-compat.js');
     })
-    .then(function(){ return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-messaging-compat.js'); })
+    .then(function(){ return loadScript('https://www.gstatic.com/firebasejs/' + fbVersion() + '/firebase-messaging-compat.js'); })
     .then(function(){ step = 'waiting for the service worker'; return navigator.serviceWorker.ready; })
     .then(function(reg){
       var bad = vapidProblem();
@@ -1923,6 +1933,7 @@ $('copyDiagBtn').onclick = function(){
     'config   apiUrl ' + (c.apiUrl ? 'set' : 'MISSING') + ', clientId ' + (c.clientId ? 'set' : 'MISSING') +
              ', fb.apiKey ' + (fb.apiKey ? 'set' : 'MISSING') + ', fb.projectId ' + (fb.projectId || 'MISSING') +
              ', vapidKey ' + (c.vapidKey ? String(c.vapidKey).length + ' chars' : 'MISSING'),
+    'sdk      firebase ' + fbVersion(),
     'device   ' + (isInstalled() ? 'installed' : 'browser tab') + ', ' + (isIOS() ? 'iOS' : 'other') +
              ', notifications ' + ((window.Notification && Notification.permission) || 'n/a') +
              ', online ' + S.online,
