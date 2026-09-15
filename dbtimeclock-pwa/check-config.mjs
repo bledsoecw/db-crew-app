@@ -1,23 +1,35 @@
-/* Refuse to deploy a blank public/config.js.
+/* Refuse to deploy a public/config.js that would break the live app.
  *
  * Runs as a Firebase `predeploy` hook, so it fires on every `firebase deploy`
  * with no one having to remember it.
  *
  * public/config.js carries the live apiUrl, clientId and Firebase keys. It is
- * git-ignored, so branches can no longer disturb it — but a Hosting deploy
- * REPLACES the entire site, so a missing or blank config.js still takes the
- * live app down just as surely as a wrong one. Both cases fail here.
+ * git-ignored, so branches cannot disturb it — but a Hosting deploy REPLACES
+ * the entire site, so a missing, blank or broken config.js takes the live app
+ * down just as surely as a wrong one.
  *
  * The service worker hides the damage for a while: config.js is in the cached
  * shell and the fetch handler is cache-first, so phones keep serving the last
  * good copy until their cache is dropped. The outage then appears hours after
  * the deploy that caused it, with a working app in between and nothing to
  * connect the two. That delay is why this check exists rather than a habit.
+ *
+ * It EXECUTES the file rather than pattern-matching it, because the text of a
+ * config file says less than you would think:
+ *
+ *   - Matching quotes with a regex missed double-quoted values — the style
+ *     Firebase's own console hands you — and reported a good file as broken.
+ *   - A file that is missing `window.DBTC_CONFIG =` still contains the right
+ *     words, so a text match passes it, while the browser fails to parse it.
+ *   - A misplaced comma is invisible to a regex and fatal to the app.
+ *
+ * Running it in a vm catches all three the way the browser would.
  */
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 
 const FILE = new URL('./public/config.js', import.meta.url);
-const RED = '\x1b[31m', BOLD = '\x1b[1m', OFF = '\x1b[0m';
+const RED = '\x1b[31m', YEL = '\x1b[33m', BOLD = '\x1b[1m', OFF = '\x1b[0m';
 
 const die = (lines, how) => {
   console.error(`\n${RED}${BOLD}Deploy stopped: public/config.js would take the live app down.${OFF}\n`);
@@ -50,37 +62,71 @@ const FIRST_TIME = [
   '    curl.exe -s https://db-time-clock.web.app/config.js -o public\\config.js',
 ];
 
+const SHAPE = [
+  'The whole file should be one assignment, commas between every entry:',
+  '',
+  '    window.DBTC_CONFIG = {',
+  "      apiUrl:   '…/exec',",
+  "      clientId: '….apps.googleusercontent.com'",
+  '    };',
+  '',
+  'Adding the optional firebase block? The clientId line then needs a',
+  'trailing comma, because it is no longer the last entry.',
+];
+
 let src;
 try {
   src = readFileSync(FILE, 'utf8');
 } catch {
   die(['public/config.js does not exist.',
-       'It is git-ignored now, so a fresh clone will not have one.',
+       'It is git-ignored, so a fresh clone will not have one.',
        'A Hosting deploy replaces the whole site, so deploying without it',
        'would leave the live app with no settings at all.'], FIRST_TIME);
 }
 
-// JavaScript has three string quotes and this file is hand-edited, so all
-// three are accepted. Matching only ' made a double-quoted config — the style
-// Firebase's own console hands you — read as "not present", which stopped a
-// perfectly good deploy and blamed the wrong thing.
-const valueOf = (key) => {
-  const m = src.match(new RegExp(key + "\\s*:\\s*([\"'`])([\\s\\S]*?)\\1"));
-  return m ? m[2].trim() : null;
-};
+// Run it exactly as the browser will.
+const sandbox = { window: {} };
+try {
+  vm.runInNewContext(src, sandbox, { filename: 'public/config.js', timeout: 2000 });
+} catch (e) {
+  die([`public/config.js does not run: ${e.message}`,
+       'The browser fails the same way, so the app would never start —',
+       'the sign-in screen would say "config.js is not filled in yet".',
+       'Usually a missing or extra comma between entries.'], SHAPE);
+}
+
+const cfg = sandbox.window.DBTC_CONFIG;
+if (!cfg || typeof cfg !== 'object') {
+  die(['public/config.js runs, but never sets window.DBTC_CONFIG.',
+       'The app reads that exact name and would find nothing.',
+       'Most often the leading "window.DBTC_CONFIG = " has been dropped.'], SHAPE);
+}
 
 const problems = [];
 for (const key of ['apiUrl', 'clientId']) {
-  const v = valueOf(key);
-  if (v === null) problems.push(`${key} is not present in the file.`);
+  const v = typeof cfg[key] === 'string' ? cfg[key].trim() : null;
+  if (v === null) problems.push(`${key} is missing, or is not a string.`);
   else if (!v) problems.push(`${key} is empty — this looks like the template, not your settings.`);
 }
-
-const apiUrl = valueOf('apiUrl');
-if (apiUrl && !/^https:\/\/script\.google\.com\/.*\/exec$/.test(apiUrl)) {
-  problems.push(`apiUrl does not look like an Apps Script /exec URL: ${apiUrl}`);
+if (typeof cfg.apiUrl === 'string' && cfg.apiUrl.trim() &&
+    !/^https:\/\/script\.google\.com\/.*\/exec$/.test(cfg.apiUrl.trim())) {
+  problems.push(`apiUrl does not look like an Apps Script /exec URL: ${cfg.apiUrl.trim()}`);
 }
-
 if (problems.length) die(problems, FROM_BACKUP);
 
 console.log('config.js: apiUrl and clientId are set — deploying.');
+
+// Push is optional, so this warns rather than stops. A half-filled block is
+// worth saying out loud, because the app just reports "not set up" and the
+// reason for that is invisible from the phone.
+const fb = cfg.firebase && typeof cfg.firebase === 'object' ? cfg.firebase : {};
+const pushKeys = { apiKey: fb.apiKey, projectId: fb.projectId, messagingSenderId: fb.messagingSenderId, appId: fb.appId, vapidKey: cfg.vapidKey };
+const set = Object.entries(pushKeys).filter(([, v]) => typeof v === 'string' && v.trim()).map(([k]) => k);
+const unset = Object.keys(pushKeys).filter((k) => !set.includes(k));
+if (set.length === 0) {
+  console.log('config.js: push notifications not configured (optional) — the app will say "not set up".');
+} else if (unset.length) {
+  console.log(`${YEL}config.js: push is half configured — missing ${unset.join(', ')}. It will stay off until all five are set.${OFF}`);
+} else {
+  console.log('config.js: push notifications configured.');
+}
