@@ -24,7 +24,7 @@ stays stable.
 ## Tests
 
 ```
-node code-test.mjs      # 135 assertions, no dependencies, no network
+node code-test.mjs      # 150 assertions, no dependencies, no network
 ```
 
 Covers `getMyJobs` and `saveSiteChecks` — the functions here that depend on

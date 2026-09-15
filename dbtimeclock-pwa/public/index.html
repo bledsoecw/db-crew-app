@@ -265,6 +265,9 @@ button[disabled]{cursor:default}
 #errBox{margin-top:11px;border:1px solid var(--rec);border-radius:6px;padding:13px 15px;background:rgba(192,57,43,.12)}
 #errBox .k{color:var(--rec)}
 #errBox .em{font:400 14px/1.45 var(--sans);color:var(--fg);margin-top:6px;word-break:break-word}
+#apiBox{margin-top:11px;border:1px solid var(--line);border-radius:6px;padding:13px 15px}
+#apiBox .k{color:var(--mut)}
+#apiBox .em{font:400 13px/1.5 var(--sans);color:var(--fg);margin-top:6px;word-break:break-word}
 #jobsHead{padding:calc(var(--sat) + 8px) 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
 #jobsCrew{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #jobsRefresh{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--mut)}
@@ -566,6 +569,7 @@ button[disabled]{cursor:default}
       <div class="sect">
         <div class="k">Build</div>
         <div class="tbl" id="verTbl"></div>
+        <div id="apiBox" class="hidden"></div>
         <div id="errBox" class="hidden"></div>
         <button class="btn btn-out hidden" id="copyDiagBtn" style="margin-top:12px">Copy diagnostics</button>
         <button class="btn btn-out hidden" id="pushBtn" style="margin-top:12px">Turn on notifications</button>
@@ -658,7 +662,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.8 (2026-09-15)';
+var APP_BUILD = 'T1.9 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -731,13 +735,13 @@ function requireSignIn(msg){
 }
 
 /* ---- the API ---- */
-/* Apps Script runs ONE execution at a time per user. Reopening the app fires
-   start(), pump() and refreshDay() at once, and tapping My jobs adds a fourth
-   — several calls racing for one slot. On a phone that surfaced as Safari's
-   "Load failed" and a 404 on the /exec redirect, both of which came good when
-   the crew member refreshed by hand. The crew member should not be the retry
-   mechanism, so the client queues its own calls and retries the transient
-   ones. */
+/* Reopening the app fires start(), pump() and refreshDay() at once, and
+   tapping My jobs adds a fourth. On a phone that surfaced as Safari's "Load
+   failed" and a 404 on the /exec redirect, both of which came good when the
+   crew member refreshed by hand. The crew member should not be the retry
+   mechanism, so the client queues its own calls (in lanes — see apiCall) and
+   retries the transient ones. The ceiling below is per call, awake time
+   only, and a few calls that are safe to wait on get a longer one. */
 var API_TIMEOUT_MS = 25000;
 /* A freshly launched iOS web app can reject its first fetch outright — Safari
    says "Load failed" — while the app is still coming up. 300ms and 900ms spent
@@ -749,9 +753,25 @@ var apiChain = Promise.resolve();
 
 function apiWait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
-function apiAttempt(fn, args, attempt){
+function apiAttempt(fn, args, attempt, co){
+  co = co || {};
+  var limit = co.timeout || API_TIMEOUT_MS;
   var ctl = window.AbortController ? new AbortController() : null;
-  var timer = setTimeout(function(){ if (ctl) ctl.abort(); }, API_TIMEOUT_MS);
+  // The ceiling is wall time the page was awake for. iOS freezes a
+  // backgrounded page, timers included; when it thaws, a timer that fell due
+  // meanwhile fires at once — and a request the phone slept through would be
+  // declared "not answered" having been given no time at all. A timer that
+  // fires far past its due moment was frozen: arm it again (twice at most)
+  // rather than abort.
+  var timer = null, due = 0, rearmed = 0;
+  var arm = function(ms){
+    due = Date.now() + ms;
+    timer = setTimeout(function(){
+      if (Date.now() - due > 3000 && rearmed < 2){ rearmed++; arm(limit); return; }
+      if (ctl) ctl.abort();
+    }, ms);
+  };
+  arm(limit);
   var opts = {
     method:'POST',
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },  // avoids the CORS preflight Apps Script can't answer
@@ -780,6 +800,8 @@ function apiAttempt(fn, args, attempt){
       }
     });
   }).then(function(j){
+    // The server's own clock on this call rides on every reply.
+    if (j && j.ms) apiServer[fn] = j.ms;
     if (j && j.ok) return j.data;
     var err = new Error((j && j.error) || 'Request failed');
     err.auth = !!(j && j.auth);
@@ -791,11 +813,11 @@ function apiAttempt(fn, args, attempt){
     var retryable = !e.answered && !e.auth && e.name !== 'AbortError' && (e.transient || !e.notJson);
     if (retryable && attempt < API_TRIES) {
       return apiWait(API_BACKOFF_MS[attempt - 1]).then(function(){
-        return apiAttempt(fn, args, attempt + 1);
+        return apiAttempt(fn, args, attempt + 1, co);
       });
     }
     if (e.name === 'AbortError') {
-      var t = new Error('The API did not answer in ' + Math.round(API_TIMEOUT_MS / 1000) + ' seconds.');
+      var t = new Error('The API did not answer in ' + Math.round(limit / 1000) + ' seconds.');
       t.timedOut = true;
       throw t;
     }
@@ -810,15 +832,46 @@ function apiAttempt(fn, args, attempt){
           function(e){ clearTimeout(timer); throw e; });
 }
 
-/* One at a time, in order. The server serialises anyway; doing it here means
-   the queue is visible and a failure cannot break the chain for what follows. */
-function apiCall(fn, args){
+/* Lanes: each one call at a time, in order. Boot and every write ride the
+   main lane, so a clock-out can never overtake a clock-in. Reads that only
+   refresh a screen — the code list, the day's entries, a job search — ride
+   their own, and the schedule (a different system, the board) its own, so a
+   slow one can never hold a save or a send behind it. That was "stuck on
+   Sending…": twenty-five seconds of extras in front of the log, every time. */
+var API_LANE = { getExtras:'reads', getMyDay:'reads', getJobCodes:'reads', searchJobs:'reads', getNearbyCandidates:'reads', getMyJobs:'board' };
+var apiLanes = {};
+/* One ceiling does not fit every call. A send JobTread has to do real work
+   for (a daily log, photo copies) waits longer; so does a photo riding
+   through the API. Both are safe to wait on: the send cannot make a twin,
+   the upload cannot double a file. The clock keeps the short ceiling. */
+var API_TIMEOUTS = { sendDailyLog: 60000, uploadCapture: 90000 };
+var apiServer = {};   // fn -> the server's own timing from its last reply
+
+function apiCall(fn, args, co){
   if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
-  var run = function(){ return apiAttempt(fn, args, 1); };
-  var p = apiChain.then(run, run);
-  apiChain = p.then(function(){}, function(){});
-  return p;
+  co = co || {};
+  if (co.timeout == null && API_TIMEOUTS[fn]) co.timeout = API_TIMEOUTS[fn];
+  var lane = co.lane || API_LANE[fn] || 'main';
+  var queuedAt = Date.now(), t0 = 0;
+  var run = function(){ t0 = Date.now(); return apiAttempt(fn, args, 1, co); };
+  var p = (apiLanes[lane] || Promise.resolve()).then(run, run);
+  apiLanes[lane] = p.then(function(){}, function(){});
+  return p.then(function(v){ apiNote(fn, queuedAt, t0, true, null); return v; },
+                function(e){ apiNote(fn, queuedAt, t0, false, e); throw e; });
 }
+/* The last dozen calls as the phone saw them — how long in line, how long
+   out, and the API's own clock on the same call when the reply came back.
+   Phone long and API short means the wait was in front of the script; both
+   long means the work itself, and `pave` says how much was JobTread. */
+function apiNote(fn, queuedAt, t0, ok, e){
+  var now = Date.now();
+  var rec = { fn: fn, at: now, wait: t0 ? t0 - queuedAt : 0, ms: t0 ? now - t0 : 0, ok: ok,
+              err: ok ? '' : String((e && e.message) || e || '') };
+  if (ok && apiServer[fn]) rec.server = apiServer[fn];
+  S.apiLog.push(rec);
+  if (S.apiLog.length > 12) S.apiLog.shift();
+}
+function fmtMs(ms){ ms = Number(ms) || 0; return ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms'; }
 
 /* =========================================================
    STATE
@@ -833,7 +886,8 @@ var S = {
   photos:[], notes:[], sent:false,
   checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
   dlJobId:null, dlDate:'', pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
-  sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null
+  sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
+  apiLog:[], errs:[], recent:[]
 };
 
 function savePrefs(){
@@ -908,6 +962,8 @@ function failed(where, e, quiet){
     stack = String((e && e.stack) || '').split('\n').slice(0, 4).join('\n');
   } catch (_){}
   S.lastErr = { where: where, msg: msg, at: Date.now(), stack: stack };
+  S.errs.push(S.lastErr);
+  if (S.errs.length > 5) S.errs.shift();
   try { renderVersion(); } catch(_){}
   // `quiet`: recorded for the Build panel, but not toasted — a save that will
   // retry on its own says so in place, and a red toast on a dead spot is noise.
@@ -1356,6 +1412,7 @@ function renderVersion(){
       ? '<div class="trow"><span class="nm">Board time</span><span class="d tabular">' +
         (a.boardMs >= 1000 ? (a.boardMs/1000).toFixed(1) + 's' : a.boardMs + 'ms') + '</span></div>'
       : '');
+  renderApiBox();
 
   // Registering a device used to happen only on a successful clock-in — the
   // one moment it is relevant, but also impossible while writes are off, and
@@ -1369,7 +1426,7 @@ function renderVersion(){
   pb.disabled = blocked;
   pb.style.opacity = blocked ? .5 : 1;
 
-  $('copyDiagBtn').classList.toggle('hidden', !S.lastErr);
+  $('copyDiagBtn').classList.toggle('hidden', !S.lastErr && !S.apiLog.length);
 
   var le = $('errBox'), e = S.lastErr;
   le.classList.toggle('hidden', !e);
@@ -1377,6 +1434,30 @@ function renderVersion(){
     le.innerHTML = '<div class="k">Last error · ' + esc(e.where) + ' · ' + esc(clockLabel(e.at)) + '</div>' +
                    '<div class="em">' + esc(e.msg) + '</div>';
   }
+}
+
+/* Two clocks on every call — the phone's and the API's — plus the API's own
+   memory of its last calls, which is the only record of a call the phone gave
+   up on. What the office needs to answer "why was it slow" without opening
+   the Apps Script console. */
+function apiLine(r){
+  var srv = r.server ? ' · api ' + fmtMs(r.server.total) + (r.server.pave ? ' (' + r.server.pave + ' JT ' + fmtMs(r.server.paveMs) + ')' : '') : '';
+  return clockLabel(r.at) + ' ' + r.fn + ' ' + (r.ok ? '' : 'FAILED ') + fmtMs(r.ms) +
+         (r.wait > 1500 ? ' after ' + fmtMs(r.wait) + ' in line' : '') + srv + (r.err ? ' — ' + r.err : '');
+}
+function seenLine(c){
+  return clockLabel(c.at) + ' ' + c.fn + ' ' + (c.ok ? '' : 'FAILED ') + fmtMs(c.ms) +
+         (c.pave ? ' (' + c.pave + ' JT ' + fmtMs(c.paveMs) + ')' : '') + (c.who ? ' · ' + c.who : '') + (c.err ? ' — ' + c.err : '');
+}
+function renderApiBox(){
+  var box = $('apiBox');
+  if (!box) return;
+  var mine = S.apiLog.slice(-6).reverse(), seen = (S.recent || []).slice(-6).reverse();
+  box.classList.toggle('hidden', !mine.length && !seen.length);
+  if (!mine.length && !seen.length) return;
+  box.innerHTML =
+    (mine.length ? '<div class="k">API calls · this phone</div><div class="em">' + mine.map(function(r){ return esc(apiLine(r)); }).join('<br>') + '</div>' : '') +
+    (seen.length ? '<div class="k" style="margin-top:8px">API calls · as the API saw them</div><div class="em">' + seen.map(function(c){ return esc(seenLine(c)); }).join('<br>') + '</div>' : '');
 }
 
 /* The service worker keeps a copy of the shell so the app opens with no
@@ -1487,6 +1568,8 @@ function keepFresh(a, askedAt){
    behind a tap, so they load after the clock is already on screen. Nothing
    waits on this. If someone taps faster than it answers, the sheet says it is
    still loading and redraws itself when the answer lands. */
+var EXTRAS_RETRY_MS = [15000, 45000, 120000];
+var extrasTries = 0;
 function loadExtras(){
   if (!S.me || S.extrasLoading) return Promise.resolve();
   S.extrasLoading = true;
@@ -1494,8 +1577,15 @@ function loadExtras(){
     S.codes = d.codes || [];
     S.jobOptions = d.jobOptions || [];
     S.crew = d.crew || [];
+    extrasTries = 0;
   }).catch(function(e){
     failed('extras', e);
+    // The code list is what a clock-in needs. An API too slow to hand it over
+    // is asked again, later, on its own — not left to a reopen.
+    if (extrasTries < EXTRAS_RETRY_MS.length && !(e && e.answered)){
+      var ms = EXTRAS_RETRY_MS[extrasTries++];
+      setTimeout(function(){ if (!S.codes.length || !S.jobOptions.length) loadExtras(); }, ms);
+    }
   }).then(function(){
     S.extrasLoading = false;
     render();
@@ -3072,7 +3162,9 @@ var dlTimers = {}, dlRetries = {};
 function dlSchedule(k, ms){ clearTimeout(dlTimers[k]); dlTimers[k] = setTimeout(function(){ delete dlTimers[k]; dlFlush(k); }, ms); }
 function dlRetryLater(k){
   var n = dlRetries[k] || 0; dlRetries[k] = n + 1;
-  dlSchedule(k, CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)]);
+  var ms = CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)];
+  if (dlStore[k]) dlStore[k].nextTry = Date.now() + ms;
+  dlSchedule(k, ms);
 }
 function dlRetryPending(){
   for (var k in dlStore){
@@ -3138,10 +3230,19 @@ function dlFlush(k){
 function dlStatus(e){
   if (!e) return { cls: '', text: 'Not started' };
   if (e.sent) return { cls: 'ok', text: 'Sent ' + clockLabel(e.sent.at), tick: true };
-  if (e.sending) return { cls: '', text: 'Sending…' };
+  if (e.sending){
+    // "Sending…" for a minute is a lie of omission: say how long, and that
+    // the API is the slow one.
+    var secs = e.lastTry ? Math.round((Date.now() - e.lastTry) / 1000) : 0;
+    return { cls: '', text: secs < 8 ? 'Sending…' : 'Sending… ' + secs + 's' + (secs >= 30 ? ' — the API is slow' : '') };
+  }
   if (e.wantSend){
     if (e.err && e.err.indexOf('uploading:') === 0) return { cls: '', text: 'Waiting for ' + e.err.slice(10) + ' photo' + (e.err.slice(10) === '1' ? '' : 's') + ' to upload… up to 2 min' };
     if (e.err && e.err !== 'retry' && e.err !== 'offline') return { cls: 'bad', text: e.err };
+    if (e.err === 'retry' && e.nextTry && e.nextTry > Date.now()){
+      var left = e.nextTry - Date.now();
+      return { cls: 'bad', text: 'Not sent — trying again ' + (left < 90000 ? 'in ' + Math.max(1, Math.round(left / 1000)) + 's' : 'at ' + clockLabel(e.nextTry)) };
+    }
     return { cls: 'bad', text: 'Not sent — will retry' };
   }
   return { cls: '', text: dlHasContent(e) ? 'Draft' : 'Not started' };
@@ -3388,10 +3489,12 @@ function start(){
     render();
     pump();
     handleShootParam();
-    loadExtras();
     // Deliberately after render(), and not in the chain above: the board is a
     // second system and the clock must be usable before it answers, or not.
+    // The schedule and the code list ride separate lanes, so neither waits
+    // on the other.
     loadAssignments();
+    loadExtras();
     // Anything ticked in a dead spot last time goes now — after the clock's
     // own calls, never ahead of them. A log that was waiting, likewise.
     ckRetryPending();
@@ -3418,6 +3521,7 @@ function bootStart(lastJob, attempt){
     S.open = d.open;
     S.job = d.job;
     S.entries = d.entries || [];
+    S.recent = d.recent || [];
     if (S.open) scheduleNudge();
     ckOnProfile();
     if (attempt > 0){
@@ -3493,7 +3597,10 @@ $('copyDiagBtn').onclick = function(){
              ', online ' + S.online,
     'ua       ' + navigator.userAgent,
     e.where ? ('error    ' + e.where + ' · ' + clockLabel(e.at) + '\n         ' + e.msg) : 'error    none',
-    e.stack ? ('stack    ' + e.stack.replace(/\n/g, '\n         ')) : ''
+    e.stack ? ('stack    ' + e.stack.replace(/\n/g, '\n         ')) : '',
+    S.errs.length > 1 ? ('errors   ' + S.errs.slice(0, -1).reverse().map(function(x){ return clockLabel(x.at) + ' ' + x.where + ' — ' + x.msg; }).join('\n         ')) : '',
+    S.apiLog.length ? ('api-log  ' + S.apiLog.slice().reverse().map(apiLine).join('\n         ')) : '',
+    (S.recent || []).length ? ('api-seen ' + S.recent.slice(-12).reverse().map(seenLine).join('\n         ')) : ''
   ].filter(Boolean).join('\n');
 
   var done = function(ok){ toast(ok ? 'Diagnostics copied' : 'Could not copy — screenshot this tab', !ok); };
@@ -3551,6 +3658,12 @@ setInterval(function(){
   if (!S.open) return;
   $('elapsed').textContent = hms(openSeconds());
   if (S.tab === 'job') { renderClock(); renderDay(); }
+}, 1000);
+/* the day log's status ticks while a send is out, or waiting to go again */
+setInterval(function(){
+  if (S.tab !== 'log' || !S.dlJobId) return;
+  var e = dlGet(S.dlJobId, S.dlDate || isoLocal());
+  if (e && (e.sending || (e.wantSend && e.err === 'retry'))) renderLogStatus();
 }, 1000);
 
 if ('serviceWorker' in navigator){

@@ -278,6 +278,7 @@ that are otherwise hard to produce:
 | `__MOCK_SLOWPUT` | hold a site-checks save this many ms, to watch "Saving…" and tap during it |
 | `__MOCK_STARTFAIL` | the first N boot calls answer 500 as a web page, the way an overloaded `/exec` does — the app's own boot retry carries it |
 | `__MOCK_LOGFAIL` / `__MOCK_SLOWLOG` | a JobTread hiccup on the day-log send (kept, retried) / hold the send this many ms |
+| `__MOCK_SLOWEXTRAS` | hold the extras call this many ms — the read lane: a send must still go at once |
 
 The last two matter more than they look: the fallback is what a crew member sees
 on the morning the board is down, and it is the path that proves the clock is

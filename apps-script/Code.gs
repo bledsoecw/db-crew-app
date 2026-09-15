@@ -41,7 +41,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.8 (2026-09-15)';
+var APP_BUILD = 'T1.9 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -292,14 +292,37 @@ function verifySessionToken_(token) {
   return String(payload.email || '').toLowerCase();
 }
 
+// The last calls the API answered, for the Build panel. A phone that timed
+// out never saw its own reply; the next getStart carries this list, so the
+// server's side of the story is a tap away. CacheService, not a property:
+// this is diagnostics, and two executions finishing together may drop each
+// other's line — fine here, never for anything that matters.
+var RECENT_CALLS_KEY = 'recent_calls_v1', RECENT_CALLS_MAX = 30;
+function recordCall_(fn, email, out) {
+  try {
+    var cache = CacheService.getScriptCache(), list = [];
+    try { list = JSON.parse(cache.get(RECENT_CALLS_KEY) || '[]') || []; } catch (e0) { list = []; }
+    list.push({ fn: fn || '?', who: String(email || '').split('@')[0].slice(0, 16), at: Date.now(),
+                ms: out.ms.total, pave: out.ms.pave, paveMs: out.ms.paveMs, ok: out.ok ? 1 : 0,
+                err: out.ok ? '' : String(out.error || '').slice(0, 80) });
+    if (list.length > RECENT_CALLS_MAX) list = list.slice(list.length - RECENT_CALLS_MAX);
+    cache.put(RECENT_CALLS_KEY, JSON.stringify(list), 21600);
+  } catch (e) { /* diagnostics only */ }
+}
+function recentCalls_() {
+  try { return JSON.parse(CacheService.getScriptCache().get(RECENT_CALLS_KEY) || '[]') || []; } catch (e) { return []; }
+}
+
 function doPost(e) {
-  var out;
+  var t0 = Date.now(), tAuth = 0, tMember = 0, fn = '', email = '', out;
+  PAVE_T.n = 0; PAVE_T.ms = 0;
   try {
     var body = {};
     try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (pe) { throw new Error('Bad request body.'); }
-    var email = verifyIdToken_(body.t);
+    email = verifyIdToken_(body.t);
     assertAccess_(email);
-    var fn = String(body.fn || '');
+    tAuth = Date.now();
+    fn = String(body.fn || '');
     var args = Object.prototype.toString.call(body.args) === '[object Array]' ? body.args : [];
 
     // Every write is stamped with the caller resolved from the verified token,
@@ -335,7 +358,11 @@ function doPost(e) {
     var data;
     if (fn === 'getBoot') data = getBootFor_(email);
     else if (fn === 'exchangeSession') data = mintSessionToken_(email);
-    else if (WITH_USER[fn]) data = WITH_USER[fn].apply(null, [memberFor_(email)].concat(args));
+    else if (WITH_USER[fn]) {
+      var me = memberFor_(email);
+      tMember = Date.now();
+      data = WITH_USER[fn].apply(null, [me].concat(args));
+    }
     else if (PLAIN[fn]) data = PLAIN[fn].apply(null, args);
     else throw new Error('Unknown function: ' + fn);
     out = { ok: true, data: (data === undefined ? null : data) };
@@ -344,32 +371,32 @@ function doPost(e) {
     out = { ok: false, error: msg, auth: msg === 'AUTH', readOnly: msg.indexOf('READ_ONLY') === 0,
       noAccess: msg.indexOf('NO_ACCESS') === 0 };
   }
+  // Where the time went, on every reply — the sign-in check, the membership
+  // lookup, the work itself and JobTread inside it — so a phone that waited
+  // can say which. And a line in the recent-calls log for the phones that
+  // gave up before this answer reached them (getStart hands the log back).
+  var now = Date.now(), tWork = tMember || tAuth;
+  out.ms = { total: now - t0, auth: (tAuth || now) - t0, member: tMember ? tMember - tAuth : 0,
+             fn: tWork ? now - tWork : 0, pave: PAVE_T.n, paveMs: PAVE_T.ms };
+  recordCall_(fn, email, out);
   return ContentService.createTextOutput(JSON.stringify(out))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 // ---- PAVE API CALL (same pattern as DB Cam / the dashboard) ----
-function pave(queryBody) {
+var PAVE_URL = 'https://api.jobtread.com/pave';
+// A per-execution tally, so every reply can say how much of its time was
+// JobTread's (`ms.pave`, `ms.paveMs`). A round trip from here costs seconds,
+// not the tens of milliseconds a laptop sees — which is why questions that
+// don't depend on each other go out together (paveAll_).
+var PAVE_T = { n: 0, ms: 0 };
+
+function paveParams_(queryBody) {
   var q = { '$': { grantKey: GRANT_KEY } };
   for (var k in queryBody) q[k] = queryBody[k];
-  var opts = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify({ query: q }),
-    muteHttpExceptions: true
-  };
-  var resp = UrlFetchApp.fetch('https://api.jobtread.com/pave', opts);
-  var code = resp.getResponseCode();
-  var body = resp.getContentText();
-  if (code >= 400) {
-    var looksJson = String(body).charAt(0) === '{';
-    if (!looksJson) {
-      Utilities.sleep(1500);
-      resp = UrlFetchApp.fetch('https://api.jobtread.com/pave', opts);
-      code = resp.getResponseCode();
-      body = resp.getContentText();
-    }
-  }
+  return { method: 'post', contentType: 'application/json', payload: JSON.stringify({ query: q }), muteHttpExceptions: true };
+}
+function paveParse_(code, body) {
   var data;
   try {
     data = JSON.parse(body);
@@ -380,6 +407,45 @@ function pave(queryBody) {
     throw new Error('Pave error (HTTP ' + code + '): ' + JSON.stringify(data.errors || data.error || data).slice(0, 300));
   }
   return data;
+}
+function pave(queryBody) {
+  var t0 = Date.now(), opts = paveParams_(queryBody);
+  try {
+    var resp = UrlFetchApp.fetch(PAVE_URL, opts);
+    var code = resp.getResponseCode();
+    var body = resp.getContentText();
+    if (code >= 400 && String(body).charAt(0) !== '{') {
+      // Not JobTread's own answer (a gateway page): once more, after a pause.
+      Utilities.sleep(1500);
+      resp = UrlFetchApp.fetch(PAVE_URL, opts);
+      code = resp.getResponseCode();
+      body = resp.getContentText();
+    }
+    return paveParse_(code, body);
+  } finally { PAVE_T.n++; PAVE_T.ms += Date.now() - t0; }
+}
+/** Several queries that don't depend on each other, in one round trip.
+ *  Returns [{ data } | { error }] in the same order: one failing never hides
+ *  the others' answers, and the caller says which ones it cannot do without. */
+function paveAll_(queries) {
+  if (!queries || !queries.length) return [];
+  var t0 = Date.now();
+  var reqs = queries.map(function (qb) { var p = paveParams_(qb); p.url = PAVE_URL; return p; });
+  var resps;
+  try { resps = UrlFetchApp.fetchAll(reqs); }
+  catch (e) {
+    PAVE_T.n += queries.length; PAVE_T.ms += Date.now() - t0;
+    return queries.map(function () { return { error: e }; });
+  }
+  PAVE_T.n += queries.length; PAVE_T.ms += Date.now() - t0;
+  return resps.map(function (resp, i) {
+    var code = resp.getResponseCode(), body = resp.getContentText();
+    if (code >= 400 && String(body).charAt(0) !== '{') {
+      // A gateway page for this one: pave()'s own pause-and-retry.
+      try { return { data: pave(queries[i]) }; } catch (e1) { return { error: e1 }; }
+    }
+    try { return { data: paveParse_(code, body) }; } catch (e2) { return { error: e2 }; }
+  });
 }
 
 // ===========================================================
@@ -471,40 +537,45 @@ function bootProfile_(m) {
 // the jobs you have recently clocked into, plus GPS proximity,
 // plus whatever the app remembered last. You can always pick.
 // ===========================================================
-function getJobOptions(userId) {
-  var ck = userId ? 'jo_' + userId : '';
-  if (ck) {
-    var cached = cacheGet_(ck);
-    if (cached) return cached;
-  }
-  var jobIds = [], seen = {}, lastByJob = {};
-  if (userId) {
-    try {
-      var d = pave({
-        organization: {
-          '$': { id: ORG },
-          timeEntries: {
-            '$': { where: [['user', 'id'], userId], sortBy: [{ field: 'startedAt', order: 'desc' }], size: 60 },
-            nodes: { startedAt: {}, job: { id: {} } }
-          }
-        }
-      });
-      var ns = (((d.organization || {}).timeEntries || {}).nodes) || [];
-      for (var i = 0; i < ns.length && jobIds.length < 10; i++) {
-        var j = ns[i].job;
-        if (!j || !j.id || seen[j.id]) continue;
-        seen[j.id] = 1;
-        lastByJob[j.id] = ns[i].startedAt;
-        jobIds.push(j.id);
+function recentJobsQuery_(userId) {
+  return {
+    organization: {
+      '$': { id: ORG },
+      timeEntries: {
+        '$': { where: [['user', 'id'], userId], sortBy: [{ field: 'startedAt', order: 'desc' }], size: 60 },
+        nodes: { startedAt: {}, job: { id: {} } }
       }
-    } catch (e) { /* fall through to an empty list */ }
+    }
+  };
+}
+/** The picker's list from the caller's recent entries (already fetched):
+ *  the last ten distinct jobs, richest first worked; cached. */
+function jobOptionsFrom_(userId, d) {
+  var jobIds = [], seen = {}, lastByJob = {};
+  var ns = (((d.organization || {}).timeEntries || {}).nodes) || [];
+  for (var i = 0; i < ns.length && jobIds.length < 10; i++) {
+    var j = ns[i].job;
+    if (!j || !j.id || seen[j.id]) continue;
+    seen[j.id] = 1;
+    lastByJob[j.id] = ns[i].startedAt;
+    jobIds.push(j.id);
   }
   if (!jobIds.length) return [];
   var rich = fetchJobs_({ 'in': [{ field: 'id' }, jobIds.map(function (id) { return { value: id }; })] }, jobIds.length);
   rich.forEach(function (r) { if (lastByJob[r.id]) r.lastWorked = lastByJob[r.id]; });
   rich.sort(function (a, b) { return String(b.lastWorked || '').localeCompare(String(a.lastWorked || '')); });
-  if (ck) cachePut_(ck, rich, JOBS_CACHE_SEC);
+  if (userId) cachePut_('jo_' + userId, rich, JOBS_CACHE_SEC);
   return rich;
+}
+function getJobOptions(userId) {
+  if (userId) {
+    var cached = cacheGet_('jo_' + userId);
+    if (cached) return cached;
+  }
+  if (!userId) return [];
+  var d = null;
+  try { d = pave(recentJobsQuery_(userId)); } catch (e) { return []; }
+  return jobOptionsFrom_(userId, d);
 }
 
 function searchJobs(term) {
@@ -520,8 +591,8 @@ function searchJobs(term) {
   }, 25);
 }
 
-function fetchJobs_(where, size) {
-  var data = pave({
+function jobsQuery_(where, size) {
+  return {
     organization: {
       '$': { id: ORG },
       jobs: {
@@ -532,7 +603,9 @@ function fetchJobs_(where, size) {
         }
       }
     }
-  });
+  };
+}
+function jobsFrom_(data) {
   var nodes = (((data.organization || {}).jobs || {}).nodes) || [];
   return nodes.map(function (j) {
     var loc = j.location || {};
@@ -546,6 +619,9 @@ function fetchJobs_(where, size) {
       lng: (loc.longitude == null ? null : loc.longitude)
     };
   });
+}
+function fetchJobs_(where, size) {
+  return jobsFrom_(pave(jobsQuery_(where, size)));
 }
 
 // Flat job list with coordinates, for the client's haversine "nearest job".
@@ -856,25 +932,29 @@ function enrichVisits_(visits) {
     if (tid && tid !== v.taskId && !seenT[tid]) { seenT[tid] = 1; taskIds.push(tid); }
     if (v.jobId && !seenJ[v.jobId]) { seenJ[v.jobId] = 1; jobIds.push(v.jobId); }
   });
+  // Both labels, one round trip; each is best effort on its own.
+  var qs = [], tags = [];
   if (taskIds.length) {
+    qs.push({ organization: { '$': { id: ORG },
+      tasks: { '$': { where: { and: [['id', 'in', taskIds]] }, size: 50 }, nodes: { id: {}, name: {} } } } });
+    tags.push('tasks');
+  }
+  if (jobIds.length) { qs.push(jobPeopleQuery_(jobIds)); tags.push('people'); }
+  var got = {};
+  paveAll_(qs).forEach(function (r, i) { got[tags[i]] = r; });
+  if (got.tasks && !got.tasks.error) {
     try {
-      var dt = pave({
-        organization: {
-          '$': { id: ORG },
-          tasks: { '$': { where: { and: [['id', 'in', taskIds]] }, size: 50 }, nodes: { id: {}, name: {} } }
-        }
-      });
       var byTask = {};
-      ((((dt.organization || {}).tasks || {}).nodes) || []).forEach(function (t) { byTask[t.id] = crewLabelFromTaskName_(t.name); });
+      ((((got.tasks.data.organization || {}).tasks || {}).nodes) || []).forEach(function (t) { byTask[t.id] = crewLabelFromTaskName_(t.name); });
       visits.forEach(function (v) {
         var tid = v.checks && v.checks.taskId;
         if (tid && tid !== v.taskId && byTask[tid]) v.alongside = byTask[tid];
       });
     } catch (e1) { /* a label */ }
   }
-  if (jobIds.length) {
+  if (got.people && !got.people.error) {
     try {
-      var people = jobPeopleByIds_(jobIds);
+      var people = jobPeopleFrom_(got.people.data);
       visits.forEach(function (v) { var p = people[v.jobId]; if (p) { v.pm = p.pm; v.reps = p.reps; } });
     } catch (e2) { /* a label */ }
   }
@@ -888,8 +968,8 @@ function crewLabelFromTaskName_(name) {
 }
 
 /** { jobId: { pm, reps[] } } for the given jobs, one Pave call. */
-function jobPeopleByIds_(jobIds) {
-  var d = pave({
+function jobPeopleQuery_(jobIds) {
+  return {
     organization: {
       '$': { id: ORG },
       jobs: {
@@ -903,7 +983,9 @@ function jobPeopleByIds_(jobIds) {
         }
       }
     }
-  });
+  };
+}
+function jobPeopleFrom_(d) {
   var out = {};
   ((((d.organization || {}).jobs || {}).nodes) || []).forEach(function (j) {
     var pm = '', reps = [];
@@ -917,37 +999,64 @@ function jobPeopleByIds_(jobIds) {
   });
   return out;
 }
+function jobPeopleByIds_(jobIds) {
+  return jobPeopleFrom_(pave(jobPeopleQuery_(jobIds)));
+}
 
 /** A membership id for a user name, as the PM and Sales Rep fields carry it.
  *  null when nobody in the org has that name; cached either way. */
+function membershipNameKey_(name) {
+  return 'mbn_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(name).toLowerCase())).slice(0, 40);
+}
+function membershipByNameQuery_(name) {
+  return {
+    organization: {
+      '$': { id: ORG },
+      memberships: { '$': { where: [['user', 'name'], name], size: 1 }, nodes: { id: {} } }
+    }
+  };
+}
+function membershipIdFrom_(d) {
+  var ns = (((d.organization || {}).memberships || {}).nodes) || [];
+  return ns.length ? (ns[0].id || null) : null;
+}
 function membershipByName_(name) {
   name = String(name || '').trim();
   if (!name) return null;
-  var ck = 'mbn_' + Utilities.base64EncodeWebSafe(
-    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, name.toLowerCase())).slice(0, 40);
+  var ck = membershipNameKey_(name);
   var hit = cacheGet_(ck);
   if (hit) return hit.id || null;
   var id = null;
   try {
-    var d = pave({
-      organization: {
-        '$': { id: ORG },
-        memberships: { '$': { where: [['user', 'name'], name], size: 1 }, nodes: { id: {} } }
-      }
-    });
-    var ns = (((d.organization || {}).memberships || {}).nodes) || [];
-    if (ns.length) id = ns[0].id || null;
+    id = membershipIdFrom_(pave(membershipByNameQuery_(name)));
+    // Cached either way — nobody by that name is an answer too. A failed
+    // lookup is not, and is asked again next time.
+    cachePut_(ck, { id: id }, 21600);
   } catch (e) { id = null; }
-  cachePut_(ck, { id: id }, 21600);
   return id;
 }
 
 /** [{membership:{membershipId}}] for a list of names, plus who resolved and who didn't. */
 function assigneesFor_(names) {
+  var want = [];
+  (names || []).forEach(function (n) { n = String(n || '').trim(); if (n && want.indexOf(n) === -1) want.push(n); });
+  // The names the cache doesn't know are looked up together, one round trip.
+  var ids = {}, miss = [];
+  want.forEach(function (n) {
+    var hit = cacheGet_(membershipNameKey_(n));
+    if (hit) ids[n] = hit.id || null; else miss.push(n);
+  });
+  if (miss.length) {
+    paveAll_(miss.map(membershipByNameQuery_)).forEach(function (r, i) {
+      var id = r.error ? null : membershipIdFrom_(r.data);
+      ids[miss[i]] = id;
+      if (!r.error) cachePut_(membershipNameKey_(miss[i]), { id: id }, 21600);
+    });
+  }
   var assignees = [], assigned = [], unresolved = [];
-  (names || []).forEach(function (n) {
-    if (!n || assigned.indexOf(n) !== -1 || unresolved.indexOf(n) !== -1) return;
-    var mid = membershipByName_(n);
+  want.forEach(function (n) {
+    var mid = ids[n];
     if (mid) { assignees.push({ membership: { membershipId: mid } }); assigned.push(n); }
     else unresolved.push(n);
   });
@@ -1293,30 +1402,30 @@ function cacheGet_(key) {
   } catch (e) { return null; }
 }
 
-function getJobCodes(jobId) {
-  if (!jobId) throw new Error('Missing job id.');
-  var ck = 'jc_' + jobId;
-  var cached = cacheGet_(ck);
-  if (cached) return cached;
-  var out = [], seen = {}, page = null;
-  for (var i = 0; i < 4; i++) {
-    var arg = { where: [['costType', 'name'], 'Labor'], size: 100 };
-    if (page) arg.page = page;
-    var d = pave({
-      job: {
-        '$': { id: jobId },
-        costItems: {
-          '$': arg,
-          nextPage: {},
-          nodes: {
-            id: {}, name: {},
-            document: { id: {} },
-            jobCostItem: { id: {} },
-            costCode: { number: {}, name: {} }
-          }
+function jobCodesQuery_(jobId, page) {
+  var arg = { where: [['costType', 'name'], 'Labor'], size: 100 };
+  if (page) arg.page = page;
+  return {
+    job: {
+      '$': { id: jobId },
+      costItems: {
+        '$': arg,
+        nextPage: {},
+        nodes: {
+          id: {}, name: {},
+          document: { id: {} },
+          jobCostItem: { id: {} },
+          costCode: { number: {}, name: {} }
         }
       }
-    });
+    }
+  };
+}
+/** The code list from its first page (already fetched), the rest paged in
+ *  as needed; sorted and cached. */
+function jobCodesFrom_(jobId, first) {
+  var out = [], seen = {}, d = first;
+  for (var i = 0; i < 4; i++) {
     var conn = (((d.job || {}).costItems) || {});
     var nodes = conn.nodes || [];
     for (var n = 0; n < nodes.length; n++) {
@@ -1332,14 +1441,20 @@ function getJobCodes(jobId) {
         codeName: cc.name || ''
       });
     }
-    page = conn.nextPage;
-    if (!page) break;
+    if (!conn.nextPage) break;
+    d = pave(jobCodesQuery_(jobId, conn.nextPage));
   }
   out.sort(function (a, b) {
     return String(a.number).localeCompare(String(b.number)) || String(a.name).localeCompare(String(b.name));
   });
-  cachePut_(ck, out, CODES_CACHE_SEC);
+  cachePut_('jc_' + jobId, out, CODES_CACHE_SEC);
   return out;
+}
+function getJobCodes(jobId) {
+  if (!jobId) throw new Error('Missing job id.');
+  var cached = cacheGet_('jc_' + jobId);
+  if (cached) return cached;
+  return jobCodesFrom_(jobId, pave(jobCodesQuery_(jobId, null)));
 }
 
 // ===========================================================
@@ -1347,8 +1462,8 @@ function getJobCodes(jobId) {
 // Clocked in == an open time entry (endedAt null). JobTread
 // counts the minutes itself; the app only opens and closes.
 // ===========================================================
-function openEntryFor_(userId) {
-  var d = pave({
+function openEntryQuery_(userId) {
+  return {
     organization: {
       '$': { id: ORG },
       timeEntries: {
@@ -1364,9 +1479,14 @@ function openEntryFor_(userId) {
         }
       }
     }
-  });
+  };
+}
+function openEntryFrom_(d) {
   var ns = (((d.organization || {}).timeEntries || {}).nodes) || [];
   return ns.length ? shapeEntry_(ns[0]) : null;
+}
+function openEntryFor_(userId) {
+  return openEntryFrom_(pave(openEntryQuery_(userId)));
 }
 
 function shapeEntry_(t) {
@@ -1424,19 +1544,28 @@ function getStart(me, jobId) {
   // Same profile getBoot returns, built the same way — so a DB Hub 'Manager'
   // grant still unlocks the crew block on the path the app actually boots by.
   var boot = bootProfile_(me);
-  var open = openEntryFor_(me.userId);
+  // Boot's JobTread questions go out together: the open entry (the clock —
+  // boot is wrong without it), today's entries, and the last job, which only
+  // matters when nothing is open but costs less asked alongside than after.
+  var qs = [openEntryQuery_(me.userId), myDayQuery_(me.userId)];
+  if (jobId) qs.push(jobsQuery_(['id', jobId], 1));
+  var rs = paveAll_(qs);
+  if (rs[0].error) throw rs[0].error;
+  if (rs[1].error) throw rs[1].error;
+  var open = openEntryFrom_(rs[0].data);
   var job = null;
   if (open && open.job) job = open.job;
-  else if (jobId) {
-    var jl = fetchJobs_(['id', jobId], 1);
+  else if (jobId && rs[2] && !rs[2].error) {
+    var jl = jobsFrom_(rs[2].data);
     job = jl.length ? jl[0] : null;
   }
   return {
     me: boot,
     open: open,
     job: job,
-    entries: getMyDay(me),
-    writeEnabled: writeEnabled_()
+    entries: myDayFrom_(rs[1].data),
+    writeEnabled: writeEnabled_(),
+    recent: recentCalls_()
   };
 }
 
@@ -1447,24 +1576,37 @@ function getStart(me, jobId) {
 // so and reloads.
 function getExtras(me, jobId) {
   var out = { codes: [], jobOptions: [], crew: [] };
-  if (jobId) { try { out.codes = getJobCodes(jobId); } catch (e) {} }
-  try { out.jobOptions = getJobOptions(me.userId); } catch (e) {}
-  if (bootProfile_(me).isForeman) { try { out.crew = getCrewOnClock(); } catch (e) {} }
+  var codesHit = jobId ? cacheGet_('jc_' + jobId) : null;
+  var optsHit = me.userId ? cacheGet_('jo_' + me.userId) : null;
+  var foreman = bootProfile_(me).isForeman;
+  // Whatever the cache doesn't hold goes out in one round trip. Each part is
+  // best effort, as before: an empty code list is a tap from another ask.
+  var qs = [], tags = [];
+  if (jobId && !codesHit) { qs.push(jobCodesQuery_(jobId, null)); tags.push('codes'); }
+  if (me.userId && !optsHit) { qs.push(recentJobsQuery_(me.userId)); tags.push('recent'); }
+  if (foreman) { qs.push(crewOnClockQuery_()); tags.push('crew'); }
+  var got = {};
+  paveAll_(qs).forEach(function (r, i) { got[tags[i]] = r; });
+  if (codesHit) out.codes = codesHit;
+  else if (got.codes && !got.codes.error) { try { out.codes = jobCodesFrom_(jobId, got.codes.data); } catch (e1) {} }
+  if (optsHit) out.jobOptions = optsHit;
+  else if (got.recent && !got.recent.error) { try { out.jobOptions = jobOptionsFrom_(me.userId, got.recent.data); } catch (e2) {} }
+  if (got.crew && !got.crew.error) { try { out.crew = crewFrom_(got.crew.data); } catch (e3) {} }
   return out;
 }
 
 // Today's closed + open entries for the caller, for the "today on
 // this job" table. Day boundary is the script's own time zone.
 // NOTE: Pave wants '>=', not 'gte' — it rejects the latter outright.
-function getMyDay(me) {
+function myDayQuery_(userId) {
   var start = new Date();
   start.setHours(0, 0, 0, 0);
-  var d = pave({
+  return {
     organization: {
       '$': { id: ORG },
       timeEntries: {
         '$': {
-          where: { and: [[['user', 'id'], me.userId], { '>=': [{ field: 'startedAt' }, { value: start.toISOString() }] }] },
+          where: { and: [[['user', 'id'], userId], { '>=': [{ field: 'startedAt' }, { value: start.toISOString() }] }] },
           sortBy: [{ field: 'startedAt', order: 'desc' }],
           size: 50
         },
@@ -1475,9 +1617,14 @@ function getMyDay(me) {
         }
       }
     }
-  });
+  };
+}
+function myDayFrom_(d) {
   var ns = (((d.organization || {}).timeEntries || {}).nodes) || [];
   return ns.map(shapeEntry_);
+}
+function getMyDay(me) {
+  return myDayFrom_(pave(myDayQuery_(me.userId)));
 }
 
 function coordArg_(c) {
@@ -1538,8 +1685,8 @@ function switchCode(me, jobId, costItemId, coords) {
 }
 
 // Foreman view: who is on the clock right now.
-function getCrewOnClock() {
-  var d = pave({
+function crewOnClockQuery_() {
+  return {
     organization: {
       '$': { id: ORG },
       timeEntries: {
@@ -1552,7 +1699,9 @@ function getCrewOnClock() {
         }
       }
     }
-  });
+  };
+}
+function crewFrom_(d) {
   var ns = (((d.organization || {}).timeEntries || {}).nodes) || [];
   return ns.map(function (t) {
     var u = t.user || {}, j = t.job || {}, ci = t.costItem || {}, cc = ci.costCode || {};
@@ -1567,6 +1716,9 @@ function getCrewOnClock() {
       code: (cc.number ? cc.number + ' ' : '') + (ci.name || '')
     };
   });
+}
+function getCrewOnClock() {
+  return crewFrom_(pave(crewOnClockQuery_()));
 }
 
 // ===========================================================

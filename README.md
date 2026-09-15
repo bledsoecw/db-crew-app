@@ -329,9 +329,26 @@ board's 403 going read-only, a dead spot, a 502, the unsaved state surviving a
 reload), `dev/daylog-test.mjs` drives the week strip, today's job from the
 schedule, a move between roofs and the day log (the draft, the notes, a photo
 by reference, the send and what it carries, yesterday's log, a dead spot, a
-JobTread hiccup, a boot the API is too slow to answer, and a send that was in
-flight when the page reloaded), and `apps-script/code-test.mjs` covers
-`getMyJobs`, `saveSiteChecks`, `sendDailyLog` (including the same day sent
-twice) and the schedule sweep against a stubbed Apps Script runtime (135
+JobTread hiccup, a boot the API is too slow to answer, a send that was in
+flight when the page reloaded, a send going out while a slow extras call is
+still in its own lane, and the status wording while a send is out or waiting
+to go again), and `apps-script/code-test.mjs` covers `getMyJobs`,
+`saveSiteChecks`, `sendDailyLog` (including the same day sent twice), the
+one-round-trip boot and extras, `paveAll_`, the timing every reply carries
+and the schedule sweep against a stubbed Apps Script runtime (150
 assertions) — every state the Production Board and JobTread can leave them
 in, without either to point at.
+
+**Why calls are slow, and what the app does about it.** A JobTread round
+trip from Apps Script costs seconds, not the tens of milliseconds a laptop
+sees, and the phone's ceiling on a call is fixed. So the API asks its
+independent questions together (`paveAll_` on `UrlFetchApp.fetchAll`: boot
+is one round trip, extras one or two), every reply carries where its time
+went (`ms`: sign-in check, membership lookup, the work, JobTread inside it),
+and `getStart` hands back the API's last thirty calls — the only record of a
+call the phone gave up on. The phone runs three lanes (boot and writes; the
+code list and other reads; the board), so a slow read can never hold a save
+or a send behind it, gives the daily-log send sixty seconds and a photo
+riding through the API ninety, and shows all of it in the Build panel:
+its own clock and the API's on every call, and the API's memory of the
+rest.

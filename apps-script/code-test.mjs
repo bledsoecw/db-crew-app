@@ -17,7 +17,7 @@ import vm from 'node:vm';
 const src = readFileSync(new URL('./Code.gs', import.meta.url), 'utf8');
 
 // Minimal Apps Script stubs — enough to run the assigned-jobs path.
-let props = {}, cacheStore = {}, fetched = [];
+let props = {}, cacheStore = {}, fetched = [], trips = 0;
 let fetchImpl = () => ({ code: 200, body: '{"crew":null,"visits":[]}' });
 const sandbox = {
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] ?? null, setProperty: (k,v)=>{props[k]=v;},
@@ -37,7 +37,10 @@ const sandbox = {
     sleep: () => {},
   },
   UrlFetchApp: { fetch: (url, opts) => { fetched.push({url, opts}); const r = fetchImpl(url, opts);
-    return { getResponseCode: () => r.code, getContentText: () => r.body }; } },
+    return { getResponseCode: () => r.code, getContentText: () => r.body }; },
+    // One round trip for several requests, the way Apps Script offers it.
+    fetchAll: (reqs) => { trips++; return reqs.map(r => sandbox.UrlFetchApp.fetch(r.url, r)); } },
+  ContentService: { createTextOutput: (txt) => ({ setMimeType() { return this; }, getContent: () => txt }), MimeType: { JSON: 'application/json' } },
   ScriptApp: { getProjectTriggers: () => [], deleteTrigger: () => {}, newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }) }) }) },
   console,
 };
@@ -208,43 +211,127 @@ const afterFirst = fetched.length;
 t('a second ask is served from cache', [sandbox.getJobCodes('j1').map(c => c.id), fetched.length], [['ci1'], afterFirst]);
 t('a different job is not', [sandbox.getJobCodes('j2').length, fetched.length > afterFirst], [1, true]);
 
-// ---- boot: the clock first, everything else after ----
+// A router for the stubbed fetch: by URL, then by the shape of the Pave query.
+const paveOf = (opts) => { try { return JSON.parse(opts.payload).query; } catch { return null; } };
+function route(handlers) {
+  return (url, opts) => {
+    if (url.indexOf('/api/crew/assignments') > -1) return handlers.board(url, opts);
+    if (url.indexOf('oauth2.googleapis.com/tokeninfo') > -1) return { code: 200, body: JSON.stringify({ aud: 'cid', email_verified: 'true', email: 't@deitemeyerbrothers.com', exp: Math.floor(Date.now() / 1000) + 3600 }) };
+    if (url.indexOf('oauth2.googleapis.com/token') > -1) return { code: 200, body: '{"access_token":"at","expires_in":3600}' };
+    if (url.indexOf('fcm.googleapis.com') > -1) { pushes.push(JSON.parse(opts.payload).message); return handlers.fcm ? handlers.fcm() : { code: 200, body: '{}' }; }
+    const q = paveOf(opts) || {};
+    if (q.organization && q.organization.tasks) return handlers.tasks ? handlers.tasks(q) : { code: 200, body: '{"organization":{"tasks":{"nodes":[]}}}' };
+    if (q.organization && q.organization.jobs && q.organization.jobs.nodes && q.organization.jobs.nodes.customFieldValues) return handlers.people ? handlers.people(q) : { code: 200, body: '{"organization":{"jobs":{"nodes":[]}}}' };
+    if (q.organization && q.organization.memberships) return handlers.member ? handlers.member(q) : { code: 200, body: '{"organization":{"memberships":{"nodes":[]}}}' };
+    if (q.createDailyLog) return handlers.dailyLog ? handlers.dailyLog(q) : { code: 200, body: '{"createDailyLog":{"createdDailyLog":{"id":"dl1"}}}' };
+    if (q.createComment) return handlers.comment ? handlers.comment(q) : { code: 200, body: '{"createComment":{"createdComment":{"id":"c1","createdAt":"2026-09-15T20:00:00Z"}}}' };
+    if (q.job && q.job.costItems) return handlers.codes ? handlers.codes(q) : { code: 200, body: '{"job":{"costItems":{"nextPage":null,"nodes":[]}}}' };
+    if (q.organization && q.organization.jobs) return handlers.jobs ? handlers.jobs(q) : { code: 200, body: '{"organization":{"jobs":{"nodes":[]}}}' };
+    if (q.organization && q.organization.timeEntries) return handlers.entries ? handlers.entries(q) : { code: 200, body: '{"organization":{"timeEntries":{"nodes":[]}}}' };
+    return { code: 200, body: '{}' };
+  };
+}
+let pushes = [];
+
+// ---- boot: the clock first, everything else after — and together ----
 // Collapsing all of boot into one call fixed the queueing and created a worse
 // problem — seven-plus sequential Pave round trips in a single execution, which
-// overran the client's 25-second ceiling and failed boot outright. getStart
-// must stay down to what the first screen cannot be drawn without. The code
-// list, the job picker and the crew block are all behind a tap, so they belong
-// in getExtras, after the app is already usable.
-props = {}; cacheStore = {}; fetched = [];
-let calls = [];
-sandbox.openEntryFor_ = () => { calls.push('open'); return null; };
-sandbox.fetchJobs_ = () => { calls.push('job'); return [{ id: 'j1' }]; };
-sandbox.getMyDay = () => { calls.push('day'); return []; };
-sandbox.getJobCodes = () => { calls.push('codes'); return [{ id: 'ci1' }]; };
-sandbox.getJobOptions = () => { calls.push('options'); return [{ id: 'j1' }, { id: 'j2' }]; };
-sandbox.getCrewOnClock = () => { calls.push('crew'); return [{ name: 'Alberto' }]; };
+// overran the client's 25-second ceiling and failed boot outright. Two rules
+// came out of it. getStart stays down to what the first screen cannot be drawn
+// without; the code list, the job picker and the crew block are behind a tap,
+// so they belong in getExtras, after the app is usable. And questions that do
+// not depend on each other go out in ONE round trip (paveAll_ on fetchAll): a
+// round trip from Apps Script costs seconds, and the phone's ceiling is fixed.
+const kindOf = (f) => {
+  const q = paveOf(f.opts) || {}, o = q.organization || {};
+  if (q.job) return 'codes';
+  if (o.jobs) return o.jobs.nodes && o.jobs.nodes.customFieldValues ? 'people' : 'job';
+  if (o.timeEntries) {
+    const a = o.timeEntries.$;
+    return a.size === 1 ? 'open' : a.where[0] === 'endedAt' ? 'crew' : o.timeEntries.nodes.id ? 'day' : 'recent';
+  }
+  return '?';
+};
+const JOBS = (q) => ({ code: 200, body: JSON.stringify({ organization: { jobs: { nodes:
+  q.organization.jobs.$.where.in ? [{ id: 'j1', name: 'Webster', number: '26-0890' }, { id: 'j2', name: 'Lucas', number: '26-1204' }]
+                                 : [{ id: 'j1', name: 'Webster', number: '26-0890' }] } } }) });
+const ENTRIES = (q) => {
+  const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+  const nodes = k === 'crew' ? [{ id: 'te9', startedAt: '2026-09-15T12:00:00Z', minutes: 30, user: { id: 'u2', name: 'Alberto' }, job: { id: 'j1', name: 'Webster', number: '26-0890' }, costItem: { id: 'ci1', name: 'Crew Labor', costCode: { number: '01GR' } } }]
+              : k === 'recent' ? [{ startedAt: '2026-09-15T11:00:00Z', job: { id: 'j1' } }, { startedAt: '2026-09-14T11:00:00Z', job: { id: 'j2' } }]
+              : [];
+  return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes } } }) };
+};
+const CODES = () => ({ code: 200, body: JSON.stringify({ job: { costItems: { nextPage: null, nodes: [
+  { id: 'ci1', name: 'Crew Labor', costCode: { number: '01GR', name: 'General Requirements' } } ] } } }) });
+const DOWN = () => ({ code: 500, body: '{"errors":[{"message":"down"}]}' });
 
+props = {}; cacheStore = {}; fetched = []; trips = 0;
+fetchImpl = route({ jobs: JOBS, entries: ENTRIES, codes: CODES });
 const crewMe = { ...ME, role: 'Crew' };
 const s1 = sandbox.getStart(crewMe, 'j1');
 t('getStart carries the profile', [s1.me.name, s1.me.userId, s1.me.build], ['Tyler B.', 'u1', sandbox.APP_BUILD]);
 t('getStart carries the clock', [s1.job.id, s1.open, s1.entries.length], ['j1', null, 0]);
-t('getStart stops at what the screen needs', calls, ['open', 'job', 'day']);
+t('getStart asks JobTread once: the open entry, the day and the last job together', [trips, fetched.map(kindOf)], [1, ['open', 'day', 'job']]);
+t('...and hands back the API\'s recent-calls log', Array.isArray(s1.recent), true);
 
-calls = [];
+fetched = []; trips = 0;
+fetchImpl = route({ jobs: JOBS, entries: (q) => kindOf({ opts: { payload: JSON.stringify({ query: q }) } }) === 'open' ? DOWN() : ENTRIES(q) });
+let bootErr = '';
+try { sandbox.getStart(crewMe, 'j1'); } catch (e) { bootErr = e.message; }
+t('the open entry failing fails boot — the phone\'s retry gets it', /Pave error/.test(bootErr), true);
+fetchImpl = route({ jobs: DOWN, entries: ENTRIES });
+const s2 = sandbox.getStart(crewMe, 'j1');
+t('the last job failing does not', [s2.open, s2.job, s2.entries.length], [null, null, 0]);
+
+cacheStore = {}; fetched = []; trips = 0;
+fetchImpl = route({ jobs: JOBS, entries: ENTRIES, codes: CODES });
 const x1 = sandbox.getExtras(crewMe, 'j1');
 t('getExtras carries the codes and the picker', [x1.codes.length, x1.jobOptions.length], [1, 2]);
-t('a crew member gets no crew block', [x1.crew.length, calls.indexOf('crew')], [0, -1]);
+t('a crew member gets no crew block', [x1.crew.length, fetched.map(kindOf).indexOf('crew')], [0, -1]);
+t('cold: one round trip for the codes and the recent jobs, then the picker\'s details', [trips, fetched.map(kindOf)], [1, ['codes', 'recent', 'job']]);
+fetched = []; trips = 0;
+const x2 = sandbox.getExtras(crewMe, 'j1');
+t('warm: nothing is asked at all', [x2.codes.length, x2.jobOptions.length, fetched.length], [1, 2, 0]);
 
 const bossMe = { ...ME, role: 'Sales Team Manager' };
 t('a manager is a foreman', sandbox.getStart(bossMe, null).me.isForeman, true);
-t('and gets the crew block', sandbox.getExtras(bossMe, 'j1').crew.length, 1);
+fetched = []; trips = 0;
+t('and gets the crew block, in the same round trip', [sandbox.getExtras(bossMe, 'j1').crew.length, trips, fetched.map(kindOf)], [1, 1, ['crew']]);
 
 // no extra is worth failing for, and none may take the others down with it
-sandbox.getJobCodes = () => { throw new Error('pave down'); };
-sandbox.getJobOptions = () => { throw new Error('pave down'); };
-sandbox.getCrewOnClock = () => { throw new Error('pave down'); };
+cacheStore = {}; fetched = [];
+fetchImpl = route({ codes: DOWN, entries: DOWN, jobs: DOWN });
 const x3 = sandbox.getExtras(bossMe, 'j1');
 t('a failing extra returns empty, not an error', [x3.codes.length, x3.jobOptions.length, x3.crew.length], [0, 0, 0]);
+cacheStore = {}; fetched = [];
+fetchImpl = route({ codes: DOWN, entries: ENTRIES, jobs: JOBS });
+const x4 = sandbox.getExtras(bossMe, 'j1');
+t('one failing beside the others leaves theirs alone', [x4.codes.length, x4.jobOptions.length, x4.crew.length], [0, 2, 1]);
+
+// ---- paveAll_: one round trip, the answers kept apart ----
+fetched = []; trips = 0; sandbox.PAVE_T.n = 0;
+fetchImpl = (url, opts) => { const q = paveOf(opts); return q.a ? { code: 200, body: '{"a":1}' } : q.b ? { code: 502, body: '<html>bad gateway</html>' } : { code: 400, body: '{"errors":[{"message":"nope"}]}' }; };
+const pr = sandbox.paveAll_([{ a: {} }, { b: {} }, { c: {} }]);
+t('paveAll_ keeps each answer apart', [pr[0].data, /Pave HTTP 502/.test(pr[1].error.message), /nope/.test(pr[2].error.message)], [{ a: 1 }, true, true]);
+t('...a gateway page gets pave()\'s own second try; the rest went once', [trips, fetched.length], [1, 5]);
+t('...and the tally counts every round trip', sandbox.PAVE_T.n, 4);
+t('nothing to ask is no round trip', [sandbox.paveAll_([]).length, trips], [0, 1]);
+
+// ---- doPost: every reply says where its time went, and the API remembers ----
+props = { OAUTH_CLIENT_ID: 'cid' }; cacheStore = {}; fetched = []; trips = 0;
+const MEMBER_ME = () => ({ code: 200, body: JSON.stringify({ organization: { memberships: { nodes: [{ id: 'm1', role: { name: 'Crew' }, user: { id: 'u1', name: 'Tyler B.' } }] } } }) });
+fetchImpl = route({ codes: CODES, jobs: JOBS, entries: ENTRIES, member: MEMBER_ME });
+const post = (fn, args) => JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok', fn, args }) } }).getContent());
+const r1 = post('getJobCodes', ['j1']);
+t('a reply carries its timing: total, the sign-in check, the work, and JobTread inside it', [r1.ok, r1.data.length, typeof r1.ms.total, typeof r1.ms.auth, r1.ms.member, r1.ms.pave, typeof r1.ms.paveMs], [true, 1, 'number', 'number', 0, 1, 'number']);
+const r2 = post('getStart', ['j1']);
+t('a signed-in call counts the membership lookup apart from the work', [r2.ok, typeof r2.ms.member, r2.ms.pave], [true, 'number', 4]);
+t('...and getStart hands back the log, with the call before it', r2.data.recent.map(c => [c.fn, c.who, c.ok, c.pave]), [['getJobCodes', 't', 1, 1]]);
+const r3 = post('nope', []);
+t('a failed call is logged too, with its error', [r3.ok, r3.ms.pave, sandbox.recentCalls_().slice(-1)[0].err], [false, 0, 'Unknown function: nope']);
+for (let i = 0; i < 40; i++) post('getJobCodes', ['j1']);
+t('the log is capped', sandbox.recentCalls_().length, 30);
 
 // ---- DB Hub's "App access" panel ----
 // The hub decides who may use the clock, but it must never be able to lock
@@ -470,22 +557,6 @@ t('and resolves the membership and the JobTread role', [km.userId, km.membership
 // THE DAY, ON THE JOB — labels on the list, the daily log, the pushes.
 // ============================================================
 // A router: the board's GET, then Pave by what the query asks for.
-const paveOf = (opts) => { try { return JSON.parse(opts.payload).query; } catch { return null; } };
-function route(handlers) {
-  return (url, opts) => {
-    if (url.indexOf('/api/crew/assignments') > -1) return handlers.board(url, opts);
-    if (url.indexOf('oauth2.googleapis.com/token') > -1) return { code: 200, body: '{"access_token":"at","expires_in":3600}' };
-    if (url.indexOf('fcm.googleapis.com') > -1) { pushes.push(JSON.parse(opts.payload).message); return handlers.fcm ? handlers.fcm() : { code: 200, body: '{}' }; }
-    const q = paveOf(opts) || {};
-    if (q.organization && q.organization.tasks) return handlers.tasks ? handlers.tasks(q) : { code: 200, body: '{"organization":{"tasks":{"nodes":[]}}}' };
-    if (q.organization && q.organization.jobs && q.organization.jobs.nodes && q.organization.jobs.nodes.customFieldValues) return handlers.people ? handlers.people(q) : { code: 200, body: '{"organization":{"jobs":{"nodes":[]}}}' };
-    if (q.organization && q.organization.memberships) return handlers.member ? handlers.member(q) : { code: 200, body: '{"organization":{"memberships":{"nodes":[]}}}' };
-    if (q.createDailyLog) return handlers.dailyLog ? handlers.dailyLog(q) : { code: 200, body: '{"createDailyLog":{"createdDailyLog":{"id":"dl1"}}}' };
-    if (q.createComment) return handlers.comment ? handlers.comment(q) : { code: 200, body: '{"createComment":{"createdComment":{"id":"c1","createdAt":"2026-09-15T20:00:00Z"}}}' };
-    return { code: 200, body: '{}' };
-  };
-}
-let pushes = [];
 const PEOPLE = (q) => ({ code: 200, body: JSON.stringify({ organization: { jobs: { nodes: [
   { id: 'j9', customFieldValues: { nodes: [
     { customField: { id: sandbox.CF_PROJECT_MANAGER }, value: 'Dave Elick' },

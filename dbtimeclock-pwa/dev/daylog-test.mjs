@@ -233,7 +233,7 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await ctx.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await page.waitForTimeout(1200);
-  check('a JobTread hiccup: still kept, still retrying', [await txt(page, '#syncBadge'), (await grab(page, '__LOGS')).length], ['Not sent — will retry', 0]);
+  check('a JobTread hiccup: still kept, still retrying', [/^Not sent — trying again in \d+s$/.test(await txt(page, '#syncBadge')), (await grab(page, '__LOGS')).length], [true, 0]);
   await page.evaluate(() => { window.__MOCK_LOGFAIL = false; dlRetryPending(); });
   await page.waitForTimeout(1200);
   check('the retry lands', [/^Sent/.test(await txt(page, '#syncBadge')), (await grab(page, '__LOGS')).length], [true, 1]);
@@ -293,6 +293,52 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await page.waitForTimeout(2500);
   const logs = await grab(page, '__LOGS');
   check('a send that was in flight before the reload goes again', logs.length, 1);
+  await ctx.close();
+}
+
+
+// ---- a slow extras call must not hold the log's send ----
+// The read lane: extras is held nine seconds; the send goes now, in the main
+// lane, and the Build panel's call log shows it waited for nothing.
+{
+  const { ctx, page, errs } = await boot({}, 'window.__MOCK_SLOWEXTRAS=9000;');
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await page.locator('#dlDone').fill('Done.');
+  await tap(page, '#dlSend', 400);
+  await tap(page, '#slYes', 2500);
+  check('the send went while extras was still out', [(await grab(page, '__LOGS')).length, await page.evaluate(() => S.codes.length)], [1, 0]);
+  check('...in its own lane, not behind it', await page.evaluate(() => { const r = S.apiLog.filter(x => x.fn === 'sendDailyLog')[0]; return r && r.ok && r.wait < 1500; }), true);
+  check('the reply\'s own timing is kept with the call', await page.evaluate(() => { const r = S.apiLog.filter(x => x.fn === 'sendDailyLog')[0]; return r.server && r.server.total === 1840 && r.server.pave === 1; }), true);
+  check('...and the API\'s memory of its calls came with boot', await page.evaluate(() => S.recent.map(c => c.fn)), ['getStart', 'getExtras']);
+  check('the Build panel shows both', await page.evaluate(() => { const b = document.getElementById('apiBox'); return [!b.classList.contains('hidden'), /sendDailyLog/.test(b.textContent), /getExtras 31\.4s \(4 JT 29\.8s\)/.test(b.textContent)]; }), [true, true, true]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- "Sending…" says how long, and a failed send says when it tries again ----
+{
+  const { ctx, page, errs } = await boot({}, 'window.__MOCK_SLOWLOG=9500;');
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await page.locator('#dlDone').fill('Done.');
+  await tap(page, '#dlSend', 400);
+  await tap(page, '#slYes', 8800);
+  check('a long send counts the seconds', /^Sending… \d+s$/.test(await txt(page, '#syncBadge')), true);
+  await page.waitForTimeout(1600);
+  check('...and lands', /^Sent/.test(await txt(page, '#syncBadge')), true);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  const { ctx, page, errs } = await boot({}, 'window.__MOCK_LOGFAIL=true;');
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await page.locator('#dlDone').fill('Done.');
+  await tap(page, '#dlSend', 400);
+  await tap(page, '#slYes', 1500);
+  check('a failed send says when it tries again', /^Not sent — trying again in (1[5-9]|20)s$/.test(await txt(page, '#syncBadge')), true);
+  await page.waitForTimeout(2200);
+  check('...and the number moves', /^Not sent — trying again in 1[3-7]s$/.test(await txt(page, '#syncBadge')), true);
+  check('the failure is in the call log, with the reason', await page.evaluate(() => { const r = S.apiLog.filter(x => x.fn === 'sendDailyLog')[0]; return [r.ok, /boom/.test(r.err)]; }), [false, true]);
+  check('no page errors', errs, []);
   await ctx.close();
 }
 

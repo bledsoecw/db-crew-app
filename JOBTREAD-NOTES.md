@@ -231,3 +231,16 @@ and the reps, photos by `copyFromFileId`, and a job comment assigned to the
 same people only when the log carries a problem or a crew left on site without
 a sign-off. The author of the log in JobTread is the grant's user, so the notes
 open with the site manager's name.
+
+## Round trips from Apps Script
+
+A Pave call made from Apps Script (`UrlFetchApp`) costs seconds — the same
+query from a laptop answers in well under one. Seven sequential calls in one
+execution once overran the phone's 25-second ceiling and failed boot outright.
+The rule since: questions that do not depend on each other go out together
+with `UrlFetchApp.fetchAll` (`paveAll_` in Code.gs), which returns one
+`{ data }` or `{ error }` per query so one failing never hides the others.
+Boot (`getStart`) is one round trip — the open entry, today's entries and the
+last job — and `getExtras` one or two. Every reply carries `ms.pave` (how many
+calls) and `ms.paveMs` (how long they took), so the Build panel can say
+whether a slow call was JobTread or the script in front of it.

@@ -303,6 +303,18 @@
     exchangeSession: function () { return { token: 'h.' + payload + '.s', exp: 4102444800 }; }
   };
 
+  var __CALLS = window.__CALLS = [];
+  var gs = HANDLERS.getStart;
+  HANDLERS.getStart = function () {
+    var r = gs.apply(null, arguments);
+    // What the API remembers of its last calls — here, one slow extras call
+    // a phone gave up on, and the boot before it.
+    r.recent = [
+      { fn: 'getStart', who: 'tyler', at: Date.now() - 95000, ms: 2100, pave: 3, paveMs: 1600, ok: 1, err: '' },
+      { fn: 'getExtras', who: 'tyler', at: Date.now() - 60000, ms: 31400, pave: 4, paveMs: 29800, ok: 1, err: '' }
+    ];
+    return r;
+  };
   var realFetch = window.fetch.bind(window);
   window.fetch = function (url, opts) {
     var u = String(url);
@@ -323,6 +335,9 @@
       } catch (err) {
         out = { ok: false, error: String(err && err.message || err), readOnly: /^READ_ONLY/.test(String(err && err.message || '')) };
       }
+      // Every real reply says where its time went; the Build panel shows it.
+      out.ms = { total: 1840, auth: 60, member: 380, fn: 1400, pave: body.fn === 'getStart' ? 3 : 1, paveMs: 1250 };
+      __CALLS.push(body.fn);
       // A real Response, near enough: apiCall reads the body as text and parses
       // it itself, so that it can tell a page from JSON. A stub with only
       // json() silently breaks every screen in the harness.
