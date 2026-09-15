@@ -2,3 +2,9 @@
 node_modules/
 shots/
 apps-script/.clasp.json
+
+# The live apiUrl, clientId and Firebase keys. Never in the repository, and
+# never overwritten by a clone, a branch switch or a merge — which is what
+# happened while it was tracked. Copy dbtimeclock-pwa/config.example.js to
+# create it, and keep a copy outside the repo. See dbtimeclock-pwa/SETUP.md.
+dbtimeclock-pwa/public/config.js

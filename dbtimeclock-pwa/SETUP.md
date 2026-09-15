@@ -36,8 +36,14 @@ files on Firebase Hosting.
 
 ## 4. Wire the pieces
 
-In `public/config.js` — kept separate from `index.html` so the settings are in
-one small file, and committed blank so they are never in the repository:
+Create `public/config.js` from the template — it is git-ignored, so it is yours
+alone and no branch switch, pull or merge can disturb it:
+
+```
+Copy-Item config.example.js public\config.js
+```
+
+Then fill in the two values that matter:
 
 ```js
 window.DBTC_CONFIG = {
@@ -65,23 +71,26 @@ In Apps Script > Project Settings > **Script Properties**:
 
 ### Keep a copy of config.js outside the repo
 
-`firebase deploy` uploads `public/config.js` like any other file, so a fresh
-clone, a branch switch, or a merge that restores the committed copy will push
-the blank placeholder over your live settings and every phone will land on
-*"config.js is not filled in yet"*. The service worker hides it for a while —
-config.js is in the cached shell and the fetch handler is cache-first — so the
-outage tends to appear well after the deploy that caused it.
+`public/config.js` is git-ignored, so git will not touch it. But a Firebase
+Hosting deploy **replaces the entire site**, so if that file is ever missing or
+blank when you deploy, the live app loses its settings and every phone lands on
+*"config.js is not filled in yet"*.
 
-Take a copy now:
+Worse, it does not look broken straight away: config.js sits in the service
+worker's cached shell and the fetch handler is cache-first, so phones keep
+serving the last good copy for hours. The outage surfaces long after the deploy
+that caused it, with a working app in between.
+
+So keep a copy somewhere outside the repo:
 
 ```
 curl.exe -s https://db-time-clock.web.app/config.js -o C:\dev\config-live-backup.js
 ```
 
-`check-config.mjs` runs as a Firebase **predeploy** hook and stops the deploy if
-`apiUrl` or `clientId` is empty, or if `apiUrl` is not an Apps Script `/exec`
-URL. You should never see this fire — if you do, restore from the copy above
-and deploy again.
+`check-config.mjs` runs as a Firebase **predeploy** hook and refuses the deploy
+if `public/config.js` is missing, if `apiUrl` or `clientId` is empty, or if
+`apiUrl` is not an Apps Script `/exec` URL. It prints the command to fix
+whichever case it hit.
 
 ## 4b. Push notifications — the nudge that reaches a pocketed phone
 
