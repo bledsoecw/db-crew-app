@@ -611,7 +611,12 @@ function requireSignIn(msg){
    mechanism, so the client queues its own calls and retries the transient
    ones. */
 var API_TIMEOUT_MS = 25000;
-var API_TRIES = 3;
+/* A freshly launched iOS web app can reject its first fetch outright — Safari
+   says "Load failed" — while the app is still coming up. 300ms and 900ms spent
+   all three attempts inside that window. These span about six seconds, which
+   rides it out. */
+var API_BACKOFF_MS = [500, 1500, 4000];
+var API_TRIES = API_BACKOFF_MS.length + 1;
 var apiChain = Promise.resolve();
 
 function apiWait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -656,7 +661,7 @@ function apiAttempt(fn, args, attempt){
   }).catch(function(e){
     var retryable = !e.answered && !e.auth && e.name !== 'AbortError' && (e.transient || !e.notJson);
     if (retryable && attempt < API_TRIES) {
-      return apiWait(300 * Math.pow(3, attempt - 1)).then(function(){
+      return apiWait(API_BACKOFF_MS[attempt - 1]).then(function(){
         return apiAttempt(fn, args, attempt + 1);
       });
     }
@@ -1270,11 +1275,18 @@ function loadAssignments(){
   renderJobs();
   // Apps Script offers no timeout on its own outbound call, so the ceiling has
   // to live here. Whatever happens, this settles and the spinner state ends.
-  var late = null;
+  var late = null, gaveUp = false;
+  var real = apiCall('getMyJobs', []);
+  // The fallback is a placeholder, not a verdict. If the real answer turns up
+  // after the ceiling — which it did, 1073ms of board behind a slow queue —
+  // take it, rather than leaving the crew member looking at recent jobs.
+  real.then(function(a){
+    if (gaveUp && a) { S.assign = a; render(); }
+  }, function(){});
   var guard = new Promise(function(_, reject){
-    late = setTimeout(function(){ reject(new Error('board-slow')); }, BOARD_WAIT_MS);
+    late = setTimeout(function(){ gaveUp = true; reject(new Error('board-slow')); }, BOARD_WAIT_MS);
   });
-  return Promise.race([apiCall('getMyJobs', []), guard]).then(function(a){
+  return Promise.race([real, guard]).then(function(a){
     S.assign = a || null;
   }).catch(function(e){
     // getMyJobs swallows board failures itself, so reaching here means the
@@ -1310,8 +1322,9 @@ function assignNote(a){
     case 'not-configured':
       return 'The production board is not connected yet. Showing jobs you have recently clocked into.';
     case 'board-slow':
-      return 'The production board did not answer in ' + Math.round(BOARD_WAIT_MS/1000) +
-             ' seconds. Tap refresh to try again — showing jobs you have recently clocked into.';
+      return 'Still waiting on the board after ' + Math.round(BOARD_WAIT_MS/1000) +
+             ' seconds. Showing jobs you have recently clocked into — this list will ' +
+             'replace itself if the answer arrives.';
     default:
       return 'Could not reach the production board. Showing jobs you have recently clocked into.';
   }
