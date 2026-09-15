@@ -691,7 +691,7 @@ function apiCall(fn, args){
    ========================================================= */
 var S = {
   me:null, job:null, codes:[], open:null, entries:[], crew:[],
-  jobOptions:[], candidates:[], assign:null, assignLoading:false,
+  jobOptions:[], candidates:[], assign:null, assignLoading:false, assignAt:0, assignStale:false,
   tab:'job', sheet:null, promptKind:null, pendingCode:null,
   afterRequired:false, nudged:false, escalated:false, returnToClock:false,
   capture:'before', mode:'photo', recStart:0,
@@ -700,7 +700,7 @@ var S = {
 };
 
 function savePrefs(){
-  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, nudged:S.nudged })); } catch(e){}
+  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, nudged:S.nudged, push:pushState })); } catch(e){}
 }
 function loadPrefs(){
   try {
@@ -709,6 +709,10 @@ function loadPrefs(){
     if (Array.isArray(p.photos)) S.photos = p.photos.filter(sameDay);
     if (Array.isArray(p.notes)) S.notes = p.notes.filter(sameDay);
     S.nudged = !!p.nudged;
+    // The device stays registered across launches; only this page's memory of
+    // it is lost. Restoring it stops the Build panel claiming "not checked
+    // yet" about a phone that is already receiving nudges.
+    if (p.push && p.push !== 'unknown') pushState = p.push;
     return p.jobId || '';
   } catch(e){ return ''; }
 }
@@ -960,12 +964,13 @@ function enablePush(){
       step = 'registering the token';
       return apiCall('registerPushToken', [token, isIOS() ? 'ios' : 'android']);
     })
-    .then(function(){ pushState = 'on'; })
+    .then(function(){ pushState = 'on'; savePrefs(); })
     .catch(function(e){
       // Push is a nudge, never a dependency — the clock is untouched either
       // way. But a failure only written to console.warn is a failure nobody
       // can report from a roof, so it goes to the Build panel by name.
       if (pushState !== 'denied') pushState = 'off';
+      savePrefs();
       failed('push · ' + step, e);
     });
 }
@@ -1269,6 +1274,43 @@ function assignedJobRows(){
   }).concat(a.jobs || []);
 }
 
+/* The board answers in about a second, but that answer sits behind Apps
+   Script waking up and three other calls ahead of it in the queue, so a cold
+   open showed an empty tab for ten or twenty seconds. A schedule barely
+   changes minute to minute, so the last one is worth keeping and showing at
+   once while a fresh one is fetched behind it.
+
+   Half a day only: someone opening this at 6am must not be shown yesterday's
+   jobs as though they were today's. */
+var ASSIGN_KEY = 'dbtc_assign';
+var ASSIGN_MAX_AGE_MS = 12 * 3600 * 1000;
+
+function saveAssign(){
+  try {
+    if (S.assign && S.assign.source === 'board') {
+      localStorage.setItem(ASSIGN_KEY, JSON.stringify({ at: Date.now(), a: S.assign }));
+    }
+  } catch (e) {}
+}
+
+function restoreAssign(){
+  try {
+    var c = JSON.parse(localStorage.getItem(ASSIGN_KEY) || 'null');
+    if (!c || !c.a || !c.at) return false;
+    if (Date.now() - c.at > ASSIGN_MAX_AGE_MS) { localStorage.removeItem(ASSIGN_KEY); return false; }
+    S.assign = c.a;
+    S.assignAt = c.at;
+    return true;
+  } catch (e) { return false; }
+}
+
+function keepFresh(a){
+  S.assign = a || null;
+  S.assignAt = Date.now();
+  S.assignStale = false;
+  saveAssign();
+}
+
 function loadAssignments(){
   if (S.assignLoading) return Promise.resolve();
   S.assignLoading = true;
@@ -1281,18 +1323,22 @@ function loadAssignments(){
   // after the ceiling — which it did, 1073ms of board behind a slow queue —
   // take it, rather than leaving the crew member looking at recent jobs.
   real.then(function(a){
-    if (gaveUp && a) { S.assign = a; render(); }
+    if (gaveUp && a) { keepFresh(a); render(); }
   }, function(){});
   var guard = new Promise(function(_, reject){
     late = setTimeout(function(){ gaveUp = true; reject(new Error('board-slow')); }, BOARD_WAIT_MS);
   });
-  return Promise.race([real, guard]).then(function(a){
-    S.assign = a || null;
-  }).catch(function(e){
+  return Promise.race([real, guard]).then(keepFresh).catch(function(e){
     // getMyJobs swallows board failures itself, so reaching here means the
-    // board outlasted the ceiling or Apps Script is unreachable.
-    S.assign = { source:'fallback', crew:null, visits:[], jobs:[],
-                 reason: (e && e.message === 'board-slow') ? 'board-slow' : 'unreachable' };
+    // board outlasted the ceiling or Apps Script is unreachable. A real
+    // schedule already on screen beats the recent-jobs fallback, so keep it
+    // and say how old it is rather than throwing it away.
+    if (S.assign && S.assign.source === 'board' && S.assignAt) {
+      S.assignStale = true;
+    } else {
+      S.assign = { source:'fallback', crew:null, visits:[], jobs:[],
+                   reason: (e && e.message === 'board-slow') ? 'board-slow' : 'unreachable' };
+    }
   }).then(function(){
     clearTimeout(late);
     S.assignLoading = false;
@@ -1314,7 +1360,11 @@ function visitWhen(v){
    looking at a fallback list should know that's what it is. */
 function assignNote(a){
   if (!a) return '';
-  if (a.source === 'board' && a.crew) return '';
+  if (a.source === 'board' && a.crew) {
+    return S.assignStale
+      ? 'Could not reach the board just now — this is the schedule as of ' + clockLabel(S.assignAt) + '.'
+      : '';
+  }
   switch (a.reason){
     case 'no-membership':
     case 'no-crew':
@@ -1920,6 +1970,7 @@ function start(){
   $('app').classList.remove('hidden');
   measureTabs();
   var lastJob = loadPrefs();
+  restoreAssign();   // last known schedule on screen at once; refresh behind it
   applyTheme();
   setTab('job');
 
@@ -1948,8 +1999,11 @@ function start(){
     // second system and the clock must be usable before it answers, or not.
     loadAssignments();
     // Re-register on every launch: FCM tokens rotate, and a stale one is a
-    // nudge that silently goes nowhere.
-    if (S.open) enablePush();
+    // nudge that silently goes nowhere. Once permission is granted this needs
+    // no gesture — requestPermission is never reached — so it can run at boot
+    // rather than waiting for a clock-in that may not come for hours.
+    if (pushConfigured() && window.Notification && Notification.permission === 'granted') enablePush();
+    else if (S.open) enablePush();
   });
 }
 
