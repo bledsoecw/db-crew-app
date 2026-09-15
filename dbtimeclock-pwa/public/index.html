@@ -820,47 +820,54 @@ function enablePush(){
     if (elig === 'needs-install') toast('Add to Home Screen to get photo reminders');
     return Promise.resolve();
   }
-  if (Notification.permission === 'denied'){ pushState = 'off'; return Promise.resolve(); }
+  if (Notification.permission === 'denied'){
+    pushState = 'denied';
+    failed('push · permission', new Error(
+      'Notifications are blocked for this app. iOS will not ask again once refused — ' +
+      'allow them in Settings > Notifications, or delete the Home Screen icon and add it back.'));
+    return Promise.resolve();
+  }
 
+  // Every step here can fail on a phone, and a phone has no console. `step`
+  // is what turns "off" into something somebody can act on.
+  var step = 'asking permission';
   return Promise.resolve()
     .then(function(){ return Notification.permission === 'granted' ? 'granted' : Notification.requestPermission(); })
     .then(function(perm){
-      if (perm !== 'granted'){ pushState = 'off'; return; }
-      return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-app-compat.js')
-        .then(function(){ return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-messaging-compat.js'); })
-        .then(function(){ return navigator.serviceWorker.ready; })
-        .then(function(reg){
-          if (!firebase.apps.length) firebase.initializeApp(window.DBTC_CONFIG.firebase);
-          return firebase.messaging().getToken({
-            vapidKey: window.DBTC_CONFIG.vapidKey,
-            serviceWorkerRegistration: reg
-          });
-        })
-        .then(function(token){
-          if (!token) { pushState = 'off'; return; }
-          return apiCall('registerPushToken', [token, isIOS() ? 'ios' : 'android'])
-            .then(function(){ pushState = 'on'; });
-        });
+      if (perm !== 'granted'){
+        pushState = (perm === 'denied') ? 'denied' : 'off';
+        throw new Error(perm === 'denied'
+          ? 'You tapped Don\u2019t Allow. iOS will not ask again — allow it in Settings > Notifications, or delete the Home Screen icon and add it back.'
+          : 'The permission prompt closed without an answer. Tap the button again and choose Allow.');
+      }
+      step = 'loading the Firebase SDK';
+      return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-app-compat.js');
     })
+    .then(function(){ return loadScript('https://www.gstatic.com/firebasejs/' + FB_VERSION + '/firebase-messaging-compat.js'); })
+    .then(function(){ step = 'waiting for the service worker'; return navigator.serviceWorker.ready; })
+    .then(function(reg){
+      step = 'asking Firebase for a device token';
+      if (!firebase.apps.length) firebase.initializeApp(window.DBTC_CONFIG.firebase);
+      return firebase.messaging().getToken({
+        vapidKey: window.DBTC_CONFIG.vapidKey,
+        serviceWorkerRegistration: reg
+      });
+    })
+    .then(function(token){
+      if (!token) throw new Error('Firebase returned no device token. Usually the vapidKey in config.js is not this project\u2019s Web Push key.');
+      step = 'registering the token';
+      return apiCall('registerPushToken', [token, isIOS() ? 'ios' : 'android']);
+    })
+    .then(function(){ pushState = 'on'; })
     .catch(function(e){
-      // Push is a nudge, never a dependency — the amber strip still carries
-      // the requirement, so a failure here is logged and swallowed.
-      pushState = 'off';
-      if (window.console) console.warn('push setup failed:', e && e.message);
+      // Push is a nudge, never a dependency — the clock is untouched either
+      // way. But a failure only written to console.warn is a failure nobody
+      // can report from a roof, so it goes to the Build panel by name.
+      if (pushState !== 'denied') pushState = 'off';
+      failed('push · ' + step, e);
     });
 }
 
-/* A push tapped while the app was already open. */
-if ('serviceWorker' in navigator){
-  navigator.serviceWorker.addEventListener('message', function(e){
-    if (!e.data || e.data.kind !== 'open-before-photo') return;
-    $('notif').style.display = 'none';
-    closeSheet();
-    S.capture = 'before'; S.returnToClock = true;
-    setTab('cam');
-  });
-}
-/* ...and one tapped while it was closed, which reopens with ?shoot=before. */
 function handleShootParam(){
   if (!/[?&]shoot=before/.test(location.search)) return;
   history.replaceState(null, '', location.pathname);
@@ -1043,6 +1050,7 @@ function pushWords(){
   switch (pushState){
     case 'on': return 'on';
     case 'needs-install': return 'add to Home Screen';
+    case 'denied': return 'blocked in iOS Settings';
     case 'unsupported': return 'not supported here';
     case 'off': return 'off';
     default: return 'not checked yet';
@@ -1071,10 +1079,13 @@ function renderVersion(){
   // one moment it is relevant, but also impossible while writes are off, and
   // a poor time to be answering a permission dialog. This offers it directly.
   var pb = $('pushBtn');
+  var blocked = pushState === 'needs-install' || pushState === 'denied';
   pb.classList.toggle('hidden', !pushConfigured() || pushState === 'on' || pushState === 'unsupported');
-  pb.textContent = pushState === 'needs-install' ? 'Add to Home Screen first' : 'Turn on notifications';
-  pb.disabled = pushState === 'needs-install';
-  pb.style.opacity = pushState === 'needs-install' ? .5 : 1;
+  pb.textContent = pushState === 'needs-install' ? 'Add to Home Screen first'
+                 : pushState === 'denied' ? 'Blocked — allow in iOS Settings'
+                 : 'Turn on notifications';
+  pb.disabled = blocked;
+  pb.style.opacity = blocked ? .5 : 1;
 
   var le = $('errBox'), e = S.lastErr;
   le.classList.toggle('hidden', !e);
