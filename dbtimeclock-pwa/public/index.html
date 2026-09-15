@@ -469,6 +469,7 @@ button[disabled]{cursor:default}
         <div class="k">Build</div>
         <div class="tbl" id="verTbl"></div>
         <div id="errBox" class="hidden"></div>
+        <button class="btn btn-out hidden" id="pushBtn" style="margin-top:12px">Turn on notifications</button>
         <button class="btn btn-out" id="updateBtn" style="margin-top:12px">Check for update</button>
         <div class="foot">Clears this phone's copy of the app and reloads it. Your hours and any queued photos are untouched.</div>
       </div>
@@ -1034,6 +1035,20 @@ function renderCam(){
    other is current, and until now there was no way to tell from the phone.
    Deliberately readable even when getBoot failed: "API · not reached" is
    itself the answer in that case. */
+/* pushState was tracked and never shown, so "did notifications come back?"
+   had no answer on the phone. Each state gets the words that say what to do
+   about it, not the enum. */
+function pushWords(){
+  if (!pushConfigured()) return 'not set up';
+  switch (pushState){
+    case 'on': return 'on';
+    case 'needs-install': return 'add to Home Screen';
+    case 'unsupported': return 'not supported here';
+    case 'off': return 'off';
+    default: return 'not checked yet';
+  }
+}
+
 function renderVersion(){
   var api = (S.me && S.me.build) || '';
   var a = S.assign;
@@ -1046,10 +1061,20 @@ function renderVersion(){
     '<div class="trow"><span class="nm">App</span><span class="d tabular">' + esc(APP_BUILD) + '</span></div>' +
     '<div class="trow"><span class="nm">API</span><span class="d tabular">' + esc(api || 'not reached') + '</span></div>' +
     '<div class="trow"><span class="nm">Board</span><span class="d tabular">' + esc(board) + '</span></div>' +
+    '<div class="trow"><span class="nm">Push</span><span class="d tabular">' + esc(pushWords()) + '</span></div>' +
     (a && a.boardMs != null
       ? '<div class="trow"><span class="nm">Board time</span><span class="d tabular">' +
         (a.boardMs >= 1000 ? (a.boardMs/1000).toFixed(1) + 's' : a.boardMs + 'ms') + '</span></div>'
       : '');
+
+  // Registering a device used to happen only on a successful clock-in — the
+  // one moment it is relevant, but also impossible while writes are off, and
+  // a poor time to be answering a permission dialog. This offers it directly.
+  var pb = $('pushBtn');
+  pb.classList.toggle('hidden', !pushConfigured() || pushState === 'on' || pushState === 'unsupported');
+  pb.textContent = pushState === 'needs-install' ? 'Add to Home Screen first' : 'Turn on notifications';
+  pb.disabled = pushState === 'needs-install';
+  pb.style.opacity = pushState === 'needs-install' ? .5 : 1;
 
   var le = $('errBox'), e = S.lastErr;
   le.classList.toggle('hidden', !e);
@@ -1830,6 +1855,13 @@ $('fileIn').onchange = function(){
 };
 $('addPhotoBtn').onclick = function(){ S.returnToClock = false; setTab('cam'); };
 $('addNoteBtn').onclick = addNote;
+$('pushBtn').onclick = function(){
+  toast('Asking for permission…');
+  enablePush().then(function(){
+    render();
+    toast(pushState === 'on' ? 'Notifications on' : 'Notifications ' + pushWords(), pushState !== 'on');
+  });
+};
 $('updateBtn').onclick = forceUpdate;
 $('sendDayBtn').onclick = function(){
   S.sent = true; savePrefs(); render();
