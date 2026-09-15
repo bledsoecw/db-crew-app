@@ -701,6 +701,9 @@ function openSeconds(){ return S.open ? Math.max(0, (Date.now() - new Date(S.ope
    somebody can act on. */
 function failed(where, e){
   var msg = (e && e.message) || String(e || 'Unknown error');
+  // Safari's DOM exceptions carry messages like a bare "Type error". The name
+  // is the only thing that distinguishes them, so it rides along.
+  if (e && e.name && msg.replace(/\s/g,'').toLowerCase().indexOf(e.name.toLowerCase()) === -1) msg = e.name + ': ' + msg;
   S.lastErr = { where: where, msg: msg, at: Date.now() };
   try { renderVersion(); } catch(_){}
   toast(msg, true);
@@ -812,6 +815,25 @@ function loadScript(src){
 
 /* Called after a successful clock-in, which is both the moment the nudge
    becomes relevant and a real user gesture (iOS requires one). */
+/* A Web Push key is a base64url-encoded uncompressed P-256 point: 65 bytes,
+   leading 0x04, which is 87-88 characters starting with "B". The Firebase SDK
+   decodes it and hands it to pushManager.subscribe, and Safari answers a bad
+   one with a bare "Type error" that names neither the value nor the field. So
+   check the shape here, where we can say which. */
+function vapidProblem(){
+  var k = String((window.DBTC_CONFIG || {}).vapidKey || '').trim();
+  if (!k) return 'vapidKey is empty in config.js.';
+  if (/\s/.test(String((window.DBTC_CONFIG || {}).vapidKey || '')))
+    return 'vapidKey has a space or line break in it — it was probably copied with surrounding whitespace.';
+  if (!/^[A-Za-z0-9_-]+$/.test(k))
+    return 'vapidKey contains characters that are not base64url. Copy the "Key pair" value from Firebase console > Project settings > Cloud Messaging > Web Push certificates.';
+  if (k.charAt(0) !== 'B')
+    return 'vapidKey should start with "B". This looks like a different value from that page — the key id or the sender id rather than the key pair.';
+  if (k.length < 85 || k.length > 90)
+    return 'vapidKey is ' + k.length + ' characters; a Web Push key is 87 or 88. It looks truncated or padded.';
+  return '';
+}
+
 function enablePush(){
   if (!pushConfigured()) { pushState = 'off'; return Promise.resolve(); }
   var elig = pushEligible();
@@ -847,6 +869,8 @@ function enablePush(){
     .then(function(){ step = 'waiting for the service worker'; return navigator.serviceWorker.ready; })
     .then(function(reg){
       step = 'asking Firebase for a device token';
+      var bad = vapidProblem();
+      if (bad) throw new Error(bad);
       if (!firebase.apps.length) firebase.initializeApp(window.DBTC_CONFIG.firebase);
       return firebase.messaging().getToken({
         vapidKey: window.DBTC_CONFIG.vapidKey,

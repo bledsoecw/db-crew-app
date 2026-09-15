@@ -145,7 +145,15 @@
       var fn = HANDLERS[body.fn];
       var out = fn ? { ok: true, data: fn.apply(null, body.args || []) }
                    : { ok: false, error: 'Unknown function: ' + body.fn };
-      return Promise.resolve({ ok: true, json: function () { return Promise.resolve(out); } });
+      // A real Response, near enough: apiCall reads the body as text and parses
+      // it itself, so that it can tell a page from JSON. A stub with only
+      // json() silently breaks every screen in the harness.
+      var text = JSON.stringify(out);
+      return Promise.resolve({
+        ok: true, status: 200,
+        text: function () { return Promise.resolve(text); },
+        json: function () { return Promise.resolve(JSON.parse(text)); }
+      });
     }
     if (u.indexOf('mock.local/put') !== -1) return Promise.resolve({ ok: true, status: 200 });
     return realFetch(url, opts);
