@@ -2834,7 +2834,17 @@ function pump(){
   }).catch(function(){}).then(function(){
     pumping = false;
     idbAll().then(function(rest){
-      S.queued = rest.length; render();
+      S.queued = rest.length;
+      // A photo still marked pending with nothing left in the queue has no
+      // upload behind it any more (an older build discarded refused uploads;
+      // a phone can lose its store). Say so, rather than wait on it. A minute
+      // of grace covers a capture whose queue entry is still being written.
+      var queued = {};
+      rest.forEach(function(it){ queued[it.id] = 1; });
+      S.photos.forEach(function(p){
+        if (p.pending && !queued[p.id] && Date.now() - (p.at || 0) > 60000 && !p.err) p.err = 'not uploaded — take it again';
+      });
+      savePrefs(); render();
       if (!rest.length){ pumpFails = 0; dlRetryPending(); return; }
       // Something is still queued after a failed run. It used to wait for the
       // next open or reconnect; now it tries again on its own, backing off,
