@@ -44,7 +44,7 @@
       }
     ],
     "predeploy": [
-      "node check-config.mjs"
+      "node ./check-config.mjs"
     ]
   }
 }

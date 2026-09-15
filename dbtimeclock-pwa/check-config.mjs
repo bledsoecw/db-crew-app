@@ -60,9 +60,13 @@ try {
        'would leave the live app with no settings at all.'], FIRST_TIME);
 }
 
+// JavaScript has three string quotes and this file is hand-edited, so all
+// three are accepted. Matching only ' made a double-quoted config — the style
+// Firebase's own console hands you — read as "not present", which stopped a
+// perfectly good deploy and blamed the wrong thing.
 const valueOf = (key) => {
-  const m = src.match(new RegExp(key + "\\s*:\\s*'([^']*)'"));
-  return m ? m[1].trim() : null;
+  const m = src.match(new RegExp(key + "\\s*:\\s*([\"'`])([\\s\\S]*?)\\1"));
+  return m ? m[2].trim() : null;
 };
 
 const problems = [];
