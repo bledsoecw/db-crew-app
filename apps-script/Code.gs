@@ -122,6 +122,14 @@ function verifyIdToken_(idToken) {
 // hub that was DOWN — a hub that answered correctly but slowly tripped
 // nothing, so the next cache expiry paid in full again (Carl, Sep 2026).
 //
+// Measured once the trigger was installed (15 Sep 2026): 7209ms, then 5095ms
+// per refresh at a five-minute cadence — i.e. with the hub kept WARM. That is
+// five to seven seconds that used to sit in front of every boot, before the
+// clock's own Pave calls, under a 25-second ceiling; cold, with hours between
+// launches, it was worse, and the trigger keeping the hub warm now means its
+// true cold latency is no longer observable from here. Either way it does not
+// belong on the request path.
+//
 // Now a time-driven trigger (installAccessFeedRefresh, every 5 minutes) keeps
 // a copy warm and the request path only ever reads it: the cache first, then
 // a durable copy in Script Properties that survives a cache eviction, and past
