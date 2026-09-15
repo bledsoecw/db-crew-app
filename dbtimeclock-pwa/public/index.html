@@ -3184,7 +3184,7 @@ function dlBodyHtml(cur, e, date){
   var notes = (d.notes || []);
   h += '<div class="dlq"><span class="k">Notes during the day' + (notes.length ? ' · ' + notes.length : '') + '</span>' +
        (notes.length ? '<div style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px">' + notes.map(noteCardHtml).join('') + '</div>' : '') +
-       '<textarea id="dlNote" placeholder="Homeowner asked about the trailer spot…"></textarea>' +
+       '<textarea id="dlNote" placeholder="Something worth a line in the log — or for the office right now"></textarea>' +
        '<button class="urgentrow' + (S.dlUrgent ? ' on' : '') + '" id="dlUrgent"><span class="box">' + CK_TICK_SM + '</span>Office needs this now — send it to the PM straight away</button>' +
        '<button class="btn btn-out" id="dlAddNote" style="min-height:60px;font-size:15px">Add note</button></div>';
   var people = [];
