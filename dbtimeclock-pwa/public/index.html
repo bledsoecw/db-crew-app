@@ -1974,21 +1974,18 @@ function start(){
   applyTheme();
   setTab('job');
 
-  apiCall('getBoot', []).then(function(b){
-    S.me = b;
-    S.writeEnabled = !!b.writeEnabled;
-    return apiCall('getToday', [lastJob || null]);
-  }).then(function(t){
-    S.open = t.open;
-    S.job = t.job;
-    S.codes = t.codes || [];
-    S.entries = t.entries || [];
-    S.writeEnabled = !!t.writeEnabled;
+  // One call, not four. getStart does the same Pave work server-side in a
+  // single Apps Script execution — see the comment above it in Code.gs.
+  apiCall('getStart', [lastJob || null]).then(function(d){
+    S.me = d.me;
+    S.writeEnabled = !!d.writeEnabled;
+    S.open = d.open;
+    S.job = d.job;
+    S.codes = d.codes || [];
+    S.entries = d.entries || [];
+    S.jobOptions = d.jobOptions || [];
+    S.crew = d.crew || [];
     if (S.open) scheduleNudge();
-    return apiCall('getJobOptions', [S.me.userId]);
-  }).then(function(list){
-    S.jobOptions = list || [];
-    if (S.me && S.me.isForeman) return apiCall('getCrewOnClock', []).then(function(c){ S.crew = c || []; });
   }).catch(function(e){
     if (!(e && e.auth)) failed('boot', e);
   }).then(function(){

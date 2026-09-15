@@ -79,6 +79,13 @@
                role: window.__MOCK_FOREMAN ? 'Foreman' : 'Crew', isForeman: !!window.__MOCK_FOREMAN,
                writeEnabled: !window.__MOCK_READONLY, build: 'mock' };
     },
+    getStart: function (jobId) {
+      var b = HANDLERS.getBoot();
+      var t = HANDLERS.getToday(jobId);
+      return { me: b, open: t.open, job: t.job, codes: t.codes, entries: t.entries,
+               writeEnabled: t.writeEnabled, jobOptions: HANDLERS.getJobOptions(),
+               crew: b.isForeman ? HANDLERS.getCrewOnClock() : [] };
+    },
     getToday: function () {
       return { me: { userId: 'u1', name: 'Tyler B.' }, open: ST.open, job: JOB, codes: CODES,
                entries: ST.entries, writeEnabled: !window.__MOCK_READONLY };

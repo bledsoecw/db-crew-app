@@ -145,6 +145,7 @@ function doPost(e) {
     // Every write is stamped with the caller resolved from the verified token,
     // never with a user id sent by the client.
     var WITH_USER = {
+      getStart: getStart,
       getToday: getToday,
       clockIn: clockIn,
       switchCode: switchCode,
@@ -718,6 +719,46 @@ function getToday(me, jobId) {
     entries: getMyDay(me),
     writeEnabled: writeEnabled_()
   };
+}
+
+// Everything the app needs to start, in ONE execution.
+//
+// Boot used to be four round trips — getBoot, getToday, getJobOptions and,
+// for anyone whose role matches foreman, getCrewOnClock. Apps Script runs one
+// execution at a time per user, so those queued; each paid its own cold start,
+// and each was another chance for the /macros/echo redirect to come back 404.
+// On a phone that was ten to twenty seconds of empty screen.
+//
+// The same Pave queries, in one execution. The work is unchanged; the waiting
+// is not.
+function getStart(me, jobId) {
+  var isForeman = /foreman|super|manager|owner|admin/i.test(me.role || '');
+  var today = getToday(me, jobId);
+  var out = {
+    me: {
+      email: me.email,
+      name: me.name,
+      userId: me.userId,
+      membershipId: me.membershipId,
+      role: me.role,
+      isForeman: isForeman,
+      captureFolder: CAPTURE_FOLDER,
+      writeEnabled: writeEnabled_(),
+      build: APP_BUILD
+    },
+    open: today.open,
+    job: today.job,
+    codes: today.codes,
+    entries: today.entries,
+    writeEnabled: today.writeEnabled,
+    jobOptions: [],
+    crew: []
+  };
+  // Neither of these is worth failing the whole start for: without the job
+  // list you can still search, and the crew block is a foreman's extra.
+  try { out.jobOptions = getJobOptions(me.userId); } catch (e) {}
+  if (isForeman) { try { out.crew = getCrewOnClock(); } catch (e) {} }
+  return out;
 }
 
 // Today's closed + open entries for the caller, for the "today on

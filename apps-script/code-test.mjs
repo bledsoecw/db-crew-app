@@ -184,5 +184,30 @@ const fast = sandbox.getMyJobs(ME);
 t('a fast call does not trip it', [fast.boardMs, cacheStore['board_slow']], [300, undefined]);
 sandbox.__now = null;
 
+// ---- getStart: one execution, everything the app boots with ----
+// Boot was four sequential Apps Script executions, each queued behind the
+// last. This asserts the single call carries all four payloads.
+props = {}; cacheStore = {}; fetched = [];
+sandbox.getToday = () => ({ open: null, job: { id: 'j1' }, codes: [{ id: 'ci1' }], entries: [], writeEnabled: false });
+sandbox.getJobOptions = () => [{ id: 'j1' }, { id: 'j2' }];
+sandbox.getCrewOnClock = () => [{ name: 'Alberto' }];
+
+const crewMe = { ...ME, role: 'Crew' };
+const s1 = sandbox.getStart(crewMe, null);
+t('getStart carries the profile', [s1.me.name, s1.me.userId, s1.me.build], ['Tyler B.', 'u1', sandbox.APP_BUILD]);
+t('getStart carries today', [s1.job.id, s1.codes.length], ['j1', 1]);
+t('getStart carries the job list', s1.jobOptions.length, 2);
+t('a crew member gets no crew block', [s1.me.isForeman, s1.crew.length], [false, 0]);
+
+const bossMe = { ...ME, role: 'Sales Team Manager' };
+const s2 = sandbox.getStart(bossMe, null);
+t('a manager is a foreman and gets the crew block', [s2.me.isForeman, s2.crew.length], [true, 1]);
+
+// the two extras must never take the start down with them
+sandbox.getJobOptions = () => { throw new Error('pave down'); };
+sandbox.getCrewOnClock = () => { throw new Error('pave down'); };
+const s3 = sandbox.getStart(bossMe, null);
+t('a failing job list does not fail the start', [s3.me.name, s3.jobOptions.length, s3.crew.length], ['Tyler B.', 0, 0]);
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);
