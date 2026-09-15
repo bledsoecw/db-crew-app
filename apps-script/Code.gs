@@ -17,6 +17,8 @@
 //   WRITE_ENABLED     'true' to let the app post to JobTread
 //   BOARD_API_URL     the Production Board origin, for assigned jobs
 //   CREW_APP_SECRET   shared secret the board checks on /api/crew/assignments
+//   ACCESS_FEED_URL   optional, DB Hub's App access feed (see below)
+//   ACCESS_FEED_KEY   the feed key, if it isn't already baked into the URL
 //   FCM_PROJECT_ID / FCM_SERVICE_ACCOUNT / PUSH_ENABLED  (push, see below)
 //
 // ---- READ THIS BEFORE FLIPPING WRITE_ENABLED ----
@@ -32,7 +34,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.2 (2026-09-14)';
+var APP_BUILD = 'T1.3 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -99,6 +101,47 @@ function verifyIdToken_(idToken) {
   return email;
 }
 
+// ---- Hub-managed access (DB Hub's "App access" panel) ----
+// The hub publishes a token-gated JSON feed of who may use which company
+// app. Blank / no row = the default here (a JobTread membership is the
+// gate), 'Manager' also unlocks the crew block, 'Off' blocks the app.
+// The feed being unreachable never locks the crew out of the clock.
+function dbAccessRec_(email) {
+  var props = PropertiesService.getScriptProperties();
+  var url = props.getProperty('ACCESS_FEED_URL') || '';
+  if (!url) return null;
+  if (url.indexOf('feed=') === -1) {
+    var k = props.getProperty('ACCESS_FEED_KEY') || '';
+    if (!k) return null;
+    url += (url.indexOf('?') > -1 ? '&' : '?') + 'feed=' + encodeURIComponent(k);
+  }
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get('dbaccess_v1');
+  var feed = null;
+  if (hit) { try { feed = JSON.parse(hit); } catch (e) {} }
+  if (!feed || !feed.people) {
+    try {
+      var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+      if (resp.getResponseCode() !== 200) return null;
+      feed = JSON.parse(resp.getContentText());
+      if (!feed || !feed.people) return null;
+      cache.put('dbaccess_v1', JSON.stringify(feed), 300);
+    } catch (e2) { return null; }
+  }
+  return feed.people[String(email || '').toLowerCase()] || null;
+}
+
+function assertAccess_(email) {
+  var rec = dbAccessRec_(email);
+  if (!rec) return null;
+  var gone = /^(left|inactive|terminated)/i.test(String(rec.status || ''));
+  if (gone || String(rec.timeClock || '') === 'Off') {
+    throw new Error('NO_ACCESS: DB Time Clock access for ' + email +
+      ' is turned off in DB Hub. Ask the office if that seems wrong.');
+  }
+  return rec;
+}
+
 function b64url_(obj) {
   return Utilities.base64EncodeWebSafe(JSON.stringify(obj)).replace(/=+$/, '');
 }
@@ -139,6 +182,7 @@ function doPost(e) {
     var body = {};
     try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (pe) { throw new Error('Bad request body.'); }
     var email = verifyIdToken_(body.t);
+    assertAccess_(email);
     var fn = String(body.fn || '');
     var args = Object.prototype.toString.call(body.args) === '[object Array]' ? body.args : [];
 
@@ -177,7 +221,8 @@ function doPost(e) {
     out = { ok: true, data: (data === undefined ? null : data) };
   } catch (err) {
     var msg = (err && err.message) || String(err);
-    out = { ok: false, error: msg, auth: msg === 'AUTH', readOnly: msg.indexOf('READ_ONLY') === 0 };
+    out = { ok: false, error: msg, auth: msg === 'AUTH', readOnly: msg.indexOf('READ_ONLY') === 0,
+      noAccess: msg.indexOf('NO_ACCESS') === 0 };
   }
   return ContentService.createTextOutput(JSON.stringify(out))
     .setMimeType(ContentService.MimeType.JSON);
@@ -264,7 +309,14 @@ function memberFor_(email) {
   return m;
 }
 function getBootFor_(email) {
-  var m = memberFor_(email);
+  return bootProfile_(memberFor_(email));
+}
+
+// One place builds the signed-in profile, so getBoot and getStart can never
+// disagree about who is a foreman.
+function bootProfile_(m) {
+  var ax = null;
+  try { ax = dbAccessRec_(m.email); } catch (eAx) {}
   return {
     email: m.email,
     name: m.name,
@@ -272,8 +324,10 @@ function getBootFor_(email) {
     membershipId: m.membershipId,
     role: m.role,
     // Foreman gets the crew block. Role names are the org's own, so this is a
-    // contains-match rather than an exact one.
-    isForeman: /foreman|super|manager|owner|admin/i.test(m.role || ''),
+    // contains-match rather than an exact one; a 'Manager' grant in DB Hub's
+    // App access panel unlocks it too.
+    isForeman: (ax && String(ax.timeClock || '') === 'Manager') ||
+      /foreman|super|manager|owner|admin/i.test(m.role || ''),
     captureFolder: CAPTURE_FOLDER,
     writeEnabled: writeEnabled_(),
     build: APP_BUILD
@@ -732,20 +786,13 @@ function getToday(me, jobId) {
 // The same Pave queries, in one execution. The work is unchanged; the waiting
 // is not.
 function getStart(me, jobId) {
-  var isForeman = /foreman|super|manager|owner|admin/i.test(me.role || '');
+  // Same profile getBoot returns, built the same way — so a DB Hub 'Manager'
+  // grant still unlocks the crew block on the path the app actually boots by.
+  var boot = bootProfile_(me);
+  var isForeman = !!boot.isForeman;
   var today = getToday(me, jobId);
   var out = {
-    me: {
-      email: me.email,
-      name: me.name,
-      userId: me.userId,
-      membershipId: me.membershipId,
-      role: me.role,
-      isForeman: isForeman,
-      captureFolder: CAPTURE_FOLDER,
-      writeEnabled: writeEnabled_(),
-      build: APP_BUILD
-    },
+    me: boot,
     open: today.open,
     job: today.job,
     codes: today.codes,

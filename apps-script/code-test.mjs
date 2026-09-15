@@ -209,5 +209,37 @@ sandbox.getCrewOnClock = () => { throw new Error('pave down'); };
 const s3 = sandbox.getStart(bossMe, null);
 t('a failing job list does not fail the start', [s3.me.name, s3.jobOptions.length, s3.crew.length], ['Tyler B.', 0, 0]);
 
+// ---- DB Hub's "App access" panel ----
+// The hub decides who may use the clock, but it must never be able to lock
+// the crew out by accident: unset, empty, or unreachable is "no opinion", not
+// a denial. Only an explicit Off / left-the-company row closes the door.
+props = {}; cacheStore = {}; fetched = [];
+t('no feed configured -> no opinion', sandbox.assertAccess_(ME.email), null);
+t('no feed configured -> nothing fetched', fetched.length, 0);
+
+props = { ACCESS_FEED_URL: 'https://hub.example.com/exec', ACCESS_FEED_KEY: 'k' };
+cacheStore = {}; fetched = [];
+fetchImpl = () => ({ code: 500, body: 'hub is down' });
+t('unreachable feed -> no opinion', sandbox.assertAccess_(ME.email), null);
+t('feed key appended to the url', /[?&]feed=k$/.test(fetched[0].url), true);
+
+const denial = rec => {
+  cacheStore = {}; fetched = [];
+  fetchImpl = () => ({ code: 200, body: JSON.stringify({ people: { [ME.email]: rec } }) });
+  try { sandbox.assertAccess_(ME.email); return ''; } catch (e) { return String(e.message).slice(0, 10); }
+};
+t('access turned Off -> NO_ACCESS', denial({ timeClock: 'Off' }), 'NO_ACCESS:');
+t('someone who left -> NO_ACCESS', denial({ status: 'Left 2026-01-02' }), 'NO_ACCESS:');
+t('a blank row still passes', denial({ timeClock: '' }), '');
+
+cacheStore = {}; fetched = [];
+fetchImpl = () => ({ code: 200, body: JSON.stringify({ people: { [ME.email]: { timeClock: 'Manager' } } }) });
+t('a hub Manager gets the crew block', sandbox.bootProfile_(ME).isForeman, true);
+
+cacheStore = {}; fetched = [];
+fetchImpl = () => ({ code: 200, body: '{"people":{}}' });
+t('no row -> JobTread role decides', sandbox.bootProfile_(ME).isForeman, false);
+t('getStart agrees with getBoot about foreman', sandbox.getStart(ME, null).me.isForeman, false);
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

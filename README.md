@@ -46,6 +46,20 @@ shows a navy "READ-ONLY BUILD" bar while it's off, so a test build can't be
 mistaken for the real thing. `WRITE_JOB_ALLOWLIST` narrows writes to specific
 jobs for a contained first test. See SETUP.md for the go-live sequence.
 
+### Who can open it, and who sees the crew block
+
+Two gates, in order. A Google Workspace account on `@deitemeyerbrothers.com`
+gets you to the sign-in; a JobTread membership on the org gets you in. Past
+that, DB Hub's **App access** panel has the final say if `ACCESS_FEED_URL` is
+set: `Off` or a status of left/inactive/terminated closes the app with a plain
+message, `Manager` also unlocks the foreman's crew block, and a blank row means
+the JobTread role decides as before.
+
+The hub can only ever *change* the answer, never break it. No feed configured,
+a feed that 500s, a feed that times out — all read as "no opinion", and the
+clock works exactly as it does today. Locking out a crew that is standing on a
+roof is worse than letting one extra person in.
+
 ---
 
 ## How the app behaves

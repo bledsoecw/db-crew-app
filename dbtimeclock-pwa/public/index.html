@@ -539,7 +539,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.2 (2026-09-14)';
+var APP_BUILD = 'T1.3 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -656,6 +656,7 @@ function apiAttempt(fn, args, attempt){
     var err = new Error((j && j.error) || 'Request failed');
     err.auth = !!(j && j.auth);
     err.readOnly = !!(j && j.readOnly);
+    err.noAccess = !!(j && j.noAccess);
     err.answered = true;   // the server gave a real reply; asking again changes nothing
     throw err;
   }).catch(function(e){
@@ -671,6 +672,11 @@ function apiAttempt(fn, args, attempt){
       throw t;
     }
     if (e.auth) { authClear(); requireSignIn('Session expired — sign in again.'); }
+    if (e.noAccess) {
+      $('gate').classList.remove('hidden');
+      $('app').classList.add('hidden');
+      $('gateErr').textContent = 'Your Time Clock access is turned off in DB Hub — ask the office if that seems wrong.';
+    }
     throw e;
   }).then(function(v){ clearTimeout(timer); return v; },
           function(e){ clearTimeout(timer); throw e; });

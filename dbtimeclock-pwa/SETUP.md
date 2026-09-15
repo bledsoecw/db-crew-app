@@ -68,6 +68,8 @@ In Apps Script > Project Settings > **Script Properties**:
 | `FCM_PROJECT_ID` | for push — the Firebase project id (see 4b) |
 | `FCM_SERVICE_ACCOUNT` | for push — the service account JSON key, pasted whole |
 | `PUSH_ENABLED` | for push — `true` to actually send |
+| `ACCESS_FEED_URL` | optional — DB Hub's access feed (the access-"Anyone" hub deployment's `/exec` URL; `?accessfeed=1` in the hub prints it). With it set, the hub's **App access** panel controls who may use the clock: blank = JobTread membership decides (as before), `Manager` also unlocks the crew block, `Off` blocks the person. Unset or unreachable = everything works as before. |
+| `ACCESS_FEED_KEY` | the feed key `?accessfeed=1` prints (skip if the key is already baked into `ACCESS_FEED_URL`) |
 
 ### Keep a copy of config.js outside the repo
 
