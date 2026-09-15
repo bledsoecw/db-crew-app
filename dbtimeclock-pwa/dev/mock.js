@@ -308,6 +308,13 @@
     var u = String(url);
     if (u.indexOf('mock.local/exec') !== -1) {
       var body = JSON.parse((opts && opts.body) || '{}');
+      // __MOCK_STARTFAIL: the first N boot calls come back as a web page with a
+      // 500, the way an overloaded /exec answers — transient, retried, then
+      // failed, so the app's own boot retry has to carry it.
+      if (body.fn === 'getStart' && Number(window.__MOCK_STARTFAIL) > 0) {
+        window.__MOCK_STARTFAIL--;
+        return Promise.resolve({ ok: false, status: 500, text: function () { return Promise.resolve('<html>busy</html>'); }, json: function () { return Promise.reject(new Error('html')); } });
+      }
       var fn = HANDLERS[body.fn];
       var out;
       try {

@@ -328,8 +328,10 @@ real page (one save per burst, the whole state every time, the sign-off, the
 board's 403 going read-only, a dead spot, a 502, the unsaved state surviving a
 reload), `dev/daylog-test.mjs` drives the week strip, today's job from the
 schedule, a move between roofs and the day log (the draft, the notes, a photo
-by reference, the send and what it carries, yesterday's log, a dead spot and a
-JobTread hiccup), and `apps-script/code-test.mjs` covers `getMyJobs`,
-`saveSiteChecks`, `sendDailyLog` and the schedule sweep against a stubbed Apps
-Script runtime (131 assertions) — every state the Production Board and
-JobTread can leave them in, without either to point at.
+by reference, the send and what it carries, yesterday's log, a dead spot, a
+JobTread hiccup, a boot the API is too slow to answer, and a send that was in
+flight when the page reloaded), and `apps-script/code-test.mjs` covers
+`getMyJobs`, `saveSiteChecks`, `sendDailyLog` (including the same day sent
+twice) and the schedule sweep against a stubbed Apps Script runtime (135
+assertions) — every state the Production Board and JobTread can leave them
+in, without either to point at.

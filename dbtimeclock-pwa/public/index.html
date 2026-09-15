@@ -658,7 +658,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.7 (2026-09-15)';
+var APP_BUILD = 'T1.8 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1772,6 +1772,9 @@ var CK_PEN = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke
    once the board has taken every change, the board's answer is the truth. */
 var ckStore = {};
 try { ckStore = JSON.parse(localStorage.getItem(CK_KEY) || '{}') || {}; } catch(e){ ckStore = {}; }
+// "In flight" is true of a page, not of a phone: a reload mid-save must not
+// leave the list thinking a save is still running, or it never saves again.
+for (var ckK in ckStore){ if (ckStore[ckK]) ckStore[ckK].inflight = false; }
 function ckPersist(){ try { localStorage.setItem(CK_KEY, JSON.stringify(ckStore)); } catch(e){} }
 
 /* ---- who may tick: the board's 403, remembered ---- */
@@ -2952,6 +2955,10 @@ var DL_KEY = 'dbtc_daylog';
 var DL_PHOTO_WAIT_MS = 2 * 60 * 1000;
 var dlStore = {};
 try { dlStore = JSON.parse(localStorage.getItem(DL_KEY) || '{}') || {}; } catch(e){ dlStore = {}; }
+// Same rule as the checklist: a send that was in flight when the page went
+// away is not in flight now. The API refuses to create the same day twice,
+// so sending again is safe.
+for (var dlK in dlStore){ if (dlStore[dlK]) dlStore[dlK].sending = false; }
 function dlPersist(){ try { localStorage.setItem(DL_KEY, JSON.stringify(dlStore)); } catch(e){} }
 function dlKey(jobId, date){ return jobId + '|' + date; }
 function dlGet(jobId, date){ return dlStore[dlKey(jobId, date)] || null; }
@@ -3068,7 +3075,15 @@ function dlRetryLater(k){
   dlSchedule(k, CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)]);
 }
 function dlRetryPending(){
-  for (var k in dlStore){ var e = dlStore[k]; if (e && e.wantSend && !e.sent && !e.sending) dlSchedule(k, 150); }
+  for (var k in dlStore){
+    var e = dlStore[k];
+    if (!e || !e.wantSend || e.sent || e.sending) continue;
+    // Not again within half a minute of a try that timed out: the API may
+    // still be working on it, and a backlog is not helped by more of the same.
+    // (A try the server answered, or one the phone never got out, is retried now.)
+    var since = Date.now() - (e.lastTry || 0);
+    dlSchedule(k, since < 30000 ? 30000 - since : 150);
+  }
 }
 function dlFlush(k){
   var e = dlStore[k];
@@ -3090,7 +3105,8 @@ function dlFlush(k){
     return Promise.resolve();
   }
   e.photosPending = pend.length;
-  e.sending = true; e.err = '';
+  e.sending = true; e.err = ''; e.lastTry = Date.now();
+  dlPersist();
   renderLogStatus();
   return apiCall('sendDailyLog', [dlPayload(e)]).then(function(r){
     e.sending = false;
@@ -3100,10 +3116,11 @@ function dlFlush(k){
     e.wantSend = false; e.err = ''; e.prompt = false;
     dlRetries[k] = 0;
     dlPersist();
-    toast('Log sent' + (e.sent.assigned.length ? ' to ' + firstNames(e.sent.assigned) : ''));
+    toast(r.duplicate ? 'Log was already sent' : 'Log sent' + (e.sent.assigned.length ? ' to ' + firstNames(e.sent.assigned) : ''));
     render();
   }).catch(function(err){
     e.sending = false;
+    if (!(err && err.timedOut)) e.lastTry = 0;   // only a timeout leaves the API possibly still on it
     if (err && err.readOnly){
       e.wantSend = false; e.err = '';
       dlPersist(); renderLogStatus();
@@ -3365,17 +3382,7 @@ function start(){
   // what job, what have I logged today. Three Pave calls at most, so this
   // answers in seconds instead of overrunning the 25-second ceiling — the code
   // list, the job picker and the crew block follow in loadExtras().
-  apiCall('getStart', [lastJob || null]).then(function(d){
-    S.me = d.me;
-    S.writeEnabled = !!d.writeEnabled;
-    S.open = d.open;
-    S.job = d.job;
-    S.entries = d.entries || [];
-    if (S.open) scheduleNudge();
-    ckOnProfile();
-  }).catch(function(e){
-    if (!(e && e.auth)) failed('boot', e);
-  }).then(function(){
+  bootStart(lastJob, 0).then(function(){
     S.booted = true;
     seedTodayJob();        // from the schedule already on the phone, if any
     render();
@@ -3395,6 +3402,45 @@ function start(){
     // rather than waiting for a clock-in that may not come for hours.
     if (pushConfigured() && window.Notification && Notification.permission === 'granted') enablePush();
     else if (S.open) enablePush();
+  });
+}
+
+/* The first call of a launch. When the API does not answer in time it is
+   usually a backlog behind executions an earlier open abandoned, and it
+   clears on its own — so boot asks again, backing off, instead of leaving the
+   clock blank until the next reopen, which only adds to the backlog. A real
+   refusal (the API answered no) is not retried. */
+var BOOT_RETRY_MS = (window.__BOOT_RETRY_MS) || [8000, 20000, 45000];
+function bootStart(lastJob, attempt){
+  return apiCall('getStart', [lastJob || null]).then(function(d){
+    S.me = d.me;
+    S.writeEnabled = !!d.writeEnabled;
+    S.open = d.open;
+    S.job = d.job;
+    S.entries = d.entries || [];
+    if (S.open) scheduleNudge();
+    ckOnProfile();
+    if (attempt > 0){
+      // The late start: what the first attempt would have set in motion.
+      S.booted = true;
+      seedTodayJob();
+      render();
+      loadExtras();
+      // The schedule was asked for alongside the first attempt; if that ask
+      // came back as the recent-jobs fallback, the board gets a second chance.
+      if (!S.assignLoading && (!S.assign || S.assign.source === 'fallback')) loadAssignments();
+      ckRetryPending();
+      dlRetryPending();
+      toast('Connected');
+    }
+  }).catch(function(e){
+    if (e && e.auth) return;
+    failed('boot', e);
+    if (attempt < BOOT_RETRY_MS.length && !(e && e.answered)){
+      var ms = BOOT_RETRY_MS[attempt];
+      toast('The API is slow — trying again in ' + Math.round(ms / 1000) + 's', true);
+      setTimeout(function(){ if (!S.me) bootStart(lastJob, attempt + 1); }, ms);
+    }
   });
 }
 

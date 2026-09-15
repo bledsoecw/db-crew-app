@@ -41,7 +41,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.7 (2026-09-15)';
+var APP_BUILD = 'T1.8 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -978,6 +978,24 @@ function assigneesFor_(names) {
 // the job, and the log carries them too, so the PM opens one thing.
 // ===========================================================
 var DAILY_LOG_NOTES_MAX = 10000;   // JobTread's ceiling, verified
+// A sent log is remembered for this long, keyed by who, which job, which
+// day. A phone that timed out waiting for the answer sends again; the
+// second send must find the first, never create a twin.
+var DAILY_LOG_KEY_DAYS = 3;
+
+function dailyLogKey_(me, jobId, date) {
+  return 'dl_' + (me.membershipId || me.userId || me.email) + '|' + jobId + '|' + date;
+}
+
+function pruneDailyLogKeys_(props) {
+  var all = props.getProperties(), cutoff = Date.now() - DAILY_LOG_KEY_DAYS * 86400000;
+  for (var k in all) {
+    if (k.indexOf('dl_') !== 0) continue;
+    var at = 0;
+    try { at = Number(JSON.parse(all[k]).at) || 0; } catch (e) {}
+    if (at < cutoff) props.deleteProperty(k);
+  }
+}
 
 function sendDailyLog(me, log) {
   log = log || {};
@@ -985,6 +1003,15 @@ function sendDailyLog(me, log) {
   if (!jobId) throw new Error('Missing job id.');
   assertWrite_(jobId);
   var date = /^\d{4}-\d{2}-\d{2}$/.test(String(log.date || '')) ? log.date : isoDay_(new Date());
+
+  // Already sent today: hand the first one back rather than write a twin.
+  var props = PropertiesService.getScriptProperties();
+  var key = dailyLogKey_(me, jobId, date), prior = null;
+  try { prior = JSON.parse(props.getProperty(key) || 'null'); } catch (e) { prior = null; }
+  if (prior && prior.id) {
+    return { ok: true, dailyLogId: prior.id, date: date, assigned: prior.assigned || [], unresolved: prior.unresolved || [],
+             flag: prior.flag || '', commented: !!prior.commented, photos: prior.photos || 0, duplicate: true };
+  }
 
   var people = { pm: '', reps: [] };
   try { people = jobPeopleByIds_([jobId])[jobId] || people; } catch (e0) { /* assign nobody rather than fail */ }
@@ -1015,6 +1042,11 @@ function sendDailyLog(me, log) {
       commented = true;
     } catch (e3) { /* the log is in; the pointer is best effort, and the app says so */ }
   }
+  try {
+    props.setProperty(key, JSON.stringify({ id: id, at: Date.now(), assigned: who.assigned, unresolved: who.unresolved,
+                                            flag: flag, commented: commented, photos: files.length }));
+    pruneDailyLogKeys_(props);
+  } catch (e4) { /* the log is in; the memory of it is best effort */ }
   return { ok: true, dailyLogId: id, date: date, assigned: who.assigned, unresolved: who.unresolved,
            flag: flag, commented: commented, photos: files.length };
 }

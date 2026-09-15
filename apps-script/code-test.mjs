@@ -540,6 +540,8 @@ t('a read-only build sends no log', threw2.indexOf('READ_ONLY'), 0);
 
 props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
 const jtCalls = [];
+// Each scenario below is its own day: forget the day-log memory between sends.
+const freshDay = () => { for (const k of Object.keys(props)) if (k.indexOf('dl_') === 0) delete props[k]; jtCalls.length = 0; };
 fetchImpl = route({ people: PEOPLE, member: MEMBER,
   dailyLog: (q) => { jtCalls.push(['dailyLog', q.createDailyLog.$]); return { code: 200, body: '{"createDailyLog":{"createdDailyLog":{"id":"dl1"}}}' }; },
   comment: (q) => { jtCalls.push(['comment', q.createComment.$]); return { code: 200, body: '{"createComment":{"createdComment":{"id":"c1"}}}' }; } });
@@ -556,19 +558,30 @@ t('the answer says who was assigned and who could not be', [r.dailyLogId, r.assi
 const cm = jtCalls.find(c => c[0] === 'comment')[1];
 t('a problem pings the same people in the feed, once', [r.flag, r.commented, cm.targetType, cm.targetId, cm.assignees.length, cm.message.indexOf('Short 8 pieces of drip edge') > -1], ['problems', true, 'job', 'j9', 2, true]);
 
-jtCalls.length = 0;
+freshDay();
 r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false });
 t('a routine day is the log alone, no comment', [r.flag, r.commented, jtCalls.map(c => c[0])], ['', false, ['dailyLog']]);
-jtCalls.length = 0;
+freshDay();
 r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: true });
 t('a crew left on site without a sign-off is flagged', [r.flag, r.commented, jtCalls[1][1].message.indexOf('crew still on site when Tyler left at 4:30') > -1], ['crew-on-site', true, true]);
-jtCalls.length = 0;
+freshDay();
 r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: true, checks: { words: 'Signed off — Tyler · Sep 15', magnetBy: null, signedOff: 'Tyler · Sep 15' } });
 t('...but not once it is signed off', [r.flag, jtCalls.map(c => c[0])], ['', ['dailyLog']]);
+freshDay();
 t('a bad date falls back to the script\'s today', sandbox.sendDailyLog(ME, { ...LOG, date: 'soon' }).date, today);
-jtCalls.length = 0;
+freshDay();
 sandbox.sendDailyLog(ME, { ...LOG, photos: [], photosPending: 2 });
 t('photos left uploading are named in the log', jtCalls[0][1].notes.indexOf('2 more still uploading from the phone when this was sent') > -1, true);
+
+// A phone that timed out waiting for the answer sends the same day again.
+freshDay();
+const first = sandbox.sendDailyLog(ME, LOG);
+const again = sandbox.sendDailyLog(ME, LOG);
+t('the same day sent twice is one log, the second answer pointing at the first', [jtCalls.filter(c => c[0] === 'dailyLog').length, again.dailyLogId, again.duplicate, again.assigned], [1, first.dailyLogId, true, first.assigned]);
+t('a different day or job is its own log', (sandbox.sendDailyLog(ME, { ...LOG, date: '2026-09-16' }), jtCalls.filter(c => c[0] === 'dailyLog').length), 2);
+props['dl_old|x|2026-01-01'] = JSON.stringify({ id: 'dl_old', at: Date.now() - 10 * 86400000 });
+sandbox.sendDailyLog(ME, { ...LOG, jobId: 'j1' });
+t('old memories are pruned', 'dl_old|x|2026-01-01' in props, false);
 
 jtCalls.length = 0;
 r = sandbox.addDailyLogNote(ME, 'j9', 'dl1', 'Kenton dropped the returns at 5.');

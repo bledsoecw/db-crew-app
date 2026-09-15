@@ -273,6 +273,29 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await ctx.close();
 }
 
+// ---- a slow API at boot: the app asks again on its own ----
+{
+  // Four transient failures cover the client's own retries on one call; the
+  // fifth answer is the good one, reached by the boot retry after 600ms.
+  const { ctx, page, errs } = await boot({}, 'window.__MOCK_STARTFAIL=4;window.__BOOT_RETRY_MS=[600,600,600];');
+  await page.waitForTimeout(9000);
+  check('boot recovered without a reopen', [await page.evaluate(() => !!S.me), await txt(page, '#jobAddr')], [true, '408 Euclid Ave']);
+  check('...and loaded the rest', await page.evaluate(() => S.codes.length > 0), true);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- a reload mid-send must not leave the log stuck ----
+{
+  const stuck = { jobId: 'j_2841', date: isoToday, jobLabel: '26-0890 Noah Webster', jobNum: '26-0890', cust: 'Noah Webster', address: '', alongside: null, pm: '', reps: [],
+    done: 'Done.', condition: '', crewOnSite: null, tarped: null, leftAt: '', problems: '', notes: [], sent: null, wantSend: true, sending: true, err: '', prompt: false, activity: true, at: Date.now(), seq: 1 };
+  const { ctx, page, errs } = await boot({}, `localStorage.setItem('dbtc_daylog', ${JSON.stringify(JSON.stringify({ ['j_2841|' + isoToday]: stuck }))});`);
+  await page.waitForTimeout(2500);
+  const logs = await grab(page, '__LOGS');
+  check('a send that was in flight before the reload goes again', logs.length, 1);
+  await ctx.close();
+}
+
 await browser.close();
 let failed = 0;
 for (const r of results) {

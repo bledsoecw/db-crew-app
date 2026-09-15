@@ -254,6 +254,7 @@ cd public && python3 -m http.server 8100     # in one shell
 node dev/preview.mjs ./shots                 # in another (needs playwright)
 node dev/push-test.mjs                       # exercises the push paths
 node dev/checks-test.mjs                     # the site checks, end to end in the page
+node dev/daylog-test.mjs                     # the week view, today's job and the day log, end to end
 node ../apps-script/code-test.mjs            # getMyJobs + saveSiteChecks, no deps, no network
 ```
 
@@ -275,6 +276,8 @@ that are otherwise hard to produce:
 | `__MOCK_NOTMANAGER` | the site checks for someone JobTread says is not a site manager — the board's 403, and the list read-only |
 | `__MOCK_PUTFAIL` | the board's 502 on a site-checks save — ticks kept, retried |
 | `__MOCK_SLOWPUT` | hold a site-checks save this many ms, to watch "Saving…" and tap during it |
+| `__MOCK_STARTFAIL` | the first N boot calls answer 500 as a web page, the way an overloaded `/exec` does — the app's own boot retry carries it |
+| `__MOCK_LOGFAIL` / `__MOCK_SLOWLOG` | a JobTread hiccup on the day-log send (kept, retried) / hold the send this many ms |
 
 The last two matter more than they look: the fallback is what a crew member sees
 on the morning the board is down, and it is the path that proves the clock is
