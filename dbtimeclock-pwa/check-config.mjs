@@ -102,6 +102,30 @@ if (!cfg || typeof cfg !== 'object') {
        'Most often the leading "window.DBTC_CONFIG = " has been dropped.'], SHAPE);
 }
 
+// A console that masks a secret on screen will happily let you copy the mask.
+// The result looks plausible — right prefix, right length — and is fatal in a
+// way that names nothing: a header value must be Latin-1, so Safari throws a
+// bare "Type error" out of the Headers constructor, four frames deep inside
+// the Firebase SDK. Every value here is ASCII by nature, so anything else is
+// a paste that went wrong.
+const MASKS = /[\u2022\u00b7\u2219\u25cf\u25cb\u2027\u2024\uff65\u2043]/;
+const nonAscii = [];
+(function scan(o, path) {
+  if (!o || typeof o !== 'object') return;
+  for (const [k, v] of Object.entries(o)) {
+    const at = path ? `${path}.${k}` : k;
+    if (typeof v === 'string') {
+      if (MASKS.test(v)) {
+        nonAscii.push(`${at} contains bullet characters — this is the masked value a console shows, not the value itself. Use the copy button, or reveal it first.`);
+      } else if (!/^[\x20-\x7E]*$/.test(v)) {
+        const bad = [...v].find((c) => c < ' ' || c > '~');
+        nonAscii.push(`${at} contains a character that is not plain ASCII (U+${bad.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}). Every value here should be ASCII; this is usually a bad copy-paste or a smart quote.`);
+      }
+    } else scan(v, at);
+  }
+})(cfg, '');
+if (nonAscii.length) die(nonAscii, FROM_BACKUP);
+
 const problems = [];
 for (const key of ['apiUrl', 'clientId']) {
   const v = typeof cfg[key] === 'string' ? cfg[key].trim() : null;
