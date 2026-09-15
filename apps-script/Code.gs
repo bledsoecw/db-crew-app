@@ -15,8 +15,11 @@
 //   SESSION_TTL_DAYS  optional, defaults to 30
 //   APP_URL           optional, makes the bare /exec link redirect
 //   WRITE_ENABLED     'true' to let the app post to JobTread
-//   BOARD_API_URL     the Production Board origin, for assigned jobs
-//   CREW_APP_SECRET   shared secret the board checks on /api/crew/assignments
+//   BOARD_API_URL     the Production Board origin, for assigned jobs and site checks
+//   CREW_APP_SECRET   shared secret the board checks on /api/crew/*
+//   EXTRA_ALLOWED_EMAILS  optional, comma-separated Google addresses let in beside the
+//                     company domain (the two site managers on Gmail are already in
+//                     SITE_MANAGER_EMAILS below; this is for the next one, without a deploy)
 //   ACCESS_FEED_URL   optional, DB Hub's App access feed (see below). With it set,
 //                     run installAccessFeedRefresh once: the feed is read from a
 //                     copy a trigger keeps warm, never fetched while a phone waits
@@ -36,7 +39,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.4 (2026-09-15)';
+var APP_BUILD = 'T1.5 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -76,6 +79,32 @@ function assertWrite_(jobId) {
 // either a Google ID token or an app session token we minted
 // after a real Google sign-in. The grant key never leaves here.
 // ===========================================================
+// Who may get past the sign-in. The company domain, plus an EXPLICIT list —
+// never "any Google account". Two of the three site managers sign in with
+// Gmail addresses, and those ARE their JobTread user emails (verified live,
+// 2026-09-15), so memberFor_ resolves them like anyone else once they are
+// through the door. Chris Blue is on the company domain and needs no line.
+// The board keeps the same two in src/auth.ts (siteManagerEmailsInCode).
+//
+// NOTE the OAuth consent screen must be "External" for a Gmail account to
+// sign in at all — an "Internal" app refuses them before this code runs.
+// See SETUP.md §3.
+var SITE_MANAGER_EMAILS = [
+  'tylermohr94@gmail.com',    // Tyler Mohr — site manager (Sep 2026)
+  'kentonmccomas@gmail.com'   // Kenton McComas — site manager (Sep 2026)
+];
+
+function emailAllowed_(email) {
+  email = String(email || '').toLowerCase().trim();
+  if (!email) return false;
+  if (/@deitemeyerbrothers\.com$/.test(email)) return true;
+  if (SITE_MANAGER_EMAILS.indexOf(email) !== -1) return true;
+  var extra = '';
+  try { extra = PropertiesService.getScriptProperties().getProperty('EXTRA_ALLOWED_EMAILS') || ''; } catch (e) {}
+  var list = extra.split(/[,\s;]+/).map(function (x) { return x.toLowerCase().trim(); }).filter(Boolean);
+  return list.indexOf(email) !== -1;
+}
+
 function verifyIdToken_(idToken) {
   if (!idToken) throw new Error('AUTH');
   var sessionEmail = verifySessionToken_(idToken);
@@ -97,7 +126,7 @@ function verifyIdToken_(idToken) {
   if (info.aud !== clientId) throw new Error('AUTH');
   if (String(info.email_verified) !== 'true') throw new Error('AUTH');
   var email = String(info.email || '').toLowerCase();
-  if (!/@deitemeyerbrothers\.com$/.test(email)) throw new Error('AUTH');
+  if (!emailAllowed_(email)) throw new Error('AUTH');
   var ttl = Math.max(60, Math.min(3600, (Number(info.exp) || 0) - Math.floor(Date.now() / 1000) - 30));
   cache.put(key, email, ttl);
   return email;
@@ -282,6 +311,7 @@ function doPost(e) {
       clockOut: clockOut,
       getMyDay: getMyDay,
       getMyJobs: getMyJobs,
+      saveSiteChecks: saveSiteChecks,
       registerPushToken: registerPushToken,
       unregisterPushToken: unregisterPushToken
     };
@@ -362,25 +392,35 @@ function memberFor_(email) {
 
   var name = '', userId = '', membershipId = '', role = '';
   try {
-    var d = pave({
-      organization: {
-        '$': { id: ORG },
-        memberships: {
-          // The field is emailAddress. `email` does not exist on membership.user
-          // and Pave rejects the whole query with "The field \"email\" does not
-          // exist" — which this function's catch swallows, so every sign-in used
-          // to fail as "No JobTread user is linked to ...". Verified 2026-09-14.
-          '$': { where: [['user', 'emailAddress'], email], size: 1 },
-          nodes: { id: {}, role: { name: {} }, user: { id: {}, name: {} } }
+    // `=` first, then `like`. JobTread keeps the address as it was typed, so a
+    // capital letter in there misses an exact match against the lowercased
+    // token email; `like` is case-insensitive. Same two tries as the board's
+    // membershipForEmail, so the two sides can't resolve a person differently.
+    var wheres = [
+      [['user', 'emailAddress'], email],
+      [['user', 'emailAddress'], 'like', email]
+    ];
+    for (var wi = 0; wi < wheres.length && !userId; wi++) {
+      var d = pave({
+        organization: {
+          '$': { id: ORG },
+          memberships: {
+            // The field is emailAddress. `email` does not exist on membership.user
+            // and Pave rejects the whole query with "The field \"email\" does not
+            // exist" — which this function's catch swallows, so every sign-in used
+            // to fail as "No JobTread user is linked to ...". Verified 2026-09-14.
+            '$': { where: wheres[wi], size: 1 },
+            nodes: { id: {}, role: { name: {} }, user: { id: {}, name: {} } }
+          }
         }
+      });
+      var ns = (((d.organization || {}).memberships || {}).nodes) || [];
+      if (ns.length) {
+        membershipId = ns[0].id || '';
+        role = ((ns[0].role || {}).name) || '';
+        userId = ((ns[0].user || {}).id) || '';
+        name = ((ns[0].user || {}).name) || '';
       }
-    });
-    var ns = (((d.organization || {}).memberships || {}).nodes) || [];
-    if (ns.length) {
-      membershipId = ns[0].id || '';
-      role = ((ns[0].role || {}).name) || '';
-      userId = ((ns[0].user || {}).id) || '';
-      name = ((ns[0].user || {}).name) || '';
     }
   } catch (e) { /* fall through */ }
 
@@ -562,6 +602,10 @@ function getNearbyCandidates() {
 // ===========================================================
 
 var BOARD_LOOKAHEAD_DAYS = 13;   // today plus a fortnight: this week and next
+// Yesterday too. A roof that ended yesterday and was never signed off is the
+// morning-after nudge's whole reason to exist, and it needs the data to say so.
+// The board already reaches back further for a multi-day install still running.
+var BOARD_LOOKBACK_DAYS = 1;
 var BOARD_CACHE_SEC = 120;       // a re-opened app shouldn't re-hit the board
 // UrlFetchApp has no timeout, and Apps Script runs one execution at a time per
 // user — so a board that answers slowly does not just delay this call, it
@@ -594,6 +638,19 @@ function addDays_(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
+// The window the app asks for when it sends none: yesterday through a fortnight.
+function boardWindow_(today) {
+  return { from: addDays_(today, -BOARD_LOOKBACK_DAYS), to: addDays_(today, BOARD_LOOKAHEAD_DAYS) };
+}
+
+// One key for the cached answer, so a site-checks save can drop exactly the
+// copy the next getMyJobs would otherwise serve.
+function myJobsCacheKey_(membershipId, from, to) {
+  return 'mj_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+      membershipId + '|' + from + '|' + to)).slice(0, 40);
+}
+
 /**
  * The crew member's assigned jobs, from the Production Board.
  *
@@ -608,8 +665,9 @@ function addDays_(iso, n) {
  */
 function getMyJobs(me, from, to) {
   var today = isoDay_(new Date());
-  from = /^\d{4}-\d{2}-\d{2}$/.test(String(from || '')) ? from : today;
-  to = /^\d{4}-\d{2}-\d{2}$/.test(String(to || '')) ? to : addDays_(from, BOARD_LOOKAHEAD_DAYS);
+  var win = boardWindow_(today);
+  from = /^\d{4}-\d{2}-\d{2}$/.test(String(from || '')) ? from : win.from;
+  to = /^\d{4}-\d{2}-\d{2}$/.test(String(to || '')) ? to : win.to;
   // The app never sends a range, but a signed-in crew member could. The board
   // is shared production and fetchVisits pages over the whole window, so the
   // span is clamped here rather than trusted: this is the only caller that can
@@ -644,9 +702,7 @@ function getMyJobs(me, from, to) {
     return out;
   }
 
-  var ck = 'mj_' + Utilities.base64EncodeWebSafe(
-    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
-      me.membershipId + '|' + from + '|' + to)).slice(0, 40);
+  var ck = myJobsCacheKey_(me.membershipId, from, to);
   var cache = CacheService.getScriptCache();
   var hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) { /* fall through and refetch */ } }
@@ -690,6 +746,11 @@ function getMyJobs(me, from, to) {
   out.source = 'board';
   out.boardMs = elapsedMs;
   out.crew = body.crew || null;
+  // How to draw any visit's site checks — the three phases and the 28 lines,
+  // the board's own wording. Passed through untouched: the app renders from
+  // this and never hardcodes a line, so the board can reword one without an
+  // app release. Absent from an older board, and the app says so.
+  out.checklist = body.checklist || null;
   out.visits = (body.visits || []).map(function (v) { return shapeVisit_(v, today); });
   out.visits.sort(function (a, b) {
     return String(a.start).localeCompare(String(b.start)) || String(a.jobNum).localeCompare(String(b.jobNum));
@@ -698,8 +759,10 @@ function getMyJobs(me, from, to) {
 
   // A resolved crew with nothing booked is a real answer, not a failure — but
   // the crew member still needs somewhere to clock in, so the recent-jobs list
-  // rides along rather than leaving them with an empty screen.
-  if (!out.visits.length) out.jobs = fallbackJobs_(me);
+  // rides along rather than leaving them with an empty screen. Yesterday's
+  // visit is in the window now, and it is not somewhere to clock in today.
+  var anyCurrent = out.visits.some(function (v) { return !v.end || v.end >= today; });
+  if (!anyCurrent) out.jobs = fallbackJobs_(me);
 
   try { cache.put(ck, JSON.stringify(out), BOARD_CACHE_SEC); } catch (e) {}
   return out;
@@ -729,7 +792,11 @@ function shapeVisit_(v, today) {
     address: v.address || '',
     status: v.status || '',
     jtype: v.jtype || '',
-    material: v.material || null
+    material: v.material || null,
+    // The JOB's site checks, or null when the job has none. `checks.taskId` is
+    // the task the list sits on — usually the roofing crew's line, not this
+    // visit's own task — and is what saveSiteChecks must be given. Untouched.
+    checks: v.checks || null
   };
 }
 
@@ -746,6 +813,109 @@ function tripBoardBreaker_(ms) {
 // than removed: it is what keeps the clock working when the board is down.
 function fallbackJobs_(me) {
   try { return getJobOptions(me.userId); } catch (e) { return []; }
+}
+
+// ===========================================================
+// SITE CHECKS — the site manager's checklist, ticked from the phone.
+//
+// It replaces a sheet of paper ("Roofing Checklist") the site managers
+// carried in the packet and never filled in. The board OWNS it: the 28
+// lines, where they live in JobTread (a checklist on the job's roofing
+// install task), the sign-off and the write. This script never touches
+// JobTread for any of it — it forwards what the phone holds to the board
+// and hands the board's answer straight back.
+//
+// Registered in WITH_USER: `me` comes from the verified Google token, so
+// membershipId is stamped here and never taken from the phone. Who may
+// tick is JobTread's call, not ours — the membership must carry the
+// "Site Manager" role there — and the board answers 403 for anyone else.
+// That 403 is returned as data, not thrown, because the app has to say
+// "the site manager ticks these" rather than show a red error.
+//
+// NEVER THROWS for a board problem, for the same reason getMyJobs doesn't:
+// a save that fails comes back with a status the app keeps the state for
+// and retries later. It is not gated on WRITE_ENABLED either — that flag
+// keeps THIS script's grant key off payroll; the checklist is written by
+// the board under its own gate, and a tick that silently vanished into a
+// read-only build would be the paper sheet all over again.
+//
+// The breaker getMyJobs honours is deliberately NOT checked here: the
+// site manager tapped, on their own execution slot, and the cold board
+// that tripped it at 6:45am is exactly when the before-tear-off ticks
+// happen. A slow save still trips it, so the next automatic job-list
+// fetch skips the board rather than queueing the clock behind it.
+// ===========================================================
+function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
+  taskId = String(taskId || '').trim();
+  jobId = String(jobId || '').trim();
+  // These are the app's bugs, not the board's: a missing id can never save.
+  if (!taskId) throw new Error('Missing the checklist id.');
+  if (!jobId) throw new Error('Missing job id.');
+  if (!checks || typeof checks !== 'object') throw new Error('Missing checks.');
+
+  var out = { status: 0, reason: '', body: null };
+  if (!me.membershipId) { out.reason = 'no-membership'; return out; }
+  var cfg = boardConfig_();
+  if (!cfg.url || !cfg.secret) { out.reason = 'not-configured'; return out; }
+
+  // The whole state the phone holds, coerced to the contract's shape. The
+  // sign-off VALUE (name, date) is never sent — the board stamps it from the
+  // membership; `signOff` is only whether it should be signed.
+  var done = {};
+  var src = (checks.done && typeof checks.done === 'object') ? checks.done : {};
+  for (var k in src) if (Object.prototype.hasOwnProperty.call(src, k)) done[String(k)] = !!src[k];
+  var payload = {
+    membershipId: me.membershipId,
+    taskId: taskId,
+    jobId: jobId,
+    jobLabel: String(jobLabel || '').slice(0, 80),
+    // The PHONE's date: a UTC server is a day out every evening.
+    today: /^\d{4}-\d{2}-\d{2}$/.test(String(today || '')) ? today : isoDay_(new Date()),
+    checks: {
+      done: done,
+      magnetBy: (checks.magnetBy == null || String(checks.magnetBy).trim() === '') ? null : String(checks.magnetBy).trim().slice(0, 40),
+      signOff: !!checks.signOff
+    }
+  };
+
+  var startedMs = Date.now(), elapsedMs = 0;
+  try {
+    var resp = UrlFetchApp.fetch(cfg.url + '/api/crew/checks', {
+      method: 'put',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      headers: { Authorization: 'Bearer ' + cfg.secret },
+      muteHttpExceptions: true,
+      followRedirects: false
+    });
+    elapsedMs = Date.now() - startedMs;
+    if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
+    out.status = resp.getResponseCode();
+    out.boardMs = elapsedMs;
+    var text = resp.getContentText();
+    try { out.body = JSON.parse(text); } catch (pe) { out.body = null; out.text = String(text || '').slice(0, 300); }
+    if (out.status === 307 || out.status === 302) out.reason = 'board-signin-bounce';
+    else if (out.status !== 200) out.reason = 'board-http-' + out.status;
+  } catch (e) {
+    elapsedMs = Date.now() - startedMs;
+    if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
+    out.reason = 'board-unreachable';
+    out.boardMs = elapsedMs;
+    out.error = (e && e.message) || String(e);
+    return out;
+  }
+
+  // Written. The cached job list now carries stale words ("not started" under
+  // a card that was just ticked), so drop the copy the next getMyJobs would
+  // serve. Only the default window is cached by the app; a custom range is
+  // never sent by it.
+  if (out.status === 200) {
+    try {
+      var win = boardWindow_(isoDay_(new Date()));
+      CacheService.getScriptCache().remove(myJobsCacheKey_(me.membershipId, win.from, win.to));
+    } catch (e2) { /* a stale cache is a cosmetic problem, not a failure */ }
+  }
+  return out;
 }
 
 // ===========================================================

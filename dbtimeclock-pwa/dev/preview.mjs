@@ -32,7 +32,7 @@ async function session(flags = {}) {
     errs.push(m.text());
   });
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
-  await page.addInitScript(`window.__MOCK_FOREMAN=${!!flags.foreman};window.__MOCK_READONLY=${!!flags.readOnly};`);
+  await page.addInitScript(`window.__MOCK_FOREMAN=${!!flags.foreman};window.__MOCK_READONLY=${!!flags.readOnly};window.__MOCK_NOTMANAGER=${!!flags.notManager};`);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1400);
@@ -88,6 +88,49 @@ const allErrs = [];
   await page.mouse.wheel(0, 1200);
   await page.waitForTimeout(400);
   await shot(page, '10-foreman-readonly');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- site checks: the card line, the list, a signature, read-only, the nudge ----
+{
+  const { ctx, page, errs } = await session();
+  await shot(page, '12-clock-nudge');   // the banner sits on the screen the app opens to
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await shot(page, '13-jobs-checks');
+
+  await tap(page, '[data-checks="t4roof"]', 600);
+  await shot(page, '14-checklist');
+
+  await tap(page, '.ckrow[data-line="movedback"]', 150);
+  await tap(page, '.ckrow[data-line="blown"]', 150);
+  await tap(page, '.ckrow[data-line="magnet"]', 150);
+  await tap(page, '#ckWhoMe', 2300);
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(300);
+  await shot(page, '15-checklist-ticked');
+
+  await tap(page, '#ckSignBtn', 500);
+  await shot(page, '16-sign-off-confirm');
+
+  await tap(page, '#skYes', 2300);
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(300);
+  await shot(page, '17-signed-off');
+
+  await tap(page, '#ckBack', 900);
+  await shot(page, '18-jobs-signed');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- a crew lead who is not a site manager: the board's 403 ----
+{
+  const { ctx, page, errs } = await session({ notManager: true });
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await tap(page, '[data-checks="t2roof"]', 600);
+  await tap(page, '.ckrow[data-line="address"]', 2300);
+  await shot(page, '19-checklist-readonly');
   allErrs.push(...errs);
   await ctx.close();
 }

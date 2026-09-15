@@ -288,6 +288,63 @@ button[disabled]{cursor:default}
 .jnote .k{display:block;margin-bottom:5px}
 .jempty{padding:26px 4px;font:400 15px/1.45 var(--sans);color:var(--mut)}
 
+/* ---------------- site checks ----------------
+   The site manager's checklist, drawn from the shape the board sends (three
+   phases, 28 lines) — no line, phase or sentence is written here. Rows clear
+   the gloved-thumb budget at 64px; the box IS the tick and fills green. Amber
+   is the one warning voice, so "in progress" and "not saved" both use it. */
+:root{--ckamber:#f2c14e}
+[data-theme="day"]{--ckamber:#8a6414}
+.jck{display:flex;align-items:center;gap:10px;padding:13px 16px;border-top:1px solid var(--line);font:600 12px/1.3 var(--mono);letter-spacing:.72px;text-transform:uppercase;color:var(--mut)}
+.jck .dot{width:9px;height:9px;border-radius:50%;background:currentColor;flex:none}
+.jck.none{color:var(--lab)}
+.jck.amber{color:var(--ckamber)}
+.jck.green{color:var(--acc)}
+.jbtn{min-height:var(--tap);width:100%;display:flex;align-items:center;justify-content:space-between;gap:11px;padding:0 16px;border-top:1px solid var(--line);background:var(--surf2);color:var(--fg);font:700 15px/1 var(--head);letter-spacing:.6px;text-transform:uppercase;text-align:left}
+.nudge{width:100%;min-height:68px;display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--warn);color:var(--warnink);text-align:left;flex:none}
+.nudge .nk{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;opacity:.8;display:block;margin-bottom:4px}
+.nudge .nt{display:block;font:600 15px/1.3 var(--sans)}
+#ckHead{padding:calc(var(--sat) + 8px) 20px 10px;display:flex;align-items:center;gap:12px;flex:none}
+#ckBack{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--fg)}
+#ckTitle{font:800 22px/1 var(--head);letter-spacing:-.22px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ckState{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 20px 12px;flex:none}
+#ckWords{flex:1;min-width:0;padding:0;border:0}
+.cksave{padding:8px 9px;border-radius:2px;font:600 10px/1.3 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut);flex:none;max-width:55%;text-align:right;display:inline-flex;align-items:center;gap:6px}
+.cksave.ok{background:var(--go);color:var(--goink)}
+.cksave.bad{background:var(--warn);color:var(--warnink)}
+#ckRo{font:600 12.5px/1.4 var(--sans);letter-spacing:.2px;text-transform:none}
+.ckphase{margin-top:14px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surf)}
+.ckphase.all{border-color:rgba(126,240,138,.45)}
+[data-theme="day"] .ckphase.all{border-color:#1e7a2f}
+.ckph{width:100%;min-height:76px;display:flex;align-items:center;gap:12px;padding:12px 16px;text-align:left;background:var(--surf2)}
+.ckph .t{flex:1;min-width:0}
+.ckph .l{font:800 17px/1.1 var(--head);letter-spacing:.17px;text-transform:uppercase;color:var(--fg)}
+.ckph .w{font:400 13px/1.3 var(--sans);color:var(--mut);margin-top:4px;display:block}
+.ckph .c{font:700 16px/1 var(--head);letter-spacing:.16px;color:var(--mut);flex:none}
+.ckph .c.all{color:var(--acc)}
+.ckph .chev{flex:none;color:var(--lab);transition:transform .18s}
+.ckphase.open .ckph .chev{transform:rotate(90deg)}
+.ckrows{display:none}
+.ckphase.open .ckrows{display:block}
+.ckrow{width:100%;min-height:64px;display:flex;align-items:center;gap:14px;padding:10px 16px;border-top:1px solid var(--line);text-align:left}
+.ckrow .box{width:34px;height:34px;border-radius:7px;border:2.5px solid var(--line2);display:flex;align-items:center;justify-content:center;flex:none;color:transparent;background:transparent}
+.ckrow.on .box{background:var(--go);border-color:var(--go);color:var(--goink)}
+.ckrow .lbl{flex:1;min-width:0;font:600 17px/1.25 var(--sans);color:var(--fg)}
+.ckrow[disabled]{opacity:.5}
+.ckwho{display:flex;align-items:center;gap:8px;padding:0 16px 14px 64px}
+.ckwho input{flex:1;min-width:0;min-height:50px;border:1.5px solid var(--line);border-radius:6px;background:var(--bg);padding:10px 12px;font:400 16px var(--sans);color:var(--fg);outline:none;-webkit-appearance:none}
+.ckwho input::placeholder{color:var(--lab)}
+.ckwho input:disabled{opacity:.5}
+.ckwho .chipbtn{min-height:50px;padding:0 14px;border-radius:6px;border:1.5px solid var(--line2);font:700 14px/1 var(--head);letter-spacing:.3px;text-transform:uppercase;color:var(--fg);flex:none}
+.cksign{padding:14px 16px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.cksign .signed{display:flex;align-items:center;gap:12px;min-height:56px;color:var(--acc)}
+.cksign .signed .st{font:800 18px/1.15 var(--head);letter-spacing:.18px;text-transform:uppercase;flex:1;min-width:0}
+.cksign .signed.pending{color:var(--mut)}
+.cksign .unsign{align-self:flex-start;min-height:44px;padding:0 14px;border:1.5px solid var(--line2);border-radius:5px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--mut)}
+.cksign .pend{font:400 13.5px/1.45 var(--sans);color:var(--mut)}
+.ckmiss{display:flex;flex-direction:column;gap:7px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--surf)}
+.ckmiss .m{font:400 14px/1.35 var(--sans);color:var(--fg)}
+
 #tabs{position:absolute;left:0;right:0;bottom:0;display:flex;background:var(--tabbg);border-top:1px solid var(--line);padding-bottom:max(calc(var(--sab) - 8px),12px);z-index:60}
 .tab{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-top:3px solid transparent;margin-top:-1px;color:rgba(255,255,255,.74)}
 .tab.on{color:#fff;border-top-color:var(--go)}
@@ -337,6 +394,7 @@ button[disabled]{cursor:default}
     </div>
     <div id="offlineBar" class="warnbar hidden"></div>
     <div id="roBar" class="warnbar robar hidden"></div>
+    <button id="clockNudge" class="nudge hidden"></button>
     <div class="scroll" style="padding-bottom:26px">
       <div class="pad">
         <div class="card" id="jobCard">
@@ -489,8 +547,27 @@ button[disabled]{cursor:default}
       </button>
     </div>
     <div id="jobsSrc" class="warnbar robar hidden"></div>
+    <button id="jobsNudge" class="nudge hidden"></button>
     <div class="scroll" style="padding:0 20px 26px">
       <div id="jobsList"></div>
+    </div>
+  </div>
+
+  <!-- ============ SITE CHECKS ============ -->
+  <div id="vChecks" class="view">
+    <div id="ckHead">
+      <button id="ckBack" aria-label="Back to My jobs">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div style="min-width:0;flex:1">
+        <div class="k" id="ckK">Site checks</div>
+        <div id="ckTitle">—</div>
+      </div>
+    </div>
+    <div id="ckState"><span id="ckWords" class="jck none"></span><span id="ckSave" class="cksave hidden"></span></div>
+    <div id="ckRo" class="warnbar robar hidden"></div>
+    <div class="scroll" style="padding:0 20px 26px">
+      <div id="ckBody"></div>
     </div>
   </div>
 
@@ -539,7 +616,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.4 (2026-09-15)';
+var APP_BUILD = 'T1.5 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -558,6 +635,15 @@ var ESCALATION_CONTACT = 'the office';
    request timeout of its own. Without a ceiling here a slow board leaves the
    tab saying "Checking the board…" forever, with no way back. */
 var BOARD_WAIT_MS = 20000;
+/* Site checks: one save per burst of taps, this long after the last one. Each
+   save writes JobTread and posts one job comment, so a save per tap would be
+   28 comments. Retries back off while the app is open; a closed app retries
+   on its next launch. A refusal (the board's 403: not a site manager) is
+   remembered this long, so a crew lead isn't nudged every morning about a
+   list they cannot sign. */
+var CHECKS_SAVE_DEBOUNCE_MS = 1500;
+var CHECKS_RETRY_MS = [20000, 60000, 180000, 300000];
+var CHECKS_RO_MEMORY_MS = 7 * 24 * 3600 * 1000;
 
 /* =========================================================
    AUTH — identical to DB Cam Mobile: Google ID token once,
@@ -703,6 +789,7 @@ var S = {
   afterRequired:false, nudged:false, escalated:false, returnToClock:false,
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
+  checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null
 };
 
@@ -762,7 +849,7 @@ function openSeconds(){ return S.open ? Math.max(0, (Date.now() - new Date(S.ope
    also kept here and shown on the Day log's Build panel, naming the call that
    produced it — the difference between "something went wrong" and a fault
    somebody can act on. */
-function failed(where, e){
+function failed(where, e, quiet){
   var msg = (e && e.message) || String(e || 'Unknown error');
   // Safari's DOM exceptions carry messages like a bare "Type error". The name
   // is the only thing that distinguishes them, so it rides along.
@@ -773,7 +860,9 @@ function failed(where, e){
   } catch (_){}
   S.lastErr = { where: where, msg: msg, at: Date.now(), stack: stack };
   try { renderVersion(); } catch(_){}
-  toast(msg, true);
+  // `quiet`: recorded for the Build panel, but not toasted — a save that will
+  // retry on its own says so in place, and a red toast on a dead spot is noise.
+  if (!quiet) toast(msg, true);
 }
 
 var toastT = null;
@@ -1020,6 +1109,8 @@ function render(){
   renderCam();
   renderLog();
   renderVersion();
+  renderNudge();
+  renderChecks();
 }
 
 /* JobTread returns a full formatted address ("408 Euclid Ave, Van Wert, OH
@@ -1307,15 +1398,29 @@ function restoreAssign(){
     if (Date.now() - c.at > ASSIGN_MAX_AGE_MS) { localStorage.removeItem(ASSIGN_KEY); return false; }
     S.assign = c.a;
     S.assignAt = c.at;
+    ckReconcile(S.assign);
     return true;
   } catch (e) { return false; }
 }
 
-function keepFresh(a){
+function keepFresh(a, askedAt){
+  // A fallback answer must not replace a real schedule already in hand: the
+  // visits and the checklist shape would vanish from under a site manager
+  // mid-tick. Keep what we have and say how old it is, as the timeout path
+  // already does. The refresh button clears S.assign first, so an explicit
+  // refresh still shows the fallback honestly.
+  if (a && a.source !== 'board' && S.assign && S.assign.source === 'board' && S.assignAt){
+    S.assignStale = true;
+    return;
+  }
   S.assign = a || null;
-  S.assignAt = Date.now();
+  // Stamped with when it was ASKED for, not when it landed: a site-checks
+  // save that finished while this was in flight is newer than this answer,
+  // whatever the clock said on arrival, and ckReconcile compares the two.
+  S.assignAt = askedAt || Date.now();
   S.assignStale = false;
   saveAssign();
+  ckReconcile(S.assign);
 }
 
 /* The code list, the recent-jobs picker and the foreman's crew block are all
@@ -1344,18 +1449,18 @@ function loadAssignments(){
   renderJobs();
   // Apps Script offers no timeout on its own outbound call, so the ceiling has
   // to live here. Whatever happens, this settles and the spinner state ends.
-  var late = null, gaveUp = false;
+  var late = null, gaveUp = false, askedAt = Date.now();
   var real = apiCall('getMyJobs', []);
   // The fallback is a placeholder, not a verdict. If the real answer turns up
   // after the ceiling — which it did, 1073ms of board behind a slow queue —
   // take it, rather than leaving the crew member looking at recent jobs.
   real.then(function(a){
-    if (gaveUp && a) { keepFresh(a); render(); }
+    if (gaveUp && a) { keepFresh(a, askedAt); render(); }
   }, function(){});
   var guard = new Promise(function(_, reject){
     late = setTimeout(function(){ gaveUp = true; reject(new Error('board-slow')); }, BOARD_WAIT_MS);
   });
-  return Promise.race([real, guard]).then(keepFresh).catch(function(e){
+  return Promise.race([real, guard]).then(function(a){ keepFresh(a, askedAt); }).catch(function(e){
     // getMyJobs swallows board failures itself, so reaching here means the
     // board outlasted the ceiling or Apps Script is unreachable. A real
     // schedule already on screen beats the recent-jobs fallback, so keep it
@@ -1370,6 +1475,9 @@ function loadAssignments(){
     clearTimeout(late);
     S.assignLoading = false;
     render();
+    // A site-checks save landed while this was in flight: its words are
+    // already stale, so ask once more.
+    if (S.assignAgain){ S.assignAgain = false; loadAssignments(); }
   });
 }
 
@@ -1377,6 +1485,14 @@ function loadAssignments(){
    which day of the stay this is, not a date they have to subtract from. */
 function visitWhen(v){
   var span = v.days > 1 ? ' · ' + v.days + ' days' : '';
+  // The window starts yesterday now, for the site checks: a visit that has
+  // ended says so, and is never dressed up as today's.
+  var today = isoLocal();
+  if (v.end && v.end < today){
+    if (v.end === isoLocal(new Date(Date.now() - 86400000))) return 'Yesterday' + span;
+    var de = new Date(v.end + 'T12:00:00');
+    return (isNaN(de) ? v.end : DOW3[de.getDay()] + ' ' + (de.getMonth()+1) + '/' + de.getDate()) + ' · ended';
+  }
   if (v.today) return v.days > 1 && v.dayOf ? 'Today · day ' + v.dayOf + ' of ' + v.days : 'Today';
   if (v.start === isoLocal(new Date(Date.now() + 86400000))) return 'Tomorrow' + span;
   var d = new Date(v.start + 'T12:00:00');
@@ -1435,8 +1551,12 @@ function visitCardHtml(v){
     var cls = v.material.cls === 'bad' ? 'bad' : v.material.cls === 'warn' ? 'warn' : 'good';
     h += '<div class="jmat ' + cls + '"><span class="dot"></span>' + esc(matWords(v.material.text)) + '</div>';
   }
+  h += checksLineHtml(v);
   if (v.crewNote) h += '<div class="jnote"><span class="k">From the office</span>' + esc(v.crewNote) + '</div>';
   h += navRowHtml(v.address);
+  if (v.checks && v.checks.taskId){
+    h += '<button class="jbtn" data-checks="' + esc(v.checks.taskId) + '">Site checks' + CK_CHEV + '</button>';
+  }
   return h + '</div>';
 }
 
@@ -1466,16 +1586,24 @@ function renderJobs(){
   var html = '';
   if (!a && S.assignLoading){
     html = '<div class="jempty">Checking the board…</div>';
-  } else if (a && a.visits && a.visits.length){
-    html = a.visits.map(visitCardHtml).join('');
   } else {
-    if (a && a.source === 'board' && a.crew){
-      html += '<div class="jempty">Nothing booked for ' + esc(a.crew.name) +
-              ' in the next two weeks. If that is wrong, the office has not put it on the board yet.</div>';
+    // Today and onwards first, soonest first (the board's order). A visit that
+    // has ended sits below them — it is on the list for its site checks, not
+    // as somewhere to go — and is never shown as though it were today's.
+    var today = isoLocal(), vs = (a && a.visits) || [];
+    var upcoming = vs.filter(function(v){ return !v.end || v.end >= today; });
+    var past = vs.filter(function(v){ return v.end && v.end < today; }).reverse();
+    html = upcoming.map(visitCardHtml).join('');
+    if (!upcoming.length){
+      if (a && a.source === 'board' && a.crew){
+        html += '<div class="jempty">Nothing booked for ' + esc(a.crew.name) +
+                ' in the next two weeks. If that is wrong, the office has not put it on the board yet.</div>';
+      }
+      var recent = (a && a.jobs) || [];
+      html += recent.length ? recent.map(recentCardHtml).join('')
+                            : (html || past.length ? '' : '<div class="jempty">No assigned jobs yet.</div>');
     }
-    var recent = (a && a.jobs) || [];
-    html += recent.length ? recent.map(recentCardHtml).join('')
-                          : (html ? '' : '<div class="jempty">No assigned jobs yet.</div>');
+    html += past.map(visitCardHtml).join('');
   }
   $('jobsList').innerHTML = html;
 
@@ -1488,20 +1616,564 @@ function renderJobs(){
       setTab('job');
     };
   });
+  [].forEach.call($('jobsList').querySelectorAll('[data-checks]'), function(b){
+    b.onclick = function(){ openChecks(b.getAttribute('data-checks')); };
+  });
+}
+
+/* =========================================================
+   SITE CHECKS — the site manager's checklist, on the phone
+   they already have open to clock in.
+
+   It replaces a sheet of paper ("Roofing Checklist") in the
+   packet that was meant to be filled in and signed on every
+   roof, and never was. The board owns it: the wording, where
+   it lives in JobTread, the sign-off, the write. This app
+   draws what the board sends — `checklist.phases` and
+   `checklist.lines`, nothing hardcoded, so the board can
+   reword a line without an app release — and posts the ticks
+   back. It never talks to JobTread for any of it.
+
+   Ticks are local-first. A tap flips at once; the whole state
+   is saved once per burst, a moment after the last tap and on
+   leaving the screen, and kept in localStorage until the board
+   has taken it — a dead spot in a driveway loses nothing. Who
+   may tick is JobTread's call, not this app's: the save is
+   tried, and the board's 403 makes the list read-only.
+   ========================================================= */
+var CK_KEY = 'dbtc_checks', CK_RO_KEY = 'dbtc_checks_ro';
+var CK_CHEV = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="chev"><polyline points="9 18 15 12 9 6"/></svg>';
+/* Plex Mono draws U+2713 as a radical sign, so the tick is always drawn. */
+var CK_TICK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+var CK_TICK_SM = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+var CK_PEN = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+
+/* The phone's copy, keyed by the id of the list (checks.taskId). An entry
+   exists only once somebody here has touched the list; until then, and again
+   once the board has taken every change, the board's answer is the truth. */
+var ckStore = {};
+try { ckStore = JSON.parse(localStorage.getItem(CK_KEY) || '{}') || {}; } catch(e){ ckStore = {}; }
+function ckPersist(){ try { localStorage.setItem(CK_KEY, JSON.stringify(ckStore)); } catch(e){} }
+
+/* ---- who may tick: the board's 403, remembered ---- */
+function ckLoadRO(){
+  try {
+    var r = JSON.parse(localStorage.getItem(CK_RO_KEY) || 'null');
+    if (r && r.at && Date.now() - r.at < CHECKS_RO_MEMORY_MS) return r;
+  } catch(e){}
+  return null;
+}
+function ckSetRO(msg){
+  S.checksRO = { at: Date.now(), msg: msg, email: (S.me && S.me.email) || '' };
+  try { localStorage.setItem(CK_RO_KEY, JSON.stringify(S.checksRO)); } catch(e){}
+}
+function ckClearRO(){
+  S.checksRO = null;
+  try { localStorage.removeItem(CK_RO_KEY); } catch(e){}
+}
+function ckReadOnly(){
+  var r = S.checksRO;
+  if (!r) return false;
+  if (S.me && r.email && r.email !== S.me.email) return false;   // somebody else's memory on this phone
+  return true;
+}
+/* Once we know who this is. "Site Manager" on the JobTread membership is the
+   board's own stated rule for who may tick, so a remembered refusal is stale
+   the moment the role says otherwise. Used only to CLEAR the memory, never to
+   deny anyone — the board's 403 stays the one thing that denies. */
+function ckOnProfile(){
+  if (S.me && /site\s*manager/i.test(String(S.me.role || ''))) ckClearRO();
+}
+
+/* ---- the shape the board sends ---- */
+function ckShape(){
+  var a = S.assign;
+  return (a && a.checklist && a.checklist.phases && a.checklist.lines) ? a.checklist : null;
+}
+function ckLines(){ var sh = ckShape(); return sh ? sh.lines : []; }
+function ckLinesOf(phaseKey){ return ckLines().filter(function(l){ return l.phase === phaseKey; }); }
+function ckValueLine(kind){ return ckLines().filter(function(l){ return l.value === kind; })[0] || null; }
+function ckLineByKey(key){ return ckLines().filter(function(l){ return l.key === key; })[0] || null; }
+function ckBlank(){
+  var d = {};
+  ckLines().forEach(function(l){ d[l.key] = false; });
+  return { done: d, magnetBy: null, signedOff: null };
+}
+/* Every line the board knows, plus any key it sent that this shape doesn't
+   carry yet — nothing is dropped on the way back. */
+function ckNorm(st){
+  var out = ckBlank(), d = (st && st.done) || {};
+  for (var k in d) out.done[k] = !!d[k];
+  out.magnetBy = (st && st.magnetBy) || null;
+  out.signedOff = (st && st.signedOff) || null;
+  return out;
+}
+/* The state the screen shows: the phone's own copy while it holds one, else
+   the board's. */
+function ckStateFor(v){
+  var tid = v && v.checks && v.checks.taskId;
+  var loc = tid ? ckStore[tid] : null;
+  if (loc && loc.state) return loc.state;
+  return ckNorm(v && v.checks && v.checks.state);
+}
+/* When a fresh answer lands. The board's copy wins over one of ours with
+   nothing unsaved in it — unless ours was saved AFTER that answer was
+   fetched: the 12-hour-old list restored on boot must not roll back this
+   morning's ticks until the real fetch arrives. */
+function ckReconcile(a){
+  if (!a || !a.visits) return;
+  var seen = {}, changed = false;
+  a.visits.forEach(function(v){
+    var c = v.checks; if (!c || !c.taskId) return;
+    seen[c.taskId] = 1;
+    var e = ckStore[c.taskId]; if (!e || !e.state) return;
+    if (!e.dirty && !e.inflight && e.signIntent == null && (S.assignAt || 0) >= (e.savedAt || 0)){
+      // Hand the list back to the board's copy; keep when it was last saved,
+      // so the screen can still say so.
+      e.state = null; e.signIntent = null; changed = true;
+    }
+  });
+  for (var k in ckStore){
+    var e2 = ckStore[k];
+    if (!seen[k] && e2 && !e2.dirty && e2.signIntent == null && Date.now() - (e2.at || 0) > 3 * 86400000){
+      delete ckStore[k]; changed = true;
+    }
+  }
+  if (changed) ckPersist();
+}
+
+function firstName(){ return String((S.me && S.me.name) || '').trim().split(/\s+/)[0] || ''; }
+function jobLabelOf(v){ return [v.jobNum, v.cust || jobTitle({ name: v.jobName })].filter(Boolean).join(' '); }
+function visitForChecks(tid){
+  var a = S.assign; if (!a) return null;
+  return (a.visits || []).filter(function(v){ return v.checks && v.checks.taskId === tid; })[0] || null;
+}
+
+/* ---- touching the list ---- */
+function ckEntry(v){
+  var tid = v.checks.taskId, e = ckStore[tid];
+  if (!e || !e.state){
+    // Build from the freshest answer for this list, never from a copy of the
+    // visit that a handler may have been holding since before the last fetch.
+    var live = visitForChecks(tid) || v;
+    e = ckStore[tid] = { state: ckStateFor(live), dirty: false, seq: (e && e.seq) || 0, savedAt: (e && e.savedAt) || 0,
+                         at: Date.now(), err: '', jobId: live.jobId, jobLabel: jobLabelOf(live) };
+  }
+  return e;
+}
+function ckTouch(v, mutate){
+  if (ckReadOnly() || !v || !v.checks) return;
+  var e = ckEntry(v);
+  mutate(e.state);
+  e.dirty = true; e.seq = (e.seq || 0) + 1; e.at = Date.now(); e.err = '';
+  ckPersist();
+  ckSchedule(v.checks.taskId, CHECKS_SAVE_DEBOUNCE_MS);
+}
+
+/* ---- saving: one PUT per burst, the whole state every time ---- */
+var ckTimers = {}, ckRetries = {};
+function ckSchedule(tid, ms){
+  clearTimeout(ckTimers[tid]);
+  ckTimers[tid] = setTimeout(function(){ delete ckTimers[tid]; ckFlush(tid); }, ms);
+}
+function ckCancel(tid){ clearTimeout(ckTimers[tid]); delete ckTimers[tid]; }
+
+/* Send what the phone holds. `opts.signOff` (true/false) is the one thing a
+   save carries beyond the state: whether the list should be signed. The
+   NAME and DATE on the signature are the board's — it stamps them from the
+   membership behind the verified token — and are never sent from here. */
+function ckFlush(tid, opts){
+  opts = opts || {};
+  var e = ckStore[tid];
+  if (!e || !e.state) return Promise.resolve();
+  ckCancel(tid);
+  if (opts.signOff != null){
+    e.signIntent = !!opts.signOff;
+    e.dirty = true; e.seq = (e.seq || 0) + 1; e.err = ''; e.at = Date.now();
+    ckPersist();
+  }
+  if (!e.dirty) return Promise.resolve();
+  if (e.inflight) return Promise.resolve();          // the in-flight save re-sends when it lands
+  if (!S.me) return Promise.resolve();               // not booted yet; ckRetryPending runs after boot
+  if (!S.online){ e.err = 'offline'; ckPersist(); renderCkStatus(); return Promise.resolve(); }
+
+  var sentSeq = e.seq || 0;
+  var payload = { done: {}, magnetBy: e.state.magnetBy || null,
+                  signOff: e.signIntent != null ? e.signIntent : !!e.state.signedOff };
+  for (var k in e.state.done) payload.done[k] = !!e.state.done[k];
+  e.inflight = true; e.err = '';
+  renderCkStatus();
+  return apiCall('saveSiteChecks', [tid, e.jobId, e.jobLabel, isoLocal(), payload]).then(function(r){
+    e.inflight = false;
+    r = r || {};
+    if (r.status === 200 && r.body && r.body.checks){
+      ckAdopt(e, r.body.checks, sentSeq);
+      ckRetries[tid] = 0;
+      if (e.dirty) ckSchedule(tid, 300);   // taps landed while this was in flight
+      else ckRefreshWords();
+      renderChecksAfterSave();
+      return;
+    }
+    if (r.status === 403){
+      // Not a site manager, says JobTread. Nothing was written, so nothing
+      // the phone holds for this list is true: drop it and go read-only.
+      ckSetRO((r.body && r.body.error) || 'Only a site manager can tick the site checks — ask the office.');
+      ckCancel(tid); delete ckStore[tid]; ckPersist();
+      render();
+      return;
+    }
+    if (r.status === 400){
+      // The board refused the shape of this save; asking again changes nothing.
+      e.err = 'Not saved — the board refused it' + (r.body && r.body.error ? ' (' + r.body.error + ')' : '');
+      ckPersist(); renderCkStatus();
+      failed('site checks', new Error(e.err), true);
+      return;
+    }
+    if (r.status === 401) e.err = 'Not saved — the board rejected the app’s key. Ask the office.';
+    else if (r.reason === 'not-configured') e.err = 'Not saved — the board isn’t connected to this app yet.';
+    else if (r.reason === 'no-membership') e.err = 'Not saved — no JobTread user is linked to you.';
+    else e.err = 'retry';                          // 502, unreachable, a bounce: the board's problem, kept and retried
+    ckPersist();
+    ckRetryLater(tid);
+    renderCkStatus();
+    failed('site checks', new Error((e.err === 'retry' ? 'Not saved — will retry' : e.err) +
+      (r.body && r.body.error ? ' — ' + r.body.error : r.reason ? ' (' + r.reason + ')' : '')), true);
+  }).catch(function(err){
+    e.inflight = false;
+    e.err = 'retry';
+    ckPersist();
+    if (!(err && err.auth)) ckRetryLater(tid);     // an expired session resumes on sign-in
+    renderCkStatus();
+    failed('site checks', err, true);
+  });
+}
+/* Sign, or unsign. The phone's copy may not exist yet — a list saved clean is
+   handed back to the board's answer — so it is (re)made from the visit first. */
+function ckSign(v, signOff){
+  if (ckReadOnly() || !v || !v.checks || !v.checks.taskId) return;
+  ckEntry(v);
+  ckFlush(v.checks.taskId, { signOff: !!signOff });
+}
+function ckAdopt(e, checks, sentSeq){
+  var srv = ckNorm(checks);
+  if ((e.seq || 0) === sentSeq){
+    e.state = srv; e.dirty = false; e.signIntent = null;
+  } else {
+    // Taps landed while this save was in flight: keep them, take the board's
+    // signature (only the board writes it), and let the next save carry the rest.
+    e.state.signedOff = srv.signedOff;
+    var sl = ckValueLine('signedOff');
+    if (sl) e.state.done[sl.key] = !!srv.signedOff;
+    if (e.signIntent != null && e.signIntent === !!srv.signedOff) e.signIntent = null;
+  }
+  e.savedAt = Date.now(); e.at = Date.now(); e.err = '';
+  ckPersist();
+}
+function ckRetryLater(tid){
+  var n = ckRetries[tid] || 0;
+  ckRetries[tid] = n + 1;
+  ckSchedule(tid, CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)]);
+}
+/* On open, on reconnect, on waking: anything unsaved goes now. */
+function ckRetryPending(){
+  var i = 0;
+  for (var tid in ckStore){
+    var e = ckStore[tid];
+    if (e && e.dirty && !e.inflight){ ckRetries[tid] = 0; ckSchedule(tid, 100 + 50 * i++); }
+  }
+}
+function ckFlushAll(){
+  for (var tid in ckStore){ var e = ckStore[tid]; if (e && e.dirty && !e.inflight) ckFlush(tid); }
+}
+function ckLeave(){ if (S.checksTask) ckFlush(S.checksTask); }
+/* The words on the card are the board's sentence, never re-derived here, so
+   after a save they are re-asked for. The server drops its cached copy on a
+   written save; this is the fetch that picks the new one up. */
+function ckRefreshWords(){
+  if (S.assignLoading){ S.assignAgain = true; return; }
+  loadAssignments();
+}
+function ckDiag(){
+  var n = 0, bad = 0;
+  for (var k in ckStore){ if (ckStore[k] && ckStore[k].dirty){ n++; if (ckStore[k].err && ckStore[k].err !== 'retry') bad++; } }
+  return (ckReadOnly() ? 'read-only, ' : '') + n + ' unsaved' + (bad ? ', ' + bad + ' refused' : '');
+}
+
+/* ---- the card line, and the morning-after nudge ---- */
+function checksCls(v){
+  if (!v || !v.checks) return 'none';
+  var st = ckStateFor(v);
+  if (st.signedOff) return 'green';
+  for (var k in st.done) if (st.done[k]) return 'amber';
+  return 'none';
+}
+function checksLineHtml(v){
+  var text = (v.checks && v.checks.taskId) ? (v.checks.words || '') : 'No checklist on this job yet';
+  return '<div class="jck ' + checksCls(v) + '"><span class="dot"></span>' + esc(text) + '</div>';
+}
+/* A roof that ended and was never signed off — the sentence the owner is
+   currently writing in a daily log by hand. Not shown to someone the board
+   has already said cannot sign. */
+function nudgeVisits(){
+  var a = S.assign;
+  if (!a || !a.visits || ckReadOnly()) return [];
+  var today = isoLocal();
+  return a.visits.filter(function(v){
+    if (!v.checks || !v.checks.taskId || !v.end || v.end >= today) return false;
+    var e = ckStore[v.checks.taskId];
+    if (e && e.signIntent === true) return false;
+    return !ckStateFor(v).signedOff;
+  }).sort(function(x, y){ return String(y.end).localeCompare(String(x.end)); });
+}
+function nudgeText(v){
+  var who = v.cust || jobTitle({ name: v.jobName }) || ('JT #' + (v.jobNum || ''));
+  if (v.end === isoLocal(new Date(Date.now() - 86400000))) return 'Yesterday’s roof at ' + who + ' isn’t signed off';
+  var d = new Date(v.end + 'T12:00:00');
+  var when = isNaN(d) ? v.end : DOW3[d.getDay()] + ' ' + (d.getMonth()+1) + '/' + d.getDate();
+  return 'The roof at ' + who + ' from ' + when + ' isn’t signed off';
+}
+function renderNudge(){
+  var list = nudgeVisits();
+  ['clockNudge', 'jobsNudge'].forEach(function(id){
+    var el = $(id);
+    el.classList.toggle('hidden', !list.length);
+    if (!list.length) return;
+    var v = list[0];
+    el.innerHTML = '<span style="flex:1;min-width:0"><span class="nk">Site checks</span><span class="nt">' + esc(nudgeText(v)) +
+      (list.length > 1 ? ' · +' + (list.length - 1) + ' more' : '') + '</span></span>' + CK_CHEV;
+    el.onclick = function(){ openChecks(v.checks.taskId); };
+  });
+}
+
+/* ---- the screen ---- */
+function openChecks(tid){
+  var v = visitForChecks(tid);
+  if (!v){ toast('That checklist is not on your list any more', true); return; }
+  S.checksTask = tid; S.checksVisit = v;
+  S.ckOpen = ckAutoOpen(v);
+  setTab('checks');
+  var sc = $('vChecks').querySelector('.scroll');
+  if (sc) sc.scrollTop = 0;
+}
+/* The first phase with anything unticked opens; the rest are one tap away.
+   All ticked: the last phase, where the sign-off lives. */
+function ckAutoOpen(v){
+  var sh = ckShape(), st = ckStateFor(v), open = {}, found = false;
+  if (!sh) return open;
+  sh.phases.forEach(function(p){
+    var any = ckLinesOf(p.key).some(function(l){ return l.value !== 'signedOff' && !st.done[l.key]; });
+    if (any && !found){ open[p.key] = true; found = true; }
+  });
+  if (!found && sh.phases.length) open[sh.phases[sh.phases.length - 1].key] = true;
+  return open;
+}
+/* Ticking a phase's last line opens the next one that still has work. */
+function ckOpenNextIfDone(v, key){
+  var sh = ckShape(), line = ckLineByKey(key);
+  if (!sh || !line) return;
+  var st = ckStateFor(v);
+  var complete = function(pk){ return ckLinesOf(pk).every(function(l){ return l.value === 'signedOff' || !!st.done[l.key]; }); };
+  if (!complete(line.phase)) return;
+  var idx = -1;
+  sh.phases.forEach(function(p, i){ if (p.key === line.phase) idx = i; });
+  for (var i = idx + 1; i < sh.phases.length; i++){
+    if (!complete(sh.phases[i].key)){ S.ckOpen[sh.phases[i].key] = true; return; }
+  }
+  var sl = ckValueLine('signedOff');
+  if (sl) S.ckOpen[sl.phase] = true;
+}
+
+function ckStatus(v){
+  var e = v && v.checks && ckStore[v.checks.taskId];
+  if (!e) return null;
+  // In flight, or a save is a moment away (the debounce after a tap): "Saving…".
+  // Dirty with a failure behind it: kept, and will retry — or the config
+  // problem, in words. Clean: saved.
+  if (e.inflight || (e.dirty && !e.err)) return { cls: '', text: 'Saving…' };
+  if (e.dirty) return { cls: 'bad', text: (e.err !== 'retry' && e.err !== 'offline') ? e.err : 'Not saved — will retry' };
+  if (e.savedAt) return { cls: 'ok', text: 'Saved', tick: true };
+  return null;
+}
+function renderCkStatus(){
+  if (S.tab !== 'checks' || !S.checksVisit) return;
+  var st = ckStatus(S.checksVisit), el = $('ckSave');
+  el.className = 'cksave' + (st ? ' ' + st.cls : ' hidden');
+  el.innerHTML = st ? esc(st.text) + (st.tick ? CK_TICK_SM : '') : '';
+}
+function renderChecks(){
+  if (S.tab !== 'checks') return;
+  var v = S.checksVisit;
+  if (!v) return;
+  var fresh = visitForChecks(S.checksTask);
+  if (fresh) v = S.checksVisit = fresh;
+  $('ckK').textContent = 'Site checks' + (v.jobNum ? ' · JT #' + v.jobNum : '');
+  $('ckTitle').textContent = streetOf(v.address) || v.cust || jobTitle({ name: v.jobName }) || '—';
+  var w = $('ckWords');
+  w.className = 'jck ' + checksCls(v);
+  w.innerHTML = '<span class="dot"></span>' + esc((v.checks && v.checks.words) || '');
+  renderCkStatus();
+  var ro = $('ckRo');
+  ro.classList.toggle('hidden', !ckReadOnly());
+  ro.innerHTML = '<span>The site manager ticks these.</span>';
+  // Never rebuild the rows under a finger typing a name — and never rebuild
+  // them at all when nothing changed, so a background fetch landing between
+  // a finger going down and coming up cannot swallow the tap.
+  if (document.activeElement && document.activeElement.id === 'ckWho') return;
+  var body = $('ckBody'), html = ckBodyHtml(v);
+  if (body.__ck === html) return;
+  body.innerHTML = html;
+  body.__ck = html;
+  wireChecks();
+}
+function renderChecksAfterSave(){
+  if (document.activeElement && document.activeElement.id === 'ckWho'){ renderCkStatus(); return; }
+  render();
+}
+function ckBodyHtml(v){
+  var sh = ckShape();
+  if (!sh) return '<div class="jempty">The board hasn’t sent the checklist yet. Refresh My jobs, or ask the office to update the app’s API.</div>';
+  var st = ckStateFor(v), ro = ckReadOnly(), e = ckStore[v.checks.taskId], first = firstName();
+  return sh.phases.map(function(p){
+    var lines = ckLinesOf(p.key);
+    var total = lines.length, done = lines.filter(function(l){ return !!st.done[l.key]; }).length;
+    var all = total > 0 && done === total, open = !!S.ckOpen[p.key];
+    var h = '<div class="ckphase' + (open ? ' open' : '') + (all ? ' all' : '') + '" data-phase="' + esc(p.key) + '">';
+    h += '<button class="ckph" data-toggle="' + esc(p.key) + '"><span class="t"><span class="l">' + esc(p.label) + '</span>' +
+         (p.when ? '<span class="w">' + esc(sentenceCase(p.when)) + '</span>' : '') + '</span>' +
+         '<span class="c tabular' + (all ? ' all' : '') + '">' + done + ' of ' + total + '</span>' + CK_CHEV + '</button>';
+    h += '<div class="ckrows">';
+    lines.forEach(function(l){
+      if (l.value === 'signedOff') return;   // the signature is a button, below, not a box
+      var on = !!st.done[l.key];
+      h += '<button class="ckrow' + (on ? ' on' : '') + '" data-line="' + esc(l.key) + '"' + (ro ? ' disabled' : '') + '>' +
+           '<span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(l.label) + '</span></button>';
+      if (l.value === 'magnetBy'){
+        // The paper's "Who" is a real question, so the name is never prefilled.
+        h += '<div class="ckwho"><input id="ckWho" placeholder="who ran it?" autocomplete="off" maxlength="40" value="' + esc(st.magnetBy || '') + '"' + (ro ? ' disabled' : '') + '>' +
+             (!ro && first ? '<button class="chipbtn" id="ckWhoMe" data-key="' + esc(l.key) + '">' + esc(first) + '</button>' : '') + '</div>';
+      }
+    });
+    if (lines.some(function(l){ return l.value === 'signedOff'; })) h += ckSignHtml(st, ro, e);
+    return h + '</div></div>';
+  }).join('');
+}
+function ckSignHtml(st, ro, e){
+  var line = ckValueLine('signedOff');
+  var label = (line && line.label) || 'Signed off:';
+  var first = firstName();
+  var h = '<div class="cksign">';
+  if (e && e.signIntent === true && !st.signedOff){
+    h += '<div class="signed pending">' + CK_PEN + '<span class="st">Signing off…</span></div>' +
+         '<div class="pend">' + (e.inflight ? 'Saving to the job now.' : 'Not saved yet — it will send when the board can be reached.') + '</div>';
+  } else if (e && e.signIntent === false && st.signedOff){
+    h += '<div class="signed pending">' + CK_PEN + '<span class="st">Taking the signature off…</span></div>';
+  } else if (st.signedOff){
+    h += '<div class="signed">' + CK_TICK + '<span class="st">' + esc(label + ' ' + st.signedOff) + '</span></div>';
+    if (!ro) h += '<button class="unsign" id="ckUnsign">Unsign</button>';
+  } else if (!ro){
+    h += '<button class="btn btn-go" id="ckSignBtn" style="min-height:88px;font-size:21px">' + CK_PEN + 'Sign off as ' + esc(first || 'me') + '</button>' +
+         '<div class="fine">Your name and today’s date go on the job. Ticks stay editable afterwards.</div>';
+  } else {
+    h += '<div class="pend">' + esc(label) + ' —</div>';
+  }
+  return h + '</div>';
+}
+/* Handlers read the visit at tap time (S.checksVisit, refreshed on every
+   render), never a copy captured when they were wired: the rows are only
+   rebuilt when their HTML changes, so a wiring can outlive several fetches. */
+function wireChecks(){
+  var body = $('ckBody');
+  var cur = function(){ return S.checksVisit; };
+  [].forEach.call(body.querySelectorAll('[data-toggle]'), function(b){
+    b.onclick = function(){ var k = b.getAttribute('data-toggle'); S.ckOpen[k] = !S.ckOpen[k]; renderChecks(); };
+  });
+  [].forEach.call(body.querySelectorAll('[data-line]'), function(b){
+    b.onclick = function(){
+      var v = cur();
+      if (ckReadOnly() || !v) return;
+      var k = b.getAttribute('data-line');
+      ckTouch(v, function(st){ st.done[k] = !st.done[k]; });
+      ckOpenNextIfDone(v, k);
+      renderChecks();
+    };
+  });
+  var who = $('ckWho');
+  if (who){
+    who.oninput = function(){
+      var v = cur(); if (!v) return;
+      ckTouch(v, function(st){ st.magnetBy = who.value.trim() || null; });
+      renderCkStatus();
+    };
+  }
+  var me = $('ckWhoMe');
+  if (me){
+    me.onclick = function(){
+      var v = cur(); if (!v) return;
+      var key = me.getAttribute('data-key'), name = firstName();
+      if ($('ckWho')) $('ckWho').value = name;
+      // Naming who ran it says it was run, so the box ticks with it.
+      ckTouch(v, function(st){ st.magnetBy = name; if (key) st.done[key] = true; });
+      ckOpenNextIfDone(v, key);
+      renderChecks();
+    };
+  }
+  if ($('ckSignBtn')) $('ckSignBtn').onclick = function(){ openSheet('signoff'); };
+  if ($('ckUnsign')) $('ckUnsign').onclick = function(){ openSheet('unsign'); };
+}
+
+/* The confirm: what is still unticked, then Yes / No. Yes sends signOff:true
+   with everything the phone holds; the board stamps the name and the day. */
+function signoffHtml(){
+  var v = S.checksVisit; if (!v) return '';
+  var st = ckStateFor(v);
+  var missing = ckLines().filter(function(l){ return l.value !== 'signedOff' && !st.done[l.key]; });
+  var h = '<div class="sheetpad">' +
+    '<div class="promptbox' + (missing.length ? ' warn' : '') + '">' + CK_PEN +
+      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">Sign off' + (v.jobNum ? ' · JT #' + esc(v.jobNum) : '') + '</span>' +
+      '<span class="pt" style="display:block">Sign off as ' + esc(firstName() || 'me') + '</span></span></div>';
+  if (missing.length){
+    h += '<div class="body">' + missing.length + (missing.length === 1 ? ' line' : ' lines') + ' not ticked — sign anyway?</div>' +
+         '<div class="ckmiss">' + missing.slice(0, 8).map(function(l){ return '<span class="m">· ' + esc(l.label) + '</span>'; }).join('') +
+         (missing.length > 8 ? '<span class="m">· and ' + (missing.length - 8) + ' more</span>' : '') + '</div>';
+  } else {
+    h += '<div class="body">Everything is ticked. Your name and today’s date go on the job.</div>';
+  }
+  h += '<div class="yn">' +
+       '<button class="ynbtn" id="skNo"><span class="yb">No</span><span class="ys">Not yet</span></button>' +
+       '<button class="ynbtn yes" id="skYes"><span class="yb">Yes</span><span class="ys">Sign off</span></button></div>';
+  return h + '</div>';
+}
+function unsignHtml(){
+  var v = S.checksVisit; if (!v) return '';
+  var st = ckStateFor(v);
+  return '<div class="sheetpad">' +
+    '<div class="promptbox warn">' + CK_PEN +
+      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc((ckValueLine('signedOff') || {}).label || 'Signed off:') + ' ' + esc(st.signedOff || '') + '</span>' +
+      '<span class="pt" style="display:block">Take the signature off?</span></span></div>' +
+    '<div class="body">The ticks stay as they are. Only the signature comes off, and you can sign again later.</div>' +
+    '<div class="yn">' +
+      '<button class="ynbtn" id="ukNo"><span class="yb">No</span><span class="ys">Keep it</span></button>' +
+      '<button class="ynbtn yes" id="ukYes"><span class="yb">Yes</span><span class="ys">Unsign</span></button></div>' +
+    '</div>';
 }
 
 /* =========================================================
    TABS + SHEET
    ========================================================= */
 function setTab(t){
+  // Leaving the checklist saves whatever is unsaved, without waiting.
+  if (S.tab === 'checks' && t !== 'checks') ckLeave();
   S.tab = t;
   $('vClock').classList.toggle('on', t==='job');
   $('vJobs').classList.toggle('on', t==='jobs');
+  $('vChecks').classList.toggle('on', t==='checks');
   $('vCam').classList.toggle('on', t==='cam');
   $('vLog').classList.toggle('on', t==='log');
   // First visit to the tab fetches; after that the refresh button is explicit.
   if (t === 'jobs' && !S.assign && !S.assignLoading) loadAssignments();
-  [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===t); });
+  // The checklist is a screen inside My jobs, so that tab stays lit.
+  var lit = t === 'checks' ? 'jobs' : t;
+  [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===lit); });
   if (t === 'cam') startCamera(); else stopCamera();
   render();
 }
@@ -1513,11 +2185,15 @@ function openSheet(kind, promptKind){
   var title = kind==='codes' ? (S.open ? 'Switch code' : 'What are you doing?')
             : kind==='jobs' ? 'Pick a job'
             : kind==='out' ? 'End of day'
+            : kind==='signoff' ? 'Sign off'
+            : kind==='unsign' ? 'Unsign'
             : 'Photo check';
   $('sheetTitle').textContent = title;
   $('sheetBody').innerHTML = kind==='codes' ? codesHtml()
                             : kind==='jobs' ? jobsHtml()
                             : kind==='out' ? outHtml()
+                            : kind==='signoff' ? signoffHtml()
+                            : kind==='unsign' ? unsignHtml()
                             : promptHtml();
   $('scrim').classList.add('on');
   wireSheet();
@@ -1651,6 +2327,10 @@ function wireSheet(){
   if ($('pSkip')) $('pSkip').onclick = function(){ closeSheet(); render(); };
   if ($('outShoot')) $('outShoot').onclick = function(){ closeSheet(); S.capture='after'; S.returnToClock=true; setTab('cam'); };
   if ($('outConfirm')) $('outConfirm').onclick = doClockOut;
+  if ($('skNo')) $('skNo').onclick = function(){ closeSheet(); };
+  if ($('skYes')) $('skYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, true); render(); };
+  if ($('ukNo')) $('ukNo').onclick = function(){ closeSheet(); };
+  if ($('ukYes')) $('ukYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, false); render(); };
 }
 
 /* =========================================================
@@ -2002,6 +2682,7 @@ function start(){
   $('app').classList.remove('hidden');
   measureTabs();
   var lastJob = loadPrefs();
+  S.checksRO = ckLoadRO();
   restoreAssign();   // last known schedule on screen at once; refresh behind it
   applyTheme();
   setTab('job');
@@ -2017,6 +2698,7 @@ function start(){
     S.job = d.job;
     S.entries = d.entries || [];
     if (S.open) scheduleNudge();
+    ckOnProfile();
   }).catch(function(e){
     if (!(e && e.auth)) failed('boot', e);
   }).then(function(){
@@ -2027,6 +2709,9 @@ function start(){
     // Deliberately after render(), and not in the chain above: the board is a
     // second system and the clock must be usable before it answers, or not.
     loadAssignments();
+    // Anything ticked in a dead spot last time goes now — after the clock's
+    // own calls, never ahead of them.
+    ckRetryPending();
     // Re-register on every launch: FCM tokens rotate, and a stale one is a
     // nudge that silently goes nowhere. Once permission is granted this needs
     // no gesture — requestPermission is never reached — so it can run at boot
@@ -2048,6 +2733,7 @@ $('remind').onclick = function(){
   setTab('cam');
 };
 $('jobsRefresh').onclick = function(){ S.assign = null; loadAssignments(); };
+$('ckBack').onclick = function(){ setTab('jobs'); };
 $('sheetClose').onclick = function(){ closeSheet(); render(); };
 $('scrimTap').onclick = function(){ closeSheet(); render(); };
 $('shutter').onclick = shoot;
@@ -2072,6 +2758,7 @@ $('copyDiagBtn').onclick = function(){
     'board    ' + (S.assign ? (S.assign.source + (S.assign.reason ? ' · ' + S.assign.reason : '') +
                    (S.assign.boardMs != null ? ' · ' + S.assign.boardMs + 'ms' : '')) : '—'),
     'push     ' + pushWords() + ' (state ' + pushState + ')',
+    'checks   ' + ckDiag(),
     'config   apiUrl ' + (c.apiUrl ? 'set' : 'MISSING') + ', clientId ' + (c.clientId ? 'set' : 'MISSING') +
              ', fb.apiKey ' + (fb.apiKey ? 'set' : 'MISSING') + ', fb.projectId ' + (fb.projectId || 'MISSING') +
              ', vapidKey ' + (c.vapidKey ? String(c.vapidKey).length + ' chars' : 'MISSING'),
@@ -2121,11 +2808,15 @@ $('notif').onclick = function(){ $('notif').style.display='none'; closeSheet(); 
   b.onclick = function(){ S.capture = b.getAttribute('data-tag'); renderCam(); };
 });
 
-window.addEventListener('online', function(){ S.online = true; render(); pump(); });
+window.addEventListener('online', function(){ S.online = true; render(); pump(); ckRetryPending(); });
 window.addEventListener('offline', function(){ S.online = false; render(); });
 window.addEventListener('resize', measureTabs);
+// A phone going in a pocket mid-list: send what is unsaved now, best effort.
+// The copy in localStorage is what actually guarantees it.
+window.addEventListener('pagehide', ckFlushAll);
 document.addEventListener('visibilitychange', function(){
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible'){ ckFlushAll(); return; }
+  ckRetryPending();
   // A phone that spent an hour in a pocket should show the right number
   // immediately, and any owed nudge should land now.
   render();

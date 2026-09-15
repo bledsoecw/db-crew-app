@@ -48,8 +48,12 @@ jobs for a contained first test. See SETUP.md for the go-live sequence.
 
 ### Who can open it, and who sees the crew block
 
-Two gates, in order. A Google Workspace account on `@deitemeyerbrothers.com`
-gets you to the sign-in; a JobTread membership on the org gets you in. Past
+Two gates, in order. A Google account on `@deitemeyerbrothers.com` — or on the
+short explicit allow-list beside it (`SITE_MANAGER_EMAILS` in `Code.gs`, plus
+the optional `EXTRA_ALLOWED_EMAILS` Script Property; two of the three site
+managers sign in with Gmail addresses, which are also their JobTread user
+emails) — gets you to the sign-in; a JobTread membership on the org gets you
+in. Never "any Google account". Past
 that, DB Hub's **App access** panel has the final say if `ACCESS_FEED_URL` is
 set: `Off` or a status of left/inactive/terminated closes the app with a plain
 message, `Manager` also unlocks the foreman's crew block, and a blank row means
@@ -76,6 +80,45 @@ The board is a second system, so it is treated as one. If it is unreachable, not
 connected yet, or your account isn't linked to a crew, the tab says which of
 those it is and falls back to the jobs you have recently clocked into. **The
 clock is payroll and never waits on the board.**
+
+**Site checks.** The site manager's checklist, replacing the paper "Roofing
+Checklist" in the packet that was meant to be filled in and signed on every
+roof and never was. The board owns it — the 28 lines in three phases, where it
+lives in JobTread (a checklist on the job's roofing install task), the sign-off
+and the write — and this app draws it from what the board sends
+(`checklist.phases`, `checklist.lines`) and posts ticks back through the board.
+Nothing about the list is hardcoded here, so the board can reword a line
+without an app release, and this app never talks to JobTread for any of it.
+
+Each roofing job's card carries the board's own sentence about where the list
+stands ("Before tear-off — 6 of 11 done", "Signed off — Tyler · Sep 15"),
+coloured neutral / amber / green, and a full-width **Site checks** button. A
+job with no list says "No checklist on this job yet". The checklist screen is
+three stacked phases with their "when" hint and a *done of total* count; the
+first phase with anything unticked opens, the rest are one tap away. Rows are
+64px with a box that fills green. The magnet line has a "who ran it?" field
+with a one-tap chip for your first name (never prefilled — the paper's "Who"
+is a real question). At the bottom, **Sign off as Tyler** confirms with what is
+still unticked; the name and date on the signature are the board's, stamped
+from the signed-in identity — the app never sends them. Once signed, ticks
+stay editable and a small **Unsign** takes the signature off.
+
+Ticks are local-first: a tap flips at once, the whole state is saved once per
+burst (1.5s after the last tap, and on leaving the screen — each save writes
+JobTread and posts one job comment), and it is kept in localStorage until the
+board has taken it, so a dead spot in a driveway loses nothing. The screen says
+"Saved", "Saving…" or "Not saved — will retry". Who may tick is JobTread's
+call, not this app's: the membership must carry the **Site Manager** role
+there. The app has no role table — it tries the save and honours the board's
+403 by making the list read-only, with one plain line at the top: "The site
+manager ticks these." Everyone else on the crew still sees the list, because
+"Homeowner talked to — trailer spot, questions, color confirmed" is a fact the
+whole crew wants.
+
+On open, a roof that ended yesterday and was never signed off puts an amber
+banner at the top of the clock screen and the day list — "Yesterday's roof at
+Courtney isn't signed off" — and tapping it opens that checklist. That is the
+sentence the owner has been writing in a daily log by hand.
 
 **Clock in.** One green 132px button. It opens the code list — you cannot clock
 in without saying what you are doing.
@@ -207,8 +250,8 @@ help until they are changed:
 | Question | Where it is blocked |
 | --- | --- |
 | **Jeff and Chris McGlone have no JobTread user at all.** They can sign in with Google, but nothing resolves to a crew until the office creates memberships. What should they see meanwhile? | `memberFor_` **throws** `"No JobTread user is linked to…"`, and `getBoot` calls it first — so today they don't reach a "no crew yet" screen, they hit a hard error on launch. Whatever they should see has to be handled in `memberFor_` / `getBootFor_`. *(Note: until 2026-09-14 that same message appeared for **everyone**, from a different cause — the membership query asked for a field JobTread doesn't have. That bug is fixed. What remains here is the genuine no-membership case.)* |
-| **Subs.** Marcos, Jeremiah and Samuel have memberships and would resolve; the company-level ones don't. Proposed rule: *the job list serves anyone who resolves, the clock stays employees-only*, because clocking in is payroll and subs never had a clock. | `verifyIdToken_` rejects any address that is not `@deitemeyerbrothers.com` (`Code.gs:94`), and a sub's JobTread email is their own company's. This is the one security-relevant edit in the whole feature and shouldn't ride along inside a UI commit. |
-| **Language.** This app is English only (`<html lang="en">`, zero Spanish strings). DB CheckOut is Spanish-first. Same crews. | Not blocked — but decide before the crew sees it, not after. |
+| **Subs.** Marcos, Jeremiah and Samuel have memberships and would resolve; the company-level ones don't. Proposed rule: *the job list serves anyone who resolves, the clock stays employees-only*, because clocking in is payroll and subs never had a clock. | `verifyIdToken_` rejects any address that is not `@deitemeyerbrothers.com` or on the explicit allow-list (`emailAllowed_` in `Code.gs`), and a sub's JobTread email is their own company's. The allow-list exists for the two site managers on Gmail, not for subs — widening it further is a security decision, not a UI one. |
+| **Language.** This app is English only (`<html lang="en">`, zero Spanish strings). DB CheckOut is Spanish-first. Same crews. | Not blocked — but decide before the crew sees it, not after. The site checks arrive from the board in English; if this app goes bilingual, translate the 28 labels by `key` (not by matching English text) and fall back to the sent label for any key without one, so a new line still shows. |
 
 Two smaller calls I made rather than guess:
 
@@ -238,7 +281,12 @@ here. Same faces, no network.
 Every screen was rendered and clicked through against `dev/mock.js` during the
 build — clocked out, code picker, before prompt, the amber owed state, the
 finished-code prompt, blocked clock-out, capture, day log, day mode, foreman
-view and the escalation. `dev/push-test.mjs` covers the push-registration
-branches (14 assertions), and `apps-script/code-test.mjs` covers `getMyJobs`
-against a stubbed Apps Script runtime (25 assertions) — every state the
-Production Board can leave it in, without a board to point at.
+view, the escalation, and the site checks — the card line, the list, a
+signature, read-only, and the nudge. `dev/push-test.mjs` covers the
+push-registration branches (14 assertions), `dev/checks-test.mjs` drives the
+site checks end to end in the real page (73 checks: one save per burst, the
+whole state every time, the sign-off, the board's 403 going read-only, a dead
+spot, a 502, the unsaved state surviving a reload), and
+`apps-script/code-test.mjs` covers `getMyJobs` and `saveSiteChecks` against a
+stubbed Apps Script runtime (101 assertions) — every state the Production
+Board can leave them in, without a board to point at.

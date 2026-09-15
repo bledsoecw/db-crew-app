@@ -115,6 +115,13 @@ or to filter on. `emailAddress` works in both positions.
 assignees and the Production Board's `Crew.leadMembershipId` want.
 `currentGrant.user` exposes neither address.
 
+JobTread keeps the address as it was typed, so a capital letter in there misses
+an exact match against the lowercased token email. `memberFor_` tries `=` and
+then `like` (case-insensitive) — the same two tries as the board's
+`membershipForEmail` (2026-09-15). Two of the three site managers' JobTread
+users are on Gmail (`tylermohr94@gmail.com`, `kentonmccomas@gmail.com`,
+verified live); those addresses are on the sign-in allow-list in `Code.gs`.
+
 **If DB Cam Mobile was copied from the same source, check it for the same line.**
 
 ## Photos
@@ -169,3 +176,25 @@ here is the same JobTread `membership.id` the board stores as `Crew.leadMembersh
 `getJobOptions` — recent time entries, GPS proximity, a remembered last job — is
 **kept as the fallback**, not replaced. The clock is payroll and cannot be
 blocked by the board being down.
+
+## Site checks
+
+**Added 2026-09-15, from the Production Board's source** (`src/lib/install-checks.ts`,
+`src/lib/jobtread/install-check-writes.ts`), not from a fresh Pave read.
+
+The site manager's paper "Roofing Checklist" lives as a JobTread **checklist**
+(`task.subtasks`, `{ name, isComplete }` and nothing else — no author, no
+timestamp; capped at 50 per task) on the job's roofing install task. One list
+per job, on the install line — usually the roofing crew's task, not the site
+manager's own "Install — Tyler" visit. `subtasks` REPLACES on `updateTask`, so
+the board always writes the whole list and carries the office's own items
+across untouched. The two values the sheet asks for ride the line's name
+("FINISHED · Magnet run, lawn and beds — by: Kenton", "FINISHED · Signed off:
+Tyler · Sep 15"); the sign-off is stamped by the board from the signed-in
+membership and never from typed text.
+
+**This app never touches any of that.** It reads the list off
+`GET /api/crew/assignments` (`checks`, `checklist`) and writes ticks with
+`PUT /api/crew/checks`, both on the board, through `saveSiteChecks` in
+`Code.gs`. Who may tick is the JobTread role **Site Manager** on the
+membership; the board answers 403 for anyone else. See `CREW-ASSIGNMENTS-API.md`.

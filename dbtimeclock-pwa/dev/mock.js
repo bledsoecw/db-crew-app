@@ -45,25 +45,117 @@
     d.setDate(d.getDate() + n);
     return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
   }
-  var VISITS = [
-    { taskId: 't1', jobId: 'j_2841', jobNum: '26-0890', jobName: '260890 Webster_Foundation',
-      start: isoAdd(-1), end: isoAdd(1), days: 3, dayOf: 2, today: true,
-      crewNote: 'Dumpster on the north side. Gate code 1412 — do not block the neighbour\u2019s drive.',
-      cust: 'Noah Webster', city: 'Van Wert', address: '408 Euclid Ave, Van Wert, OH 45891, USA',
-      status: 'Production', jtype: 'Foundation',
-      material: { text: 'Material ordered \u2713', cls: 'good' } },
-    { taskId: 't2', jobId: 'j2', jobNum: '26-1045', jobName: '261045 Lucas_Roof',
-      start: isoAdd(2), end: isoAdd(2), days: 1, dayOf: null, today: false,
-      crewNote: '', cust: 'Lucas', city: 'Van Wert', address: '812 S Washington St, Van Wert, OH 45891, USA',
-      status: 'Production', jtype: 'Roofing',
-      material: { text: 'Pull from shop', cls: 'warn' } },
-    { taskId: 't3', jobId: 'j3', jobNum: '26-1102', jobName: '261102 Harmon_Siding',
-      start: isoAdd(7), end: isoAdd(8), days: 2, dayOf: null, today: false,
-      crewNote: 'Homeowner works nights — no compressor before 9am.',
-      cust: 'Dale Harmon', city: 'Delphos', address: '221 N Main St, Delphos, OH 45833, USA',
-      status: 'Production', jtype: 'Siding',
-      material: { text: 'PART ORDER \u2014 check first', cls: 'bad' } }
-  ];
+  // ---- site checks, as the board sends them ----
+  // The shape is the board's `checklistShape()` (src/lib/install-checks.ts):
+  // three phases, 28 lines, two carrying a value. The app draws from THIS and
+  // hardcodes nothing; the words below are the board's `checksWords`, ported
+  // here only so the fixture can answer the way the board does after a save.
+  var CHECKLIST = {
+    phases: [
+      { key: 'before', label: 'Before the tear-off', tag: null, when: 'the morning the crew starts' },
+      { key: 'handover', label: 'Before the site manager leaves', tag: 'HANDING OVER', when: 'only if you leave before the crew does' },
+      { key: 'finished', label: 'Before the crew leaves for good', tag: 'FINISHED', when: 'the last day' }
+    ],
+    lines: [
+      { key: 'address', phase: 'before', label: 'Right address, right roof' },
+      { key: 'homeowner', phase: 'before', label: 'Homeowner talked to \u2014 trailer spot, questions, color confirmed' },
+      { key: 'scope', phase: 'before', label: 'Scope on site matches the work order' },
+      { key: 'color', phase: 'before', label: 'Shingle / metal / drip color checked against the order' },
+      { key: 'walk', phase: 'before', label: 'Property walked \u2014 damage photographed, items to move moved' },
+      { key: 'septic', phase: 'before', label: 'Well and septic located' },
+      { key: 'safety', phase: 'before', label: 'Safety: power lines, ground, fall protection' },
+      { key: 'access', phase: 'before', label: 'Buggy access and driveway protection agreed' },
+      { key: 'weather', phase: 'before', label: 'Weather plan \u2014 tarps on hand' },
+      { key: 'material', phase: 'before', label: 'Material on site and counted against the order' },
+      { key: 'sign', phase: 'before', label: 'Yard sign up' },
+      { key: 'tearoff', phase: 'handover', label: 'Tear-off done, decking verified nailable' },
+      { key: 'shingles', phase: 'handover', label: 'Shingles on the roof, material on site' },
+      { key: 'tarped', phase: 'handover', label: 'Cleaned up and tarped \u2014 heat accounted for' },
+      { key: 'special', phase: 'handover', label: 'Special tasks done, or oversight timed' },
+      { key: 'matcheck', phase: 'handover', label: 'Material checked off' },
+      { key: 'photos1', phase: 'handover', label: 'Photos taken' },
+      { key: 'pm', phase: 'handover', label: 'PM notified' },
+      { key: 'cleanup', phase: 'finished', label: 'Clean up \u2014 ground, gutters, around the trailers, siding' },
+      { key: 'nails', phase: 'finished', label: 'Exposed nails caulked' },
+      { key: 'bundle', phase: 'finished', label: 'One open bundle left for the homeowner' },
+      { key: 'movedback', phase: 'finished', label: 'Items moved back to where they were' },
+      { key: 'blown', phase: 'finished', label: 'Roof blown off' },
+      { key: 'tabs', phase: 'finished', label: 'Plastic tabs pulled' },
+      { key: 'magnet', phase: 'finished', label: 'Magnet run, lawn and beds \u2014 by:', value: 'magnetBy' },
+      { key: 'photos', phase: 'finished', label: '20\u201330 photos in CompanyCam (8 from the ground, each side)' },
+      { key: 'extras', phase: 'finished', label: 'Returns and extras logged' },
+      { key: 'signoff', phase: 'finished', label: 'Signed off:', value: 'signedOff' }
+    ]
+  };
+  var LINE_KEYS = {};
+  CHECKLIST.lines.forEach(function (l) { LINE_KEYS[l.key] = true; });
+  function blankChecks(ticked) {
+    var done = {};
+    CHECKLIST.lines.forEach(function (l) { done[l.key] = (ticked || []).indexOf(l.key) !== -1; });
+    return { done: done, magnetBy: null, signedOff: null };
+  }
+  // One list per JOB, on the roofing crew's line — so its id is never the
+  // visit's own taskId. 26-1490 ended yesterday and was never signed off.
+  var CHECKS = {
+    't2roof': blankChecks(),
+    't4roof': blankChecks(['address', 'homeowner', 'scope', 'color', 'walk', 'septic', 'safety', 'access', 'weather', 'material', 'sign',
+                           'tearoff', 'shingles', 'tarped', 'special', 'matcheck', 'photos1', 'pm', 'cleanup', 'nails', 'bundle'])
+  };
+  function checksProgress(c) {
+    return CHECKLIST.phases.map(function (p) {
+      var ls = CHECKLIST.lines.filter(function (l) { return l.phase === p.key; });
+      return { phase: p.key, label: p.label, done: ls.filter(function (l) { return !!c.done[l.key]; }).length, total: ls.length };
+    });
+  }
+  function checksWords(c) {
+    if (c.signedOff) return 'Signed off \u2014 ' + c.signedOff;
+    var pr = checksProgress(c), before = pr[0], handover = pr[1], finished = pr[2];
+    if (finished.done > 0) return 'Finishing up \u2014 ' + finished.done + ' of ' + finished.total + ' done, not signed off';
+    if (handover.done > 0) return 'Handing over \u2014 ' + handover.done + ' of ' + handover.total + ' done';
+    if (before.done === 0) return 'Site checks not started';
+    if (before.done === before.total) return 'Before-tear-off checks done';
+    return 'Before tear-off \u2014 ' + before.done + ' of ' + before.total + ' done';
+  }
+  function checksFor(tid) {
+    var c = CHECKS[tid];
+    if (!c) return null;
+    return { taskId: tid, state: JSON.parse(JSON.stringify(c)), progress: checksProgress(c), words: checksWords(c) };
+  }
+  function shortDate(iso) {
+    var d = new Date(iso + 'T12:00:00');
+    return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function visits() {
+    return [
+      { taskId: 't1', jobId: 'j_2841', jobNum: '26-0890', jobName: '260890 Webster_Foundation',
+        start: isoAdd(-1), end: isoAdd(1), days: 3, dayOf: 2, today: true,
+        crewNote: 'Dumpster on the north side. Gate code 1412 — do not block the neighbour\u2019s drive.',
+        cust: 'Noah Webster', city: 'Van Wert', address: '408 Euclid Ave, Van Wert, OH 45891, USA',
+        status: 'Production', jtype: 'Foundation',
+        material: { text: 'Material ordered \u2713', cls: 'good' },
+        checks: null },
+      { taskId: 't4', jobId: 'j4', jobNum: '26-1490', jobName: '261490 Courtney_Roof',
+        start: isoAdd(-1), end: isoAdd(-1), days: 1, dayOf: null, today: false,
+        crewNote: '', cust: 'Courtney', city: 'Ohio City', address: '1140 Bittersweet Ln, Ohio City, OH 45874, USA',
+        status: 'Production', jtype: 'Roofing',
+        material: { text: 'Material ordered \u2713', cls: 'good' },
+        checks: checksFor('t4roof') },
+      { taskId: 't2', jobId: 'j2', jobNum: '26-1045', jobName: '261045 Lucas_Roof',
+        start: isoAdd(2), end: isoAdd(2), days: 1, dayOf: null, today: false,
+        crewNote: '', cust: 'Lucas', city: 'Van Wert', address: '812 S Washington St, Van Wert, OH 45891, USA',
+        status: 'Production', jtype: 'Roofing',
+        material: { text: 'Pull from shop', cls: 'warn' },
+        checks: checksFor('t2roof') },
+      { taskId: 't3', jobId: 'j3', jobNum: '26-1102', jobName: '261102 Harmon_Siding',
+        start: isoAdd(7), end: isoAdd(8), days: 2, dayOf: null, today: false,
+        crewNote: 'Homeowner works nights — no compressor before 9am.',
+        cust: 'Dale Harmon', city: 'Delphos', address: '221 N Main St, Delphos, OH 45833, USA',
+        status: 'Production', jtype: 'Siding',
+        material: { text: 'PART ORDER \u2014 check first', cls: 'bad' },
+        checks: null }
+    ];
+  }
 
   var ST = { open: null, entries: [], pushToken: null, nudged: null };
   // Two closed blocks already banked today, so the table has something in it.
@@ -113,9 +205,33 @@
       return {
         source: 'board', reason: '',
         crew: { id: 'c1', name: 'Alberto', leadMembershipId: 'm1', leadUserName: 'Alberto Gonzalez' },
-        range: { from: isoAdd(0), to: isoAdd(13) },
-        visits: VISITS, jobs: []
+        range: { from: isoAdd(-1), to: isoAdd(13) },
+        visits: visits(), jobs: [],
+        checklist: JSON.parse(JSON.stringify(CHECKLIST))
       };
+    },
+    // The board's PUT /api/crew/checks, as Code.gs hands it back: status and
+    // body verbatim. The client's args carry no membershipId — Code.gs adds
+    // it from the verified token — so none is expected here either.
+    //   __MOCK_NOTMANAGER  the board's 403: not a site manager
+    //   __MOCK_PUTFAIL     the board's 502: JobTread write failed
+    //   __MOCK_SLOWPUT     hold the answer this many ms
+    saveSiteChecks: function (taskId, jobId, jobLabel, today, checks) {
+      window.__PUTS = window.__PUTS || [];
+      window.__PUTS.push(JSON.parse(JSON.stringify({ taskId: taskId, jobId: jobId, jobLabel: jobLabel, today: today, checks: checks })));
+      if (window.__MOCK_NOTMANAGER) return { status: 403, reason: 'board-http-403', body: { error: 'Only a site manager can tick the site checks \u2014 ask the office.' } };
+      if (window.__MOCK_PUTFAIL) return { status: 502, reason: 'board-http-502', body: { error: 'JobTread write failed' } };
+      var cur = CHECKS[taskId];
+      if (!cur) return { status: 400, reason: 'board-http-400', body: { error: 'membershipId, taskId, jobId and checks are required' } };
+      var previous = JSON.parse(JSON.stringify(cur));
+      var done = Object.assign({}, cur.done);
+      for (var k in (checks.done || {})) if (LINE_KEYS[k]) done[k] = !!checks.done[k];
+      var signedOff = checks.signOff ? (cur.signedOff || ('Tyler \u00b7 ' + shortDate(today))) : null;
+      done.signoff = !!signedOff;
+      cur = CHECKS[taskId] = { done: done, magnetBy: String(checks.magnetBy || '').trim().slice(0, 40) || null, signedOff: signedOff };
+      return { status: 200, reason: '', body: {
+        human: jobLabel + ' \u2014 ' + checksWords(cur), api: [],
+        checks: JSON.parse(JSON.stringify(cur)), previous: previous } };
     },
     getJobOptions: function () { return [JOB, { id: 'j2', name: '261045 Lucas_Roof', number: '26-1045', customer: 'Lucas', address: '812 S Washington St, Van Wert, OH' }]; },
     searchJobs: function () { return [JOB]; },
@@ -168,7 +284,8 @@
       };
       // The first seconds of a real boot: the clock is drawn, the code list
       // and job picker are not here yet. Hard to catch by hand, easy to break.
-      var hold = (body.fn === 'getExtras' && Number(window.__MOCK_SLOWEXTRAS)) || 0;
+      var hold = (body.fn === 'getExtras' && Number(window.__MOCK_SLOWEXTRAS)) ||
+                 (body.fn === 'saveSiteChecks' && Number(window.__MOCK_SLOWPUT)) || 0;
       if (!hold) return Promise.resolve(res);
       return new Promise(function (ok) { setTimeout(function () { ok(res); }, hold); });
     }

@@ -15,8 +15,9 @@ files on Firebase Hosting.
 2. Deploy > **New deployment** > Web app > Execute as: **Me** > Who has access:
    **Anyone**.
    (Yes, "Anyone" — every request is rejected unless it carries a verified
-   `@deitemeyerbrothers.com` Google sign-in token. The grant key never leaves
-   the script.)
+   Google sign-in token for an `@deitemeyerbrothers.com` account or one of the
+   few explicitly allow-listed addresses. The grant key never leaves the
+   script.)
 3. Copy the `/exec` URL.
 
 ## 2. Firebase project
@@ -28,7 +29,15 @@ files on Firebase Hosting.
 ## 3. OAuth client (sign-in)
 
 1. console.cloud.google.com > select the SAME project > APIs & Services >
-   OAuth consent screen > User type **Internal** > App name "DB Time Clock".
+   OAuth consent screen > App name "DB Time Clock". User type: **External**,
+   not Internal. Two of the three site managers (Tyler, Kenton) sign in with
+   Gmail addresses, and an *Internal* app refuses any account outside the
+   Workspace before the API ever sees the token. While the app is in
+   *Testing*, add those addresses under **Test users** (up to 100, no
+   verification needed); or publish it — it asks only for the basic
+   openid/email/profile scopes, which need no verification either. The API
+   still rejects every address that is not on the company domain or on its
+   explicit allow-list, so this does not open the app to anyone else.
 2. Credentials > Create Credentials > **OAuth client ID** > Web application.
    Authorized JavaScript origins: `https://<project-id>.web.app` and
    `https://<project-id>.firebaseapp.com`.
@@ -64,7 +73,8 @@ In Apps Script > Project Settings > **Script Properties**:
 | `WRITE_ENABLED` | **leave unset until you are ready.** `true` lets the app post time entries, photos and notes to JobTread. |
 | `WRITE_JOB_ALLOWLIST` | optional, a comma-separated list of job ids. While set, writes are refused for any other job — useful for a contained first test. |
 | `BOARD_API_URL` | for the My jobs tab — the Production Board origin, e.g. `https://ops.deitemeyerbrothers.com`. Leave unset and the tab falls back to recent jobs (see 4c). |
-| `CREW_APP_SECRET` | for the My jobs tab — the shared secret the board checks. Same value on both sides. |
+| `CREW_APP_SECRET` | for the My jobs tab and the site checks — the shared secret the board checks. Same value on both sides. |
+| `EXTRA_ALLOWED_EMAILS` | optional — comma-separated Google addresses let through the sign-in beside the company domain, without a code change. The two site managers on Gmail are already in `SITE_MANAGER_EMAILS` in `Code.gs`; this is for the next one. It is an explicit list, never a domain. |
 | `FCM_PROJECT_ID` | for push — the Firebase project id (see 4b) |
 | `FCM_SERVICE_ACCOUNT` | for push — the service account JSON key, pasted whole |
 | `PUSH_ENABLED` | for push — `true` to actually send |
@@ -153,7 +163,10 @@ Without this the **My jobs** tab still works; it shows the jobs you have
 recently clocked into and says the board is not connected. With it, the tab
 shows the Install visits the office actually scheduled for your crew.
 
-This is a **read-only** connection. Nothing this app sends can change the board.
+The job list is read-only. The one thing this app writes *through* the board is
+the site manager's checklist (`PUT /api/crew/checks`), and the board's own gate
+decides who may — the JobTread membership must carry the **Site Manager** role.
+Nothing here can change the schedule.
 
 1. Generate one secret and use the same value in both places:
 
@@ -232,7 +245,8 @@ be opened locally. Nothing in `dev/` deploys — Firebase only publishes `public
 cd public && python3 -m http.server 8100     # in one shell
 node dev/preview.mjs ./shots                 # in another (needs playwright)
 node dev/push-test.mjs                       # exercises the push paths
-node ../apps-script/code-test.mjs            # getMyJobs, no deps, no network
+node dev/checks-test.mjs                     # the site checks, end to end in the page
+node ../apps-script/code-test.mjs            # getMyJobs + saveSiteChecks, no deps, no network
 ```
 
 `push-test.mjs` fakes the browser push stack and the Firebase SDK, then checks
@@ -250,6 +264,9 @@ that are otherwise hard to produce:
 | `__MOCK_READONLY` | the navy READ-ONLY BUILD bar |
 | `__MOCK_NOBOARD` | My jobs with the board unreachable — the fallback list |
 | `__MOCK_NOCREW` | My jobs with the board up but no crew linked to the account |
+| `__MOCK_NOTMANAGER` | the site checks for someone JobTread says is not a site manager — the board's 403, and the list read-only |
+| `__MOCK_PUTFAIL` | the board's 502 on a site-checks save — ticks kept, retried |
+| `__MOCK_SLOWPUT` | hold a site-checks save this many ms, to watch "Saving…" and tap during it |
 
 The last two matter more than they look: the fallback is what a crew member sees
 on the morning the board is down, and it is the path that proves the clock is

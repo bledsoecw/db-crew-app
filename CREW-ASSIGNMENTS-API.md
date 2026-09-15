@@ -77,9 +77,38 @@ job. Don't lose that by filtering the result again on `start >= from`.
       "jtype":   "Foundation",
 
       // materialWords(job, visit)
-      "material": { "text": "Material ordered ✓", "cls": "good" }
+      "material": { "text": "Material ordered ✓", "cls": "good" },
+
+      // the JOB's site checks — see "Site checks" below. null when the job
+      // has none. Added 2026-09-15; additive, so an app built to the earlier
+      // contract ignores it.
+      "checks": {
+        "taskId": "22P…",                      // the task the list is ON — NOT this visit's
+        "state": { "done": { "address": true, "…": false }, "magnetBy": null, "signedOff": null },
+        "progress": [
+          { "phase": "before",   "label": "Before the tear-off",             "done": 1, "total": 11 },
+          { "phase": "handover", "label": "Before the site manager leaves",  "done": 0, "total": 7 },
+          { "phase": "finished", "label": "Before the crew leaves for good", "done": 0, "total": 10 }
+        ],
+        "words": "Before tear-off — 1 of 11 done"
+      }
     }
   ],
+
+  // how to DRAW any visits[].checks — once per response, see "Site checks"
+  "checklist": {
+    "phases": [
+      { "key": "before",   "label": "Before the tear-off",             "tag": null,           "when": "the morning the crew starts" },
+      { "key": "handover", "label": "Before the site manager leaves",  "tag": "HANDING OVER", "when": "only if you leave before the crew does" },
+      { "key": "finished", "label": "Before the crew leaves for good", "tag": "FINISHED",     "when": "the last day" }
+    ],
+    "lines": [
+      { "key": "address",  "phase": "before",   "label": "Right address, right roof" },
+      { "key": "…",        "phase": "…",        "label": "…" },
+      { "key": "magnet",   "phase": "finished", "label": "Magnet run, lawn and beds — by:", "value": "magnetBy" },
+      { "key": "signoff",  "phase": "finished", "label": "Signed off:",                     "value": "signedOff" }
+    ]
+  },
   "fetchedAt": "2026-09-14T11:02:00.000Z"
 }
 ```
@@ -167,9 +196,97 @@ When the board is unreachable the app falls back to `getJobOptions(userId)`
 says so in the UI. **The clock is payroll and must never be blocked by the board
 being down.**
 
+`getMyJobs` asks from **yesterday**, not today, so the morning-after nudge
+("Yesterday's roof at Courtney isn't signed off") has data; `checks` and
+`checklist` pass through untouched. The site checks are saved by
+`saveSiteChecks(me, taskId, jobId, jobLabel, today, checks)`, also in
+`WITH_USER`: it stamps `membershipId` from the verified token, PUTs to the
+board, and hands back the board's status and JSON verbatim — never thrown, so
+the phone can keep its ticks through a 502 and say "the site manager ticks
+these" on a 403. It is not gated on `WRITE_ENABLED`: that flag keeps this
+script's grant key off payroll, and the checklist is the board's write under
+the board's own gate. `index.html` holds the ticks local-first (one PUT per
+burst, kept in localStorage until the board has taken them) and draws every
+line and phase from `checklist` — nothing about the list is hardcoded here.
+
 ## Scope boundary
 
 This app reads **only** Install tasks `22Pc9WLVvBn3`. DB CheckOut
 (`closeout.deitemeyerbrothers.com`) reads **only** Punch List `22PLePTbJVrQ`.
 Install tasks are invisible to CheckOut by design and punch tasks stay invisible
 here. Crew App = the working day; CheckOut = closing the job out.
+
+## Site checks (added 2026-09-15)
+
+The site manager's paper checklist ("Roofing Checklist" in the packet) now lives
+as a JobTread checklist on the job's roofing install task — the board's
+`src/lib/install-checks.ts` is the single home of the 28 lines, the three
+phases and the words. The board seeds it when a roofing crew is booked and
+sweeps hourly for any it missed; JobTread derives the task's progress from it.
+
+**It rides ONE task per job, and that task is usually not the site manager's
+own visit.** Tyler is booked as "Install — Tyler"; the list is on "Roof install
+— Platinum …". So `checks` on a visit is the JOB's list, and `checks.taskId` is
+the task to write to. `null` means the job has no list (a construction or
+gutter visit, or a roofing install booked before the list existed and not yet
+swept — the sweep runs hourly).
+
+**Draw the list from `checklist`, never from wording of your own.** `phases`
+and `lines` are the board's `PHASES` and `CHECK_LINES` verbatim — 28 lines,
+in the order a person reads them (order IS the grouping), each with the
+`phase` it belongs to. The two lines with a `value` carry an answer after
+their label: `magnetBy` is free text the phone may send; `signedOff` is
+written by the board only. A line's `label` is what the site manager reads;
+the phase's `tag` is what JobTread's own checklist prefixes the later phases
+with, and the app need not show it.
+
+`words` is `checksWords()`'s own return value — render it as-is, never
+re-derive. `state.done` is keyed by `checklist.lines[].key`;
+`state.signedOff` is `"Tyler · Sep 15"` once signed, written by the board from
+the signed-in identity and never from text the phone sent.
+
+### `PUT /api/crew/checks`
+
+```
+PUT /api/crew/checks
+Authorization: Bearer $CREW_APP_SECRET
+Content-Type: application/json
+
+{
+  "membershipId": "22PLtN4cBYPH",   // resolved server-side here, as for GET
+  "taskId":  "22P…",                // checks.taskId from the GET — the task the list is on
+  "jobId":   "22P…",
+  "jobLabel": "26-1490 Courtney",   // optional; the toast/comment wording
+  "today":   "2026-09-15",          // the PHONE's date — a UTC server is a day out every evening
+  "checks": {
+    "done": { "address": true, "homeowner": true },  // only the keys you changed are needed
+    "magnetBy": "Kenton",                              // or null
+    "signOff": true                                    // sign it (false takes a signature off)
+  }
+}
+```
+
+| Case | Status | Body |
+| --- | --- | --- |
+| Written | 200 | `{ "human": "…", "api": […], "checks": {…}, "previous": {…} }` — `checks` is the state as written; adopt it. `previous` is what it was, so an Undo is this same call with `previous` posted back. |
+| Membership is not a site manager | **403** | `{ "error": "Only a site manager can tick the site checks — ask the office." }` |
+| Missing/short ids, no `checks` | 400 | `{ "error": "…" }` |
+| Wrong or missing bearer token | 401 | as GET |
+| JobTread write failed | 502 | `{ "error": "…" }` |
+
+**Who may tick is decided by JobTread, not by this app**: the membership must
+carry the **"Site Manager"** role there (Chris Blue, Tyler, Kenton as of
+2026-09-15), or resolve to a roster crew whose trade line reads "Site Manager".
+Carl moves people on and off that role in JobTread; nothing needs redeploying.
+The same rule gates the board's own route, so the two can never disagree.
+
+**The whole state is posted every time** — `subtasks` REPLACES on JobTread's
+`updateTask` — and the board rebuilds only its own 28 lines, carrying every
+other item on the checklist across untouched. The sign-off name and date are
+stamped by the board from the membership; once signed, re-saving ticks does not
+re-sign, and `signOff: false` is the only way a signature comes off.
+
+Every save posts one job comment naming what changed ("📋 Site checks: signed
+off by Tyler — via Production Board (Tyler Mohr)"), like every other board
+write. Ticking inside JobTread's own app writes no comment and records no
+author — the board's route is what makes the tap a signature.

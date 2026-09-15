@@ -24,10 +24,11 @@ stays stable.
 ## Tests
 
 ```
-node code-test.mjs      # 25 assertions, no dependencies, no network
+node code-test.mjs      # 101 assertions, no dependencies, no network
 ```
 
-Covers `getMyJobs` — the one function here that depends on a second system.
+Covers `getMyJobs` and `saveSiteChecks` — the two functions here that depend
+on a second system — plus the sign-in allow-list and the membership lookup.
 Code.gs is evaluated in a `vm` context with stubbed Apps Script services, so
 every branch the Production Board can put it in (unconfigured, 502, a 307
 sign-in bounce, a thrown request, an absurd date range) is reachable without a
