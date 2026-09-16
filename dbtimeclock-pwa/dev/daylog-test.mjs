@@ -44,6 +44,8 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   c.getContext('2d').fillRect(0, 0, 8, 8);
   c.toBlob((b) => { captured(b, 'image/jpeg'); res(true); }, 'image/jpeg');
 }));
+// A gate commit waits on the phone's location (up to 2.5s here): wait for it.
+const settle = async (page) => { await page.waitForFunction(() => S.clockGate == null && document.body.style.pointerEvents === '', null, { timeout: 10000 }); await page.waitForTimeout(200); };
 const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 const DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const today = new Date(), isoToday = iso(today), isoYday = iso(new Date(Date.now() - 86400000));
@@ -290,20 +292,27 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await tap(page, '.tab[data-tab="job"]', 400);
   await tap(page, '#clockIn', 300);
   await tap(page, '.coderow:has-text("Masonry Labor")', 700);
-  await tap(page, '#pSkip', 300);
+  check('the code opens the camera, locked to the start photo', [await page.evaluate(() => S.tab), await page.evaluate(() => S.clockGate)], ['cam', 'start']);
+  await shoot(page);
+  await settle(page);
   check('on the clock, the card offers a move', await txt(page, '#pickJobLbl'), 'Move to another job');
   await tap(page, '#pickJobBtn', 400);
   check('the sheet says so', await txt(page, '#sheetTitle'), 'Move to which job?');
   await tap(page, '.jobrow[data-job="j2"]', 600);
+  check('then the end photo of this code first', [await page.evaluate(() => S.tab), await page.evaluate(() => S.clockGate), await txt(page, '#afterBarT')], ['cam', 'end-switch', 'End photo of 04MA · you switch when you shoot']);
+  await shoot(page);
+  await page.waitForTimeout(900);
+  await settle(page);
   check('then asks for the code at the next roof', await txt(page, '#sheetTitle'), 'Code at Lucas');
   await tap(page, '.coderow:has-text("Final Clean")', 500);
-  check('then the same finished-question as any switch', await page.locator('#pNo').count(), 1);
-  await tap(page, '#pNo', 1200);
-  await tap(page, '#pSkip', 300);
+  check('then the start photo there', [await page.evaluate(() => S.clockGate), await txt(page, '#afterBarT')], ['start', 'Start photo · the clock starts when you shoot']);
+  await shoot(page);
+  await settle(page);
   check('the clock is now at the next roof', [await txt(page, '#jobAddr'), await txt(page, '#bandCodeName')], ['812 S Washington St', 'Final Clean']);
   check('...and the roof you left is owed its log, first', [/hidden/.test(await cls(page, '#clockNudge')), /^Send today’s log for Noah Webster\?/.test(await txt(page, '#clockNudge .nt'))], [false, true]);
   const sw = await page.evaluate(() => S.open && S.open.job && S.open.job.id);
-  check('one call closed the old entry and opened the new one there', sw, 'j2');
+  const last = await page.evaluate(() => window.__CLOCK.slice(-1)[0]);
+  check('one call closed the old entry and opened the new one there, carrying both photos', [sw, last.slice(0, 3), !!last[3], !!last[4]], ['j2', ['switchCode', 'j2', 'ci5'], true, true]);
   check('no page errors', errs, []);
   await ctx.close();
 }

@@ -90,7 +90,15 @@ async function boot({ permission = 'granted', ios = false, installed = false, co
 const clockIn = async (page) => {
   await page.locator('#clockIn').click();
   await page.locator('.coderow:has-text("Masonry Labor")').first().click();
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(400);
+  // The camera is locked to the start photo; the shutter is what clocks in.
+  await page.evaluate(() => new Promise((res) => {
+    const c = document.createElement('canvas'); c.width = 8; c.height = 8;
+    c.getContext('2d').fillRect(0, 0, 8, 8);
+    c.toBlob((b) => { captured(b, 'image/jpeg'); res(true); }, 'image/jpeg');
+  }));
+  await page.waitForFunction(() => !!S.open, null, { timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(400);
 };
 
 // 1. Happy path: configured, permission granted -> token registered.
@@ -149,7 +157,7 @@ const clockIn = async (page) => {
   await clockIn(page);
   const desc = await page.evaluate(() =>
     window.fileDescription({ tag: 'before', entryId: 'open1', codeLabel: '04MA Masonry Labor' }));
-  check('description carries #BEFORE and #TE:<entryId>', desc, '#BEFORE #TE:open1 04MA Masonry Labor');
+  check('description carries #START and #TE:<entryId>', desc, '#START #TE:open1 04MA Masonry Labor');
   const re = /#TE:([A-Za-z0-9]+)/.exec(desc);
   check('server-side regex extracts the entry id', re && re[1], 'open1');
   await ctx.close();

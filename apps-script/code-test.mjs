@@ -238,6 +238,8 @@ function route(handlers) {
     if (q.job && q.job.costItems) return handlers.codes ? handlers.codes(q) : { code: 200, body: '{"job":{"costItems":{"nextPage":null,"nodes":[]}}}' };
     if (q.organization && q.organization.customFields) return handlers.fields ? handlers.fields(q) : { code: 200, body: JSON.stringify({ organization: { customFields: { nodes: LOG_FIELDS } } }) };
     if (q.organization && q.organization.jobs) return handlers.jobs ? handlers.jobs(q) : { code: 200, body: '{"organization":{"jobs":{"nodes":[]}}}' };
+    if (q.createTimeEntry) return { code: 200, body: '{"createTimeEntry":{"createdTimeEntry":{"id":"te_new"}}}' };
+    if (q.updateTimeEntry) return { code: 200, body: '{"updateTimeEntry":{}}' };
     if (q.organization && q.organization.timeEntries) return handlers.entries ? handlers.entries(q) : { code: 200, body: '{"organization":{"timeEntries":{"nodes":[]}}}' };
     return { code: 200, body: '{}' };
   };
@@ -825,6 +827,51 @@ fetchImpl = STORY_ROUTE();
 jtCalls.length = 0;
 r = sandbox.tellPm(ME, 'j9', 'Need drip edge now');
 t('tellPm is a comment on the job, signed, assigned to the PM', [jtCalls[0][1].targetType, jtCalls[0][1].message, jtCalls[0][1].assignees, r.assigned], ['job', 'Tyler B.: Need drip edge now', [{ membershipId: 'm_dave' }], ['Dave Elick']]);
+
+// ---- the photo gates, server side ----
+// The shutter commits on the phone, so a clock-in carries its start photo's
+// id, a clock-out its end photo's, a switch both — and the API refuses the
+// write without them, so the gate cannot be skipped by asking it directly.
+// A break is the one photo-less write.
+props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+const OPEN_TE = { id: 'te9', startedAt: '2026-09-16T12:00:00Z', minutes: 30, job: { id: 'j1', name: 'Webster', number: '26-0890', location: {} }, costItem: { id: 'ci1', name: 'Crew Labor', costCode: { number: '01GR', name: 'General Requirements' } } };
+const withOpen = (open) => route({ jobs: JOBS, entries: (q) => {
+  const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+  return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' && open ? [OPEN_TE] : [] } } }) };
+} });
+const paveKinds = () => fetched.map(f => { const q = paveOf(f.opts) || {}; return q.createTimeEntry ? 'create' : q.updateTimeEntry ? 'close' : kindOf(f); });
+const refusedBy = (fn) => { try { fn(); return ''; } catch (e) { return e.message; } };
+fetchImpl = withOpen(false);
+t('no start photo, no clock-in', /^PHOTO_REQUIRED/.test(refusedBy(() => sandbox.clockIn(ME, 'j1', 'ci1', null, ''))), true);
+t('...and nothing was written', paveKinds().includes('create'), false);
+fetched = [];
+sandbox.clockIn(ME, 'j1', 'ci1', null, 'ph_start');
+t('with one, the block opens', paveKinds().includes('create'), true);
+fetchImpl = withOpen(true); fetched = [];
+t('no end photo, no clock-out', /^PHOTO_REQUIRED/.test(refusedBy(() => sandbox.clockOut(ME, null))), true);
+t('...and the block is still open', paveKinds().includes('close'), false);
+fetched = [];
+r = sandbox.clockOut(ME, null, 'ph_end');
+t('with one, the block closes', [r.closed, paveKinds().includes('close')], ['te9', true]);
+fetched = [];
+t('a switch needs the end photo', /end photo/.test(refusedBy(() => sandbox.switchCode(ME, 'j1', 'ci2', null, '', 'ph_s'))), true);
+t('...and the start photo', /start photo/.test(refusedBy(() => sandbox.switchCode(ME, 'j1', 'ci2', null, 'ph_e', ''))), true);
+t('...and nothing moved meanwhile', paveKinds().some(k => k === 'close' || k === 'create'), false);
+fetched = [];
+sandbox.switchCode(ME, 'j1', 'ci2', null, 'ph_e', 'ph_s');
+t('with both, one call closes the old block and opens the next', paveKinds().filter(k => k === 'close' || k === 'create'), ['close', 'create']);
+fetched = [];
+r = sandbox.startBreak(ME, null);
+t('a break closes the block with no photo', [r.closed, paveKinds().includes('close')], ['te9', true]);
+fetched = [];
+sandbox.endBreak(ME, 'j1', 'ci1', null);
+t('...and back to work opens a new one, no start photo', paveKinds().includes('create'), true);
+fetched = [];
+fetchImpl = route({ entries: () => ({ code: 200, body: '{"organization":{"files":{"nodes":[{"description":"#START #TE:te1 01GR x"},{"description":"#BEFORE #TE:te2 01GR y"}]}}}' }) });
+fetchImpl = (url, opts) => ({ code: 200, body: '{"organization":{"files":{"nextPage":null,"nodes":[{"description":"#START #TE:te1 01GR x"},{"description":"#BEFORE #TE:te2 01GR y"}]}}}' });
+const have = sandbox.entryIdsWithBeforePhoto_('2026-09-16T00:00:00Z');
+const fq = paveOf(fetched[0].opts).organization.files.$.where.and[0];
+t('the nudge sweep greps for #START, and still for #BEFORE from older phones', [have, JSON.stringify(fq).includes('%#START%'), JSON.stringify(fq).includes('%#BEFORE%')], [{ te1: true, te2: true }, true, true]);
 
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

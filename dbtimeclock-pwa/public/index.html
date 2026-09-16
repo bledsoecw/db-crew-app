@@ -117,19 +117,17 @@ button[disabled]{cursor:default}
 #bandCodeName{font:700 17px/1.1 var(--head);letter-spacing:.34px;text-transform:uppercase;color:#fff}
 #bandSub{font:400 13px/1.4 var(--sans);color:rgba(255,255,255,.55)}
 
-#remind{width:100%;min-height:var(--tap);display:flex;align-items:center;gap:13px;padding:14px 15px;border-radius:6px;border:2px solid var(--line2);margin-top:12px;text-align:left}
-#remind.owed{background:var(--warn);border-color:var(--warn);color:var(--warnink)}
-#remind.clear{border-color:rgba(126,240,138,.4)}
-[data-theme="day"] #remind.clear{border-color:#1e7a2f}
-#remind .rl{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;opacity:.85}
-#remind .rb{font:600 14.5px/1.3 var(--sans);margin-top:5px}
-#remind .rt{flex:1;min-width:0}
 
 .btn{width:100%;min-height:var(--tap);display:flex;align-items:center;justify-content:center;gap:11px;border-radius:6px;font-family:var(--head);text-transform:uppercase}
 .btn-out{border:2px solid var(--line2);color:var(--fg);font-weight:700;font-size:17px;letter-spacing:.68px}
 .btn-stop{background:var(--stop);color:var(--stopfg);font-weight:800;font-size:20px;letter-spacing:1px;gap:12px}
 .btn-nav{background:var(--nav);color:#fff;font-weight:700;font-size:16px;letter-spacing:.64px}
 .btn-go{background:var(--go);color:var(--goink);font-weight:800;font-size:18px;letter-spacing:.72px}
+/* Stop the clock is near-black in both themes; Take a photo is the outline. */
+#stopBtn{background:#0e1113;color:#fff;font-weight:800;font-size:20px;letter-spacing:1px;gap:12px}
+#photoBtn{gap:11px}
+#band.paused .dot{animation:none;background:var(--warn)}
+#band.paused .lbl{color:#ffd84d}
 #clockIn{min-height:132px;background:var(--go);color:var(--goink);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:16px}
 #clockIn .big{font:800 30px/1 var(--head);letter-spacing:.9px;text-transform:uppercase}
 #clockIn .sm{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;opacity:.7}
@@ -175,11 +173,13 @@ button[disabled]{cursor:default}
 #tagRow{display:flex;gap:8px}
 .tagbtn{flex:1;min-height:66px;border-radius:5px;border:2px solid rgba(255,255,255,.28);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#fff}
 .tagbtn.on{background:var(--go);border-color:var(--go);color:var(--goink)}
+.tagbtn.dim{border-color:rgba(255,255,255,.12);color:rgba(255,255,255,.3);pointer-events:none}
 .tagbtn .tl{font:800 15px/1 var(--head);letter-spacing:.75px;text-transform:uppercase}
 .tagbtn .tc{font:600 10px/1 var(--mono);letter-spacing:.9px;opacity:.68}
 #camCtl{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:6px}
 .sqbtn{width:86px;height:86px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#fff;flex:none;position:relative;overflow:hidden;background-size:cover;background-position:center}
 .sqbtn .sl{font:600 9.5px/1 var(--mono);letter-spacing:.86px;text-transform:uppercase}
+#noSkip{width:86px;height:86px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 6px;color:rgba(255,255,255,.55);font:600 9.5px/1.4 var(--mono);letter-spacing:.86px;text-transform:uppercase;flex:none}
 #shutter{width:104px;height:104px;border-radius:50%;border:4px solid rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;flex:none;padding:0}
 #shutterIn{width:82px;height:82px;border-radius:50%;background:#fff;transition:border-radius .18s}
 #shutterIn.vid{background:var(--rec)}
@@ -217,6 +217,7 @@ button[disabled]{cursor:default}
 .promptbox{display:flex;align-items:center;gap:13px;padding:16px 15px;border-radius:6px;border:2px solid rgba(126,240,138,.5)}
 .promptbox.warn{border-color:var(--warn)}
 [data-theme="day"] .promptbox{border-color:#1e7a2f}
+[data-theme="day"] .promptbox.warn{border-color:var(--warn)}
 .promptbox .pe{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;opacity:.85}
 .promptbox .pt{font:800 21px/1.1 var(--head);letter-spacing:.21px;text-transform:uppercase;margin-top:5px}
 .yn{display:flex;gap:12px}
@@ -226,7 +227,13 @@ button[disabled]{cursor:default}
 .ynbtn .ys{font:600 9.5px/1 var(--mono);letter-spacing:.86px;text-transform:uppercase;opacity:.75}
 .fine{font:400 13.5px/1.5 var(--sans);color:var(--mut)}
 .ctaBig{width:100%;min-height:88px;border-radius:6px;background:var(--go);color:var(--goink);display:flex;align-items:center;justify-content:center;gap:12px;font:800 21px/1 var(--head);letter-spacing:.84px;text-transform:uppercase}
-.skip{width:100%;min-height:var(--tap);border:2px solid var(--line2);border-radius:6px;font:600 12px/1 var(--mono);letter-spacing:1.08px;text-transform:uppercase;color:var(--mut)}
+/* Stop the clock: Break · Switch · Clock out, as three rows. */
+.stoprow{width:100%;min-height:82px;display:flex;align-items:center;gap:14px;padding:0 18px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);text-align:left;color:var(--fg)}
+.stoprow.out{background:#0e1113;border-color:#0e1113;color:#fff}
+.stoprow .st{font:800 20px/1.1 var(--head);letter-spacing:.2px;text-transform:uppercase}
+.stoprow .ss{margin-top:5px;display:block;color:var(--lab)}
+.stoprow .ss.warn{color:var(--warn)}
+.stoprow .ss.sun{color:#ffd84d}
 #outBand{background:var(--band);border:1px solid var(--bandline);border-radius:8px;padding:20px 18px;display:flex;flex-direction:column;gap:8px}
 #outBand .l{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:#7ba4dd}
 #outBand .v{font:800 52px/1 var(--head);letter-spacing:-1.56px;color:#fff}
@@ -442,17 +449,10 @@ button[disabled]{cursor:default}
 #toast{position:absolute;left:16px;right:16px;bottom:calc(var(--tabh,96px) + 20px);z-index:90;display:none;justify-content:center;pointer-events:none}
 #toast span{background:var(--go);color:var(--goink);border-radius:5px;padding:14px 16px;font:600 11px/1.3 var(--mono);letter-spacing:.99px;text-transform:uppercase;text-align:center}
 #toast.err span{background:var(--rec);color:#fff}
-#notif{position:absolute;top:var(--sat);left:10px;right:10px;z-index:95;display:none;animation:drop .28s cubic-bezier(.2,0,0,1)}
-#notif .in{display:flex;gap:12px;align-items:flex-start;padding:14px;background:rgba(24,28,32,.96);border:1px solid rgba(255,255,255,.18);border-radius:18px;box-shadow:0 12px 28px rgba(0,0,0,.45);text-align:left;width:100%}
-#notif img{width:42px;height:42px;border-radius:10px;flex:none}
-#notif .ne{font:600 9.5px/1 var(--mono);letter-spacing:1.14px;text-transform:uppercase;color:#b9cdf0}
-#notif .nt{font:700 15px/1.2 var(--sans);color:#fff;margin-top:4px}
-#notif .nb{font:400 13px/1.35 var(--sans);color:rgba(255,255,255,.72);margin-top:4px}
 
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 @keyframes flashOut{from{opacity:.95}to{opacity:0}}
 @keyframes sheetUp{from{transform:translateY(22px);opacity:0}to{transform:translateY(0);opacity:1}}
-@keyframes drop{from{transform:translateY(-22px);opacity:0}to{transform:translateY(0);opacity:1}}
 </style>
 </head>
 <body>
@@ -507,26 +507,26 @@ button[disabled]{cursor:default}
             <div id="bandCode"><span id="bandCodeN" class="tabular"></span><span id="bandCodeName"></span></div>
             <div id="bandSub"></div>
           </div>
-          <button id="remind">
-            <svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
-            <span class="rt"><span class="rl" id="remindL"></span><span class="rb" id="remindB" style="display:block"></span></span>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.8;flex:none"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-          <div class="stack">
-            <button class="btn btn-out" id="switchBtn">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-              Switch code
+          <div class="stack" id="runStack">
+            <button class="btn btn-out" id="photoBtn">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
+              Take a photo
             </button>
-            <button class="btn btn-stop" id="clockOutBtn">
+            <button class="btn" id="stopBtn">
               <svg width="22" height="22" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>
-              Clock out
+              Stop the clock
             </button>
+          </div>
+          <div class="foot" id="stopFoot"></div>
+          <div class="stack hidden" id="breakStack">
+            <button class="btn btn-go" id="backBtn">Back to work</button>
+            <button class="btn btn-out" id="breakOutBtn" style="min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)">Clock out for the day</button>
           </div>
         </div>
 
         <button id="clockIn">
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"/><polyline points="12 6.6 12 12 15.8 14"/></svg>
-          <span class="big">Clock in</span><span class="sm">Pick a code to start</span>
+          <span class="big">Clock in</span><span class="sm">Code, then start photo</span>
         </button>
 
         <div class="sect">
@@ -574,16 +574,20 @@ button[disabled]{cursor:default}
     </div>
     <div id="camDeck">
       <div id="tagRow">
-        <button class="tagbtn on" data-tag="before"><span class="tl">Before</span><span class="tc tabular">00</span></button>
+        <button class="tagbtn on" data-tag="before"><span class="tl">Start</span><span class="tc tabular">00</span></button>
         <button class="tagbtn" data-tag="during"><span class="tl">During</span><span class="tc tabular">00</span></button>
-        <button class="tagbtn" data-tag="after"><span class="tl">After</span><span class="tc tabular">00</span></button>
+        <button class="tagbtn" data-tag="after"><span class="tl">End</span><span class="tc tabular">00</span></button>
       </div>
       <div id="camCtl">
         <button class="sqbtn" id="modeBtn">
           <span id="modeIcon"></span><span class="sl" id="modeLbl">Video</span>
         </button>
+        <button class="sqbtn hidden" id="camBack" style="background:none">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span class="sl" id="camBackLbl">Back</span>
+        </button>
         <button id="shutter" aria-label="Shutter"><span id="shutterIn"></span></button>
         <button class="sqbtn" id="lastShot"><span id="lastCount" class="tabular">00</span></button>
+        <span id="noSkip" class="hidden">No skip</span>
       </div>
     </div>
     <input type="file" id="fileIn" accept="image/*" capture="environment" class="hidden">
@@ -686,7 +690,6 @@ button[disabled]{cursor:default}
   </div>
 
   <div id="toast"><span></span></div>
-  <button id="notif"><span class="in"><img src="app-icon-192.png" alt=""><span style="flex:1;min-width:0"><span class="ne" style="display:block">DB Time Clock · Now</span><span class="nt" style="display:block">Before photo not taken</span><span class="nb" style="display:block" id="notifBody"></span></span></span></button>
 </div>
 
 <!-- ============ SHEET ============ -->
@@ -720,11 +723,7 @@ function uid(){ return 't' + Math.random().toString(36).slice(2,10) + Date.now()
 function pad2(n){ return (n<10?'0':'') + n; }
 
 /* ---- policy knobs. Every open question from the design review
-   lives here, so changing one is a one-line edit. Keep
-   BEFORE_GRACE_SEC in step with PUSH_GRACE_MINUTES in Code.gs. ---- */
-var BEFORE_GRACE_SEC = 5*60;      // before photo owed this long -> escalate
-var DURING_AFTER_SEC = 45*60;     // ask for a progress shot this far in
-var ESCALATION_CONTACT = 'the office';
+   lives here, so changing one is a one-line edit. ---- */
 /* The board is a second system on the far side of Apps Script, which has no
    request timeout of its own. Without a ceiling here a slow board leaves the
    tab saying "Checking the board…" forever, with no way back. */
@@ -934,8 +933,10 @@ var S = {
   me:null, job:null, codes:[], open:null, entries:[], crew:[],
   jobOptions:[], candidates:[], extrasLoading:false,
   assign:null, assignLoading:false, assignAt:0, assignStale:false,
-  tab:'job', sheet:null, promptKind:null, pendingCode:null,
-  afterRequired:false, nudged:false, escalated:false, returnToClock:false,
+  tab:'job', sheet:null, promptKind:null, returnToClock:false,
+  // The photo gates: what the camera is locked to, the code a start photo is
+  // for, the end photo a switch is carrying, and a break in progress.
+  clockGate:null, gateCode:null, switching:null, onBreak:null, dlNudge:false,
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
   checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
@@ -946,8 +947,8 @@ var S = {
 };
 
 function savePrefs(){
-  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, nudged:S.nudged, push:pushState, jobPickedDay:S.jobPickedDay,
-                                                            lang:S.lang, talkHinted:S.talkHinted })); } catch(e){}
+  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, push:pushState, jobPickedDay:S.jobPickedDay,
+                                                            lang:S.lang, talkHinted:S.talkHinted, onBreak:S.onBreak })); } catch(e){}
 }
 function loadPrefs(){
   try {
@@ -956,8 +957,9 @@ function loadPrefs(){
     // Yesterday's photos stay a day, so yesterday's log can still carry them.
     if (Array.isArray(p.photos)) S.photos = p.photos.filter(recentDay);
     if (Array.isArray(p.notes)) S.notes = p.notes.filter(sameDay);
-    S.nudged = !!p.nudged;
     S.jobPickedDay = String(p.jobPickedDay || '');
+    // A break is today's or nothing: the phone must not open tomorrow "on break".
+    if (p.onBreak && p.onBreak.date === isoLocal() && p.onBreak.code) S.onBreak = p.onBreak;
     if (p.lang === 'es' || p.lang === 'en') S.lang = p.lang;
     S.talkHinted = !!p.talkHinted;
     // The device stays registered across launches; only this page's memory of
@@ -1037,61 +1039,32 @@ function toast(msg, isErr){
   clearTimeout(toastT);
   toastT = setTimeout(function(){ t.style.display = 'none'; }, isErr ? 4200 : 2600);
 }
-var notifT = null;
-function showNotif(body){
-  $('notifBody').textContent = body;
-  $('notif').style.display = 'block';
-  clearTimeout(notifT);
-  notifT = setTimeout(function(){ $('notif').style.display = 'none'; }, 7000);
-  try {
-    if (window.Notification && Notification.permission === 'granted' && navigator.serviceWorker) {
-      navigator.serviceWorker.ready.then(function(reg){
-        reg.showNotification('Before photo not taken', { body: body, icon:'app-icon-192.png', badge:'app-icon-192.png', tag:'dbtc-before', data:{ kind:'before-photo' } });
-      });
-    }
-  } catch(e){}
-}
-
 /* =========================================================
-   PHOTO GATES — the rule the design is built on: ask at the
-   moment a photo is owed, and only block when the answer is
-   unambiguous (you said the code is finished, or you are
-   ending the day).
+   PHOTO GATES — the rule the design is built on: the clock does
+   not run without a start photo, and does not stop (or move to
+   another code) without an end photo. The camera is LOCKED to
+   the photo owed and the shutter is what commits: a start photo
+   opens the entry, an end photo closes it (clock out) or is
+   carried to the next code's start photo, where one call closes
+   and opens (a switch). A break needs no photo. The server
+   refuses a clock-in, clock-out or switch that carries no photo
+   id, and every photo is stamped with its entry in JobTread.
    ========================================================= */
 function codePhotos(){
   var id = S.open && S.open.code ? S.open.code.id : null;
   return S.photos.filter(function(p){ return p.codeId === id; });
 }
 function hasTag(t){ return codePhotos().some(function(p){ return p.tag === t; }); }
-function needBefore(){ return !!S.open && !hasTag('before'); }
-function needDuring(){ return !!S.open && !needBefore() && openSeconds() > DURING_AFTER_SEC && !hasTag('during'); }
-function needAfterForOut(){ return !!S.open && !hasTag('after'); }
-
-/* The in-app half of the 5-minute escalation. This fires while the app is
-   running; the server-side sweep (sweepBeforePhotoNudges in Code.gs) is what
-   reaches a phone asleep in a pocket. Either way the amber strip on the clock
-   screen carries the requirement. */
-var nudgeTimer = null;
-function scheduleNudge(){
-  clearTimeout(nudgeTimer);
-  if (!S.open || S.nudged) return;
-  var left = BEFORE_GRACE_SEC - openSeconds();
-  nudgeTimer = setTimeout(checkNudge, Math.max(1000, left*1000 + 250));
-}
-function checkNudge(){
-  if (!S.open || S.nudged || !needBefore()) return;
-  if (openSeconds() < BEFORE_GRACE_SEC) { scheduleNudge(); return; }
-  S.nudged = true; S.escalated = true;
-  savePrefs();
-  // Claim this entry so the server-side sweep doesn't push a duplicate to a
-  // phone whose owner is already looking at the prompt.
-  if (S.open) apiCall('markNudged', [S.open.id]).catch(function(){});
-  var mins = Math.max(1, Math.round(BEFORE_GRACE_SEC/60));
-  // The code number is an identifier — never lowercase it.
-  showNotif(codeLabel(S.open.code) + ' started ' + mins + ' minute' + (mins===1?'':'s') +
-            ' ago. ' + sentenceCase(ESCALATION_CONTACT) + ' has been copied.');
-  setTab('job');
-  openSheet('prompt', 'before');
+/* h:mm, the way the design writes a block of time in a sentence. */
+function hmClock(sec){ sec = Math.max(0, Math.floor(sec)); return Math.floor(sec/3600) + ':' + pad2(Math.floor(sec%3600/60)); }
+/* This code's time today, the open block counted live. */
+function codeSecondsToday(codeId){
+  var sec = 0;
+  S.entries.forEach(function(e){
+    if (!e.code || e.code.id !== codeId) return;
+    sec += e.endedAt ? (new Date(e.endedAt) - new Date(e.startedAt))/1000 : Math.max(0, (Date.now() - new Date(e.startedAt))/1000);
+  });
+  return sec;
 }
 
 /* =========================================================
@@ -1335,38 +1308,38 @@ function renderTodayPick(){
 }
 
 function renderClock(){
-  var on = !!S.open;
-  $('onClock').classList.toggle('hidden', !on);
-  $('clockIn').classList.toggle('hidden', on);
+  // The server's open entry wins over a remembered break: a break that was
+  // ended from another phone, or by the office, is over.
+  if (S.open && S.onBreak){ S.onBreak = null; savePrefs(); }
+  var on = !!S.open, brk = !on && !!S.onBreak;
+  $('onClock').classList.toggle('hidden', !on && !brk);
+  $('clockIn').classList.toggle('hidden', on || brk);
   $('clockIn').disabled = !S.job;
   $('clockIn').style.opacity = S.job ? 1 : .45;
+  $('runStack').classList.toggle('hidden', !on);
+  $('stopFoot').classList.toggle('hidden', !on);
+  $('breakStack').classList.toggle('hidden', !brk);
+  $('band').classList.toggle('paused', brk);
+  if (brk){
+    // Paused: the block just closed, its time, and when the break began.
+    var b = S.onBreak;
+    $('elapsed').textContent = hms(b.sec || 0);
+    $('bandCodeN').textContent = (b.code && b.code.number) || '';
+    $('bandCodeName').textContent = (b.code && b.code.name) || '';
+    $('band').querySelector('.lbl').textContent = 'On break · ' + clockLabel(b.at);
+    $('bandSub').textContent = 'Back to work re-opens ' + ((b.code && b.code.number) || 'the code') + ' · no start photo';
+    return;
+  }
   if (!on) return;
-
+  $('band').querySelector('.lbl').textContent = 'On the clock';
   $('elapsed').textContent = hms(openSeconds());
   $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
   $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
-  $('bandSub').textContent = 'Started ' + clockLabel(S.open.startedAt) + ' · open in JobTread until you clock out';
-
-  var owed = needBefore() || needDuring() || S.afterRequired;
-  var r = $('remind');
-  r.classList.toggle('owed', owed);
-  r.classList.toggle('clear', !owed && !needAfterForOut());
-  var L, B;
-  if (S.afterRequired){
-    L = 'After photo · blocking the switch';
-    B = 'Shoot the finished work to start ' + (codeInline(S.pendingCode) || 'the next code') + '.';
-  } else if (needBefore()){
-    L = 'Before photo · required'; B = 'One shot of the area before you start.';
-  } else if (needDuring()){
-    L = 'Progress photo · due'; B = Math.round(DURING_AFTER_SEC/60) + ' minutes in — grab a during shot.';
-  } else if (needAfterForOut()){
-    L = 'After photo · due when done';
-    B = codePhotos().length + ' on file. You can’t clock out without the after shot.';
-  } else {
-    L = 'Photo check · clear'; B = codePhotos().length + ' photos on this code. Nothing owed.';
-  }
-  $('remindL').textContent = L;
-  $('remindB').textContent = B;
+  var n = codePhotos().length;
+  $('bandSub').textContent = 'Started ' + clockLabel(S.open.startedAt) + (hasTag('before') ? ' with a start photo' : '') +
+                             ' · ' + n + (n === 1 ? ' photo' : ' photos') + ' on this code';
+  $('stopFoot').textContent = 'Photos go on the job in JobTread, tagged to ' + ((S.open.code && S.open.code.number) || 'this code') +
+                              '. Stop opens Break · Switch · Clock out.';
 }
 
 function renderDay(){
@@ -1407,23 +1380,36 @@ function renderCrew(){
 }
 
 function renderCam(){
-  $('stampAddr').textContent = S.job ? (streetOf(S.job.address) || jobTitle(S.job)) : 'No job';
-  $('stampCode').textContent = S.open ? codeLabel(S.open.code) : 'Not clocked in';
+  var gate = S.clockGate, code = gate === 'start' ? S.gateCode : (S.open && S.open.code);
+  $('stampAddr').textContent = S.job ? (streetOf(S.job.address) || jobTitle(S.job)) + (S.job.number ? ' · JT #' + S.job.number : '') : 'No job';
+  $('stampCode').textContent = code ? codeLabel(code) + (gate && gate !== 'start' && S.open ? ' · ' + hmClock(openSeconds()) : '') : 'Not clocked in';
   $('stampCount').textContent = pad2(S.photos.length) + ' today';
   $('lastCount').textContent = pad2(S.photos.length);
   var last = S.photos[S.photos.length-1];
   $('lastShot').style.backgroundImage = last && last.thumb ? 'url(' + last.thumb + ')' : '';
+  // The counts are this code's while one is running (or about to), else the day's.
   var counts = { before:0, during:0, after:0 };
-  S.photos.forEach(function(p){ if (counts[p.tag] != null) counts[p.tag]++; });
+  (gate === 'start' ? [] : S.open ? codePhotos() : S.photos).forEach(function(p){ if (counts[p.tag] != null) counts[p.tag]++; });
   [].forEach.call(document.querySelectorAll('.tagbtn'), function(b){
     var t = b.getAttribute('data-tag');
     b.classList.toggle('on', S.capture === t);
+    b.classList.toggle('dim', !!gate && S.capture !== t);
     b.querySelector('.tc').textContent = pad2(counts[t]);
   });
-  $('afterBar').style.display = S.afterRequired ? 'flex' : 'none';
-  if (S.afterRequired){
-    $('afterBarT').textContent = 'After photo of ' + codeLabel(S.open && S.open.code) + ' required to start ' + ((S.pendingCode && S.pendingCode.number) || '');
+  // Locked: the amber bar says what the shutter commits; Back or Stay on on
+  // the left, No skip on the right, and no video while locked.
+  $('afterBar').style.display = gate ? 'flex' : 'none';
+  if (gate){
+    var num = (code && code.number) || 'this code';
+    $('afterBarT').textContent = gate === 'start' ? 'Start photo · the clock starts when you shoot'
+      : 'End photo of ' + num + ' · you ' + (gate === 'end-out' ? 'clock out' : 'switch') + ' when you shoot';
+    $('camBackLbl').textContent = gate === 'start' ? 'Back' : 'Stay on';
   }
+  $('modeBtn').classList.toggle('hidden', !!gate);
+  $('lastShot').classList.toggle('hidden', !!gate);
+  $('camBack').classList.toggle('hidden', !gate);
+  $('noSkip').classList.toggle('hidden', !gate);
+  if (gate && S.mode !== 'photo') S.mode = 'photo';
   $('modeLbl').textContent = S.mode === 'photo' ? 'Video' : 'Photo';
   $('modeIcon').innerHTML = S.mode === 'photo'
     ? '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>'
@@ -2501,6 +2487,9 @@ function setTab(t){
   // The checklist is a screen inside My jobs, so that tab stays lit. The
   // camera and Diagnostics are reached from the clock, so Clock stays lit.
   var lit = t === 'checks' ? 'jobs' : t === 'cam' ? (S.alertFor ? 'log' : 'job') : t === 'diag' ? 'job' : t;
+  // Leaving the camera by a tab drops a gate: a start photo not taken is no
+  // entry, an end photo not taken is a clock still running.
+  if (t !== 'cam' && S.clockGate){ S.clockGate = null; S.gateCode = null; if (S.moving && S.pendingJob) cancelMove(); }
   [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===lit); });
   if (t === 'cam') startCamera(); else stopCamera();
   render();
@@ -2512,17 +2501,17 @@ function openSheet(kind, promptKind){
   S.sheet = kind; S.promptKind = promptKind || null;
   var title = kind==='codes' ? (S.pendingJob ? 'Code at ' + (S.pendingJob.customer || streetOf(S.pendingJob.address) || 'the next job') : S.open ? 'Switch code' : 'What are you doing?')
             : kind==='jobs' ? (S.open ? 'Move to which job?' : 'Pick a job')
-            : kind==='out' ? 'End of day'
+            : kind==='stop' ? 'Stop the clock'
             : kind==='signoff' ? 'Sign off'
             : kind==='unsign' ? 'Unsign'
-            : 'Photo check';
+            : '';
   $('sheetTitle').textContent = title;
   $('sheetBody').innerHTML = kind==='codes' ? codesHtml()
                             : kind==='jobs' ? jobsHtml()
-                            : kind==='out' ? outHtml()
+                            : kind==='stop' ? stopHtml()
                             : kind==='signoff' ? signoffHtml()
                             : kind==='unsign' ? unsignHtml()
-                            : promptHtml();
+                            : '';
   $('scrim').classList.add('on');
   wireSheet();
 }
@@ -2565,65 +2554,19 @@ function jobRowHtml(j){
     '<span class="jm">' + esc([j.customer, cityOf(j.address), jobTitle(j)].filter(Boolean).join(' · ')) + '</span></button>';
 }
 
-function promptHtml(){
-  var isAfter = S.promptKind === 'after';
-  // Copy follows the config, so changing the grace period never leaves the
-  // screen saying "five minutes" when it means something else.
-  var graceMinutes = Math.max(1, Math.round(BEFORE_GRACE_SEC/60));
-  var code = S.open && S.open.code;
-  var eyebrow = isAfter ? ('Finished? · ' + ((code&&code.number)||''))
-              : S.escalated ? (graceMinutes + ' minute' + (graceMinutes===1?'':'s') + ' in · ' + ((code&&code.number)||''))
-              : ('Code started · ' + ((code&&code.number)||''));
-  var title = isAfter ? ((code&&code.name)||'This code') + ' done?' : ((code&&code.name)||'');
-  var body = isAfter
-    ? 'Is ' + codeInline(code) + ' finished, or are you coming back to it?'
-    : S.escalated
-      ? 'No before photo on this code and you have been on it ' + graceMinutes + ' minute' + (graceMinutes===1?'':'s') + '. ' + sentenceCase(ESCALATION_CONTACT) + ' has been notified. Take it now — it is what protects this job.'
-      : 'One before photo of the area before you start. It protects the job and it feeds the DB Cam report.';
-  var cam = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>';
-  var h = '<div class="sheetpad">' +
-    '<div class="promptbox' + ((isAfter||S.escalated)?' warn':'') + '">' + cam +
-      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc(eyebrow) + '</span>' +
-      '<span class="pt" style="display:block">' + esc(title) + '</span></span></div>' +
-    '<div class="body">' + esc(body) + '</div>';
-  if (isAfter){
-    h += '<div class="yn">' +
-      '<button class="ynbtn" id="pNo"><span class="yb">No</span><span class="ys">Still going</span></button>' +
-      '<button class="ynbtn yes" id="pYes"><span class="yb">Yes</span><span class="ys">It’s finished</span></button></div>' +
-      '<div class="fine">Yes → one after photo of the finished work, then ' + esc(codeInline(S.pendingCode) || 'the next code') +
-         (S.pendingJob ? ' at ' + esc(S.pendingJob.customer || streetOf(S.pendingJob.address) || 'the next job') : '') + ' starts. No → switch now, nothing owed.</div>';
-  } else {
-    h += '<button class="ctaBig" id="pShoot">' + cam + 'Take before photo</button>' +
-         '<button class="skip" id="pSkip">' + (S.escalated ? 'Still not now' : 'Start without a photo') + '</button>';
-  }
-  return h + '</div>';
-}
-
-function outHtml(){
-  var blocked = needAfterForOut();
-  var total = 0, parts = [];
-  var by = {};
-  S.entries.forEach(function(e){
-    if (!e.code) return;
-    var sec = e.endedAt ? (new Date(e.endedAt)-new Date(e.startedAt))/1000 : Math.max(0,(Date.now()-new Date(e.startedAt))/1000);
-    by[e.code.id] = by[e.code.id] || { name:e.code.name, sec:0 };
-    by[e.code.id].sec += sec; total += sec;
-  });
-  Object.keys(by).forEach(function(k){ parts.push(by[k].name.toUpperCase() + ' ' + hm(by[k].sec)); });
-  var cam = '<svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>';
-  var after = codePhotos().filter(function(p){ return p.tag==='after'; }).slice(-1)[0];
-  return '<div class="sheetpad">' +
-    '<div id="outBand"><span class="l">Total today' + (S.job&&S.job.number ? ' · JT #' + esc(S.job.number) : '') + '</span>' +
-      '<span class="v tabular">' + hm(total) + '</span><span class="s">' + esc(parts.join(' · ')) + '</span></div>' +
-    '<div class="promptbox' + (blocked?' warn':'') + '" style="' + (blocked?'background:var(--warn);color:var(--warnink)':'') + '">' + cam +
-      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + (blocked ? 'Required to clock out' : 'After photo · on file') + '</span>' +
-      '<span class="rb" style="display:block;margin-top:5px">' + (blocked
-        ? ('One after photo of ' + esc(codeInline(S.open && S.open.code)) + '.')
-        : (after ? esc(after.time + ' · ' + codeInline(S.open && S.open.code)) : 'Filed.')) + '</span></span></div>' +
-    (blocked ? '<button class="btn btn-go" id="outShoot" style="min-height:var(--tap)">' + cam + 'Take the after photo</button>' : '') +
-    '<div class="body">Hours post to JobTread against each code. You can’t edit them after this — tell your foreman if something’s off.</div>' +
-    '<button id="outConfirm" class="' + (blocked?'blocked':'') + '"' + (blocked?' disabled':'') + '>' +
-      '<svg width="24" height="24" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>Confirm clock out</button>' +
+/* Stop the clock (2d): Break · Switch code or job · Clock out for the day.
+   Nothing here can lose time — the running block is already in JobTread. */
+function stopHtml(){
+  var code = S.open && S.open.code, num = (code && code.number) || 'this code';
+  return '<div class="sheetpad" style="gap:12px">' +
+    '<button class="stoprow" id="stopBreak"><span style="flex:1;min-width:0"><span class="st" style="display:block">Break</span>' +
+      '<span class="k9 ss">Back soon · no photo</span></span>' + ico('chev', 22) + '</button>' +
+    '<button class="stoprow" id="stopSwitch"><span style="flex:1;min-width:0"><span class="st" style="display:block">Switch code or job</span>' +
+      '<span class="k9 ss warn">End photo of ' + esc(num) + ' first</span></span>' + ico('camera', 22) + '</button>' +
+    '<button class="stoprow out" id="stopOut"><span style="flex:1;min-width:0"><span class="st" style="display:block">Clock out for the day</span>' +
+      '<span class="k9 ss sun">End photo, then today’s log</span></span>' + ico('camera', 22) + '</button>' +
+    '<div class="fine" style="text-align:center;margin-top:4px">Your ' + esc(hmClock(code ? codeSecondsToday(code.id) : openSeconds())) + ' on ' + esc(num) +
+      ' is already saved. Nothing here can lose time.</div>' +
   '</div>';
 }
 
@@ -2650,12 +2593,9 @@ function wireSheet(){
       }, 320);
     };
   }
-  if ($('pNo')) $('pNo').onclick = promptNo;
-  if ($('pYes')) $('pYes').onclick = promptYes;
-  if ($('pShoot')) $('pShoot').onclick = promptShoot;
-  if ($('pSkip')) $('pSkip').onclick = function(){ closeSheet(); render(); };
-  if ($('outShoot')) $('outShoot').onclick = function(){ closeSheet(); S.capture='after'; S.returnToClock=true; setTab('cam'); };
-  if ($('outConfirm')) $('outConfirm').onclick = doClockOut;
+  if ($('stopBreak')) $('stopBreak').onclick = function(){ closeSheet(); doBreak(); };
+  if ($('stopSwitch')) $('stopSwitch').onclick = function(){ closeSheet(); beginEnd('end-switch'); };
+  if ($('stopOut')) $('stopOut').onclick = function(){ closeSheet(); beginEnd('end-out'); };
   if ($('skNo')) $('skNo').onclick = function(){ closeSheet(); };
   if ($('skYes')) $('skYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, true); render(); };
   if ($('ukNo')) $('ukNo').onclick = function(){ closeSheet(); };
@@ -2678,13 +2618,11 @@ function visitAsJob(v){ return { id:v.jobId, name:v.jobName, number:v.jobNum, cu
 function pickJobObj(j, seeded){
   closeSheet();
   if (S.open && j.id !== (S.job && S.job.id)){
+    // On the clock: the end photo of this code first, then the next job's
+    // codes, then the start photo there.
     S.moving = true; S.pendingJob = j;
     render();
-    apiCall('getJobCodes', [j.id]).then(function(codes){
-      if (!S.pendingJob || S.pendingJob.id !== j.id) return;
-      S.codes = codes || [];
-      openSheet('codes');
-    }).catch(function(e){ cancelMove(); failed('getJobCodes', e); });
+    beginEnd('end-switch');
     return;
   }
   S.job = j;
@@ -2696,7 +2634,7 @@ function pickJobObj(j, seeded){
     .catch(function(e){ failed('getJobCodes', e); });
 }
 function cancelMove(){
-  S.pendingJob = null; S.pendingCode = null; S.moving = false;
+  S.pendingJob = null; S.moving = false; S.switching = null;
   if (S.job) apiCall('getJobCodes', [S.job.id]).then(function(codes){ S.codes = codes || []; render(); }).catch(function(){});
   render();
 }
@@ -2720,102 +2658,180 @@ function pickCode(codeId){
   var c = null;
   S.codes.forEach(function(x){ if (x.id === codeId) c = x; });
   if (!c) return;
-  if (S.open && S.open.code && S.open.code.id === codeId){ closeSheet(); return; }
-  if (S.open){
-    // One question before a switch: is the code you're leaving finished?
-    S.pendingCode = c;
-    openSheet('prompt', 'after');
+  if (S.open && !S.switching && S.open.code && S.open.code.id === codeId){ closeSheet(); return; }
+  closeSheet();
+  if (S.open && !S.switching){
+    // A code picked while one is running: the end photo of the running code
+    // comes first, then the pick again.
+    beginEnd('end-switch');
     return;
   }
-  closeSheet();
-  doClockIn(c);
+  S.gateCode = c;
+  beginStart();
 }
 
 function busy(on){ document.body.style.pointerEvents = on ? 'none' : ''; }
 
-function doClockIn(code){
-  if (!S.job) { toast('Pick a job first'); return; }
-  busy(true);
-  withCoords(function(coords){
-    apiCall('clockIn', [S.job.id, code.id, coords]).then(function(open){
-      S.open = open;
-      S.nudged = false; S.escalated = false; S.afterRequired = false; S.pendingCode = null;
-      S.capture = 'before';
-      savePrefs();
-      dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
-      toast('On the clock · ' + codeLabel(code));
-      scheduleNudge();
-      enablePush();
-      openSheet('prompt', 'before');   // a code starting is when a before photo is owed
-      return refreshDay();
-    }).catch(showErr).then(function(){ busy(false); render(); });
-  });
+/* The camera, locked. The shutter is what commits (see captured). */
+function beginStart(){
+  if (!S.job){ toast('Pick a job first'); return; }
+  S.clockGate = 'start'; S.capture = 'before'; S.returnToClock = false;
+  setTab('cam');
+}
+function beginEnd(kind){
+  if (!S.open){ render(); return; }
+  S.clockGate = kind; S.capture = 'after'; S.returnToClock = false;
+  setTab('cam');
+}
+/* Back (start: nothing was created — the code sheet again) or Stay on (end:
+   nothing changes). A move backed out of puts this job's codes back. */
+function camBack(){
+  var gate = S.clockGate;
+  S.clockGate = null;
+  if (gate === 'start'){
+    S.gateCode = null;
+    setTab('job');
+    if (S.switching && S.pendingJob) openSheet('codes');
+    else if (S.switching) openSheet('codes');
+    else openSheet('codes');
+    return;
+  }
+  if (S.moving && S.pendingJob) cancelMove();
+  setTab('job');
 }
 
-function doSwitch(code){
+/* The start photo opens the entry — a clock-in, or the switch it completes
+   (one call closes the code just ended and opens this one). The photo is
+   queued only once the entry exists, stamped with its id. */
+function commitStart(item, rec){
+  var code = S.gateCode, sw = S.switching, target = S.pendingJob || S.job, prev = S.job;
+  if (!code || !target){ S.clockGate = null; setTab('job'); return; }
   busy(true);
-  var target = S.pendingJob || S.job, prev = S.job;
   withCoords(function(coords){
-    apiCall('switchCode', [target.id, code.id, coords]).then(function(open){
+    var call = sw ? apiCall('switchCode', [target.id, code.id, coords, sw.endPhotoId, rec.id])
+                  : apiCall('clockIn', [target.id, code.id, coords, rec.id]);
+    call.then(function(open){
       S.open = open;
-      S.nudged = false; S.escalated = false; S.afterRequired = false; S.pendingCode = null;
-      S.capture = 'before';
+      item.entryId = open.id; item.codeLabel = codeLabel(open.code);
+      rec.codeId = (open.code && open.code.id) || code.id;
+      S.photos.push(rec);
+      S.clockGate = null; S.gateCode = null; S.switching = null; S.onBreak = null;
       if (S.pendingJob){
         // Moved: the hours now belong to the next roof, and the one just left
         // is owed its log.
         S.job = S.pendingJob; S.pendingJob = null; S.moving = false;
         S.dlJobId = S.job.id; S.jobPickedDay = isoLocal();
         if (prev && prev.id !== S.job.id) dlPromptFor(prev.id);
-        dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
         toast('Now at ' + (S.job.customer || streetOf(S.job.address) || 'the next job') + ' · ' + codeLabel(code));
       } else {
-        toast('Now on ' + codeLabel(code));
+        toast((sw ? 'Now on ' : 'On the clock · ') + codeLabel(code));
       }
+      dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
       savePrefs();
-      scheduleNudge();
-      openSheet('prompt', 'before');
+      enqueueUpload(item);
+      enablePush();
       return refreshDay();
-    }).catch(function(e){ if (S.pendingJob) cancelMove(); showErr(e); }).then(function(){ busy(false); render(); });
+    }).catch(function(e){
+      // Nothing opened: the photo is not kept, and the clock is as it was.
+      S.clockGate = null; S.gateCode = null;
+      if (S.pendingJob) cancelMove();
+      showErr(e);
+    }).then(function(){ busy(false); setTab('job'); });
   });
 }
-
-function doClockOut(){
-  if (needAfterForOut()) { toast('After photo required before clock-out'); return; }
+/* The end photo closes the entry: the clock-out. The photo is queued at
+   once — it is of this code, whatever the API answers. */
+function commitOut(item, rec){
+  var open = S.open, job = S.job;
+  if (!open){ S.clockGate = null; setTab('job'); return; }
+  item.entryId = open.id; item.codeLabel = codeLabel(open.code);
+  rec.codeId = open.code ? open.code.id : null;
+  S.photos.push(rec);
+  savePrefs();
+  enqueueUpload(item);
   busy(true);
   withCoords(function(coords){
-    apiCall('clockOut', [coords]).then(function(r){
-      S.open = null; S.afterRequired = false; S.pendingCode = null;
-      S.nudged = false; S.escalated = false;
-      clearTimeout(nudgeTimer);
+    apiCall('clockOut', [coords, rec.id]).then(function(r){
+      S.open = null; S.clockGate = null; S.onBreak = null;
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
-      closeSheet();
       toast('Clocked out · sent to JobTread');
+      return refreshDay();
+    }).catch(function(e){ S.clockGate = null; showErr(e); }).then(function(){
+      busy(false);
+      landAfterOut(job);
+    });
+  });
+}
+/* Clocked out: the Day log, with the nudge, if today's log is still to go. */
+function landAfterOut(job){
+  var e = job ? dlGet(job.id, isoLocal()) : null;
+  if (job && !S.open && !(e && e.sent)){ S.dlNudge = true; openLog(job.id, isoLocal()); return; }
+  setTab('job');
+}
+/* The end photo of a switch: kept for the call that commits the switch, once
+   the next code (and its start photo) is picked. The code sheet opens — this
+   job's, or the next job's on a move. */
+function afterEndShot(item, rec){
+  var open = S.open;
+  item.entryId = open.id; item.codeLabel = codeLabel(open.code);
+  rec.codeId = open.code ? open.code.id : null;
+  S.photos.push(rec);
+  S.switching = { endPhotoId: rec.id, at: Date.now() };
+  S.clockGate = null;
+  savePrefs();
+  enqueueUpload(item);
+  setTab('job');
+  if (S.pendingJob){
+    var j = S.pendingJob;
+    apiCall('getJobCodes', [j.id]).then(function(codes){
+      if (!S.pendingJob || S.pendingJob.id !== j.id) return;
+      S.codes = codes || [];
+      openSheet('codes');
+    }).catch(function(e){ cancelMove(); failed('getJobCodes', e); render(); });
+    return;
+  }
+  openSheet('codes');
+}
+
+/* A break closes the block with no photo; Back to work re-opens the same
+   code with no start photo. JobTread has no break entity, so a closed entry
+   and a new one is the honest write. */
+function doBreak(){
+  var open = S.open;
+  if (!open) return;
+  busy(true);
+  withCoords(function(coords){
+    apiCall('startBreak', [coords]).then(function(r){
+      S.onBreak = { jobId: S.job ? S.job.id : (open.job && open.job.id), code: open.code, at: Date.now(), sec: openSeconds(), date: isoLocal() };
+      S.open = null;
+      if (r && r.entries) S.entries = r.entries;
+      savePrefs();
+      toast('On break · ' + hmClock(S.onBreak.sec) + ' on ' + ((open.code && open.code.number) || 'the code') + ' saved');
       return refreshDay();
     }).catch(showErr).then(function(){ busy(false); render(); });
   });
 }
-
-/* "YES — it's finished": an after photo is now required to start the next code. */
-function promptYes(){
-  S.afterRequired = true;
-  closeSheet();
-  S.capture = 'after';
-  setTab('cam');
-  toast('After photo required to start ' + ((S.pendingCode && S.pendingCode.number) || 'the next code'));
+function doBackToWork(){
+  var b = S.onBreak;
+  if (!b || !b.code) return;
+  busy(true);
+  withCoords(function(coords){
+    apiCall('endBreak', [b.jobId, b.code.id, coords]).then(function(open){
+      S.open = open; S.onBreak = null;
+      savePrefs();
+      toast('Back on · ' + codeLabel(open.code || b.code));
+      return refreshDay();
+    }).catch(showErr).then(function(){ busy(false); render(); });
+  });
 }
-/* "NO — still going": switch straight through, nothing owed. */
-function promptNo(){
-  var c = S.pendingCode;
-  closeSheet();
-  if (c) doSwitch(c); else render();
-}
-function promptShoot(){
-  closeSheet();
-  S.capture = 'before';
-  S.returnToClock = true;
-  $('notif').style.display = 'none';
-  setTab('cam');
+/* Clocking out from a break: the block is already closed, so nothing is
+   written — the day just ends, and today's log is asked for. */
+function doBreakOut(){
+  var b = S.onBreak;
+  S.onBreak = null; savePrefs();
+  landAfterOut(b && b.jobId ? { id: b.jobId } : S.job);
+  render();
 }
 
 function showErr(e, where){
@@ -2909,12 +2925,20 @@ function captured(blob, mime){
   var codeId = S.open && S.open.code ? S.open.code.id : null;
   var at = Date.now();
   var id = uid();
+  // The job a start photo belongs to is the one about to open — on a move,
+  // the next one.
+  var job = (S.clockGate === 'start' && S.pendingJob) || S.job;
   makeThumb(blob).then(function(thumb){
-    var item = { id:id, blob:blob, mime:mime, tag:tag, at:at, jobId:S.job.id,
+    var item = { id:id, blob:blob, mime:mime, tag:tag, at:at, jobId:job.id,
                  entryId: (S.open && S.open.id) || '', codeLabel: codeLabel(S.open && S.open.code) };
     // The record knows its job and its file name, so the day's log can find
     // it and attach it once JobTread has given it an id.
-    var rec = { id:id, tag:tag, codeId:codeId, at:at, time:clockLabel(at), thumb:thumb, pending:true, jobId:S.job.id, name:fileName(item) };
+    var rec = { id:id, tag:tag, codeId:codeId, at:at, time:clockLabel(at), thumb:thumb, pending:true, jobId:job.id, name:fileName(item) };
+    // Locked to a gate: the shutter commits, and the photo is kept by the
+    // commit, stamped with the entry it belongs to.
+    if (S.clockGate === 'start'){ commitStart(item, rec); return; }
+    if (S.clockGate === 'end-out'){ commitOut(item, rec); return; }
+    if (S.clockGate === 'end-switch'){ afterEndShot(item, rec); return; }
     S.photos.push(rec);
     dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
     // Shot from the safety alert card: it belongs to the alert too.
@@ -2925,8 +2949,6 @@ function captured(blob, mime){
     savePrefs();
     render();
     enqueueUpload(item);
-    // The before requirement is satisfied — call off the escalation.
-    if (tag === 'before'){ S.escalated = false; $('notif').style.display = 'none'; clearTimeout(nudgeTimer); }
     settleAfterShot(tag);
   });
 }
@@ -2935,11 +2957,6 @@ function settleAfterShot(tag){
   if (S.alertFor){
     var back = S.alertFor;
     setTimeout(function(){ S.alertFor = null; openLog(back.jobId, back.date); }, 640);
-    return;
-  }
-  if (tag === 'after' && S.afterRequired && S.pendingCode){
-    var c = S.pendingCode;
-    setTimeout(function(){ doSwitch(c); }, 520);
     return;
   }
   if (S.returnToClock){
@@ -3089,10 +3106,14 @@ function sendOne(item){
 }
 
 /* The photo's description is the server's only trustworthy record of which
-   block of time a photo belongs to. `#TE:<timeEntryId>` is what
-   entryIdsWithBeforePhoto_() in Code.gs greps for — keep the two in step. */
+   block of time a photo belongs to: `#START #TE:<timeEntryId>` /
+   `#END #TE:<timeEntryId>`. `#TE:` is what entryIdsWithBeforePhoto_() in
+   Code.gs greps for — keep the two in step. The tag values stay before /
+   during / after on the phone; the words are Start / During / End. */
+var TAG_WORD = { before:'START', during:'DURING', after:'END' };
+function tagWord(tag){ return TAG_WORD[tag] || String(tag || '').toUpperCase(); }
 function fileDescription(item){
-  return '#' + item.tag.toUpperCase() +
+  return '#' + tagWord(item.tag) +
          (item.entryId ? ' #TE:' + item.entryId : '') +
          (item.codeLabel ? ' ' + item.codeLabel : '');
 }
@@ -3102,7 +3123,7 @@ function fileName(item){
   var stamp = d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
   var who = (S.me && S.me.name || '').split(/\s+/).map(function(w){ return w.charAt(0); }).join('').toUpperCase();
   var ext = /video/.test(item.mime) ? (/mp4/.test(item.mime) ? '.mp4' : '.webm') : '.jpg';
-  return stamp + '-' + item.tag.toUpperCase() + (who ? '-' + who : '') + ext;
+  return stamp + '-' + tagWord(item.tag) + (who ? '-' + who : '') + ext;
 }
 
 /* =========================================================
@@ -3377,7 +3398,7 @@ function dlFlush(k){
     e.wantSend = false; e.err = ''; e.prompt = false;
     dlRetries[k] = 0;
     dlPersist();
-    S.dlReview = false;
+    S.dlReview = false; S.dlNudge = false;
     toast(r.duplicate ? 'Log was already sent' : 'Log sent' + (e.sent.assigned.length ? ' to ' + firstNames(e.sent.assigned) : ''));
     render();
   }).catch(function(err){
@@ -3490,6 +3511,11 @@ function dlBodyHtml(cur, e, date){
   if (S.dlReview) return dlReviewHtml(cur, d, date);
   var story = String(d.story || ''), lines = d.lines || [], hasText = !!story.trim(), has = hasText || !!lines.length;
   var h = '';
+  // Landed here from the clock-out: send it before you go.
+  if (S.dlNudge && date === isoLocal()){
+    h += '<div class="promptbox warn" style="margin-top:8px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn);flex:none"><path d="M10 6h11M10 12h11M10 18h11"/><polyline points="3 6 4.2 7.2 6.4 5"/><polyline points="3 12 4.2 13.2 6.4 11"/><polyline points="3 18 4.2 19.2 6.4 17"/></svg>' +
+         '<span style="flex:1;min-width:0"><span class="pe" style="display:block">Today’s log · not sent</span><span class="pt" style="display:block">Send it before you go?</span></span></div>';
+  }
   // 1. The story: a real text box, tap anywhere to type. The lines that went
   // to the PM sit above it with their time.
   h += '<div class="dlh first">' + esc(T('how')) + '</div>';
@@ -3859,7 +3885,6 @@ function bootStart(lastJob, attempt){
     S.job = d.job;
     S.entries = d.entries || [];
     S.recent = d.recent || [];
-    if (S.open) scheduleNudge();
     ckOnProfile();
     if (attempt > 0){
       // The late start: what the first attempt would have set in motion.
@@ -3892,19 +3917,23 @@ $('sunBtn').onclick = function(){ S.sun = !S.sun; savePrefs(); render(); };
 });
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
 $('clockIn').onclick = function(){ if (S.job) openSheet('codes'); };
-$('switchBtn').onclick = function(){ openSheet('codes'); };
-$('clockOutBtn').onclick = function(){ openSheet('out'); };
-$('remind').onclick = function(){
-  S.returnToClock = true;
-  S.capture = S.afterRequired ? 'after' : needBefore() ? 'before' : needDuring() ? 'during' : 'after';
-  setTab('cam');
-};
+// A progress shot: the camera, unlocked, During, tagged to the running code,
+// and back to the clock after the shot.
+$('photoBtn').onclick = function(){ S.capture = 'during'; S.returnToClock = true; setTab('cam'); };
+$('stopBtn').onclick = function(){ openSheet('stop'); };
+$('backBtn').onclick = doBackToWork;
+$('breakOutBtn').onclick = doBreakOut;
+$('camBack').onclick = camBack;
 $('jobsRefresh').onclick = function(){ S.assign = null; loadAssignments(); };
 $('ckBack').onclick = function(){ setTab('jobs'); };
-// Backing out of a move (X or the scrim before a code is chosen) puts the
-// current job's codes back; a chosen code carries the move through the prompt.
-$('sheetClose').onclick = function(){ if (S.moving && S.pendingJob && !S.afterRequired) cancelMove(); closeSheet(); render(); };
-$('scrimTap').onclick = function(){ if (S.moving && S.pendingJob && !S.afterRequired) cancelMove(); closeSheet(); render(); };
+// Backing out of a move or a switch (X or the scrim before a code is
+// chosen) puts the current job's codes back; the clock keeps running.
+function backOutOfSheet(){
+  if (S.sheet === 'codes' && (S.moving || S.switching)) cancelMove();
+  closeSheet(); render();
+}
+$('sheetClose').onclick = backOutOfSheet;
+$('scrimTap').onclick = backOutOfSheet;
 $('shutter').onclick = shoot;
 $('modeBtn').onclick = function(){ if (recorder) return; S.mode = S.mode==='photo'?'video':'photo'; renderCam(); };
 $('lastShot').onclick = function(){ setTab('log'); };
@@ -3968,12 +3997,11 @@ $('pushBtn').onclick = function(){
   });
 };
 $('updateBtn').onclick = forceUpdate;
-$('notif').onclick = function(){ $('notif').style.display='none'; closeSheet(); S.capture='before'; S.returnToClock=true; setTab('cam'); };
 [].forEach.call(document.querySelectorAll('.tab'), function(b){
   b.onclick = function(){ setTab(b.getAttribute('data-tab')); };
 });
 [].forEach.call(document.querySelectorAll('.tagbtn'), function(b){
-  b.onclick = function(){ S.capture = b.getAttribute('data-tag'); renderCam(); };
+  b.onclick = function(){ if (S.clockGate) return; S.capture = b.getAttribute('data-tag'); renderCam(); };
 });
 
 window.addEventListener('online', function(){ S.online = true; render(); pump(); ckRetryPending(); dlRetryPending(); });
@@ -3987,9 +4015,8 @@ document.addEventListener('visibilitychange', function(){
   ckRetryPending();
   dlRetryPending();
   // A phone that spent an hour in a pocket should show the right number
-  // immediately, and any owed nudge should land now.
+  // immediately.
   render();
-  checkNudge();
   pump();
   refreshDay().then(render);
 });

@@ -259,19 +259,42 @@
         { name: 'Jesse P.', minutes: 60, job: '26-0890 Webster_Foundation', code: '02ST-1 Final Clean' }
       ];
     },
-    clockIn: function (jobId, costItemId) {
+    // The clock, with the photo gates Code.gs enforces: no start photo, no
+    // clock-in; no end photo, no clock-out; a switch carries both. A break
+    // is the one photo-less write. Every call is recorded in window.__CLOCK.
+    clockIn: function (jobId, costItemId, coords, startPhotoId) {
+      (window.__CLOCK = window.__CLOCK || []).push(['clockIn', jobId, costItemId, startPhotoId || null]);
+      if (!startPhotoId) throw new Error('PHOTO_REQUIRED: A start photo is required to clock in.');
+      return HANDLERS.__open(jobId, costItemId);
+    },
+    __open: function (jobId, costItemId) {
+      if (ST.open) ST.open.endedAt = new Date().toISOString();
       ST.open = { id: 'open' + (++ST.n), startedAt: new Date().toISOString(), endedAt: null, minutes: 0, job: jobById(jobId) || JOB, code: code(costItemId) };
       ST.entries = [ST.open].concat(ST.entries);
       return ST.open;
     },
-    switchCode: function (jobId, costItemId) {
-      if (ST.open) ST.open.endedAt = new Date().toISOString();
-      return HANDLERS.clockIn(jobId, costItemId);
+    switchCode: function (jobId, costItemId, coords, endPhotoId, startPhotoId) {
+      (window.__CLOCK = window.__CLOCK || []).push(['switchCode', jobId, costItemId, endPhotoId || null, startPhotoId || null]);
+      if (!endPhotoId) throw new Error('PHOTO_REQUIRED: An end photo of the code you are leaving is required to switch.');
+      if (!startPhotoId) throw new Error('PHOTO_REQUIRED: A start photo is required to start the next code.');
+      return HANDLERS.__open(jobId, costItemId);
     },
-    clockOut: function () {
+    clockOut: function (coords, endPhotoId) {
+      (window.__CLOCK = window.__CLOCK || []).push(['clockOut', endPhotoId || null]);
+      if (!endPhotoId) throw new Error('PHOTO_REQUIRED: An end photo is required to clock out.');
       if (ST.open) ST.open.endedAt = new Date().toISOString();
       ST.open = null;
       return { ok: true, entries: ST.entries };
+    },
+    startBreak: function () {
+      (window.__CLOCK = window.__CLOCK || []).push(['startBreak']);
+      if (ST.open) ST.open.endedAt = new Date().toISOString();
+      ST.open = null;
+      return { ok: true, entries: ST.entries };
+    },
+    endBreak: function (jobId, costItemId) {
+      (window.__CLOCK = window.__CLOCK || []).push(['endBreak', jobId, costItemId]);
+      return HANDLERS.__open(jobId, costItemId);
     },
     // A read-only build refuses the upload request the way Code.gs does.
     createCaptureUploadRequest: function () {

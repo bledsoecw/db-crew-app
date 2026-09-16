@@ -44,7 +44,7 @@ const tap = async (page, sel, ms = 500) => { await page.locator(sel).first().cli
 
 const allErrs = [];
 
-// ---- crew: clocked out -> clock in -> owed -> switch -> blocked clock-out ----
+// ---- crew: clocked out -> code -> start photo -> on the clock -> stop sheet -> end photo ----
 {
   const { ctx, page, errs } = await session();
   await shot(page, '01-clocked-out');
@@ -52,23 +52,20 @@ const allErrs = [];
   await tap(page, '#clockIn');
   await shot(page, '02-code-picker');
 
-  await tap(page, '.coderow:has-text("Masonry Labor")', 800);
-  await shot(page, '03-before-prompt');
+  await tap(page, '.coderow:has-text("Masonry Labor")', 1200);
+  await shot(page, '03-start-photo');          // the camera, locked to START
 
-  await tap(page, '#pSkip');
-  await shot(page, '04-on-clock-owed');
+  await tap(page, '#shutter', 3200);           // the shutter clocks in (after the location ceiling)
+  await shot(page, '04-on-clock');
 
-  await tap(page, '#switchBtn');
-  await tap(page, '.coderow:has-text("Final Clean")', 700);
-  await shot(page, '05-finished-prompt');
+  await tap(page, '#stopBtn', 500);
+  await shot(page, '05-stop-sheet');
 
-  await tap(page, '#pNo', 900);
-  await tap(page, '#pSkip');
-  await tap(page, '#clockOutBtn', 600);
-  await shot(page, '06-clock-out-blocked');
+  await tap(page, '#stopOut', 1200);
+  await shot(page, '06-end-photo');            // the camera, locked to END
+  await tap(page, '#camBack', 500);            // stay on
 
-  await tap(page, '#sheetClose');
-  await tap(page, '#remind', 1200);          // the camera is reached from the clock, not a tab
+  await tap(page, '#photoBtn', 1200);          // a progress shot: the camera, unlocked
   await shot(page, '07-capture');
 
   await tap(page, '.tab[data-tab="job"]', 400);
@@ -174,29 +171,20 @@ const allErrs = [];
   await ctx.close();
 }
 
-// ---- the 5-minute escalation, with the grace period shortened ----
+// ---- a break, and the clock-out: end photo, then today's log ----
 {
-  const ctx = await browser.newContext({ viewport: { width: 402, height: 874 }, deviceScaleFactor: 2, permissions: ['camera'] });
-  const page = await ctx.newPage();
-  const errs = [];
-  page.on('console', (m) => { if (m.type() === 'error' && !/ERR_CERT_AUTHORITY_INVALID/.test(m.text())) errs.push(m.text()); });
-  page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
-  await page.addInitScript('window.__MOCK_FOREMAN=false;window.__MOCK_READONLY=false;');
-  await page.addInitScript(mock);
-  // Match both "/" and "/index.html" — the app is served from the directory URL.
-  await page.route((u) => u.pathname === '/' || u.pathname.endsWith('/index.html'), async (route) => {
-    const res = await route.fetch();
-    let body = await res.text();
-    body = body.replace('var BEFORE_GRACE_SEC = 5*60;', 'var BEFORE_GRACE_SEC = 3;');
-    await route.fulfill({ response: res, body });
-  });
-  await page.goto(APP_URL, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1400);
+  const { ctx, page, errs } = await session();
   await tap(page, '#clockIn');
-  await tap(page, '.coderow:has-text("Masonry Labor")', 800);
-  await tap(page, '#pSkip');
-  await page.waitForTimeout(5200);
-  await shot(page, '11-nudge');
+  await tap(page, '.coderow:has-text("Masonry Labor")', 1000);
+  await tap(page, '#shutter', 3200);
+  await tap(page, '#stopBtn', 400);
+  await tap(page, '#stopBreak', 3200);
+  await shot(page, '11-on-break');
+  await tap(page, '#backBtn', 3200);
+  await tap(page, '#stopBtn', 400);
+  await tap(page, '#stopOut', 1000);
+  await tap(page, '#shutter', 3500);
+  await shot(page, '11b-clock-out-nudge');
   allErrs.push(...errs);
   await ctx.close();
 }

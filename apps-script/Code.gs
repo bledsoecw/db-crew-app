@@ -336,6 +336,8 @@ function doPost(e) {
       clockIn: clockIn,
       switchCode: switchCode,
       clockOut: clockOut,
+      startBreak: startBreak,
+      endBreak: endBreak,
       getMyDay: getMyDay,
       getMyJobs: getMyJobs,
       saveSiteChecks: saveSiteChecks,
@@ -1917,13 +1919,31 @@ function coordArg_(c) {
   return { latitude: Number(c.lat), longitude: Number(c.lng) };
 }
 
-function clockIn(me, jobId, costItemId, coords) {
+// ---- the photo gates, server side ----
+// The phone's camera is locked to the photo owed and the shutter is what
+// commits, so a clock-in carries the id of its start photo, a clock-out the
+// id of its end photo, and a switch both. The id is the phone's capture id —
+// the upload queues and the commit must not wait on it — and the photo's
+// description carries the entry id once it lands ("#START #TE:<id>", the
+// same tag the nudge sweep greps for). A write with no photo id is refused
+// here too, so a phone cannot skip the gate by asking the API directly. A
+// break is the one photo-less write, by design: it closes the block and
+// Back to work opens a new one on the same code.
+function requirePhoto_(id, what) {
+  if (!id || !String(id).trim()) throw new Error('PHOTO_REQUIRED: ' + what);
+}
+
+function clockIn(me, jobId, costItemId, coords, startPhotoId) {
   if (!jobId) throw new Error('Missing job id.');
   if (!costItemId) throw new Error('Pick a code before clocking in.');
+  requirePhoto_(startPhotoId, 'A start photo is required to clock in.');
   assertWrite_(jobId);
+  return openEntry_(me, jobId, costItemId, coords);
+}
 
-  // One open entry per person. If something is already running, close it —
-  // a crew member on two clocks at once is a payroll problem.
+/** Open a block on a code, closing anything already running — a crew member
+ *  on two clocks at once is a payroll problem. */
+function openEntry_(me, jobId, costItemId, coords) {
   var open = openEntryFor_(me.userId);
   if (open) closeEntry_(open.id, coords);
 
@@ -1951,7 +1971,8 @@ function closeEntry_(entryId, coords) {
   pave({ updateTimeEntry: { '$': args } });
 }
 
-function clockOut(me, coords) {
+function clockOut(me, coords, endPhotoId) {
+  requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
   var open = openEntryFor_(me.userId);
   if (!open) return { ok: true, closed: null };
   assertWrite_(open.job && open.job.id);
@@ -1960,13 +1981,30 @@ function clockOut(me, coords) {
 }
 
 // Close the running entry and open the next one in a single call, so a
-// dropped connection can't leave someone clocked out mid-switch.
-function switchCode(me, jobId, costItemId, coords) {
+// dropped connection can't leave someone clocked out mid-switch. The end
+// photo of the code just ended and the start photo of the next both ride.
+function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId) {
   if (!costItemId) throw new Error('Pick a code to switch to.');
+  requirePhoto_(endPhotoId, 'An end photo of the code you are leaving is required to switch.');
+  requirePhoto_(startPhotoId, 'A start photo is required to start the next code.');
   assertWrite_(jobId);
+  return openEntry_(me, jobId, costItemId, coords);   // closes what is running, then opens
+}
+
+// A break: the block closes with no photo. Back to work re-opens the same
+// code with no start photo (the block before it has one).
+function startBreak(me, coords) {
   var open = openEntryFor_(me.userId);
-  if (open) closeEntry_(open.id, coords);
-  return clockIn(me, jobId, costItemId, coords);
+  if (!open) return { ok: true, closed: null, entries: getMyDay(me) };
+  assertWrite_(open.job && open.job.id);
+  closeEntry_(open.id, coords);
+  return { ok: true, closed: open.id, entries: getMyDay(me) };
+}
+function endBreak(me, jobId, costItemId, coords) {
+  if (!jobId) throw new Error('Missing job id.');
+  if (!costItemId) throw new Error('Missing the code to go back to.');
+  assertWrite_(jobId);
+  return openEntry_(me, jobId, costItemId, coords);
 }
 
 // Foreman view: who is on the clock right now.
@@ -2141,7 +2179,7 @@ function postJobNote(jobId, message, authorName, assignPm) {
 //   PUSH_ENABLED          'true' to actually send
 // ===========================================================
 
-var PUSH_GRACE_MINUTES = 5;      // keep in step with BEFORE_GRACE_SEC in index.html
+var PUSH_GRACE_MINUTES = 5;      // a start photo still not uploaded this long after the block opened
 var PUSH_SWEEP_LOOKBACK_H = 16;  // ignore entries older than a plausible shift
 
 function pushEnabled_() {
@@ -2270,9 +2308,10 @@ function sendPush_(token, title, body, data, opts) {
 // Runs on a time-driven trigger. One Pave call for the open entries, one for
 // the tagged before photos, so the cost doesn't grow with the size of the crew.
 
-/** Before photos carry `#TE:<timeEntryId>` in their description; that is how
- *  the server knows, without trusting the client, whether the photo owed for a
- *  particular block of time actually exists. See fileDescription() in index.html. */
+/** Start photos carry `#START #TE:<timeEntryId>` in their description (older
+ *  builds wrote `#BEFORE`); that is how the server knows, without trusting the
+ *  client, whether the photo owed for a particular block of time actually
+ *  exists. See fileDescription() in index.html. */
 function entryIdsWithBeforePhoto_(sinceIso) {
   var out = {};
   var page = null;
@@ -2280,7 +2319,7 @@ function entryIdsWithBeforePhoto_(sinceIso) {
     var arg = {
       where: {
         and: [
-          { like: [{ field: 'description' }, { value: '%#BEFORE%' }] },
+          { or: [{ like: [{ field: 'description' }, { value: '%#START%' }] }, { like: [{ field: 'description' }, { value: '%#BEFORE%' }] }] },
           { '>=': [{ field: 'createdAt' }, { value: sinceIso }] }
         ]
       },

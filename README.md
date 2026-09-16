@@ -160,28 +160,35 @@ ordered" — and "Schedule changed" when the next few days move. See SETUP.md
 §4b for `installSchedulePushTrigger`.
 
 **Clock in.** One green 132px button. It opens the code list — you cannot clock
-in without saying what you are doing.
+in without saying what you are doing — and the code opens the camera, locked
+to the START photo. The shutter is what clocks you in: the entry opens with
+the photo's id and the photo lands on the job stamped `#START #TE:<entry>`.
+There is no "start without a photo". Back returns to the code list with
+nothing created.
 
-**Before photo.** The moment a code starts, the BEFORE sheet comes up. It is
-skippable ("Start without a photo") and one photo clears it. An amber strip on
-the clock screen carries the requirement until it's satisfied.
+**On the clock** the band says when you started, that it was with a start
+photo, and how many photos this code has. Two buttons: **Take a photo** (the
+camera, unlocked, During, tagged to the running code, back to the clock after
+the shot — this is what the Capture tab became) and **Stop the clock**, which
+opens Break · Switch code or job · Clock out for the day.
 
-**The 5-minute escalation.** Five minutes on a code with no before photo and a
-notification fires — *"04MA Masonry Labor started 5 minutes ago. The office has
-been copied."* — and the photo screen reopens on top of whatever you were doing.
-Once per code.
+**Break** closes the block with no photo; the band pauses and says when the
+break began. **Back to work** re-opens the same code, no start photo. JobTread
+has no break entity, so a closed entry and a new one is the honest write.
 
-**Switching codes** asks one question: *is this code finished?* **NO** switches
-straight through, nothing owed. **YES** sends you to the camera locked to AFTER
-with an amber bar naming both codes — the switch commits itself the moment you
-shoot, and the requirement follows you across tabs.
+**Switching codes or jobs** is the END photo first — the camera locked to END,
+"you switch when you shoot" — then the code list (or the next job's), then
+the START photo of the new code. One call closes the old block and opens the
+new one, carrying both photo ids, so a dropped connection cannot leave anyone
+clocked out mid-switch. Backing out at the code list leaves the clock running.
 
-**Clock out** will not commit without an after photo of the code you're on. The
-confirm button stays visible but dimmed and inert, with a green "Take the after
-photo" CTA above it.
+**Clock out for the day** is the END photo, then the commit, then the Day log
+with "Today's log · not sent / Send it before you go?" at the top if today's
+log has not gone.
 
-**After any prompted capture you land back on the running clock.** Tapping
-CAPTURE yourself keeps you in the camera.
+**The API refuses** a clock-in, clock-out or switch that carries no photo id,
+so the gate cannot be skipped by asking it directly. A break is the one
+photo-less write, by design.
 
 **Sun mode is the default**, not the exception. Near-black ground with white
 type is the highest-contrast, lowest-glare combination on a phone at noon on a
@@ -214,8 +221,9 @@ is usually nearly free.
 | --- | --- |
 | Clock in | 132 px |
 | Shutter | 104 px |
-| YES / NO on the finished prompt | 100 px |
-| Confirm clock out, before-photo CTA | 88 px |
+| Send today's log, Review & send | 88 px |
+| Stop-sheet rows | 82 px |
+| YES / NO on the Day log | 72 px |
 | Code row | 82 px |
 | Tabs, primary buttons | 76 px |
 | *(iOS minimum)* | *44 px* |
@@ -236,12 +244,12 @@ every 5 min   Apps Script trigger -> sweepBeforePhotoNudges()
 installed to the Home Screen** — a Safari tab gets nothing. That makes the
 install step load-bearing rather than optional. The app detects the case and
 says "Add to Home Screen to get photo reminders" instead of failing silently,
-and the amber strip on the clock screen carries the requirement either way.
+and the start photo is the clock-in either way.
 
 Two design points worth knowing:
 
 **The server never trusts the client about whether a photo exists.** Every
-capture is stamped `#BEFORE #TE:<timeEntryId> 04MA Masonry Labor` in its
+capture is stamped `#START #TE:<timeEntryId> 04MA Masonry Labor` in its
 JobTread description. The sweep greps for that, so a phone that lied, crashed
 or never came back online can't suppress the nudge. `fileDescription()` in
 `index.html` and `entryIdsWithBeforePhoto_()` in `Code.gs` are the two halves —
