@@ -337,7 +337,7 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   check('a failed send says when it tries again', /^Not sent — trying again in (1[5-9]|20)s$/.test(await txt(page, '#syncBadge')), true);
   await page.waitForTimeout(2200);
   check('...and the number moves', /^Not sent — trying again in 1[3-7]s$/.test(await txt(page, '#syncBadge')), true);
-  check('the failure is in the call log, with the reason', await page.evaluate(() => { const r = S.apiLog.filter(x => x.fn === 'sendDailyLog')[0]; return [r.ok, /boom/.test(r.err)]; }), [false, true]);
+  check('the failure is in the call log, with the reason and the API\'s own time', await page.evaluate(() => { const r = S.apiLog.filter(x => x.fn === 'sendDailyLog')[0]; return [r.ok, /boom/.test(r.err), !!(r.server && r.server.total === 1840)]; }), [false, true, true]);
   check('no page errors', errs, []);
   await ctx.close();
 }

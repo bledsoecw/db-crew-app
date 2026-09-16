@@ -662,7 +662,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.9 (2026-09-15)';
+var APP_BUILD = 'T1.10 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -761,13 +761,17 @@ function apiAttempt(fn, args, attempt, co){
   // backgrounded page, timers included; when it thaws, a timer that fell due
   // meanwhile fires at once — and a request the phone slept through would be
   // declared "not answered" having been given no time at all. A timer that
-  // fires far past its due moment was frozen: arm it again (twice at most)
-  // rather than abort.
+  // fires far past its due moment was frozen: give the request a short grace
+  // (twice at most) rather than abort. Short, because an answer that arrived
+  // during the freeze is delivered within moments of thawing, and a request
+  // iOS killed in the background is not coming back however long we wait —
+  // a full second window cost a minute and a half per call on the phone.
+  delete apiServer[fn];
   var timer = null, due = 0, rearmed = 0;
   var arm = function(ms){
     due = Date.now() + ms;
     timer = setTimeout(function(){
-      if (Date.now() - due > 3000 && rearmed < 2){ rearmed++; arm(limit); return; }
+      if (Date.now() - due > 3000 && rearmed < 2){ rearmed++; arm(API_THAW_GRACE_MS); return; }
       if (ctl) ctl.abort();
     }, ms);
   };
@@ -845,7 +849,8 @@ var apiLanes = {};
    through the API. Both are safe to wait on: the send cannot make a twin,
    the upload cannot double a file. The clock keeps the short ceiling. */
 var API_TIMEOUTS = { sendDailyLog: 60000, uploadCapture: 90000 };
-var apiServer = {};   // fn -> the server's own timing from its last reply
+var API_THAW_GRACE_MS = 5000;   // after a freeze: how long a request still gets
+var apiServer = {};   // fn -> the server's own timing from its reply, cleared as each call starts
 
 function apiCall(fn, args, co){
   if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
@@ -867,7 +872,7 @@ function apiNote(fn, queuedAt, t0, ok, e){
   var now = Date.now();
   var rec = { fn: fn, at: now, wait: t0 ? t0 - queuedAt : 0, ms: t0 ? now - t0 : 0, ok: ok,
               err: ok ? '' : String((e && e.message) || e || '') };
-  if (ok && apiServer[fn]) rec.server = apiServer[fn];
+  if (apiServer[fn]) rec.server = apiServer[fn];   // an answered failure has one too
   S.apiLog.push(rec);
   if (S.apiLog.length > 12) S.apiLog.shift();
 }
