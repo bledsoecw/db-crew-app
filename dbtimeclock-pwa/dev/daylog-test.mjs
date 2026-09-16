@@ -4,7 +4,7 @@
      node dev/daylog-test.mjs
 
    Needs a local static server on the port below and Playwright available.
-   The mock records every daily log, note and later note it is handed
+   The mock records every daily log, PM line and later note it is handed
    (window.__LOGS, __NOTES, __LOGNOTES) so the payloads can be checked. */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
@@ -38,8 +38,6 @@ async function boot(flags = {}, init = '') {
 const tap = async (page, sel, ms = 300) => { await page.locator(sel).first().click(); await page.waitForTimeout(ms); };
 const txt = async (page, sel) => (await page.locator(sel).first().textContent()).replace(/\s+/g, ' ').trim();
 const cls = (page, sel) => page.locator(sel).first().getAttribute('class');
-// textContent of a flex row has no spaces between cells; compare without any.
-const compact = async (page, sel) => (await page.locator(sel).first().textContent()).replace(/\s+/g, '');
 const grab = (page, name) => page.evaluate((n) => JSON.parse(JSON.stringify(window[n] || [])), name);
 const shoot = (page) => page.evaluate(() => new Promise((res) => {
   const c = document.createElement('canvas'); c.width = 8; c.height = 8;
@@ -51,6 +49,9 @@ const DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const today = new Date(), isoToday = iso(today), isoYday = iso(new Date(Date.now() - 86400000));
 const plus = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
 const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.getDate();
+// A draft in the shape the phone keeps, for the fixtures below.
+const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLabel: '26-0890 Noah Webster', jobNum: '26-0890', cust: 'Noah Webster', address: '', alongside: null, pm: '', reps: [],
+  story: '', lines: [], delays: null, delayWhy: [], safety: null, alert: null, notes: [], sent: null, wantSend: false, sending: false, err: '', prompt: false, activity: true, at: Date.now(), seq: 1 }, over);
 
 // ---- the week: chips, day headings, who is with you, quiet future cards ----
 {
@@ -96,67 +97,124 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await ctx.close();
 }
 
-// ---- the day log: draft, chips, notes, a photo, the send, and after ----
+// ---- the day log: the story, the PM line, the two questions, the review, the send, and after ----
 {
   const { ctx, page, errs } = await boot();
   await tap(page, '.tab[data-tab="log"]', 500);
   check('one job today: no chips to choose between', await page.locator('#dlChips .dlchip').count(), 0);
   check('the header names the job', await txt(page, '#logK'), 'Day log · JT #26-0890');
-  check('the summary carries the hours by code', await compact(page, '.dlsum'), 'Todayat408EuclidAve02ST-1SitePrepLabor42m04MAMasonryLabor2h18mHourstoday3h00mPhotos0');
-  check('not started', await txt(page, '#syncBadge'), 'Not started');
-  await page.locator('#dlDone').fill('Tear-off and dry-in, north side shingled.');
+  check('not sent', await txt(page, '#syncBadge'), 'Not sent');
+  check('a blank log: Talk and Type, the one-tap, and Send log inert', [await page.locator('#dlTalkRow').isVisible(), await page.locator('#dlNormal').isVisible(), await txt(page, '#dlReview'), await cls(page, '#dlReview')], [true, true, 'Send log', 'btn btn-go sendbig off']);
+  check('the story box is a real text box with the four placeholder lines', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n'), ['Tap here and type, or use Talk below', 'When did you get on the job?', 'What got done?', 'Anything in the way?']);
+  await page.locator('#dlStory').fill('Got on the job after 8 a.m. due to appointment');
   await page.waitForTimeout(200);
-  check('typing makes a draft', await txt(page, '#syncBadge'), 'Draft');
-  await tap(page, '[data-tog="crewOnSite"][data-val="true"]', 200);
-  await tap(page, '[data-tog="tarped"][data-val="true"]', 200);
-  check('condition chips toggle', [await cls(page, '[data-tog="crewOnSite"][data-val="true"]'), await cls(page, '[data-tog="tarped"][data-val="true"]')], ['togbtn on warn', 'togbtn on']);
-  await page.locator('#dlProb').fill('Short 8 pieces of drip edge.');
-  await page.locator('#dlNote').fill('Homeowner asked about the trailer spot');
-  check('the note button says where a note goes', await txt(page, '#dlAddNote'), 'Add to the log');
-  await tap(page, '#dlAddNote', 300);
-  check('a plain note stays in the draft', [await page.locator('.notecard').count(), (await grab(page, '__NOTES')).length], [1, 0]);
-  await page.locator('#dlNote').fill('Need drip edge before 3');
-  await tap(page, '#dlUrgent', 150);
-  await tap(page, '#dlAddNote', 600);
+  check('typing switches the card in place: Add more and the PM row, no Talk / Type, Review & send, no one-tap', [await page.locator('#dlTalkRow').isVisible(), await page.locator('#dlAddMore').isVisible(), await page.locator('#dlPmRow').isVisible(), await txt(page, '#dlReview'), await page.locator('#dlNormal').isVisible()], [false, true, true, 'Review & send', false]);
+  check('...still not sent', await txt(page, '#syncBadge'), 'Not sent');
+  await tap(page, '#dlTellPm', 700);
   const notes = await grab(page, '__NOTES');
-  check('an urgent note goes to the PM straight away', [notes.length, notes[0] && notes[0].assignPm, notes[0] && notes[0].jobId], [1, true, 'j_2841']);
-  check('...and the card says so', /sent to Neal/.test(await txt(page, '.notecard.urgent .nm')), true);
+  check('Tell the PM now goes to the PM this minute', [notes.length, notes[0] && notes[0].assignPm, notes[0] && notes[0].message, notes[0] && notes[0].jobId], [1, true, 'Got on the job after 8 a.m. due to appointment', 'j_2841']);
+  check('...and stays in the log as a timestamped line, tagged', [await page.locator('.dlline').count(), await txt(page, '.dlline .pm'), await page.locator('#dlStory').inputValue()], [1, 'PM told', '']);
+  await page.locator('#dlStory').fill('Tear-off and dry-in, north side shingled.');
+  await tap(page, '[data-yn="delays"][data-v="1"]', 300);
+  check('delays yes opens the reasons', [await cls(page, '[data-yn="delays"][data-v="1"]'), await page.locator('[data-why]').count()], ['ynbtn on', 4]);
+  check('...the four chips', await page.locator('[data-why]').allTextContents(), ['Weather', 'Short on people', 'Waiting on material', 'Other']);
+  await tap(page, '[data-why="weather"]', 200);
+  await tap(page, '[data-why="other"]', 200);
+  await tap(page, '[data-why="other"]', 200);
+  await tap(page, '[data-why="people"]', 200);
+  check('chips are multi-select, and a second tap un-picks', await page.locator('[data-why].on').allTextContents(), ['Weather', 'Short on people']);
+  await tap(page, '[data-yn="safety"][data-v="0"]', 300);
+  check('safety no', await cls(page, '[data-yn="safety"][data-v="0"]'), 'ynbtn on');
 
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
   await tap(page, '.tab[data-tab="log"]', 500);
-  check('the draft survives a reload', [await page.locator('#dlDone').inputValue(), await page.locator('.notecard').count()], ['Tear-off and dry-in, north side shingled.', 2]);
+  check('the draft survives a reload', [await page.locator('#dlStory').inputValue(), await page.locator('.dlline').count(), await page.locator('[data-why].on').count(), await cls(page, '[data-yn="safety"][data-v="0"]')], ['Tear-off and dry-in, north side shingled.', 1, 2, 'ynbtn on']);
 
   await shoot(page);
   await page.waitForTimeout(1800);
   const photos = await page.evaluate(() => S.photos.map((p) => ({ jobId: p.jobId, fileId: p.fileId, pending: p.pending, tag: p.tag })));
   check('a photo knows its job and its JobTread file', photos, [{ jobId: 'j_2841', fileId: 'f1', pending: false, tag: 'before' }]);
-  await tap(page, '.tab[data-tab="log"]', 500);
-  check('...and shows in the day\'s summary', /Photos1$/.test(await compact(page, '.dlsum')), true);
 
-  await tap(page, '#dlSend', 500);
-  check('the confirm names who it goes to', /To Neal Deitemeyer \(PM\), Justin Phillips \(sales\)/.test(await txt(page, '#sheetBody .body')), true);
-  check('...and warns that the problems ping them', /problems also ping/.test(await txt(page, '#sheetBody .body')), true);
-  await tap(page, '#slYes', 1500);
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await tap(page, '#dlReview', 500);
+  check('the review: the hours, the photos, the two answers', await page.locator('.rvrow .rv').allTextContents(), ['3h 00m · 2 codes', '1', 'Yes · Weather · Short on people', 'None']);
+  check('...and the story, the PM line with its time', (await txt(page, '.rvstory .rt')).replace(/^\d+:\d\d[ap] — /, 'H:MM — '), 'H:MM — Got on the job after 8 a.m. due to appointment Tear-off and dry-in, north side shingled.');
+  check('...names who it goes to', await txt(page, '.rvfoot'), 'Goes on JT #26-0890 as today’s daily log for Neal Deitemeyer and Justin Phillips. Hours and photos are already there.');
+  await tap(page, '#dlBack', 300);
+  check('go back keeps everything', [await page.locator('#dlStory').inputValue(), await page.locator('[data-why].on').count()], ['Tear-off and dry-in, north side shingled.', 2]);
+  await tap(page, '#dlReview', 300);
+  await tap(page, '#dlSend', 1500);
   const logs = await grab(page, '__LOGS');
   const L = logs[0] || {};
   check('one daily log, on the job, dated today', [logs.length, L.jobId, L.date, L.jobLabel], [1, 'j_2841', isoToday, '26-0890 Noah Webster']);
-  check('what was typed', [L.done, L.crewOnSite, L.tarped, L.problems], ['Tear-off and dry-in, north side shingled.', true, true, 'Short 8 pieces of drip edge.']);
-  check('the notes, the urgent one marked', L.notes.map((n) => [n.body, n.urgent]), [['Homeowner asked about the trailer spot', false], ['Need drip edge before 3', true]]);
+  check('the story and the PM line, timed and tagged', [L.story, (L.lines || []).map((l) => [l.text, l.pmTold, /^\d+:\d\d[ap]$/.test(l.time)])], ['Tear-off and dry-in, north side shingled.', [['Got on the job after 8 a.m. due to appointment', true, true]]]);
+  check('the two answers; the reasons as keys the API maps to JobTread\'s own options', [L.delays, L.delayWhy, L.safety, L.alert], [true, ['weather', 'people'], false, null]);
+  check('nothing of the old form rides along', ['done' in L, 'fields' in L, 'problems' in L], [false, false, false]);
   check('the photo by reference', L.photos.map((p) => [p.fileId, p.tag]), [['f1', 'before']]);
   check('the hours by code, from the clock', L.hours.map((h) => [h.number, h.minutes]), [['02ST-1', 42], ['04MA', 138]]);
-  check('left-at falls back to the last clock-out here', typeof L.leftAt === 'string' && L.leftAt.length > 0, true);
   check('no site checks on a foundation job', L.checks, null);
-  check('sent, and it says to whom', [/^Sent/.test(await txt(page, '#syncBadge')), /to Neal Deitemeyer, Justin Phillips/.test(await txt(page, '.dlsent .s')), /pinged/.test(await txt(page, '.dlsent .s'))], [true, true, true]);
-  check('the questions are gone; a later note remains', [await page.locator('#dlDone').count(), await page.locator('#dlLater').count()], [0, 1]);
+  check('sent: the badge, the card, who has it', [await txt(page, '#syncBadge'), /^Log sent · \d+:\d\d[ap]$/.test(await txt(page, '.sentcard .sl')), await txt(page, '.sentcard .st'), await txt(page, '.sentcard .ss')], ['Sent', true, 'You’re done for today', 'Neal Deitemeyer and Justin Phillips have it on JT #26-0890.']);
+  check('...and the rows, without the story', await page.locator('.rvrow .rv').allTextContents(), ['3h 00m', '1', 'Yes · Weather · Short on people', 'None']);
+  check('the form is gone', await page.locator('#dlStory').count(), 0);
+  await tap(page, '#dlLaterBtn', 300);
+  check('add a line opens a box', await page.locator('#dlLaterBox').isVisible(), true);
   await page.locator('#dlLater').fill('Kenton dropped the returns at 5.');
   await tap(page, '#dlLaterBtn', 600);
   const later = await grab(page, '__LOGNOTES');
-  check('a later note is a note on the sent log', later, [{ jobId: 'j_2841', dailyLogId: 'dl1', message: 'Kenton dropped the returns at 5.' }]);
+  check('a later line is a note on the sent log', later, [{ jobId: 'j_2841', dailyLogId: 'dl1', message: 'Kenton dropped the returns at 5.' }]);
+  check('...and shows under the card with its time', [await page.locator('.dlline').count(), await txt(page, '.dlline .lt')], [1, 'Kenton dropped the returns at 5.']);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
   await tap(page, '.tab[data-tab="log"]', 500);
-  check('sent stays sent', /^Sent/.test(await txt(page, '#syncBadge')), true);
+  check('sent stays sent', await txt(page, '#syncBadge'), 'Sent');
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- a normal day is one tap ----
+{
+  const { ctx, page, errs } = await boot();
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await tap(page, '[data-yn="delays"][data-v="0"]', 200);
+  check('no to a question keeps the one-tap', await page.locator('#dlNormal').isVisible(), true);
+  await tap(page, '#dlNormal', 1500);
+  const logs = await grab(page, '__LOGS');
+  check('one tap: no delays, no incidents, the words', [logs.length, logs[0].story, logs[0].delays, logs[0].safety, logs[0].lines], [1, 'Normal day, nothing to report.', false, false, []]);
+  check('...and it is sent, the rows saying so', [await txt(page, '#syncBadge'), await page.locator('.rvrow .rv').allTextContents()], ['Sent', ['3h 00m', '0', 'No', 'None']]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- Talk: no dictation in this browser, so the keyboard's mic is the way, said once ----
+{
+  const { ctx, page, errs } = await boot();
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await tap(page, '#dlTalk', 900);
+  check('Talk focuses the box', await page.evaluate(() => document.activeElement && document.activeElement.id), 'dlStory');
+  check('...and says, once, to use the keyboard mic', await txt(page, '#toast span'), 'Tap the mic on your keyboard');
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- EN / ES ----
+{
+  const { ctx, page, errs } = await boot();
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await tap(page, '[data-lang="es"]', 400);
+  check('Spanish: the header, the badge, the questions, the buttons, the tabs',
+    [await txt(page, '#logK'), await txt(page, '#syncBadge'), await page.locator('.dlh').allTextContents(), await txt(page, '#dlTalk'), await txt(page, '#dlType'), await page.locator('[data-yn]').allTextContents(), await txt(page, '#dlReview'), await txt(page, '#dlNormal'), await page.locator('#tabs .tl').allTextContents()],
+    ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Hubo retrasos?', '¿Alguien lastimado o casi?'], 'Hablar', 'Escribir', ['Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
+  check('...the date in Spanish', /^(Dom|Lun|Mar|Mié|Jue|Vie|Sáb), \d+ (ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/.test(await txt(page, '#logDate')), true);
+  check('...the placeholder too', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n')[0], 'Toca aquí y escribe, o usa Hablar');
+  await tap(page, '[data-yn="delays"][data-v="1"]', 300);
+  check('...and the reasons', await page.locator('[data-why]').allTextContents(), ['Clima', 'Falta gente', 'Esperando material', 'Otro']);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  check('the language is remembered', await page.locator('#tabs .tl').allTextContents(), ['Reloj', 'Mis trabajos', 'Registro']);
+  await tap(page, '.tab[data-tab="log"]', 400);
+  await tap(page, '[data-lang="en"]', 300);
+  check('...and switches back', await page.locator('#tabs .tl').allTextContents(), ['Clock', 'My jobs', 'Day log']);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -175,7 +233,6 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await tap(page, '#ckNudge', 500);
   check('...and opens that roof\'s log', [await txt(page, '#logK'), await txt(page, '#dlChips .dlchip.on')], ['Day log · JT #26-1045', 'Lucas']);
   check('two roofs today, two chips', await page.locator('#dlChips .dlchip').count(), 2);
-  check('the checks ride in the summary', /SitechecksHandingover—7of7done/.test(await compact(page, '.dlsum')), true);
 
   // now clock in at Webster and move to Lucas
   await tap(page, '.tab[data-tab="job"]', 400);
@@ -201,17 +258,17 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
 
 // ---- yesterday's log, unsent ----
 {
-  const draft = { jobId: 'j_2841', date: isoYday, jobLabel: '26-0890 Noah Webster', jobNum: '26-0890', cust: 'Noah Webster', address: '', alongside: null, pm: '', reps: [],
-    done: 'Footers poured.', condition: '', crewOnSite: null, tarped: null, leftAt: '', problems: '', notes: [], sent: null, wantSend: false, sending: false, err: '', prompt: false, activity: true, at: Date.now() - 86400000, seq: 1 };
+  const draft = draftOf({ date: isoYday, story: 'Footers poured.', at: Date.now() - 86400000 });
   const { ctx, page, errs } = await boot({}, `localStorage.setItem('dbtc_daylog', ${JSON.stringify(JSON.stringify({ ['j_2841|' + isoYday]: draft }))});`);
   const items = await page.evaluate(() => nudgeItems().map((i) => [i.kind, i.text]));
   check('the morning after: the unsigned roof first, then the unsent log', items, [['unsigned', 'Yesterday’s roof at Courtney isn’t signed off'], ['log-late', 'Yesterday’s log for Noah Webster wasn’t sent']]);
   check('the banner counts the rest', /\+1 more/.test(await txt(page, '#clockNudge .nt')), true);
   await page.evaluate(() => nudgeItems()[1].go());
   await page.waitForTimeout(400);
-  check('the late log opens on yesterday', [/^Yesterday ·/.test(await txt(page, '#logDate')), await page.locator('#dlDone').inputValue()], [true, 'Footers poured.']);
-  await tap(page, '#dlSend', 400);
-  await tap(page, '#slYes', 1200);
+  check('the late log opens on yesterday', [/^Yesterday ·/.test(await txt(page, '#logDate')), await page.locator('#dlStory').inputValue()], [true, 'Footers poured.']);
+  await tap(page, '#dlReview', 400);
+  check('the review says yesterday', [/as yesterday’s daily log/.test(await txt(page, '.rvfoot')), await txt(page, '#dlSend')], [true, 'Send yesterday’s log']);
+  await tap(page, '#dlSend', 1200);
   const logs = await grab(page, '__LOGS');
   check('...and sends it dated yesterday, without today\'s hours', [logs.length, logs[0].date, logs[0].hours], [1, isoYday, []]);
   check('no page errors', errs, []);
@@ -222,21 +279,21 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
 {
   const { ctx, page, errs } = await boot();
   await tap(page, '.tab[data-tab="log"]', 500);
-  await page.locator('#dlDone').fill('Done.');
+  await page.locator('#dlStory').fill('Done.');
   await ctx.setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event('offline')));
   await page.waitForTimeout(200);
-  await tap(page, '#dlSend', 400);
-  await tap(page, '#slYes', 600);
-  check('offline: kept, will retry', [await txt(page, '#syncBadge'), (await grab(page, '__LOGS')).length], ['Not sent — will retry', 0]);
+  await tap(page, '#dlReview', 400);
+  await tap(page, '#dlSend', 600);
+  check('offline: queued, kept, will retry', [await txt(page, '#syncBadge'), await txt(page, '#dlQueued'), (await grab(page, '__LOGS')).length], ['Queued', 'Not sent — will retry', 0]);
   await page.evaluate(() => { window.__MOCK_LOGFAIL = true; });
   await ctx.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await page.waitForTimeout(1200);
-  check('a JobTread hiccup: still kept, still retrying', [/^Not sent — trying again in \d+s$/.test(await txt(page, '#syncBadge')), (await grab(page, '__LOGS')).length], [true, 0]);
+  check('a JobTread hiccup: still queued, still retrying', [await txt(page, '#syncBadge'), /^Not sent — trying again in \d+s$/.test(await txt(page, '#dlQueued')), (await grab(page, '__LOGS')).length], ['Queued', true, 0]);
   await page.evaluate(() => { window.__MOCK_LOGFAIL = false; dlRetryPending(); });
   await page.waitForTimeout(1200);
-  check('the retry lands', [/^Sent/.test(await txt(page, '#syncBadge')), (await grab(page, '__LOGS')).length], [true, 1]);
+  check('the retry lands', [await txt(page, '#syncBadge'), (await grab(page, '__LOGS')).length], ['Sent', 1]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -249,16 +306,15 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await page.waitForTimeout(1500);
   const p = await page.evaluate(() => S.photos.map((x) => ({ pending: x.pending, err: x.err, fileId: x.fileId || '' })));
   check('a read-only refusal is written on the photo, not hidden', p, [{ pending: true, err: 'read-only build', fileId: '' }]);
-  await tap(page, '.tab[data-tab="log"]', 400);
-  check('...and the summary says so', /1notuploaded:read-onlybuild/.test(await compact(page, '.dlsum')), true);
-  check('...and the Build panel has the reason', await page.evaluate(() => S.lastErr && S.lastErr.where), 'photo upload');
+  check('...and Diagnostics has the reason', await page.evaluate(() => S.lastErr && S.lastErr.where), 'photo upload');
   await page.evaluate(() => { window.__MOCK_READONLY = false; });   // writes on for the log itself
-  await page.locator('#dlDone').fill('Done.');
-  await tap(page, '#dlSend', 400);
-  await tap(page, '#slYes', 1500);
+  await tap(page, '.tab[data-tab="log"]', 400);
+  await page.locator('#dlStory').fill('Done.');
+  await tap(page, '#dlReview', 400);
+  await tap(page, '#dlSend', 1500);
   const logs = await grab(page, '__LOGS');
   check('the log does not wait on a photo that cannot upload', [logs.length, logs[0].photos, logs[0].photosPending], [1, [], 1]);
-  check('...and says it went without it', /Sent without 1 photo/.test(await txt(page, '.dlsent .s')), true);
+  check('...and says it went without it', /Sent without 1 photo/.test(await txt(page, '.sentcard .ss')), true);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -287,8 +343,7 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
 
 // ---- a reload mid-send must not leave the log stuck ----
 {
-  const stuck = { jobId: 'j_2841', date: isoToday, jobLabel: '26-0890 Noah Webster', jobNum: '26-0890', cust: 'Noah Webster', address: '', alongside: null, pm: '', reps: [],
-    done: 'Done.', condition: '', crewOnSite: null, tarped: null, leftAt: '', problems: '', notes: [], sent: null, wantSend: true, sending: true, err: '', prompt: false, activity: true, at: Date.now(), seq: 1 };
+  const stuck = draftOf({ story: 'Done.', wantSend: true, sending: true });
   const { ctx, page, errs } = await boot({}, `localStorage.setItem('dbtc_daylog', ${JSON.stringify(JSON.stringify({ ['j_2841|' + isoToday]: stuck }))});`);
   await page.waitForTimeout(2500);
   const logs = await grab(page, '__LOGS');
@@ -296,21 +351,20 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await ctx.close();
 }
 
-
 // ---- a slow extras call must not hold the log's send ----
 // The read lane: extras is held nine seconds; the send goes now, in the main
-// lane, and the Build panel's call log shows it waited for nothing.
+// lane, and the Diagnostics call log shows it waited for nothing.
 {
   const { ctx, page, errs } = await boot({}, 'window.__MOCK_SLOWEXTRAS=9000;');
   await tap(page, '.tab[data-tab="log"]', 500);
-  await page.locator('#dlDone').fill('Done.');
-  await tap(page, '#dlSend', 400);
-  await tap(page, '#slYes', 2500);
+  await page.locator('#dlStory').fill('Done.');
+  await tap(page, '#dlReview', 400);
+  await tap(page, '#dlSend', 2500);
   check('the send went while extras was still out', [(await grab(page, '__LOGS')).length, await page.evaluate(() => S.codes.length)], [1, 0]);
   check('...in its own lane, not behind it', await page.evaluate(() => { const r = S.apiLog.filter(x => x.fn === 'sendDailyLog')[0]; return r && r.ok && r.wait < 1500; }), true);
   check('the reply\'s own timing is kept with the call', await page.evaluate(() => { const r = S.apiLog.filter(x => x.fn === 'sendDailyLog')[0]; return r.server && r.server.total === 1840 && r.server.pave === 1; }), true);
   check('...and the API\'s memory of its calls came with boot', await page.evaluate(() => S.recent.map(c => c.fn)), ['getStart', 'getExtras']);
-  check('the Build panel shows both', await page.evaluate(() => { const b = document.getElementById('apiBox'); return [!b.classList.contains('hidden'), /sendDailyLog/.test(b.textContent), /getExtras 31\.4s \(4 JT 29\.8s\)/.test(b.textContent)]; }), [true, true, true]);
+  check('Diagnostics shows both', await page.evaluate(() => { const b = document.getElementById('apiBox'); return [!b.classList.contains('hidden'), /sendDailyLog/.test(b.textContent), /getExtras 31\.4s \(4 JT 29\.8s\)/.test(b.textContent)]; }), [true, true, true]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -319,74 +373,42 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
 {
   const { ctx, page, errs } = await boot({}, 'window.__MOCK_SLOWLOG=9500;');
   await tap(page, '.tab[data-tab="log"]', 500);
-  await page.locator('#dlDone').fill('Done.');
-  await tap(page, '#dlSend', 400);
-  await tap(page, '#slYes', 8800);
-  check('a long send counts the seconds', /^Sending… \d+s$/.test(await txt(page, '#syncBadge')), true);
+  await page.locator('#dlStory').fill('Done.');
+  await tap(page, '#dlReview', 400);
+  await tap(page, '#dlSend', 8800);
+  check('a long send counts the seconds', [await txt(page, '#syncBadge'), /^Sending… \d+s$/.test(await txt(page, '#dlQueued'))], ['Queued', true]);
   await page.waitForTimeout(1600);
-  check('...and lands', /^Sent/.test(await txt(page, '#syncBadge')), true);
+  check('...and lands', await txt(page, '#syncBadge'), 'Sent');
   check('no page errors', errs, []);
   await ctx.close();
 }
 {
   const { ctx, page, errs } = await boot({}, 'window.__MOCK_LOGFAIL=true;');
   await tap(page, '.tab[data-tab="log"]', 500);
-  await page.locator('#dlDone').fill('Done.');
-  await tap(page, '#dlSend', 400);
-  await tap(page, '#slYes', 1500);
-  check('a failed send says when it tries again', /^Not sent — trying again in (1[5-9]|20)s$/.test(await txt(page, '#syncBadge')), true);
+  await page.locator('#dlStory').fill('Done.');
+  await tap(page, '#dlReview', 400);
+  await tap(page, '#dlSend', 1500);
+  check('a failed send says when it tries again', /^Not sent — trying again in (1[5-9]|20)s$/.test(await txt(page, '#dlQueued')), true);
   await page.waitForTimeout(2200);
-  check('...and the number moves', /^Not sent — trying again in 1[3-7]s$/.test(await txt(page, '#syncBadge')), true);
+  check('...and the number moves', /^Not sent — trying again in 1[3-7]s$/.test(await txt(page, '#dlQueued')), true);
   check('the failure is in the call log, with the reason and the API\'s own time', await page.evaluate(() => { const r = S.apiLog.filter(x => x.fn === 'sendDailyLog')[0]; return [r.ok, /boom/.test(r.err), !!(r.server && r.server.total === 1840)]; }), [false, true, true]);
   check('no page errors', errs, []);
   await ctx.close();
 }
 
-// ---- a photo the old build stranded: named as gone, and dismissible ----
+// ---- a photo the old build stranded: named as gone, and the log says so ----
 {
   const old = { id: 'ph_old', jobId: 'j_2841', tag: 'before', time: '3:41p', at: Date.now() - 120000, pending: true, thumb: '' };
   const { ctx, page, errs } = await boot({}, `localStorage.setItem('dbtc_prefs', ${JSON.stringify(JSON.stringify({ photos: [old] }))});`);
   await page.waitForTimeout(800);
   await tap(page, '.tab[data-tab="log"]', 500);
   check('a stranded photo is marked as gone', await page.evaluate(() => S.photos.map(p => [p.err, !!p.lost])), [['not uploaded — take it again', true]]);
-  check('...and the summary says so', /1notuploaded:notuploaded—takeitagain/.test(await compact(page, '.dlsum')), true);
-  await page.locator('#dlDone').fill('Done.');
-  await tap(page, '#dlSend', 400);
-  await tap(page, '#slYes', 1500);
+  await page.locator('#dlStory').fill('Done.');
+  await tap(page, '#dlReview', 400);
+  await tap(page, '#dlSend', 1500);
   const logs = await grab(page, '__LOGS');
   check('the log carries it as gone, not as coming', [logs[0].photosPending, logs[0].photosFailed], [0, 1]);
-  check('...and the sent card says to take it again', /1 photo never uploaded and is gone from this phone/.test(await txt(page, '.dlsent .s')), true);
-  await tap(page, '.dropph', 400);
-  check('dismissed: the phone stops asking about it', await page.evaluate(() => S.photos.length), 0);
-  check('no page errors', errs, []);
-  await ctx.close();
-}
-
-// ---- JobTread's own daily-log fields, inherited: shown by type, sent with the log ----
-{
-  const { ctx, page, errs } = await boot();
-  await tap(page, '.tab[data-tab="log"]', 500);
-  check('the org\'s fields are on the form, in JobTread\'s order', await page.evaluate(() => [...document.querySelectorAll('#dlBody .dlf .fk')].map(x => x.textContent)), ['Material Pickups / Deliveries', 'Trades Onsite', 'Unplanned Tasks', 'Anticipated Delays', 'Delay Reason', 'Safety Incidents', 'Internal Notes']);
-  check('each by its type: yes/no, a pick list, a text box', await page.evaluate(() => [document.querySelectorAll('button[data-fld="22PC7jQ6BkBC"]').length, document.querySelectorAll('button[data-fld="22PC7jNshbiK"]').length, !!document.querySelector('textarea[data-fld="22PLhcfDaJ7r"]')]), [2, 18, true]);
-  await tap(page, 'button[data-fld="22PC7jQ6BkBC"][data-fval="true"]', 300);
-  await tap(page, 'button[data-fld="22PLhdEgfHXF"][data-opt="Weather"]', 300);
-  await tap(page, 'button[data-fld="22PC7jNshbiK"][data-opt="Roofing"]', 300);
-  await tap(page, 'button[data-fld="22PC7jNshbiK"][data-opt="Masonry"]', 300);
-  await page.locator('textarea[data-fld="22PLhcfDaJ7r"]').fill('Ladder slipped, nobody hurt');
-  await page.locator('#dlDone').fill('Done.');
-  check('several trades stay picked; the draft carries them', await page.evaluate(() => { const e = dlGet('j_2841', isoLocal()); return [document.querySelectorAll('button[data-fld="22PC7jNshbiK"].on').length, e.fields['22PC7jNshbiK'], e.fields['22PC7jQ6BkBC']]; }), [2, ['Roofing', 'Masonry'], true]);
-  await tap(page, 'button[data-fld="22PC7jNshbiK"][data-opt="Roofing"]', 300);
-  check('...and a second tap un-picks one', await page.evaluate(() => dlGet('j_2841', isoLocal()).fields['22PC7jNshbiK']), ['Masonry']);
-  await tap(page, 'button[data-fld="22PC7jQ6BkBC"][data-fval="true"]', 300);
-  check('...or clears a yes/no', await page.evaluate(() => 'fields' in dlGet('j_2841', isoLocal()) && !('22PC7jQ6BkBC' in dlGet('j_2841', isoLocal()).fields)), true);
-  await tap(page, 'button[data-fld="22PC7jQ6BkBC"][data-fval="true"]', 300);
-  check('the summary counts them', /JobTreadfields4filled/.test(await compact(page, '.dlsum')), true);
-  await tap(page, '#dlSend', 400);
-  check('the send sheet names them', /4 JobTread fields filled/.test(await txt(page, '.ckmiss')), true);
-  await tap(page, '#slYes', 1500);
-  const logs = await grab(page, '__LOGS');
-  check('they go with the log as JobTread\'s own fields', logs[0].fields, { '22PLhdEgfHXF': ['Weather'], '22PC7jNshbiK': ['Masonry'], '22PLhcfDaJ7r': 'Ladder slipped, nobody hurt', '22PC7jQ6BkBC': true });
-  check('...and the sent card says the feed was pinged about them', /pinged in the activity feed about what was flagged in the log fields/.test(await txt(page, '.dlsent .s')), true);
+  check('...and the sent card says to take it again', /1 photo never uploaded and is gone from this phone/.test(await txt(page, '.sentcard .ss')), true);
   check('no page errors', errs, []);
   await ctx.close();
 }

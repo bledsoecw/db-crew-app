@@ -748,5 +748,53 @@ props.PUSH_ENABLED = 'false';
 t('push off -> nothing runs', sandbox.sweepSchedulePushes().skipped, 'PUSH_ENABLED is not true');
 sandbox.__hour = null;
 
+// ---- the story shape (T1.14): one story, two answers, JobTread's own fields by name ----
+// The phone sends the story and the timestamped lines the PM was told, yes or
+// no to delays with the reasons as keys, and yes or no to an incident with the
+// alert. The API finds Anticipated Delays, Delay Reason and Safety Incidents
+// in the org's own field list by name, so nothing about the fields lives on
+// the phone, and the notes carry the answers in words either way.
+const STORY = { jobId: 'j9', date: '2026-09-16', jobLabel: '26-1490 Courtney', alongside: 'Platinum (Shingle)',
+  story: 'The crew had all shingles on by 10.', lines: [{ time: '8:14a', text: 'Got on the job after 8 due to appointment', pmTold: true }],
+  delays: true, delayWhy: ['weather', 'people'], safety: false, alert: null,
+  photos: [{ fileId: 'f1', name: 'a.jpg', tag: 'before' }], hours: [{ number: '07SH', name: 'Shingle Labor', minutes: 270 }], checks: null };
+const STORY_ROUTE = (extra) => route(Object.assign({ people: PEOPLE, member: MEMBER,
+  dailyLog: (q) => { jtCalls.push(['dailyLog', q.createDailyLog.$]); return { code: 200, body: '{"createDailyLog":{"createdDailyLog":{"id":"dl1"}}}' }; },
+  comment: (q) => { jtCalls.push(['comment', q.createComment.$]); return { code: 200, body: '{"createComment":{"createdComment":{"id":"c1"}}}' }; } }, extra || {}));
+props = { WRITE_ENABLED: 'true', BOARD_API_URL: 'https://ops.example.com', CREW_APP_SECRET: 's3cret' }; cacheStore = {}; fetched = []; freshDay();
+fetchImpl = STORY_ROUTE();
+r = sandbox.sendDailyLog(ME, STORY);
+const sdl = jtCalls.find(c => c[0] === 'dailyLog')[1];
+t('the answers land on JobTread\'s own fields, found by name, the reasons as the list\'s own options', sdl.customFieldValues, { '22PC7jQ6BkBC': true, '22PLhdEgfHXF': ['Weather', 'Short Labor'] });
+t('the notes: the PM line with its time, the story, the two answers, the hours, the photos', ['8:14a — Got on the job after 8 due to appointment  (told the PM at the time)', 'The crew had all shingles on by 10.', 'Delays: Yes · Weather, Short on people', 'Hurt / close call: None', '07SH Shingle Labor — 4h 30m', '1 attached (1 before)', 'with Platinum (Shingle)'].map(x => sdl.notes.indexOf(x) > -1), [true, true, true, true, true, true, true]);
+t('...and none of the old sections', /WHAT GOT DONE|CONDITION WHEN I LEFT|PROBLEMS|LOG FIELDS/.test(sdl.notes), false);
+t('a delay pings the feed, naming the fields', [r.flag, r.commented, /Anticipated Delays: Yes · Delay Reason: Weather, Short Labor/.test(jtCalls.find(c => c[0] === 'comment')[1].message)], ['fields', true, true]);
+freshDay();
+r = sandbox.sendDailyLog(ME, { ...STORY, delays: false, delayWhy: [], story: 'Normal day, nothing to report.', lines: [] });
+const ndl = jtCalls.find(c => c[0] === 'dailyLog')[1];
+t('a normal day: delays No as the field, the words in the notes, no comment', [ndl.customFieldValues, ndl.notes.indexOf('Normal day, nothing to report.') > -1, r.flag, jtCalls.map(c => c[0])], [{ '22PC7jQ6BkBC': false }, true, '', ['dailyLog']]);
+freshDay();
+r = sandbox.sendDailyLog(ME, { ...STORY, delays: null, delayWhy: [], safety: true, alert: { kind: 'close', hurt: false, text: 'Bundle slid off the ridge', sentAt: 1, to: ['PM', 'Shawn', 'Neal', 'Carl'] } });
+const adl = jtCalls.find(c => c[0] === 'dailyLog')[1];
+t('an incident is the Safety Incidents field, as one line', adl.customFieldValues, { '22PLhcfDaJ7r': 'Close call · Nobody hurt · Bundle slid off the ridge — alert sent to PM, Shawn, Neal, Carl' });
+t('...unanswered delays is no field at all', '22PC7jQ6BkBC' in adl.customFieldValues, false);
+t('...and pings the feed', [r.flag, /Safety Incidents: Close call · Nobody hurt/.test(jtCalls.find(c => c[0] === 'comment')[1].message)], ['fields', true]);
+// The field list cannot be had: nothing is mapped, the notes still carry the
+// answers, and the ping says what in its own words.
+freshDay(); cacheStore = {};
+fetchImpl = STORY_ROUTE({ fields: DOWN });
+r = sandbox.sendDailyLog(ME, STORY);
+const fdl = jtCalls.find(c => c[0] === 'dailyLog')[1];
+t('without the field list nothing is mapped, and the notes still carry the answers', ['customFieldValues' in fdl, fdl.notes.indexOf('Delays: Yes · Weather, Short on people') > -1], [false, true]);
+t('...and the ping still says what', [r.flag, /Delays: Yes · Weather, Short on people/.test(jtCalls.find(c => c[0] === 'comment')[1].message)], ['fields', true]);
+// The older shape still goes, as before.
+freshDay(); cacheStore = {};
+fetchImpl = STORY_ROUTE();
+r = sandbox.sendDailyLog(ME, LOG);
+t('a phone on the old build still sends its log', [jtCalls.filter(c => c[0] === 'dailyLog').length, r.flag, jtCalls[0][1].notes.indexOf('WHAT GOT DONE') > -1], [1, 'problems', true]);
+jtCalls.length = 0;
+r = sandbox.tellPm(ME, 'j9', 'Need drip edge now');
+t('tellPm is a comment on the job, signed, assigned to the PM', [jtCalls[0][1].targetType, jtCalls[0][1].message, jtCalls[0][1].assignees, r.assigned], ['job', 'Tyler B.: Need drip edge now', [{ membershipId: 'm_dave' }], ['Dave Elick']]);
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

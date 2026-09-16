@@ -196,21 +196,6 @@ button[disabled]{cursor:default}
 #syncBadge{padding:7px 9px;border-radius:2px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut);flex:none}
 #syncBadge.sent{background:var(--go);color:var(--goink)}
 #syncBadge.queued{background:var(--warn);color:var(--warnink)}
-#grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.tile{position:relative;aspect-ratio:1;border-radius:5px;overflow:hidden;background:#1b2024;border:1px solid var(--line);background-size:cover;background-position:center}
-.tile .tg{position:absolute;top:0;left:0;padding:5px 6px;font:600 9px/1 var(--mono);letter-spacing:.81px;text-transform:uppercase}
-.tile .tm{position:absolute;bottom:0;right:0;padding:5px 6px;font:600 9px/1 var(--mono);letter-spacing:.18px;background:rgba(0,0,0,.6);color:#fff}
-.tile .up{position:absolute;inset:auto 0 0 0;height:3px;background:var(--warn)}
-.tg.before{background:rgba(255,255,255,.9);color:#0e1113}
-.tg.during{background:var(--nav);color:#fff}
-.tg.after{background:var(--go);color:#0e1113}
-.addbtn{min-height:44px;padding:0 12px;display:flex;align-items:center;gap:7px;border:1px solid var(--line2);border-radius:4px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--fg);flex:none}
-.notecard{padding:14px 15px;background:var(--surf);border:1px solid var(--line);border-left:3px solid var(--navline);border-radius:6px;display:flex;flex-direction:column;gap:7px}
-.notecard .nm{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--lab)}
-.notecard .nb{font:400 14px/1.5 var(--sans);color:var(--fg)}
-#noteBox{margin-top:11px;border:2px dashed var(--line2);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:12px}
-#noteText{width:100%;min-height:52px;resize:none;background:transparent;border:none;outline:none;color:var(--fg);font:400 16px/1.45 var(--sans)}
-#noteText::placeholder{color:var(--lab)}
 .foot{font:400 12px/1.5 var(--sans);color:var(--mut);text-align:center;margin-top:10px}
 
 /* ---------------- sheet ---------------- */
@@ -266,7 +251,6 @@ button[disabled]{cursor:default}
 #errBox .k{color:var(--rec)}
 #errBox .em{font:400 14px/1.45 var(--sans);color:var(--fg);margin-top:6px;word-break:break-word}
 #apiBox{margin-top:11px;border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px}
-.tile .dropph{position:absolute;top:6px;right:6px;width:36px;height:36px;border-radius:18px;border:0;background:rgba(0,0,0,.62);color:#fff;font:600 16px/36px var(--sans);text-align:center;padding:0}
 #apiBox .k{margin:8px 0 4px}
 #apiBox .ln{font:400 14px/1.5 var(--sans);color:var(--mut);word-break:break-word}
 
@@ -377,9 +361,9 @@ button[disabled]{cursor:default}
 .todaypick{display:flex;flex-direction:column;gap:10px;margin-top:14px}
 
 /* ---------------- day log ----------------
-   One draft per job per day. The summary is what the phone already knows;
-   the three questions are what the owner's hand-written log has been
-   reconstructing. */
+   One story box, two yes/no questions, one Send. The draft lives per job
+   per day; a two-roof day gets a chip per roof. Everything below is drawn
+   from the design system's own variables and sizes. */
 .dlchips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
 .dlchips::-webkit-scrollbar{display:none}
 .dlchip{flex:none;min-height:48px;padding:0 14px;border-radius:6px;border:1.5px solid var(--line2);display:flex;align-items:center;gap:8px;color:var(--fg);font:700 14px/1 var(--head);letter-spacing:.3px;text-transform:uppercase}
@@ -387,39 +371,53 @@ button[disabled]{cursor:default}
 .dlchip .st{width:8px;height:8px;border-radius:50%;background:var(--line2);flex:none}
 .dlchip .st.sent{background:var(--go)}
 .dlchip .st.draft{background:var(--ckamber)}
-.dlsum{border:1px solid var(--line);border-radius:8px;background:var(--surf);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
-.dlsum .row{display:flex;justify-content:space-between;gap:12px;font:400 14px/1.35 var(--sans);color:var(--mut)}
-.dlsum .row b{color:var(--fg);font-weight:600;text-align:right}
-.dlq{margin-top:18px}
-.dlq .k{margin-bottom:8px;display:block}
-.dlq textarea{width:100%;min-height:78px;resize:none;border:1.5px solid var(--line);border-radius:8px;background:var(--surf);padding:12px 13px;color:var(--fg);font:400 16px/1.45 var(--sans);outline:none;-webkit-appearance:none}
-.dlq textarea::placeholder{color:var(--lab)}
-.tog{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-.togbtn{min-height:44px;padding:0 13px;border-radius:6px;border:1.5px solid var(--line2);font:600 11px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--mut)}
-.togbtn.on{background:var(--go);border-color:var(--go);color:var(--goink)}
-.togbtn.on.warn{background:var(--warn);border-color:var(--warn);color:var(--warnink)}
-.dlleft{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.dlleft .k{margin:0;flex:none}
-.dlleft input{flex:1;min-width:0;min-height:44px;border:1.5px solid var(--line);border-radius:6px;background:var(--surf);padding:8px 12px;color:var(--fg);font:400 16px var(--sans);outline:none;-webkit-appearance:none}
-.dlleft input::placeholder{color:var(--lab)}
-.dlf{margin-top:14px}
-.dlf .fk{display:block;font:600 10.5px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--mut);margin-bottom:7px}
-.dlf .tog{margin-bottom:0}
-.dlf textarea{min-height:56px}
-.dlf input{width:100%;min-height:44px;border:1.5px solid var(--line);border-radius:6px;background:var(--surf);padding:8px 12px;color:var(--fg);font:400 16px var(--sans);outline:none;-webkit-appearance:none}
-.dlf input::placeholder{color:var(--lab)}
-.dlstatus{padding:8px 9px;border-radius:2px;font:600 10px/1.3 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut);display:inline-flex;align-items:center;gap:6px;flex:none;max-width:50%;text-align:right}
-.dlstatus.ok{background:var(--go);color:var(--goink)}
-.dlstatus.bad{background:var(--warn);color:var(--warnink)}
-.urgentrow{display:flex;align-items:center;gap:10px;min-height:44px;font:600 13px/1.3 var(--sans);color:var(--mut);text-align:left;width:100%}
-.urgentrow .box{width:26px;height:26px;border-radius:6px;border:2px solid var(--line2);display:flex;align-items:center;justify-content:center;color:transparent;flex:none}
-.urgentrow.on{color:var(--fg)}
-.urgentrow.on .box{background:var(--warn);border-color:var(--warn);color:var(--warnink)}
-.notecard.urgent{border-left-color:var(--warn)}
-.dlsent{border:1px solid rgba(126,240,138,.45);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;background:var(--surf)}
-[data-theme="day"] .dlsent{border-color:#1e7a2f}
-.dlsent .t{font:800 17px/1.1 var(--head);text-transform:uppercase;color:var(--acc)}
-.dlsent .s{font:400 14px/1.4 var(--sans);color:var(--mut)}
+#langTog{display:flex;border:1px solid var(--line2);border-radius:3px;overflow:hidden}
+#langTog button{padding:8px 10px;color:var(--mut)}
+#langTog button.on{background:var(--nav);color:#fff}
+.dlh{font:800 21px/1.1 var(--head);letter-spacing:.2px;text-transform:uppercase;color:var(--fg);margin-top:24px}
+.dlh.first{margin-top:8px}
+.story{margin-top:10px;background:var(--surf);border:2px solid var(--nav);border-radius:8px;overflow:hidden}
+.story.has{border:1px solid var(--line)}
+.story textarea{display:block;width:100%;min-height:150px;resize:none;border:0;outline:none;background:transparent;padding:16px;color:var(--fg);font:400 16px/1.45 var(--sans);-webkit-appearance:none;overflow:hidden}
+.story textarea::placeholder{color:var(--lab);font:400 16px/1.35 var(--sans)}
+.story.has textarea{min-height:52px;padding:14px 16px 6px}
+.dlline{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);font:400 14px/1.4 var(--sans);color:var(--mut)}
+.dlline .k9{color:var(--lab);flex:none}
+.dlline .lt{flex:1;min-width:0}
+.dlline .pm{flex:none;padding:5px 7px;border-radius:2px;font:600 9px/1 var(--mono);letter-spacing:.81px;text-transform:uppercase;background:var(--total);color:var(--acc)}
+.addmore{display:flex;width:calc(100% - 24px);margin:6px 12px 12px;min-height:60px;border-radius:6px;background:var(--nav);color:#fff;align-items:center;justify-content:center;gap:10px;font:700 15px/1 var(--head);letter-spacing:.6px;text-transform:uppercase}
+.talkrow{display:flex;gap:10px;margin-top:10px}
+.talkbtn{flex:1;min-height:64px;border-radius:6px;display:flex;align-items:center;justify-content:center;gap:10px;font:700 17px/1 var(--head);letter-spacing:.68px;text-transform:uppercase}
+.talkbtn.talk{background:var(--nav);color:#fff}
+.talkbtn.type{border:2px solid var(--nav);color:var(--nav);background:var(--surf)}
+.pmrow{margin-top:12px;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--surf)}
+.pmrow .pt1{font:600 14px/1.3 var(--sans);color:var(--fg)}
+.pmrow .pt2{font:400 13px/1.4 var(--sans);color:var(--mut);margin-top:3px}
+.pmrow .pmbtn{flex:none;min-height:48px;padding:0 14px;border:2px solid var(--nav);border-radius:6px;color:var(--nav);font:700 13px/1 var(--head);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+.ynrow{display:flex;gap:12px;margin-top:10px}
+.ynrow .ynbtn{min-height:72px;flex-direction:row;background:var(--surf);color:var(--fg);font:800 24px/1 var(--head);letter-spacing:1px}
+.ynrow .ynbtn.on{background:var(--nav);border-color:var(--nav);color:#fff}
+.ynrow .ynbtn.on.amber{background:var(--warn);border-color:var(--warn);color:var(--warnink)}
+.whychips{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+.whychip{min-height:52px;padding:0 16px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);color:var(--fg);font:600 12px/1 var(--mono);letter-spacing:1.08px;text-transform:uppercase}
+.whychip.on{background:var(--nav);border-color:var(--nav);color:#fff}
+.sendbig{margin-top:28px;min-height:88px;font-size:21px;letter-spacing:.84px;gap:12px}
+.sendbig.off{background:var(--surf2);color:var(--lab);pointer-events:none}
+.normalday{margin-top:12px;min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)}
+.rvcard{margin-top:12px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surf)}
+.rvrow{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border-bottom:1px solid var(--line)}
+.rvrow.short{min-height:54px}
+.rvcard > .rvrow:last-child{border-bottom:0}
+.rvrow .rk,.rvstory .rk{font:600 11px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);flex:none}
+.rvrow .rv{font:700 16px/1.2 var(--head);color:var(--fg);text-align:right}
+.rvrow .rv.up{text-transform:uppercase}
+.rvstory{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.rvstory .rt{font:400 15px/1.45 var(--sans);color:var(--fg);white-space:pre-wrap;word-break:break-word}
+.rvfoot{font:400 14px/1.45 var(--sans);color:var(--mut);margin-top:12px}
+.sentcard{margin-top:8px;background:var(--band);border-radius:8px;padding:22px 18px;display:flex;flex-direction:column;gap:12px;color:#fff}
+.sentcard .sl{display:flex;align-items:center;gap:10px;font:600 11px/1 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:#7ef08a}
+.sentcard .st{font:800 28px/1.05 var(--head);letter-spacing:-.28px;text-transform:uppercase}
+.sentcard .ss{font:400 14px/1.4 var(--sans);color:rgba(255,255,255,.72)}
 
 #tabs{position:absolute;left:0;right:0;bottom:0;display:flex;background:var(--tabbg);border-top:1px solid var(--line);padding-bottom:max(calc(var(--sab) - 8px),12px);z-index:60}
 .tab{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-top:3px solid transparent;margin-top:-1px;color:rgba(255,255,255,.74)}
@@ -582,7 +580,10 @@ button[disabled]{cursor:default}
         <div class="k" id="logK">Day log</div>
         <div id="logDate"></div>
       </div>
-      <span id="syncBadge">Not sent</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none">
+        <div id="langTog"><button class="k9 on" data-lang="en">EN</button><button class="k9" data-lang="es">ES</button></div>
+        <span id="syncBadge">Not sent</span>
+      </div>
     </div>
     <div class="scroll" style="padding:0 20px 26px">
       <div id="dlChips" class="dlchips"></div>
@@ -922,13 +923,15 @@ var S = {
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
   checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
-  dlJobId:null, dlDate:'', pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
+  dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false,
+  pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
-  apiLog:[], errs:[], recent:[], logFields:[]
+  apiLog:[], errs:[], recent:[]
 };
 
 function savePrefs(){
-  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, nudged:S.nudged, push:pushState, jobPickedDay:S.jobPickedDay })); } catch(e){}
+  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, nudged:S.nudged, push:pushState, jobPickedDay:S.jobPickedDay,
+                                                            lang:S.lang, talkHinted:S.talkHinted })); } catch(e){}
 }
 function loadPrefs(){
   try {
@@ -939,6 +942,8 @@ function loadPrefs(){
     if (Array.isArray(p.notes)) S.notes = p.notes.filter(sameDay);
     S.nudged = !!p.nudged;
     S.jobPickedDay = String(p.jobPickedDay || '');
+    if (p.lang === 'es' || p.lang === 'en') S.lang = p.lang;
+    S.talkHinted = !!p.talkHinted;
     // The device stays registered across launches; only this page's memory of
     // it is lost. Restoring it stops Diagnostics claiming "not checked
     // yet" about a phone that is already receiving nudges.
@@ -1613,10 +1618,6 @@ function loadExtras(){
     S.codes = d.codes || [];
     S.jobOptions = d.jobOptions || [];
     S.crew = d.crew || [];
-    if (Array.isArray(d.logFields)){
-      S.logFields = d.logFields;
-      try { localStorage.setItem(LOG_FIELDS_KEY, JSON.stringify(d.logFields)); } catch(e){}
-    }
     extrasTries = 0;
   }).catch(function(e){
     failed('extras', e);
@@ -1896,6 +1897,23 @@ var CK_CHEV = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" strok
 var CK_TICK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 var CK_TICK_SM = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 var CK_PEN = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+/* The rest of the inline icons, Lucide-style on a 24 grid, drawn at the
+   size a spot needs. */
+var ICONS = {
+  mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>',
+  keyboard: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M8 17h8M10 13h4"/>',
+  send: '<path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  chev: '<polyline points="9 18 15 12 9 6"/>',
+  chevl: '<polyline points="15 18 9 12 15 6"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/>',
+  alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  stop: '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>'
+};
+function ico(name, size, sw){
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (sw || 2.2) +
+         '" stroke-linecap="round" stroke-linejoin="round" style="flex:none">' + ICONS[name] + '</svg>';
+}
 
 /* The phone's copy, keyed by the id of the list (checks.taskId). An entry
    exists only once somebody here has touched the list; until then, and again
@@ -2481,7 +2499,6 @@ function openSheet(kind, promptKind){
             : kind==='out' ? 'End of day'
             : kind==='signoff' ? 'Sign off'
             : kind==='unsign' ? 'Unsign'
-            : kind==='sendlog' ? 'Send today’s log'
             : 'Photo check';
   $('sheetTitle').textContent = title;
   $('sheetBody').innerHTML = kind==='codes' ? codesHtml()
@@ -2489,7 +2506,6 @@ function openSheet(kind, promptKind){
                             : kind==='out' ? outHtml()
                             : kind==='signoff' ? signoffHtml()
                             : kind==='unsign' ? unsignHtml()
-                            : kind==='sendlog' ? sendLogHtml()
                             : promptHtml();
   $('scrim').classList.add('on');
   wireSheet();
@@ -2628,8 +2644,6 @@ function wireSheet(){
   if ($('skYes')) $('skYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, true); render(); };
   if ($('ukNo')) $('ukNo').onclick = function(){ closeSheet(); };
   if ($('ukYes')) $('ukYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, false); render(); };
-  if ($('slNo')) $('slNo').onclick = function(){ closeSheet(); };
-  if ($('slYes')) $('slYes').onclick = function(){ closeSheet(); dlQueueSend(S.dlJobId, S.dlDate || isoLocal()); render(); };
 }
 
 /* =========================================================
@@ -3069,19 +3083,20 @@ function fileName(item){
    THE DAY LOG — the site manager's own record of the day, on
    the job, in place of the owner's second-hand dictation.
 
-   One draft per job per day, kept on the phone, sent ONCE as a
-   JobTread daily log assigned to the job's PM and sales reps —
-   there is no update call for daily logs, so anything after the
-   send is a comment on it. The summary is what the phone already
-   knows: the hours by code, the site checks in the board's
-   words, the photos taken here. The three questions are what the
-   owner's log has been reconstructing: what got done, the
-   condition when you left, problems and extras and returns.
+   One draft per job per day, kept on the phone (dlStore, keyed
+   job|date — a new day or another roof is a fresh draft on its
+   own) and sent ONCE as a JobTread daily log assigned to the
+   job's PM and sales reps — there is no update call for daily
+   logs, so anything after the send is a comment on it.
 
-   Notes during the day collect into the draft; one marked
-   "office needs this now" also goes straight to the PM as an
-   assigned comment. A problem, or a crew left on site without a
-   sign-off, makes the sent log ping the same people in the feed.
+   The form is one story box, two yes/no questions and one Send.
+   The story — typed or talked, plus the timestamped lines that
+   went to the PM during the day — is the log's Notes. "Any
+   delays?" and its reasons are JobTread's own Anticipated Delays
+   and Delay Reason fields; "Anyone hurt or a close call?" is the
+   Safety Incidents field. The API maps the answers to the org's
+   fields by name, so nothing about the fields lives here. A
+   normal day is one tap.
    ========================================================= */
 var DL_KEY = 'dbtc_daylog';
 var DL_PHOTO_WAIT_MS = 2 * 60 * 1000;
@@ -3092,17 +3107,54 @@ try { dlStore = JSON.parse(localStorage.getItem(DL_KEY) || '{}') || {}; } catch(
 // so sending again is safe.
 for (var dlK in dlStore){ if (dlStore[dlK]) dlStore[dlK].sending = false; }
 function dlPersist(){ try { localStorage.setItem(DL_KEY, JSON.stringify(dlStore)); } catch(e){} }
-/* JobTread's own daily-log fields, as the API last handed them over — kept on
-   the phone so the form is whole with no signal, replaced whenever the API
-   answers with a list (an empty list is an answer; null is "could not ask"). */
-var LOG_FIELDS_KEY = 'dbtc_logfields';
-try { S.logFields = JSON.parse(localStorage.getItem(LOG_FIELDS_KEY) || '[]') || []; } catch(e){ S.logFields = []; }
-function logFieldById(id){ return S.logFields.filter(function(f){ return f.id === id; })[0] || null; }
 function dlKey(jobId, date){ return jobId + '|' + date; }
 function dlGet(jobId, date){ return dlStore[dlKey(jobId, date)] || null; }
+
+/* The words on the tab, in the language the EN / ES toggle says. Only the
+   Day log's own words and the tab labels have Spanish; the story itself
+   posts to JobTread as spoken and is never translated. */
+var L10N = {
+  en: { k:'Day log', notSent:'Not sent', sent:'Sent', queued:'Queued', how:'How did today go?',
+        ph:'Tap here and type, or use Talk below\nWhen did you get on the job?\nWhat got done?\nAnything in the way?',
+        talk:'Talk', type:'Type', delays:'Any delays?', yes:'Yes', no:'No', why:'Why · tap all that fit',
+        safety:'Anyone hurt or a close call?', send:'Send log', review:'Review & send',
+        normal:'Normal day · nothing to report', normalFoot:'One tap. Marks no delays, no incidents, and sends it.',
+        tabs:{ job:'Clock', jobs:'My jobs', log:'Day log' } },
+  es: { k:'Registro', notSent:'Sin enviar', sent:'Enviado', queued:'Queued', how:'¿Cómo fue el día?',
+        ph:'Toca aquí y escribe, o usa Hablar\n¿A qué hora llegaste?\n¿Qué se hizo?\n¿Algo que estorbó?',
+        talk:'Hablar', type:'Escribir', delays:'¿Hubo retrasos?', yes:'Sí', no:'No', why:'¿Por qué · toca lo que aplique',
+        safety:'¿Alguien lastimado o casi?', send:'Enviar registro', review:'Revisar y enviar',
+        normal:'Día normal · nada que reportar', normalFoot:'Un toque. Marca sin retrasos, sin incidentes, y lo envía.',
+        tabs:{ job:'Reloj', jobs:'Mis trabajos', log:'Registro' } }
+};
+function T(key){ return (L10N[S.lang] || L10N.en)[key]; }
+var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function logDateWords(date){
+  var d = new Date(date + 'T12:00:00');
+  if (S.lang === 'es') return DOW_ES[d.getDay()] + ', ' + d.getDate() + ' ' + MON_ES[d.getMonth()];
+  return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+}
+function renderLang(){
+  var tabs = T('tabs');
+  [].forEach.call(document.querySelectorAll('#tabs .tab'), function(b){
+    var l = b.querySelector('.tl'), t = tabs[b.getAttribute('data-tab')];
+    if (l && t) l.textContent = t;
+  });
+  [].forEach.call(document.querySelectorAll('#langTog button'), function(b){ b.classList.toggle('on', b.getAttribute('data-lang') === S.lang); });
+}
+/* Why a delay, as chips. The key is what the draft keeps and what the API
+   maps to the Delay Reason option; the label is what the crew reads. */
+var DELAY_WHY = [
+  { key:'weather',  en:'Weather',             es:'Clima' },
+  { key:'people',   en:'Short on people',     es:'Falta gente' },
+  { key:'material', en:'Waiting on material', es:'Esperando material' },
+  { key:'other',    en:'Other',               es:'Otro' }
+];
+function whyLabel(key){ var w = DELAY_WHY.filter(function(x){ return x.key === key; })[0]; return w ? (w[S.lang] || w.en) : key; }
+
 function dlHasContent(e){
-  return !!(e && (String(e.done||'').trim() || String(e.condition||'').trim() || String(e.problems||'').trim() ||
-            e.crewOnSite != null || e.tarped != null || (e.notes && e.notes.length) || (e.fields && Object.keys(e.fields).length) || e.activity));
+  return !!(e && (String(e.story||'').trim() || (e.lines && e.lines.length) || e.delays != null || e.safety != null || e.alert || e.activity ||
+            (e.notes && e.notes.length) || String(e.done||'').trim() || String(e.problems||'').trim()));
 }
 /* Start, or refresh, the day's draft for a job. `info` is the job's label
    and people from the visit, kept on the draft so it still reads right after
@@ -3112,9 +3164,12 @@ function dlTouch(jobId, date, info){
   var k = dlKey(jobId, date), e = dlStore[k];
   if (!e){
     e = dlStore[k] = { jobId:jobId, date:date, jobLabel:'', jobNum:'', cust:'', address:'', alongside:null, pm:'', reps:[],
-                       done:'', condition:'', crewOnSite:null, tarped:null, leftAt:'', problems:'', notes:[], fields:{},
+                       story:'', lines:[], delays:null, delayWhy:[], safety:null, alert:null, notes:[],
                        sent:null, wantSend:false, sending:false, err:'', prompt:false, activity:false, at:Date.now(), seq:0 };
   }
+  if (!e.lines) e.lines = [];
+  if (!e.delayWhy) e.delayWhy = [];
+  if (!e.notes) e.notes = [];
   if (info) for (var f in info){ if (info[f] != null && info[f] !== '' && !(Array.isArray(info[f]) && !info[f].length)) e[f] = info[f]; }
   e.activity = true;
   e.at = Date.now();
@@ -3143,7 +3198,7 @@ function dlPromptFor(jobId){
   try { renderNudge(); } catch (err) {}
 }
 function openLog(jobId, date){
-  S.dlJobId = jobId; S.dlDate = date || isoLocal();
+  S.dlJobId = jobId; S.dlDate = date || isoLocal(); S.dlReview = false;
   setTab('log');
   var sc = $('vLog').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
 }
@@ -3154,18 +3209,21 @@ function dlSet(jobId, date, field, value){
   dlPersist();
   renderLogStatus();
 }
-/* One of JobTread's own fields on the draft: booleans as they are, options
-   as a list of the field's own strings, everything else as typed. Emptied
-   means gone from the draft, so nothing blank is ever sent. */
-function dlSetField(jobId, date, id, value){
+/* Yes or no to one of the two questions. Once a safety alert has gone, the
+   answer to "anyone hurt" stays yes — the incident happened. */
+function dlAnswer(jobId, date, field, val){
   var e = dlTouch(jobId, date, dlInfoFor(jobId));
   if (!e || e.sent) return;
-  e.fields = e.fields || {};
-  var empty = value == null || value === '' || (Array.isArray(value) && !value.length);
-  if (empty) delete e.fields[id]; else e.fields[id] = value;
-  e.seq = (e.seq || 0) + 1;
-  dlPersist();
-  renderLogStatus();
+  if (field === 'safety' && val === false && e.alert && e.alert.sentAt) return;
+  if (field === 'safety' && val === false) e.alert = null;
+  dlSet(jobId, date, field, val);
+}
+function dlToggleWhy(jobId, date, key){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  var list = (e.delayWhy || []).slice(), i = list.indexOf(key);
+  if (i === -1) list.push(key); else list.splice(i, 1);
+  dlSet(jobId, date, 'delayWhy', list);
 }
 
 /* ---- what the phone already knows about the day on this job ---- */
@@ -3181,11 +3239,6 @@ function hoursFor(jobId){
   });
   return order.map(function(k){ var h = by[k]; h.minutes = Math.round(h.minutes); return h; });
 }
-function leftAtFor(jobId){
-  var last = '';
-  S.entries.forEach(function(en){ if (en.job && en.job.id === jobId && en.endedAt && (!last || en.endedAt > last)) last = en.endedAt; });
-  return last ? clockLabel(last) : '';
-}
 function photosFor(jobId, date){
   return S.photos.filter(function(p){ return p.jobId === jobId && isoLocal(new Date(p.at || 0)) === date; });
 }
@@ -3196,20 +3249,42 @@ function checksFor(jobId){
   return { words: v.checks.words || '', magnetBy: st.magnetBy || null, signedOff: st.signedOff || null };
 }
 function firstNames(list){ return (list || []).map(function(n){ return String(n).split(/\s+/)[0]; }).join(', '); }
+function joinAnd(list){
+  list = (list || []).filter(Boolean);
+  if (list.length < 2) return list.join('');
+  return list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1];
+}
+/* The job's people — the PM first, then the sales reps — as the review and
+   the sent card name them. */
+function dlPeople(jobId){
+  var v = visitByJob(jobId), people = [];
+  if (v && v.pm) people.push(v.pm);
+  (v && v.reps || []).forEach(function(r){ if (people.indexOf(r) === -1) people.push(r); });
+  return people;
+}
+/* The story as it reads on the log: each line the PM was told, with its
+   time, then what is still in the box. */
+function dlStoryText(e){
+  var out = (e.lines || []).map(function(l){ return l.time + ' — ' + l.text; });
+  if (String(e.story || '').trim()) out.push(String(e.story).trim());
+  return out.join('\n');
+}
 
 /* ---- sending ---- */
 function dlPayload(e){
   var photos = photosFor(e.jobId, e.date).filter(function(p){ return p.fileId; });
   return {
     jobId: e.jobId, date: e.date, jobLabel: e.jobLabel || e.jobId, alongside: e.alongside || null,
-    done: e.done || '', condition: e.condition || '', crewOnSite: e.crewOnSite, tarped: e.tarped,
-    leftAt: (e.leftAt || '').trim() || (e.date === isoLocal() ? leftAtFor(e.jobId) : ''),
-    problems: e.problems || '',
-    notes: (e.notes || []).filter(function(n){ return !n.later; }).map(function(n){ return { time: n.time, body: n.body, urgent: !!n.urgent }; }),
+    story: String(e.story || '').trim(),
+    lines: (e.lines || []).map(function(l){ return { time: l.time, text: l.text, pmTold: !!l.pmTold }; }),
+    delays: e.delays == null ? null : !!e.delays,
+    delayWhy: (e.delayWhy || []).slice(),
+    safety: e.safety == null ? null : !!e.safety,
+    alert: e.alert ? { kind: e.alert.kind || '', hurt: e.alert.hurt == null ? null : !!e.alert.hurt, text: e.alert.text || '',
+                       sentAt: e.alert.sentAt || null, to: e.alert.to || [] } : null,
     photos: photos.map(function(p){ return { fileId: p.fileId, name: p.name || '', tag: p.tag, time: p.time }; }),
     photosPending: e.photosPending || 0,
     photosFailed: e.photosFailed || 0,
-    fields: e.fields || {},
     hours: e.date === isoLocal() ? hoursFor(e.jobId) : [],
     checks: checksFor(e.jobId)
   };
@@ -3276,6 +3351,7 @@ function dlFlush(k){
     e.wantSend = false; e.err = ''; e.prompt = false;
     dlRetries[k] = 0;
     dlPersist();
+    S.dlReview = false;
     toast(r.duplicate ? 'Log was already sent' : 'Log sent' + (e.sent.assigned.length ? ' to ' + firstNames(e.sent.assigned) : ''));
     render();
   }).catch(function(err){
@@ -3295,25 +3371,29 @@ function dlFlush(k){
     failed('daily log', err, true);
   });
 }
+/* The badge says Not sent / Queued / Sent; the words below say what a
+   queued log is waiting on. */
 function dlStatus(e){
-  if (!e) return { cls: '', text: 'Not started' };
-  if (e.sent) return { cls: 'ok', text: 'Sent ' + clockLabel(e.sent.at), tick: true };
+  if (!e) return { cls: '', text: T('notSent') };
+  if (e.sent) return { cls: 'sent', text: T('sent') };
+  if (e.wantSend) return { cls: 'queued', text: T('queued') };
+  return { cls: '', text: T('notSent') };
+}
+function dlQueuedWords(e){
+  if (!e || !e.wantSend || e.sent) return '';
   if (e.sending){
     // "Sending…" for a minute is a lie of omission: say how long, and that
     // the API is the slow one.
     var secs = e.lastTry ? Math.round((Date.now() - e.lastTry) / 1000) : 0;
-    return { cls: '', text: secs < 8 ? 'Sending…' : 'Sending… ' + secs + 's' + (secs >= 30 ? ' — the API is slow' : '') };
+    return secs < 8 ? 'Sending…' : 'Sending… ' + secs + 's' + (secs >= 30 ? ' — the API is slow' : '');
   }
-  if (e.wantSend){
-    if (e.err && e.err.indexOf('uploading:') === 0) return { cls: '', text: 'Waiting for ' + e.err.slice(10) + ' photo' + (e.err.slice(10) === '1' ? '' : 's') + ' to upload… up to 2 min' };
-    if (e.err && e.err !== 'retry' && e.err !== 'offline') return { cls: 'bad', text: e.err };
-    if (e.err === 'retry' && e.nextTry && e.nextTry > Date.now()){
-      var left = e.nextTry - Date.now();
-      return { cls: 'bad', text: 'Not sent — trying again ' + (left < 90000 ? 'in ' + Math.max(1, Math.round(left / 1000)) + 's' : 'at ' + clockLabel(e.nextTry)) };
-    }
-    return { cls: 'bad', text: 'Not sent — will retry' };
+  if (e.err && e.err.indexOf('uploading:') === 0) return 'Waiting for ' + e.err.slice(10) + ' photo' + (e.err.slice(10) === '1' ? '' : 's') + ' to upload… up to 2 min';
+  if (e.err && e.err !== 'retry' && e.err !== 'offline') return e.err;
+  if (e.err === 'retry' && e.nextTry && e.nextTry > Date.now()){
+    var left = e.nextTry - Date.now();
+    return 'Not sent — trying again ' + (left < 90000 ? 'in ' + Math.max(1, Math.round(left / 1000)) + 's' : 'at ' + clockLabel(e.nextTry));
   }
-  return { cls: '', text: dlHasContent(e) ? 'Draft' : 'Not started' };
+  return 'Not sent — will retry';
 }
 function dlDiag(){
   var n = 0; for (var k in dlStore){ if (dlStore[k] && dlStore[k].wantSend && !dlStore[k].sent) n++; }
@@ -3343,10 +3423,13 @@ function renderLogStatus(){
   var date = S.dlDate || isoLocal();
   var e = S.dlJobId ? dlGet(S.dlJobId, date) : null;
   var st = dlStatus(e), b = $('syncBadge');
-  b.className = 'dlstatus ' + st.cls;
-  b.innerHTML = esc(st.text) + (st.tick ? CK_TICK_SM : '');
+  b.className = st.cls;
+  b.textContent = st.text;
+  var q = $('dlQueued');
+  if (q) q.textContent = dlQueuedWords(e);
 }
 function renderDayLog(){
+  renderLang();
   var today = isoLocal(), date = S.dlDate || today;
   if (date !== today && date !== isoLocal(new Date(Date.now() - 86400000))) date = S.dlDate = today;
   var jobs = dlJobsFor(date);
@@ -3354,18 +3437,17 @@ function renderDayLog(){
     S.dlJobId = (date === today && S.job && jobs.some(function(j){ return j.id === S.job.id; })) ? S.job.id : (jobs[0] ? jobs[0].id : null);
   }
   var cur = jobs.filter(function(j){ return j.id === S.dlJobId; })[0] || null;
-  $('logK').textContent = 'Day log' + (cur && cur.jobNum ? ' · JT #' + cur.jobNum : '');
-  var dd = new Date(date + 'T12:00:00');
-  $('logDate').textContent = (date === today ? '' : 'Yesterday · ') + dd.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  $('logK').textContent = T('k') + (cur && cur.jobNum ? ' · JT #' + cur.jobNum : '');
+  $('logDate').textContent = (date === today ? '' : 'Yesterday · ') + logDateWords(date);
   renderLogStatus();
   $('dlChips').innerHTML = jobs.length > 1 ? jobs.map(function(j){
     var e = dlGet(j.id, date), st = e && e.sent ? 'sent' : (dlHasContent(e) ? 'draft' : '');
     return '<button class="dlchip' + (j.id === S.dlJobId ? ' on' : '') + '" data-dljob="' + esc(j.id) + '"><span class="st ' + st + '"></span>' + esc(j.label || j.jobNum) + '</button>';
   }).join('') : '';
   [].forEach.call($('dlChips').querySelectorAll('[data-dljob]'), function(b){
-    b.onclick = function(){ S.dlJobId = b.getAttribute('data-dljob'); renderDayLog(); };
+    b.onclick = function(){ S.dlJobId = b.getAttribute('data-dljob'); S.dlReview = false; renderDayLog(); };
   });
-  // Never rebuild under a finger typing in one of the fields. A tapped
+  // Never rebuild under a finger typing in one of the boxes. A tapped
   // button also holds focus for a moment, and that must not block the redraw.
   var body = $('dlBody'), ae = document.activeElement;
   var typing = ae && body.contains(ae) && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT');
@@ -3377,223 +3459,243 @@ function renderDayLog(){
   wireDayLog(cur, date);
 }
 function dlBodyHtml(cur, e, date){
-  var today = isoLocal(), h = '';
-  var v = visitByJob(cur.id), ck = checksFor(cur.id), hrs = date === today ? hoursFor(cur.id) : [];
-  var photos = photosFor(cur.id, date), pending = photos.filter(function(p){ return p.pending; }).length;
-  var tot = 0; hrs.forEach(function(x){ tot += x.minutes; });
-  // What the phone already knows.
-  h += '<div class="dlsum">';
-  h += '<div class="row"><span>' + (date === today ? 'Today at' : 'At') + '</span><b>' + esc(streetOf(cur.address) || cur.label || cur.jobNum) + (v && v.alongside ? ' · with ' + esc(v.alongside) : '') + '</b></div>';
-  if (hrs.length){
-    hrs.forEach(function(x){ h += '<div class="row"><span>' + esc((x.number ? x.number + ' ' : '') + x.name) + (x.live ? ' ·' : '') + '</span><b class="tabular">' + hm(x.minutes * 60) + '</b></div>'; });
-    h += '<div class="row"><span>Hours today</span><b class="tabular">' + hm(tot * 60) + '</b></div>';
-  } else if (date === today) h += '<div class="row"><span>Hours today</span><b>Not on the clock here</b></div>';
-  if (ck) h += '<div class="row"><span>Site checks</span><b>' + esc(ck.words || '') + (ck.magnetBy ? ' · magnet by ' + esc(ck.magnetBy) : '') + '</b></div>';
-  var nf = Object.keys((e && e.fields) || {}).length;
-  if (nf) h += '<div class="row"><span>JobTread fields</span><b>' + nf + ' filled</b></div>';
-  var bad = photos.filter(function(p){ return p.pending && p.err; });
-  h += '<div class="row"><span>Photos</span><b>' + photos.length + (pending - bad.length > 0 ? ' · ' + (pending - bad.length) + ' uploading' : '') +
-       (bad.length ? ' · ' + bad.length + ' not uploaded: ' + esc(bad[0].err) : '') + '</b></div>';
-  h += '</div>';
-  if (photos.length){
-    h += '<div id="grid" style="margin-top:10px">' + photos.slice().reverse().map(function(p){
-      return '<div class="tile" style="' + (p.thumb ? 'background-image:url(' + p.thumb + ')' : '') + '">' +
-        '<span class="tg ' + esc(p.tag) + '">' + esc(p.tag) + '</span><span class="tm">' + esc(p.time) + '</span>' +
-        (p.pending ? '<span class="up"' + (p.err ? ' style="background:var(--rec)"' : '') + '></span>' : '') +
-        (p.lost ? '<button class="dropph" data-ph="' + esc(p.id) + '" aria-label="Dismiss this photo">✕</button>' : '') + '</div>';
-    }).join('') + '</div>';
-  }
-  if (date === today && S.job && S.job.id === cur.id){
-    h += '<button class="addbtn" id="dlAddPhoto" style="margin-top:10px">' +
-         '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add photo</button>';
-  }
-
-  if (e && e.sent){
-    var to = e.sent.assigned.length ? 'to ' + esc(e.sent.assigned.join(', ')) : 'with nobody to assign it to';
-    h += '<div class="dlsent" style="margin-top:18px"><div class="t">Sent ' + esc(clockLabel(e.sent.at)) + '</div>' +
-         '<div class="s">On the job as a daily log, ' + to + (e.sent.commented ? '. They were also pinged in the activity feed' + (e.sent.flag === 'problems' ? ' about the problems' : e.sent.flag === 'fields' ? ' about what was flagged in the log fields' : ' about the crew still on site') + '.' : '.') +
-         (e.sent.unresolved.length ? ' Could not find ' + esc(e.sent.unresolved.join(', ')) + ' in JobTread.' : '') +
-         (e.sent.left ? ' Sent without ' + e.sent.left + ' photo' + (e.sent.left === 1 ? '' : 's') + ' still to upload; ' + (e.sent.left === 1 ? 'it lands' : 'they land') + ' in DB Cam on the job when ' + (e.sent.left === 1 ? 'it does' : 'they do') + '.' : '') +
-         (e.sent.lost ? ' ' + e.sent.lost + ' photo' + (e.sent.lost === 1 ? '' : 's') + ' never uploaded and ' + (e.sent.lost === 1 ? 'is' : 'are') + ' gone from this phone — take ' + (e.sent.lost === 1 ? 'it' : 'them') + ' again and ' + (e.sent.lost === 1 ? 'it goes' : 'they go') + ' to DB Cam on the job.' : '') + '</div></div>';
-    h += '<div class="dlq"><span class="k">Add to the sent log</span><textarea id="dlLater" placeholder="Something after the send — it goes on the log as a note."></textarea>' +
-         '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:10px;min-height:60px;font-size:15px">Add to the log</button></div>';
-    var later = (e.notes || []).filter(function(n){ return n.later; });
-    if (later.length) h += '<div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">' + later.map(noteCardHtml).join('') + '</div>';
-    return h;
-  }
-
   var d = e || {};
-  h += '<div class="dlq"><span class="k">What got done</span><textarea id="dlDone" placeholder="Tear-off and dry-in, north side shingled…">' + esc(d.done || '') + '</textarea></div>';
-  h += '<div class="dlq"><span class="k">Condition when you left</span>' +
-       '<div class="tog">' +
-         '<button class="togbtn' + (d.crewOnSite === true ? ' on warn' : '') + '" data-tog="crewOnSite" data-val="true">Crew still on site</button>' +
-         '<button class="togbtn' + (d.crewOnSite === false ? ' on' : '') + '" data-tog="crewOnSite" data-val="false">Crew gone</button>' +
-         '<button class="togbtn' + (d.tarped === true ? ' on' : '') + '" data-tog="tarped" data-val="true">Tarped</button>' +
-         '<button class="togbtn' + (d.tarped === false ? ' on warn' : '') + '" data-tog="tarped" data-val="false">Not tarped</button>' +
-       '</div>' +
-       '<div class="dlleft"><span class="k">Left at</span><input id="dlLeft" value="' + esc(d.leftAt || '') + '" placeholder="' + esc(leftAtFor(cur.id) || '4:30') + '" autocomplete="off"></div>' +
-       '<textarea id="dlCond" placeholder="Decking, what is open, what the crew still has to do…">' + esc(d.condition || '') + '</textarea></div>';
-  h += '<div class="dlq"><span class="k">Problems, extras, returns</span><textarea id="dlProb" placeholder="Short drip edge, two boxes of staples, or nothing">' + esc(d.problems || '') + '</textarea>' +
-       '<div class="fine" style="margin-top:6px">Anything here pings the PM and sales in the activity feed when the log is sent.</div></div>';
-  if (S.logFields.length){
-    h += '<div class="dlq"><span class="k">JobTread’s log fields</span>' +
-         '<div class="fine" style="margin:-2px 0 4px">The same fields the office fills on a daily log in JobTread. Leave blank what does not apply.</div>' +
-         S.logFields.map(function(f){ return logFieldHtml(f, (d.fields || {})[f.id]); }).join('') + '</div>';
+  if (d.sent) return dlSentHtml(cur, d, date);
+  if (S.dlReview) return dlReviewHtml(cur, d, date);
+  var story = String(d.story || ''), lines = d.lines || [], hasText = !!story.trim(), has = hasText || !!lines.length;
+  var h = '';
+  // 1. The story: a real text box, tap anywhere to type. The lines that went
+  // to the PM sit above it with their time.
+  h += '<div class="dlh first">' + esc(T('how')) + '</div>';
+  h += '<div class="story' + (has ? ' has' : '') + '" id="storyBox">' + lines.map(dlLineHtml).join('') +
+       '<textarea id="dlStory" rows="1" placeholder="' + esc(T('ph')) + '" autocomplete="off">' + esc(story) + '</textarea>' +
+       '<button class="addmore' + (has ? '' : ' hidden') + '" id="dlAddMore">' + ico('mic', 22) + 'Add more</button></div>';
+  h += '<div class="talkrow' + (has ? ' hidden' : '') + '" id="dlTalkRow">' +
+       '<button class="talkbtn talk" id="dlTalk">' + ico('mic', 24) + esc(T('talk')) + '</button>' +
+       '<button class="talkbtn type" id="dlType">' + ico('keyboard', 24) + esc(T('type')) + '</button></div>';
+  h += '<div class="pmrow' + (hasText ? '' : ' hidden') + '" id="dlPmRow"><div style="flex:1;min-width:0">' +
+       '<div class="pt1">Something the PM needs right now?</div>' +
+       '<div class="pt2">Sends what you just said to the PM this minute. Today’s log still goes when you hit Send.</div></div>' +
+       '<button class="pmbtn" id="dlTellPm">Tell the PM now</button></div>';
+  // 2. Any delays?
+  h += '<div class="dlh">' + esc(T('delays')) + '</div>' + ynRowHtml('delays', d.delays, false);
+  if (d.delays === true){
+    h += '<div class="k" style="margin-top:14px">' + esc(T('why')) + '</div><div class="whychips">' +
+         DELAY_WHY.map(function(w){
+           return '<button class="whychip' + ((d.delayWhy || []).indexOf(w.key) !== -1 ? ' on' : '') + '" data-why="' + w.key + '">' + esc(whyLabel(w.key)) + '</button>';
+         }).join('') + '</div>' +
+         '<div style="margin-top:8px;font:400 14px/1.4 var(--sans);color:var(--mut)">Say the rest in your story above.</div>';
   }
-  var notes = (d.notes || []);
-  h += '<div class="dlq"><span class="k">Notes during the day' + (notes.length ? ' · ' + notes.length : '') + '</span>' +
-       '<div class="fine" style="margin:-2px 0 8px">A timestamped line in tonight’s log, typed when it happens. Tick the box and it also goes to the PM right now.</div>' +
-       (notes.length ? '<div style="display:flex;flex-direction:column;gap:9px;margin-bottom:10px">' + notes.map(noteCardHtml).join('') + '</div>' : '') +
-       '<textarea id="dlNote" placeholder="Something worth a line in the log — or for the office right now"></textarea>' +
-       '<button class="urgentrow' + (S.dlUrgent ? ' on' : '') + '" id="dlUrgent"><span class="box">' + CK_TICK_SM + '</span>Office needs this now — send it to the PM straight away</button>' +
-       '<button class="btn btn-out" id="dlAddNote" style="min-height:60px;font-size:15px">Add to the log</button></div>';
-  var people = [];
-  if (v && v.pm) people.push(v.pm);
-  (v && v.reps || []).forEach(function(r){ if (people.indexOf(r) === -1) people.push(r); });
-  h += '<div class="sect"><button class="btn btn-go" id="dlSend" style="min-height:88px;font-size:20px">' +
-       '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
-       (date === today ? 'Send today’s log' : 'Send yesterday’s log') + '</button>' +
-       '<div class="foot">Goes on the job as a daily log' + (people.length ? ', assigned to ' + esc(people.join(', ')) : ', assigned to the job’s PM and sales rep') + '. Hours and photos are already in JobTread; this is the day in your words.</div></div>';
+  // 3. Anyone hurt or a close call? Yes is amber, the one warning voice.
+  h += '<div class="dlh">' + esc(T('safety')) + '</div>' + ynRowHtml('safety', d.safety, true);
+  if (d.safety === true) h += dlAlertHtml(cur, d, date);
+  // 4. Send, and 5. the one tap for a normal day.
+  h += dlSendHtml(d, has) + dlNormalHtml(d, has);
+  if (d.wantSend) h += '<div class="foot" id="dlQueued" style="margin-top:12px">' + esc(dlQueuedWords(d)) + '</div>';
   return h;
 }
-/* One of JobTread's fields, drawn by its type: yes/no, a pick list (one or
-   several), a text box, or the right kind of input. Types the app has not
-   met degrade to a text box rather than vanish. */
-function logFieldHtml(f, val){
-  var out = '<div class="dlf"><span class="fk">' + esc(f.name) + (f.required ? ' · required' : '') + '</span>';
-  if (f.type === 'boolean'){
-    out += '<div class="tog"><button class="togbtn' + (val === true ? ' on' : '') + '" data-fld="' + esc(f.id) + '" data-fval="true">Yes</button>' +
-           '<button class="togbtn' + (val === false ? ' on' : '') + '" data-fld="' + esc(f.id) + '" data-fval="false">No</button></div>';
-  } else if (f.type === 'option' && f.options && f.options.length){
-    var picked = Array.isArray(val) ? val : (val ? [val] : []);
-    out += '<div class="tog">' + f.options.map(function(o){
-      return '<button class="togbtn' + (picked.indexOf(o) !== -1 ? ' on' : '') + '" data-fld="' + esc(f.id) + '" data-opt="' + esc(o) + '">' + esc(o) + '</button>';
-    }).join('') + '</div>' + (f.multi ? '<div class="fine" style="margin-top:2px">Pick all that apply.</div>' : '');
-  } else if (f.type === 'text'){
-    out += '<textarea data-fld="' + esc(f.id) + '" placeholder="' + esc(f.name) + '">' + esc(val == null ? '' : val) + '</textarea>';
-  } else {
-    var type = f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'time' ? 'time'
-             : f.type === 'emailAddress' ? 'email' : f.type === 'phoneNumber' ? 'tel' : f.type === 'url' ? 'url' : 'text';
-    out += '<input type="' + type + '"' + (type === 'number' ? ' inputmode="decimal"' : '') + ' data-fld="' + esc(f.id) + '" value="' + esc(val == null ? '' : val) + '" placeholder="' + esc(f.name) + '" autocomplete="off">';
-  }
-  return out + '</div>';
+function dlLineHtml(l){
+  return '<div class="dlline"><span class="k9">' + esc(l.time) + '</span><span class="lt">' + esc(l.text) + '</span>' +
+         (l.pmTold ? '<span class="pm">PM told</span>' : '') + '</div>';
 }
-function noteCardHtml(n){
-  return '<div class="notecard' + (n.urgent ? ' urgent' : '') + '"><span class="nm">' + esc(n.time || '') +
-    (n.urgent ? ' · ' + (n.posted ? 'sent to ' + esc(n.to || 'the office') : 'sending to the office…') : '') + (n.later ? ' · added after the send' : '') +
-    '</span><span class="nb">' + esc(n.body) + '</span></div>';
+function ynRowHtml(field, val, amber){
+  return '<div class="ynrow">' +
+    '<button class="ynbtn' + (val === true ? ' on' + (amber ? ' amber' : '') : '') + '" data-yn="' + field + '" data-v="1">' + esc(T('yes')) + '</button>' +
+    '<button class="ynbtn' + (val === false ? ' on' : '') + '" data-yn="' + field + '" data-v="0">' + esc(T('no')) + '</button></div>';
+}
+/* Anything to look over — a story, a yes — goes through the review; a blank
+   log with nothing to report is the one-tap button below, never Send. */
+function dlReviewable(d, has){ return has || d.delays === true || d.safety === true; }
+function dlBlocked(d){ return !!(d.alert && !d.alert.sentAt); }
+function dlSendHtml(d, has){
+  var ok = dlReviewable(d, has), blocked = dlBlocked(d);
+  var h = '<button class="btn btn-go sendbig' + ((!ok || blocked) ? ' off' : '') + '" id="dlReview">' +
+          (ok ? esc(T('review')) + ico('chev', 24, 2.4) : ico('send', 24) + esc(T('send'))) + '</button>';
+  if (blocked) h += '<div class="foot" id="dlBlockedFoot">Day log waits until the alert has gone.</div>';
+  return h;
+}
+function dlNormalHtml(d, has){
+  var show = !has && d.delays !== true && d.safety !== true;
+  return '<div id="dlNormalWrap"' + (show ? '' : ' class="hidden"') + '><button class="btn btn-out normalday" id="dlNormal">' + esc(T('normal')) + '</button>' +
+         '<div class="foot">' + esc(T('normalFoot')) + '</div></div>';
+}
+/* The safety alert card lives in the next step; until then yes is just yes. */
+function dlAlertHtml(cur, d, date){ return ''; }
+
+/* The review (1c): what the phone knows, the two answers, the story, and
+   who it goes to. */
+function dlRowsHtml(cur, d, date, short){
+  var today = isoLocal(), hrs = date === today ? hoursFor(cur.id) : [];
+  var tot = 0; hrs.forEach(function(x){ tot += x.minutes; });
+  var hours = hrs.length ? hm(tot * 60) + (short ? '' : ' · ' + hrs.length + (hrs.length === 1 ? ' code' : ' codes')) : (date === today ? 'Not on the clock here' : '—');
+  var delays = d.delays === true ? 'Yes' + ((d.delayWhy || []).length ? ' · ' + d.delayWhy.map(whyLabel).join(' · ') : '') : d.delays === false ? 'No' : '—';
+  var hurt = d.safety === true ? 'Yes' + (d.alert && d.alert.kind ? ' · ' + alertKindLabel(d.alert.kind) : '') : d.safety === false ? 'None' : '—';
+  var row = function(k, v){ return '<div class="rvrow' + (short ? ' short' : '') + '"><span class="rk">' + k + '</span><span class="rv tabular">' + esc(v) + '</span></div>'; };
+  return row('Hours', hours) + row('Photos', String(photosFor(cur.id, date).length)) + row('Delays', delays) + row('Hurt / close call', hurt);
+}
+function alertKindLabel(kind){ return { fall:'Fall', cut:'Cut', heat:'Heat', close:'Close call', other:'Other' }[kind] || kind; }
+function dlReviewHtml(cur, d, date){
+  var today = isoLocal(), people = dlPeople(cur.id), q = !!d.wantSend;
+  var h = '<div class="dlh first">Check it, then send</div>';
+  h += '<div class="rvcard">' + dlRowsHtml(cur, d, date, false) +
+       '<div class="rvstory"><span class="rk">Your story</span><div class="rt">' + esc(dlStoryText(d) || '—') + '</div></div></div>';
+  h += '<div class="rvfoot">Goes on JT #' + esc(cur.jobNum || '') + ' as ' + (date === today ? 'today’s' : 'yesterday’s') + ' daily log for ' +
+       esc(people.length ? joinAnd(people) : 'the job’s PM and sales rep') + '. Hours and photos are already there.</div>';
+  h += '<button class="btn btn-go sendbig' + (q ? ' off' : '') + '" id="dlSend" style="margin-top:22px">' + ico('send', 24) +
+       (date === today ? 'Send today’s log' : 'Send yesterday’s log') + '</button>';
+  if (q) h += '<div class="foot" id="dlQueued">' + esc(dlQueuedWords(d)) + '</div>';
+  h += '<button class="btn btn-out normalday" id="dlBack" style="gap:10px">' + ico('chevl', 20, 2.4) + 'Go back and fix something</button>';
+  return h;
+}
+/* Sent (1d): the dark card, the same rows without the story, and a way to
+   add a line to the same log. */
+function dlSentHtml(cur, d, date){
+  var s = d.sent, names = s.assigned && s.assigned.length ? s.assigned : dlPeople(cur.id);
+  var who = names.length ? joinAnd(names) : 'The office';
+  var extra = '';
+  if (s.unresolved && s.unresolved.length) extra += ' Could not find ' + esc(s.unresolved.join(', ')) + ' in JobTread.';
+  if (s.left) extra += ' Sent without ' + s.left + ' photo' + (s.left === 1 ? '' : 's') + ' still to upload; ' + (s.left === 1 ? 'it lands' : 'they land') + ' in DB Cam on the job when ' + (s.left === 1 ? 'it does' : 'they do') + '.';
+  if (s.lost) extra += ' ' + s.lost + ' photo' + (s.lost === 1 ? '' : 's') + ' never uploaded and ' + (s.lost === 1 ? 'is' : 'are') + ' gone from this phone — take ' + (s.lost === 1 ? 'it' : 'them') + ' again and ' + (s.lost === 1 ? 'it goes' : 'they go') + ' to DB Cam on the job.';
+  var h = '<div class="sentcard"><div class="sl">' + ico('check', 26, 2.6) + 'Log sent · ' + esc(clockLabel(s.at)) + '</div>' +
+          '<div class="st">You’re done for today</div>' +
+          '<div class="ss">' + esc(who) + (names.length === 1 || !names.length ? ' has' : ' have') + ' it on JT #' + esc(cur.jobNum || '') + '.' + extra + '</div></div>';
+  h += '<div class="rvcard" style="margin-top:14px">' + dlRowsHtml(cur, d, date, true) + '</div>';
+  var later = (d.notes || []).filter(function(n){ return n.later; });
+  if (later.length) h += '<div class="rvcard" style="margin-top:14px">' + later.map(function(n){ return dlLineHtml({ time: n.time, text: n.body }); }).join('') + '</div>';
+  h += '<div class="story has hidden" id="dlLaterBox" style="margin-top:14px"><textarea id="dlLater" rows="1" autocomplete="off"></textarea></div>';
+  h += '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:22px;min-height:68px">' + ico('mic', 22) + 'Forgot something? Add a line</button>';
+  h += '<div class="foot" style="margin-top:12px">Anything you add now goes on the same log with the time.</div>';
+  return h;
+}
+
+/* The box grows with the story instead of scrolling inside itself. */
+function autoGrow(ta){ if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.max(ta.scrollHeight, 0) + 'px'; }
+/* Typing must not rebuild the screen under the finger, so what depends on
+   whether there is text — the border, Talk / Type against Add more, the
+   PM row, the Send label, the one-tap — is switched in place. */
+function dlSyncStory(cur, date){
+  var ta = $('dlStory'), box = $('storyBox'); if (!ta || !box) return;
+  var d = dlGet(cur.id, date) || {};
+  var hasText = !!ta.value.trim(), has = hasText || !!box.querySelector('.dlline');
+  box.classList.toggle('has', has);
+  $('dlTalkRow').classList.toggle('hidden', has);
+  $('dlAddMore').classList.toggle('hidden', !has);
+  $('dlPmRow').classList.toggle('hidden', !hasText);
+  var ok = dlReviewable(d, has), blocked = dlBlocked(d), rv = $('dlReview');
+  rv.classList.toggle('off', !ok || blocked);
+  rv.innerHTML = ok ? esc(T('review')) + ico('chev', 24, 2.4) : ico('send', 24) + esc(T('send'));
+  $('dlNormalWrap').classList.toggle('hidden', has || d.delays === true || d.safety === true);
+}
+/* Talk: where the browser can listen, it listens into the box; where it
+   cannot (iOS), the keyboard's own mic is the way, and the toast says so the
+   first time. Either way the box is focused. */
+var dlSpeech = null;
+function dlTalk(ta){
+  if (!ta) return;
+  ta.focus();
+  try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){}
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR){ talkHint(); return; }
+  try {
+    if (dlSpeech){ try { dlSpeech.stop(); } catch(e0){} }
+    var rec = dlSpeech = new SR();
+    rec.lang = S.lang === 'es' ? 'es-MX' : 'en-US';
+    rec.interimResults = false; rec.continuous = false;
+    rec.onresult = function(ev){
+      var t = '';
+      for (var i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) t += ev.results[i][0].transcript;
+      t = t.trim();
+      if (!t) return;
+      ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + ' ' : '') + t;
+      ta.dispatchEvent(new Event('input'));
+    };
+    rec.onerror = function(){ talkHint(); };
+    rec.onend = function(){ if (dlSpeech === rec) dlSpeech = null; };
+    rec.start();
+  } catch(e){ talkHint(); }
+}
+function talkHint(){
+  if (S.talkHinted) return;
+  S.talkHinted = true; savePrefs();
+  toast('Tap the mic on your keyboard');
+}
+/* "Tell the PM now": what is in the box goes to the PM this minute as a
+   comment on the job, and stays in the log as a timestamped line. */
+function dlTellPm(jobId, date){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId)), ta = $('dlStory');
+  var text = (ta ? ta.value : (e && e.story) || '').trim();
+  if (!e || e.sent || !text) return;
+  var line = { id: uid(), at: Date.now(), time: clockLabel(), text: text, pmTold: false };
+  e.lines.push(line); e.story = ''; e.seq = (e.seq || 0) + 1;
+  dlPersist();
+  if (ta) ta.value = '';
+  renderDayLog();
+  apiCall('tellPm', [jobId, text]).then(function(r){
+    line.pmTold = true; line.to = (r && r.assigned && r.assigned[0]) || 'the office';
+    dlPersist(); toast('Sent to ' + line.to); renderDayLog();
+  }).catch(function(err){
+    dlPersist();
+    toast(err && err.readOnly ? 'Read-only build — it stays in the log' : 'Could not reach the office now — it stays in the log', true);
+    renderDayLog();
+  });
+}
+/* One tap: no delays, no incidents, "Normal day, nothing to report." — and
+   it goes, no review. */
+function dlNormalDay(jobId, date){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  e.delays = false; e.safety = false; e.story = 'Normal day, nothing to report.'; e.seq = (e.seq || 0) + 1;
+  dlPersist();
+  dlQueueSend(jobId, date);
+  render();
+}
+/* Something after the send: a line on the same log, with the time. */
+function dlAddLater(jobId, date, text){
+  var e = dlGet(jobId, date);
+  if (!text || !e || !e.sent) return;
+  var n = { id: uid(), at: Date.now(), time: clockLabel(), body: text, later: true };
+  e.notes.push(n); dlPersist(); renderDayLog();
+  apiCall('addDailyLogNote', [jobId, e.sent.id, text]).then(function(){ toast('Added to the log'); })
+    .catch(function(err){ toast(err && err.readOnly ? 'Read-only build — kept on the phone' : 'Kept on the phone — could not reach JobTread', true); });
 }
 function wireDayLog(cur, date){
   if (!cur) return;
   var body = $('dlBody');
-  var ta = function(id, field){ var el = $(id); if (el) el.oninput = function(){ dlSet(cur.id, date, field, el.value); }; };
-  ta('dlDone', 'done'); ta('dlCond', 'condition'); ta('dlProb', 'problems'); ta('dlLeft', 'leftAt');
-  [].forEach.call(body.querySelectorAll('textarea[data-fld], input[data-fld]'), function(el){
-    el.oninput = function(){ dlSetField(cur.id, date, el.getAttribute('data-fld'), el.value); };
+  var ta = $('dlStory');
+  if (ta){
+    autoGrow(ta);
+    ta.oninput = function(){ dlSet(cur.id, date, 'story', ta.value); autoGrow(ta); dlSyncStory(cur, date); };
+  }
+  if ($('dlTalk')) $('dlTalk').onclick = function(){ dlTalk(ta); };
+  if ($('dlAddMore')) $('dlAddMore').onclick = function(){ dlTalk(ta); };
+  if ($('dlType')) $('dlType').onclick = function(){ if (ta){ ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} } };
+  if ($('dlTellPm')) $('dlTellPm').onclick = function(){ dlTellPm(cur.id, date); };
+  [].forEach.call(body.querySelectorAll('[data-yn]'), function(b){
+    b.onclick = function(){ dlAnswer(cur.id, date, b.getAttribute('data-yn'), b.getAttribute('data-v') === '1'); renderDayLog(); };
   });
-  [].forEach.call(body.querySelectorAll('button[data-fld]'), function(b){
-    b.onclick = function(){
-      var id = b.getAttribute('data-fld'), f = logFieldById(id), e = dlGet(cur.id, date), have = (e && e.fields || {})[id];
-      if (b.hasAttribute('data-fval')){
-        var val = b.getAttribute('data-fval') === 'true';
-        dlSetField(cur.id, date, id, have === val ? null : val);   // tap again to clear
-      } else {
-        var opt = b.getAttribute('data-opt'), list = Array.isArray(have) ? have.slice() : (have ? [have] : []);
-        var i = list.indexOf(opt);
-        if (i !== -1) list.splice(i, 1); else if (f && f.multi) list.push(opt); else list = [opt];
-        dlSetField(cur.id, date, id, list);
-      }
-      renderDayLog();
-    };
+  [].forEach.call(body.querySelectorAll('[data-why]'), function(b){
+    b.onclick = function(){ dlToggleWhy(cur.id, date, b.getAttribute('data-why')); renderDayLog(); };
   });
-  [].forEach.call(body.querySelectorAll('[data-tog]'), function(b){
-    b.onclick = function(){
-      var f = b.getAttribute('data-tog'), val = b.getAttribute('data-val') === 'true';
-      var e = dlGet(cur.id, date);
-      dlSet(cur.id, date, f, (e && e[f] === val) ? null : val);   // tap again to clear
-      renderDayLog();
-    };
-  });
-  var urg = $('dlUrgent');
-  if (urg) urg.onclick = function(){ S.dlUrgent = !S.dlUrgent; urg.classList.toggle('on', S.dlUrgent); };
-  var add = $('dlAddNote');
-  if (add) add.onclick = function(){
-    var text = ($('dlNote') && $('dlNote').value || '').trim();
-    if (!text) return;
-    dlAddNote(cur.id, date, text, !!S.dlUrgent);
-    S.dlUrgent = false;
-    renderDayLog();
+  if ($('dlReview')) $('dlReview').onclick = function(){
+    S.dlReview = true; renderDayLog();
+    var sc = $('vLog').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
   };
-  var send = $('dlSend');
-  if (send) send.onclick = function(){ S.dlJobId = cur.id; S.dlDate = date; openSheet('sendlog'); };
-  var ap = $('dlAddPhoto');
-  if (ap) ap.onclick = function(){ S.returnToClock = false; setTab('cam'); };
-  // A photo the phone no longer has: dismissing it only stops the app asking
-  // about it. Nothing is lost that was not lost already.
-  [].forEach.call(document.querySelectorAll('.dropph'), function(b){
-    b.onclick = function(ev){
-      ev.stopPropagation();
-      var id = b.getAttribute('data-ph');
-      S.photos = S.photos.filter(function(p){ return p.id !== id; });
-      savePrefs(); render();
-      toast('Photo dismissed — take it again when you can');
-    };
-  });
-  var lb = $('dlLaterBtn');
+  if ($('dlNormal')) $('dlNormal').onclick = function(){ dlNormalDay(cur.id, date); };
+  if ($('dlSend')) $('dlSend').onclick = function(){ dlQueueSend(cur.id, date); renderDayLog(); };
+  if ($('dlBack')) $('dlBack').onclick = function(){ S.dlReview = false; renderDayLog(); };
+  wireAlert(cur, date);
+  var lb = $('dlLaterBtn'), lbox = $('dlLaterBox'), lta = $('dlLater');
   if (lb) lb.onclick = function(){
-    var text = ($('dlLater') && $('dlLater').value || '').trim();
-    var e = dlGet(cur.id, date);
-    if (!text || !e || !e.sent) return;
-    var n = { id: uid(), at: Date.now(), time: clockLabel(), body: text, later: true };
-    e.notes.push(n); dlPersist(); renderDayLog();
-    apiCall('addDailyLogNote', [cur.id, e.sent.id, text]).then(function(){ toast('Added to the log'); })
-      .catch(function(err){ toast(err && err.readOnly ? 'Read-only build — kept on the phone' : 'Kept on the phone — could not reach JobTread', true); });
+    if (lbox.classList.contains('hidden')){ lbox.classList.remove('hidden'); dlTalk(lta); return; }
+    var text = (lta.value || '').trim();
+    if (!text){ dlTalk(lta); return; }
+    lbox.classList.add('hidden'); lta.value = '';
+    dlAddLater(cur.id, date, text);
   };
+  if (lta) lta.oninput = function(){ autoGrow(lta); };
 }
-function dlAddNote(jobId, date, text, urgent){
-  var e = dlTouch(jobId, date, dlInfoFor(jobId));
-  if (!e) return;
-  var n = { id: uid(), at: Date.now(), time: clockLabel(), body: text, urgent: !!urgent, posted: false };
-  e.notes.push(n); e.seq = (e.seq || 0) + 1;
-  dlPersist();
-  if (!urgent) return;
-  apiCall('postJobNote', [jobId, text, S.me && S.me.name, true]).then(function(r){
-    n.posted = true; n.to = (r && r.assigned && r.assigned[0]) || 'the office';
-    dlPersist(); toast('Sent to ' + n.to); renderDayLog();
-  }).catch(function(err){
-    toast(err && err.readOnly ? 'Read-only build — it stays in the log' : 'Could not reach the office now — it stays in the log', true);
-    n.urgent = false; dlPersist(); renderDayLog();
-  });
-}
-/* The confirm: who it goes to, what rides along. */
-function sendLogHtml(){
-  var date = S.dlDate || isoLocal(), jobs = dlJobsFor(date);
-  var cur = jobs.filter(function(j){ return j.id === S.dlJobId; })[0];
-  if (!cur) return '';
-  var e = dlGet(cur.id, date) || {}, v = visitByJob(cur.id);
-  var photos = photosFor(cur.id, date), pending = photos.filter(function(p){ return p.pending; }).length;
-  var people = [];
-  if (v && v.pm) people.push(v.pm + ' (PM)');
-  (v && v.reps || []).forEach(function(r){ if (people.indexOf(r) === -1) people.push(r + ' (sales)'); });
-  var flag = String(e.problems || '').trim() ? 'problems' : (e.crewOnSite === true && !(checksFor(cur.id) || {}).signedOff ? 'crew' : '');
-  var lines = [];
-  lines.push(photos.length + ' photo' + (photos.length === 1 ? '' : 's') + (pending ? ', ' + pending + ' still uploading — it waits for them' : ''));
-  var ck = checksFor(cur.id); if (ck && ck.words) lines.push(ck.words);
-  var hrs = date === isoLocal() ? hoursFor(cur.id) : []; if (hrs.length){ var tot = 0; hrs.forEach(function(x){ tot += x.minutes; }); lines.push(hm(tot * 60) + ' on the clock here'); }
-  var notes = (e.notes || []).filter(function(n){ return !n.later; }); if (notes.length) lines.push(notes.length + ' note' + (notes.length === 1 ? '' : 's'));
-  var nf = Object.keys(e.fields || {}).length; if (nf) lines.push(nf + ' JobTread field' + (nf === 1 ? '' : 's') + ' filled');
-  return '<div class="sheetpad">' +
-    '<div class="promptbox' + (flag ? ' warn' : '') + '">' +
-      '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
-      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc(cur.jobNum ? 'JT #' + cur.jobNum : 'Daily log') + '</span>' +
-      '<span class="pt" style="display:block">' + esc(cur.label || cur.jobNum) + '</span></span></div>' +
-    '<div class="body">To ' + (people.length ? esc(people.join(', ')) : 'the job’s PM and sales rep') + ', as a daily log on the job.' +
-      (flag === 'problems' ? ' The problems also ping them in the activity feed.' : flag === 'crew' ? ' A crew still on site without a sign-off also pings them in the activity feed.' : '') + '</div>' +
-    '<div class="ckmiss">' + lines.map(function(l){ return '<span class="m">· ' + esc(l) + '</span>'; }).join('') + '</div>' +
-    '<div class="fine">Sent once. Anything after that is added to the log as a note.</div>' +
-    '<div class="yn"><button class="ynbtn" id="slNo"><span class="yb">No</span><span class="ys">Not yet</span></button>' +
-    '<button class="ynbtn yes" id="slYes"><span class="yb">Yes</span><span class="ys">Send</span></button></div></div>';
-}
+/* The safety alert's handlers live in the next step. */
+function wireAlert(cur, date){}
 
 /* =========================================================
    BOOT
@@ -3679,6 +3781,9 @@ function bootStart(lastJob, attempt){
 
 /* ---- wiring ---- */
 $('sunBtn').onclick = function(){ S.sun = !S.sun; savePrefs(); render(); };
+[].forEach.call(document.querySelectorAll('#langTog button'), function(b){
+  b.onclick = function(){ S.lang = b.getAttribute('data-lang') === 'es' ? 'es' : 'en'; savePrefs(); render(); };
+});
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
 $('clockIn').onclick = function(){ if (S.job) openSheet('codes'); };
 $('switchBtn').onclick = function(){ openSheet('codes'); };

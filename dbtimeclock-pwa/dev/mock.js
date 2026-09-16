@@ -291,12 +291,21 @@
       window.__NOTES.push({ jobId: jobId, message: message, author: author, assignPm: !!assignPm });
       return { ok: true, id: 'c' + window.__NOTES.length, assigned: assignPm ? ['Neal Deitemeyer'] : [] };
     },
+    // "Tell the PM now": a comment on the job, assigned to the PM.
+    tellPm: function (jobId, text) { return HANDLERS.postJobNote(jobId, text, 'Tyler B.', true); },
     // The daily log, as Code.gs answers: the id, who it was assigned to, and
-    // whether the feed was pinged. __MOCK_LOGFAIL makes it throw.
+    // whether the feed was pinged. __MOCK_LOGFAIL makes it throw. A story
+    // log (T1.14) pings on a delay or an incident; the older shape on its
+    // problems and fields.
     sendDailyLog: function (log) {
       if (window.__MOCK_LOGFAIL) throw new Error('Pave error (HTTP 500): boom');
       window.__LOGS = window.__LOGS || [];
       window.__LOGS.push(JSON.parse(JSON.stringify(log)));
+      if ('story' in log || 'delays' in log) {
+        var sflag = (log.delays === true || log.safety === true) ? 'fields' : '';
+        return { ok: true, dailyLogId: 'dl' + window.__LOGS.length, date: log.date, assigned: ['Neal Deitemeyer', 'Justin Phillips'], unresolved: [],
+                 flag: sflag, commented: !!sflag, photos: (log.photos || []).length };
+      }
       var signed = log.checks && log.checks.signedOff;
       var pings = Object.keys(log.fields || {}).filter(function (id) {
         var f = LOG_FIELDS.filter(function (x) { return x.id === id; })[0], v = log.fields[id];

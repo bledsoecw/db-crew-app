@@ -41,7 +41,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.12 (2026-09-15)';
+var APP_BUILD = 'T1.14 (2026-09-16)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -339,6 +339,7 @@ function doPost(e) {
       saveSiteChecks: saveSiteChecks,
       sendDailyLog: sendDailyLog,
       addDailyLogNote: addDailyLogNote,
+      tellPm: tellPm,
       registerPushToken: registerPushToken,
       unregisterPushToken: unregisterPushToken
     };
@@ -1075,7 +1076,16 @@ function assigneesFor_(names) {
 // Tyler we were short eight pieces of drip edge … Tyler left about 430 and
 // so I don't know the condition of the job"). This is the person who was on
 // the roof writing it, from what the phone already knows — the hours, the
-// site checks, the photos — plus three short answers.
+// site checks, the photos — plus one story and two yes/no answers.
+//
+// Since T1.14 the phone sends the STORY shape: `story` and the timestamped
+// `lines` that went to the PM during the day are the log's notes; `delays`
+// and `delayWhy` are the org's own Anticipated Delays and Delay Reason
+// fields; `safety` and the `alert` are its Safety Incidents field. The
+// fields are found by NAME in the org's daily-log field list, so nothing
+// about them lives on the phone. Unplanned Tasks and Internal Notes stay
+// blank. The older shape (done / condition / problems / fields) is still
+// taken, for a phone that has not updated.
 //
 // One JobTread daily log per site manager per job per day, sent ONCE: there
 // is no update call for daily logs (verified against the schema), only
@@ -1214,19 +1224,21 @@ function sendDailyLog(me, log) {
   }
 
   // The job's people, and the org's daily-log fields if the cache is cold and
-  // the phone filled any — one round trip. Each is best effort: the log goes
-  // assigned to nobody rather than not at all.
+  // the phone answered anything that maps to one — one round trip. Each is
+  // best effort: the log goes assigned to nobody rather than not at all.
+  var story = dailyLogIsStory_(log);
   var people = { pm: '', reps: [] };
-  var wantFields = log.fields && typeof log.fields === 'object' && Object.keys(log.fields).length > 0;
+  var wantFields = story ? (log.delays === true || log.delays === false || log.safety === true)
+                         : (log.fields && typeof log.fields === 'object' && Object.keys(log.fields).length > 0);
   var qs = [jobPeopleQuery_([jobId])];
   if (wantFields && !cacheGet_(LOG_FIELDS_KEY)) qs.push(dailyLogFieldsQuery_());
   var rs = paveAll_(qs);
   if (!rs[0].error) { try { people = jobPeopleFrom_(rs[0].data)[jobId] || people; } catch (e0) {} }
   if (rs[1] && !rs[1].error) { try { dailyLogFieldsFrom_(rs[1].data); } catch (e00) {} }
   var who = assigneesFor_([people.pm].concat(people.reps || []));
-  var fields = dailyLogFieldValues_(log.fields);
+  var fields = dailyLogFieldValues_(story ? storyFieldsRaw_(log) : log.fields);
 
-  var text = dailyLogText_(me, log, fields).slice(0, DAILY_LOG_NOTES_MAX);
+  var text = (story ? dailyLogStoryText_(me, log) : dailyLogText_(me, log, fields)).slice(0, DAILY_LOG_NOTES_MAX);
   var files = [];
   (log.photos || []).forEach(function (p) {
     if (!p || !p.fileId || files.length >= 100) return;
@@ -1261,8 +1273,10 @@ function sendDailyLog(me, log) {
            flag: flag, commented: commented, photos: files.length, fields: fields.filled.length };
 }
 
-/** What needs a decision: '' when nothing does. */
+/** What needs a decision: '' when nothing does. A story log pings on a
+ *  delay or an incident, whether or not the org's fields could be resolved. */
 function dailyLogFlag_(log, fields) {
+  if (dailyLogIsStory_(log)) return (log.delays === true || log.safety === true) ? 'fields' : '';
   if (String(log.problems || '').trim()) return 'problems';
   if (fields && fields.pings && fields.pings.length) return 'fields';
   if (log.crewOnSite === true && !(log.checks && log.checks.signedOff)) return 'crew-on-site';
@@ -1277,7 +1291,7 @@ function dailyLogPointer_(me, log, flag, fields) {
   var day = fmtDayShort_(log.date);
   var what = flag === 'problems'
     ? String(log.problems || '').trim().split(/\r?\n/)[0].slice(0, 160) + (pingsLine_(fields) ? ' · ' + pingsLine_(fields) : '')
-    : flag === 'fields' ? pingsLine_(fields)
+    : flag === 'fields' ? (pingsLine_(fields) || storyPingLine_(log))
     : 'crew still on site' + (log.leftAt ? ' when ' + firstName_(me.name) + ' left at ' + log.leftAt : '') + ', not signed off';
   return '📋 Site log ' + day + ' — ' + label + ': ' + what.slice(0, 240) + ' — full log under Daily Logs. (' + me.name + ')';
 }
@@ -1312,6 +1326,88 @@ function dailyLogText_(me, log, fields) {
     filled.forEach(function (x) { L.push(x.name + ': ' + x.text); });
     L.push('');
   }
+  return L.concat(dailyLogTail_(me, log)).join('\n');
+}
+
+// ---- the story shape (T1.14) ----
+function dailyLogIsStory_(log) {
+  return !!(log && (Object.prototype.hasOwnProperty.call(log, 'story') || Object.prototype.hasOwnProperty.call(log, 'delays') || Array.isArray(log.lines)));
+}
+var STORY_FIELD_MATCH = { delays: /anticipated\s*delays?/i, reason: /delay\s*reason/i, safety: /safety/i };
+// The chips on the phone against the Delay Reason field's own options
+// ("Weather", "Short Labor", "Short Material", "Other" when this was written).
+var DELAY_WHY_OPTION = { weather: /weather/i, people: /labor|labour|people|crew|staff/i, material: /material/i, other: /other/i };
+var DELAY_WHY_WORDS = { weather: 'Weather', people: 'Short on people', material: 'Waiting on material', other: 'Other' };
+var ALERT_KIND_WORDS = { fall: 'Fall', cut: 'Cut', heat: 'Heat', close: 'Close call', other: 'Other' };
+/** The two answers as JobTread's own fields, found by name. Delays yes or no
+ *  is Anticipated Delays; the chips are Delay Reason, matched against the
+ *  field's own option list; an incident is Safety Incidents as one line.
+ *  Without the definitions (JobTread could not be asked) nothing is mapped,
+ *  and the notes carry the answers instead. */
+function storyFieldsRaw_(log) {
+  var raw = {}, defs = [];
+  try { defs = dailyLogFields_() || []; } catch (e) { defs = []; }
+  var find = function (re) { return defs.filter(function (f) { return re.test(String(f.name || '')); })[0] || null; };
+  var fDelays = find(STORY_FIELD_MATCH.delays), fReason = find(STORY_FIELD_MATCH.reason), fSafety = find(STORY_FIELD_MATCH.safety);
+  if (fDelays && (log.delays === true || log.delays === false)) raw[fDelays.id] = log.delays;
+  if (fReason && log.delays === true) {
+    var opts = fReason.options || [], picked = [];
+    (log.delayWhy || []).forEach(function (key) {
+      var re = DELAY_WHY_OPTION[key];
+      var opt = re ? opts.filter(function (o) { return re.test(String(o)); })[0] : null;
+      if (!opt) opt = opts.filter(function (o) { return String(o).toLowerCase() === String(key).toLowerCase(); })[0] || null;
+      if (opt && picked.indexOf(opt) === -1) picked.push(opt);
+    });
+    if (picked.length) raw[fReason.id] = picked;
+  }
+  if (fSafety && log.safety === true) raw[fSafety.id] = safetyWords_(log);
+  return raw;
+}
+function safetyWords_(log) {
+  var a = log.alert || {};
+  var parts = [ALERT_KIND_WORDS[a.kind] || String(a.kind || ''), a.hurt === true ? 'Hurt' : a.hurt === false ? 'Nobody hurt' : '', String(a.text || '').trim()].filter(Boolean);
+  var s = parts.join(' · ') || 'Yes';
+  if (a.sentAt) s += ' — alert sent' + (a.to && a.to.length ? ' to ' + a.to.join(', ') : '');
+  return s;
+}
+function delayWords_(log) {
+  if (log.delays !== true) return log.delays === false ? 'No' : '';
+  var why = (log.delayWhy || []).map(function (k) { return DELAY_WHY_WORDS[k] || String(k); });
+  return 'Yes' + (why.length ? ' · ' + why.join(', ') : '');
+}
+function storyPingLine_(log) {
+  var dw = delayWords_(log);
+  return [dw ? 'Delays: ' + dw : '', log.safety === true ? 'Hurt / close call: ' + safetyWords_(log) : ''].filter(Boolean).join(' · ');
+}
+/** Plain text for the story shape: the lines the PM was told, with their
+ *  times, then the story, then the two answers, then what the phone knows. */
+function dailyLogStoryText_(me, log) {
+  var L = [];
+  L.push('Site manager\'s log — ' + me.name + ' · ' + fmtDayLong_(log.date));
+  var head = [String(log.jobLabel || '').trim(), log.alongside ? 'with ' + log.alongside : ''].filter(Boolean).join(' · ');
+  if (head) L.push(head);
+  L.push('');
+  var any = false;
+  (log.lines || []).forEach(function (l) {
+    if (!l || !String(l.text || '').trim()) return;
+    any = true;
+    L.push((l.time ? l.time + ' — ' : '') + String(l.text).trim() + (l.pmTold ? '  (told the PM at the time)' : ''));
+  });
+  var story = String(log.story || '').trim();
+  if (story) { any = true; L.push(story); }
+  if (!any) L.push('—');
+  L.push('');
+  var dw = delayWords_(log);
+  if (dw) L.push('Delays: ' + dw);
+  if (log.safety === true) L.push('Hurt / close call: ' + safetyWords_(log));
+  else if (log.safety === false) L.push('Hurt / close call: None');
+  if (dw || log.safety != null) L.push('');
+  return L.concat(dailyLogTail_(me, log)).join('\n');
+}
+/** The site checks, the hours, the photos and the sign-off — the same on
+ *  either shape. */
+function dailyLogTail_(me, log) {
+  var L = [];
   var ck = log.checks || {};
   if (ck.words || ck.magnetBy) {
     L.push('SITE CHECKS');
@@ -1350,7 +1446,13 @@ function dailyLogText_(me, log, fields) {
     L.push('');
   }
   L.push('— sent from DB Time Clock');
-  return L.join('\n');
+  return L;
+}
+
+/** "Tell the PM now" on the Day log: the line goes to the PM this minute as a
+ *  comment on the job, assigned to them. The log still carries it. */
+function tellPm(me, jobId, text) {
+  return postJobNote(jobId, text, me.name, true);
 }
 
 function firstName_(name) { return String(name || '').trim().split(/\s+/)[0] || 'me'; }
