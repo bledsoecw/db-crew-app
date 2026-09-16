@@ -128,27 +128,38 @@ sentence the owner has been writing in a daily log by hand.
 **Day log.** The site manager's own record of the day, on the job, in place of
 the owner's second-hand dictation ("Report via Tyler we were short eight pieces
 of drip edge … Tyler left about 430 and so I don't know the condition of the
-job"). One draft per job per day, kept on the phone and touched by anything
-that happens on that roof — a clock-in, a photo, a tick, a note — so a day with
-two roofs has two drafts, and the tab shows one chip per roof. The summary is
-what the phone already knows: the hours by code, the site checks in the board's
-words, the photos taken there. The three questions are what that dictation has
-been reconstructing: what got done; the condition when you left, with chips for
-crew still on site or gone, tarped or not, and the time; problems, extras and
-returns. Notes during the day collect into the draft; one marked "office needs
-this now" also goes straight to the PM as an assigned comment on the job.
+job"). One story box — a real text box, Talk or Type — and two questions: "Any
+delays?" (yes opens Weather · Short on people · Waiting on material · Other)
+and "Anyone hurt or a close call?" (yes is amber and opens the safety alert,
+below). One draft per job per day, kept on the phone and touched by anything
+that happens on that roof, so a day with two roofs has two drafts and the tab
+shows one chip per roof. "Tell the PM now" sends what is in the box to the PM
+this minute as a comment on the job and keeps it in the log as a timestamped
+line. A normal day is one tap: "Normal day · nothing to report" marks no
+delays, no incidents, and sends. EN / ES flips the tab's own words; the story
+posts as spoken.
 
-**Send today's log** writes one JobTread daily log on the job, assigned to the
-job's Project Manager and Sales Reps with notify on, with the day's photos
-attached by reference — they stay in DB Cam and the PM opens one thing. A
-problem, or a crew left on site without a sign-off, also posts a one-line
-comment assigned to the same people, so the activity feed only lights up when
-something needs a decision. It is sent once — JobTread has no update for daily
-logs — and anything after that is added as a note on the log. A dead spot or a
-JobTread hiccup keeps the draft and retries; the log also waits for its photos
-to finish uploading. The moments that ask for it: finishing the "before the
-site manager leaves" phase, signing off, and moving to another roof. The
-morning banner nags for yesterday's log the way it nags for a missing sign-off.
+**Review & send** shows the hours, the photos, the two answers and the story,
+names who it goes to, and writes one JobTread daily log on the job, assigned to
+the job's Project Manager and Sales Reps with notify on, with the day's photos
+attached by reference. The story and the lines are the log's notes; the
+answers land on the org's own daily-log fields — Anticipated Delays, Delay
+Reason, Safety Incidents — found by name, so nothing about the fields lives in
+the app. A delay or an incident also posts a one-line comment assigned to the
+same people, so the activity feed only lights up when something needs a
+decision. It is sent once — JobTread has no update for daily logs — and a
+forgotten line goes on the same log with the time. A dead spot or a JobTread
+hiccup keeps the draft and retries (the badge says Queued, and why); the log
+also waits for its photos to finish uploading. The moments that ask for it:
+clocking out for the day, finishing the "before the site manager leaves"
+phase, signing off, and moving to another roof. The morning banner nags for
+yesterday's log the way it nags for a missing sign-off.
+
+**Safety alert.** Yes to "anyone hurt or a close call" opens an amber card —
+what happened, the words, Hurt or Nobody hurt, a mic and a camera — and "Send
+alert now" goes the second it is tapped, apart from the log: a comment on the
+job assigned to the PM and a text to everyone in `SAFETY_ALERT_TO`. The log
+waits until the alert has gone, then carries it in its Safety field.
 
 **Where am I tomorrow.** My jobs is today's card, then Next up in date order,
 with a fourteen-day strip on top, a dot per booked visit, tap to jump.
