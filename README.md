@@ -71,10 +71,15 @@ roof is worse than letting one extra person in.
 **My jobs.** The second tab is the Production Board's answer to "where am I
 today": the Install visits assigned to your crew, resolved from your Google
 Workspace account through the JobTread membership id both systems already share.
-Each card carries the street address as one tap to the phone's maps app, whether
-the material is ordered or you are pulling from the shop, the office's note on
-that visit, and *day 2 of 3* on a multi-day stay. Tapping one makes it today's
-job — which also opens the right Labor code list with no picking.
+The header is the crew, today's date, and when the board last answered (tap it
+to ask again). Today's card is green — "You're here · day 2 of 3", the street,
+customer · city · type, whether the material is on site, not there yet, or
+pulled from the shop, the office's note on that visit — and its bottom row is
+Directions (one tap to the phone's maps app) beside what the card is for:
+"Log not sent · Tap to do it" until today's log has gone, then "Log sent ·
+4:52p". Under "Next up", the other cards say "Go here instead" — the end photo
+first while on the clock — and a card further out than tomorrow shrinks to a
+line. The foot says when the list came from the board.
 
 The board is a second system, so it is treated as one. If it is unreachable, not
 connected yet, or your account isn't linked to a crew, the tab says which of
@@ -145,8 +150,8 @@ to finish uploading. The moments that ask for it: finishing the "before the
 site manager leaves" phase, signing off, and moving to another roof. The
 morning banner nags for yesterday's log the way it nags for a missing sign-off.
 
-**Where am I tomorrow.** My jobs is grouped by day under Today, Tomorrow, Thu
-9/17, with a fourteen-day strip on top, a dot per booked visit, tap to jump.
+**Where am I tomorrow.** My jobs is today's card, then Next up in date order,
+with a fourteen-day strip on top, a dot per booked visit, tap to jump.
 Each roofing card says which crew you are with ("with Platinum"), read from the
 task the site checks sit on. A roof that has not started shows only its Site
 checks button, not "not started". When nothing is on the clock, the day's one

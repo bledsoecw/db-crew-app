@@ -271,10 +271,24 @@ button[disabled]{cursor:default}
 .diagbtn{min-height:60px;font-size:15px;letter-spacing:.6px;margin-top:12px}
 #jobsHead{padding:calc(var(--sat) + 8px) 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
 #jobsCrew{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#jobsRefresh{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--mut)}
+/* The board stamp: when the schedule was last fetched; a tap fetches again. */
+#boardStamp{min-height:44px;padding:0 9px;border-radius:2px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut);flex:none;white-space:nowrap;display:flex;align-items:center}
 #jobsSrc{font:600 12.5px/1.4 var(--sans);letter-spacing:.2px;text-transform:none}
 .jcard{background:var(--surf);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:14px}
-.jcard.today{border-color:var(--go)}
+.jcard.today{border:2px solid var(--go)}
+.jcard.today .jwhen{background:var(--total)}
+.jcard.far .h-addr{font-size:20px}
+.jcard.far .jmain{min-height:70px}
+/* The bottom row: Directions, and what tapping the card does. */
+.jrow{display:flex;border-top:1px solid var(--line)}
+.jrow .jnav{width:auto;flex:1;border-top:0;justify-content:center;padding:0 12px}
+.jact{flex:1;min-height:var(--tap);border-left:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:var(--surf);text-align:center;padding:0 10px}
+.jrow > .jact:first-child{border-left:0}
+.jact .a1{font:700 14px/1 var(--head);letter-spacing:.56px;text-transform:uppercase;color:var(--fg)}
+.jact .a2{font:600 9px/1 var(--mono);letter-spacing:.81px;text-transform:uppercase;color:var(--lab)}
+.jact.warn .a1{color:var(--warn)}
+.jact.ok .a1{color:var(--acc)}
+.jact.nav .a1{color:var(--nav)}
 .jwhen{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--surf2);border-bottom:1px solid var(--line)}
 .jwhen .d{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab)}
 .jcard.today .jwhen .d{color:var(--acc)}
@@ -282,7 +296,7 @@ button[disabled]{cursor:default}
 .jmain{min-height:88px;width:100%;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;padding:15px 16px;text-align:left}
 .jmain .sub{font:400 15px/1.3 var(--sans);color:var(--mut)}
 .jmain .h-addr{font-size:23px}
-.jnav{min-height:var(--tap);width:100%;display:flex;align-items:center;gap:11px;padding:0 16px;border-top:1px solid var(--line);background:var(--surf2);color:var(--fg);font:700 14px/1 var(--head);letter-spacing:.56px;text-transform:uppercase}
+.jnav{min-height:var(--tap);width:100%;display:flex;align-items:center;gap:11px;padding:0 16px;border-top:1px solid var(--line);background:var(--surf2);color:var(--fg);font:700 14px/1 var(--head);letter-spacing:.56px;text-transform:uppercase;text-decoration:none}
 .jmat{display:flex;align-items:center;gap:10px;padding:13px 16px;border-top:1px solid var(--line);font:600 12px/1.3 var(--mono);letter-spacing:.72px;text-transform:uppercase}
 .jmat .dot{width:9px;height:9px;border-radius:50%;background:currentColor;flex:none}
 .jmat.good{color:var(--acc)}
@@ -618,9 +632,7 @@ button[disabled]{cursor:default}
         <div class="k" id="jobsK">My jobs</div>
         <div id="jobsCrew">—</div>
       </div>
-      <button id="jobsRefresh" aria-label="Refresh assigned jobs">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>
-      </button>
+      <button id="boardStamp" aria-label="Refresh assigned jobs">Board · —</button>
     </div>
     <div id="jobsSrc" class="warnbar robar hidden"></div>
     <button id="jobsNudge" class="nudge hidden"></button>
@@ -1686,7 +1698,7 @@ function visitWhen(v){
     var de = new Date(v.end + 'T12:00:00');
     return (isNaN(de) ? v.end : DOW3[de.getDay()] + ' ' + (de.getMonth()+1) + '/' + de.getDate()) + ' · ended';
   }
-  if (v.today) return v.days > 1 && v.dayOf ? 'Today · day ' + v.dayOf + ' of ' + v.days : 'Today';
+  if (v.today) return v.days > 1 && v.dayOf ? 'You’re here · day ' + v.dayOf + ' of ' + v.days : 'You’re here';
   if (v.start === isoLocal(new Date(Date.now() + 86400000))) return 'Tomorrow' + span;
   var d = new Date(v.start + 'T12:00:00');
   return isNaN(d) ? v.start : DOW3[d.getDay()] + ' ' + (d.getMonth()+1) + '/' + d.getDate() + span;
@@ -1723,33 +1735,61 @@ function assignNote(a){
    materialWords() in the board so they stay defined in one place. */
 function matWords(t){ return String(t||'').replace(/[\u2713\u2714]\s*$/, '').trim(); }
 
+/* The material line, in the card's own words: on site, not there yet,
+   pull from shop — from the board's class and its text, so a part order
+   still says what the board says. */
+function matLine(m){
+  if (!m || !m.text) return null;
+  var cls = m.cls === 'bad' ? 'bad' : m.cls === 'warn' ? 'warn' : 'good', raw = matWords(m.text);
+  var text = cls === 'good' ? 'Material on site'
+           : cls === 'warn' ? (/pull/i.test(raw) ? 'Pull from shop' : 'Material not there yet · ordered')
+           : raw;
+  return { cls: cls, text: text };
+}
 /* Hand the street address to whatever maps app the phone has. A geo: URL is
    ignored by iOS, so this is the one form that opens Maps on both. */
-function navRowHtml(address){
+function navCellHtml(address){
   if (!address) return '';
   return '<a class="jnav" href="https://maps.google.com/?q=' + encodeURIComponent(address) + '" target="_blank" rel="noopener">' +
-    '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>Navigate</a>';
+    '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>Directions</a>';
+}
+/* What tapping the card does. Today's roof (and one that ended): whether
+   its log went, and a tap to do it. Any other: go there instead — the end
+   photo first while on the clock. */
+function actionCellHtml(v){
+  var today = isoLocal();
+  if (v.today || (v.end && v.end < today)){
+    var date = v.today ? today : v.end, e = dlGet(v.jobId, date);
+    if (e && e.sent) return '<button class="jact ok" data-log="' + esc(v.jobId) + '" data-date="' + esc(date) + '"><span class="a1">Log sent · ' + esc(clockLabel(e.sent.at)) + '</span></button>';
+    return '<button class="jact warn" data-log="' + esc(v.jobId) + '" data-date="' + esc(date) + '"><span class="a1">Log not sent</span><span class="a2">Tap to do it</span></button>';
+  }
+  return goCellHtml(v.jobId);
+}
+function goCellHtml(jobId){
+  return '<button class="jact nav" data-go="' + esc(jobId) + '"><span class="a1">Go here instead</span>' + (S.open ? '<span class="a2">End photo first</span>' : '') + '</button>';
 }
 
 function visitCardHtml(v){
+  var today = isoLocal(), far = !!(v.start && v.start > addDaysLocal(today, 1)), m = matLine(v.material);
   var street = streetOf(v.address) || jobTitle({ name:v.jobName }) || '—';
-  var sub = [v.cust, v.city || cityOf(v.address)].filter(Boolean).join(' · ');
-  var h = '<div class="jcard' + (v.today ? ' today' : '') + '">';
+  // The type rides after the city; a card further out than tomorrow shrinks,
+  // its material line folded in here too.
+  var sub = [v.cust, v.city || cityOf(v.address), String(v.jtype || '').toLowerCase()];
+  if (far && m) sub.push(m.text.toLowerCase());
+  sub = sub.filter(Boolean).join(' · ');
+  var h = '<div class="jcard' + (v.today ? ' today' : '') + (far ? ' far' : '') + '">';
   h += '<div class="jwhen"><span class="d">' + esc(visitWhen(v)) + '</span>' +
        (v.jobNum ? '<span class="n">JT #' + esc(v.jobNum) + '</span>' : '') + '</div>';
   h += '<button class="jmain" data-pick="' + esc(v.jobId) + '">' +
        '<span class="h-addr">' + esc(street) + '</span>' +
        (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') +
        (v.alongside ? '<span class="jwith">with ' + esc(v.alongside) + '</span>' : '') + '</button>';
-  if (v.material && v.material.text){
-    var cls = v.material.cls === 'bad' ? 'bad' : v.material.cls === 'warn' ? 'warn' : 'good';
-    h += '<div class="jmat ' + cls + '"><span class="dot"></span>' + esc(matWords(v.material.text)) + '</div>';
-  }
+  if (m && !far) h += '<div class="jmat ' + m.cls + '"><span class="dot"></span>' + esc(m.text) + '</div>';
   // "Not started" on next Thursday's roof is true and useless: the words
   // appear once the visit has begun. The button is always there.
-  if (!v.start || v.start <= isoLocal()) h += checksLineHtml(v);
+  if (!v.start || v.start <= today) h += checksLineHtml(v);
   if (v.crewNote) h += '<div class="jnote"><span class="k">From the office</span>' + esc(v.crewNote) + '</div>';
-  h += navRowHtml(v.address);
+  h += '<div class="jrow">' + navCellHtml(v.address) + actionCellHtml(v) + '</div>';
   if (v.checks && v.checks.taskId){
     h += '<button class="jbtn" data-checks="' + esc(v.checks.taskId) + '">Site checks' + CK_CHEV + '</button>';
   }
@@ -1805,13 +1845,15 @@ function recentCardHtml(j){
     '<button class="jmain" data-pick="' + esc(j.id) + '">' +
     '<span class="h-addr">' + esc(streetOf(j.address) || jobTitle(j) || '—') + '</span>' +
     (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') + '</button>' +
-    navRowHtml(j.address) + '</div>';
+    '<div class="jrow">' + navCellHtml(j.address) + goCellHtml(j.id) + '</div></div>';
 }
 
 function renderJobs(){
-  var a = S.assign;
-  $('jobsCrew').textContent = (a && a.crew && a.crew.name) || (S.me && S.me.name) || '—';
-  $('jobsK').textContent = a && a.crew ? 'My jobs · crew' : 'My jobs';
+  var a = S.assign, board = !!(a && a.source === 'board');
+  $('jobsK').textContent = 'My jobs' + (a && a.crew && a.crew.name ? ' · ' + a.crew.name : '');
+  $('jobsCrew').textContent = new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  // When the board last answered; a tap asks again.
+  $('boardStamp').textContent = 'Board · ' + (board && S.assignAt ? clockLabel(S.assignAt) : S.assignLoading ? '…' : '—');
 
   var note = assignNote(a);
   var bar = $('jobsSrc');
@@ -1823,10 +1865,10 @@ function renderJobs(){
   if (!a && S.assignLoading){
     html = '<div class="jempty">Checking the board…</div>';
   } else {
-    // Today and onwards, grouped under the day each visit is next on; a
-    // three-day install that began yesterday sits under Today. A visit that
-    // has ended sits at the bottom — it is on the list for its site checks
-    // and its log, not as somewhere to go.
+    // Today first, then Next up in date order; a three-day install that began
+    // yesterday is today's. A visit that has ended sits at the bottom — it is
+    // on the list for its site checks and its log, not as somewhere to go.
+    // Each day's first card carries an anchor for the strip above.
     var upcoming = vs.filter(function(v){ return !v.end || v.end >= today; });
     var past = vs.filter(function(v){ return v.end && v.end < today; }).reverse();
     var days = {}, order = [];
@@ -1837,9 +1879,8 @@ function renderJobs(){
     });
     order.sort();
     order.forEach(function(key){
-      html += '<div class="dayhead" id="day-' + esc(key) + '"><span class="k">' + esc(dayLabel(key, today)) + '</span>' +
-              '<span class="dt">' + esc(fullDate(key)) + '</span></div>';
-      html += days[key].map(visitCardHtml).join('');
+      if (key !== today && !/nextup/.test(html)) html += '<div class="k" id="nextup" style="margin-top:24px">Next up</div>';
+      html += '<div id="day-' + esc(key) + '"></div>' + days[key].map(visitCardHtml).join('');
     });
     if (!upcoming.length){
       if (a && a.source === 'board' && a.crew){
@@ -1854,9 +1895,23 @@ function renderJobs(){
       html += '<div class="dayhead" id="day-past"><span class="k">Ended</span><span class="dt">' + esc(fullDate(past[0].end)) + '</span></div>';
       html += past.map(visitCardHtml).join('');
     }
+    if (board && S.assignAt) html += '<div class="foot" style="margin-top:14px">From the production board at ' + esc(clockLabel(S.assignAt)) + '. If a job is missing, the office hasn’t put it on the board yet.</div>';
   }
   $('jobsList').innerHTML = html;
   renderWeekStrip(vs, today);
+  [].forEach.call($('jobsList').querySelectorAll('[data-log]'), function(b){
+    b.onclick = function(){ openLog(b.getAttribute('data-log'), b.getAttribute('data-date')); };
+  });
+  [].forEach.call($('jobsList').querySelectorAll('[data-go]'), function(b){
+    b.onclick = function(){
+      // The same as Switch job in the stop sheet: the end photo first while
+      // on the clock; otherwise it just becomes today's job.
+      var id = b.getAttribute('data-go');
+      if (S.open){ pickJob(id); return; }
+      pickJob(id);
+      setTab('job');
+    };
+  });
 
   [].forEach.call($('jobsList').querySelectorAll('[data-pick]'), function(b){
     b.onclick = function(){
@@ -3924,7 +3979,7 @@ $('stopBtn').onclick = function(){ openSheet('stop'); };
 $('backBtn').onclick = doBackToWork;
 $('breakOutBtn').onclick = doBreakOut;
 $('camBack').onclick = camBack;
-$('jobsRefresh').onclick = function(){ S.assign = null; loadAssignments(); };
+$('boardStamp').onclick = function(){ S.assign = null; loadAssignments(); };
 $('ckBack').onclick = function(){ setTab('jobs'); };
 // Backing out of a move or a switch (X or the scrim before a code is
 // chosen) puts the current job's codes back; the clock keeps running.

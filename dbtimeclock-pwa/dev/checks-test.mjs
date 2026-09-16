@@ -63,7 +63,7 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   check('the board\'s words on the card, as sent', await txt(page, '.jcard:has-text("Courtney") .jck'), 'Finishing up — 3 of 10 done, not signed off');
   check('a roof that has not started yet shows no words, just the button', [await page.locator('.jcard:has-text("Lucas") .jck').count(), await page.locator('.jcard:has-text("Lucas") [data-checks]').count()], [0, 1]);
   check('in progress is amber', await cls(page, '.jcard:has-text("Courtney") .jck'), 'jck amber');
-  check('yesterday\'s visit sits below today\'s, and says so', await txt(page, '.jcard:last-child .jwhen .d'), 'Yesterday');
+  check('yesterday\'s visit sits below today\'s, and says so', (await page.locator('#jobsList .jcard').last().locator('.jwhen .d').textContent()).trim(), 'Yesterday');
   check('the morning-after nudge, on the day list', await txt(page, '#jobsNudge .nt'), 'Yesterday’s roof at Courtney isn’t signed off');
   check('...and on the clock screen', /hidden/.test(await cls(page, '#clockNudge')), false);
 

@@ -159,6 +159,29 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await ctx.close();
 }
 
+// ---- My jobs: Go here instead, on the clock, is the end photo first ----
+{
+  const { ctx, page, errs } = await boot();
+  await tap(page, '#clockIn', 300);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 600);
+  await shoot(page);
+  await settle(page);
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  check('the other cards say end photo first while on the clock', await page.locator('.jcard:has-text("Lucas") .jact .a1, .jcard:has-text("Lucas") .jact .a2').allTextContents(), ['Go here instead', 'End photo first']);
+  await tap(page, '.jcard:has-text("Lucas") [data-go]', 600);
+  check('...and open the camera locked to END, for a move', [await page.evaluate(() => S.tab), await page.evaluate(() => S.clockGate), await page.evaluate(() => S.pendingJob && S.pendingJob.id), await txt(page, '#afterBarT')], ['cam', 'end-switch', 'j2', 'End photo of 04MA · you switch when you shoot']);
+  await shoot(page);
+  await page.waitForTimeout(900);
+  await settle(page);
+  check('then the next job\'s codes', await txt(page, '#sheetTitle'), 'Code at Lucas');
+  await tap(page, '.coderow:has-text("Final Clean")', 500);
+  await shoot(page);
+  await settle(page);
+  check('then the start photo there, and the clock is at the next roof', [await txt(page, '#jobAddr'), (await st(page)).code, (await calls(page)).slice(-1)[0].slice(0, 3)], ['812 S Washington St', '02ST-1', ['switchCode', 'j2', 'ci5']]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 // ---- leaving the camera by a tab drops the gate ----
 {
   const { ctx, page, errs } = await boot();
