@@ -131,8 +131,8 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   check('Tell the PM now goes to the PM this minute', [notes.length, notes[0] && notes[0].assignPm, notes[0] && notes[0].message, notes[0] && notes[0].jobId], [1, true, 'Got on the job after 8 a.m. due to appointment', 'j_2841']);
   check('...and stays in the log as a timestamped line, tagged', [await page.locator('.dlline').count(), await txt(page, '.dlline .pm'), await page.locator('#dlStory').inputValue()], [1, 'PM told', '']);
   await page.locator('#dlStory').fill('Tear-off and dry-in, north side shingled.');
-  check('the questions are JobTread\'s own daily-log fields, in its order, the safety one last', await page.locator('.dlh').allTextContents(),
-    ['How did today go?', 'Any material pickups or deliveries?', 'Who else was on site? · tap all that fit', 'Any delays?', 'Anyone hurt or a close call?']);
+  check('the questions are JobTread\'s own daily-log fields: delays and hurt first, then the rest in the office\'s order', await page.locator('.dlh').allTextContents(),
+    ['How did today go?', 'Any delays?', 'Anyone hurt or a close call?', 'Any material pickups or deliveries?', 'Who else was on site? · tap all that fit']);
   check('a pick list carries the list\'s own options', await page.locator('[data-opt="22PC7jNshbiK"]').allTextContents(),
     ['Carpentry', 'Concrete', 'Electrical', 'Engineering', 'Excavation', 'Foundation', 'Framing', 'HVAC', 'Masonry', 'Mechanical', 'Painting', 'Plumbing', 'Roofing', 'Tile', 'Other', 'Production Manager', 'Site Manager', 'Sales Rep']);
   await tap(page, '[data-yn="f:22PC7jNSGzEb"][data-v="0"]', 200);
@@ -162,7 +162,7 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await tap(page, '.tab[data-tab="log"]', 500);
   await tap(page, '#dlReview', 500);
   check('the review: the hours, the photos, every answer under JobTread\'s own name for the field', [await page.locator('.rvrow .rk').allTextContents(), await page.locator('.rvrow .rv').allTextContents()],
-    [['Hours', 'Photos', 'Material Pickups / Deliveries', 'Trades Onsite', 'Anticipated Delays', 'Safety Incidents'], ['3h 00m · 2 codes', '1', 'No', 'Roofing, Site Manager', 'Yes · Weather, Short Labor', 'None']]);
+    [['Hours', 'Photos', 'Anticipated Delays', 'Safety Incidents', 'Material Pickups / Deliveries', 'Trades Onsite'], ['3h 00m · 2 codes', '1', 'Yes · Weather, Short Labor', 'None', 'No', 'Roofing, Site Manager']]);
   check('...and the story, the PM line with its time', (await txt(page, '.rvstory .rt')).replace(/^\d+:\d\d[ap] — /, 'H:MM — '), 'H:MM — Got on the job after 8 a.m. due to appointment Tear-off and dry-in, north side shingled.');
   check('...names who it goes to', await txt(page, '.rvfoot'), 'Goes on JT #26-0890 as today’s daily log for Neal Deitemeyer and Justin Phillips. Hours and photos are already there.');
   await tap(page, '#dlBack', 300);
@@ -181,7 +181,7 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   check('the hours by code, from the clock', L.hours.map((h) => [h.number, h.minutes]), [['02ST-1', 42], ['04MA', 138]]);
   check('no site checks on a foundation job', L.checks, null);
   check('sent: the badge, the card, who has it', [await txt(page, '#syncBadge'), /^Log sent · \d+:\d\d[ap]$/.test(await txt(page, '.sentcard .sl')), await txt(page, '.sentcard .st'), await txt(page, '.sentcard .ss')], ['Sent', true, 'You’re done for today', 'Neal Deitemeyer and Justin Phillips have it on JT #26-0890.']);
-  check('...and the rows, without the story', await page.locator('.rvrow .rv').allTextContents(), ['3h 00m', '1', 'No', 'Roofing, Site Manager', 'Yes · Weather, Short Labor', 'None']);
+  check('...and the rows, without the story', await page.locator('.rvrow .rv').allTextContents(), ['3h 00m', '1', 'Yes · Weather, Short Labor', 'None', 'No', 'Roofing, Site Manager']);
   check('the form is gone', await page.locator('#dlStory').count(), 0);
   await tap(page, '#dlLaterBtn', 300);
   check('add a line opens a box', await page.locator('#dlLaterBox').isVisible(), true);
@@ -206,8 +206,8 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   check('no to a question keeps the one-tap', await page.locator('#dlNormal').isVisible(), true);
   await tap(page, '#dlNormal', 1500);
   const logs = await grab(page, '__LOGS');
-  check('one tap: every yes/no field No, nothing picked, no incident, the words', [logs.length, logs[0].story, logs[0].fields, logs[0].safety, logs[0].lines], [1, 'Normal day, nothing to report.', { '22PC7jNSGzEb': false, '22PC7jQ6BkBC': false }, false, []]);
-  check('...and it is sent, the rows saying so', [await txt(page, '#syncBadge'), await page.locator('.rvrow .rv').allTextContents()], ['Sent', ['3h 00m', '0', 'No', '—', 'No', 'None']]);
+  check('one tap: every yes/no field No, nothing picked, no incident, the words', [logs.length, logs[0].story, logs[0].fields, logs[0].safety, logs[0].lines], [1, 'Normal day, nothing to report.', { '22PC7jQ6BkBC': false, '22PC7jNSGzEb': false }, false, []]);
+  check('...and it is sent, the rows saying so', [await txt(page, '#syncBadge'), await page.locator('.rvrow .rv').allTextContents()], ['Sent', ['3h 00m', '0', 'No', 'None', 'No', '—']]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -243,7 +243,7 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await tap(page, '[data-yn="safety"][data-v="0"]', 300);
   check('no after a sent alert stays yes: the incident happened', await cls(page, '[data-yn="safety"][data-v="1"]'), 'ynbtn on amber');
   await tap(page, '#dlReview', 400);
-  check('the review names it', await page.locator('.rvrow .rv').allTextContents(), ['3h 00m · 2 codes', '1', '—', '—', '—', 'Yes · Close call']);
+  check('the review names it', await page.locator('.rvrow .rv').allTextContents(), ['3h 00m · 2 codes', '1', '—', 'Yes · Close call', '—', '—']);
   await tap(page, '#dlSend', 1500);
   const logs = await grab(page, '__LOGS');
   check('the log carries the alert for its Safety field', [logs[0].safety, logs[0].alert.kind, logs[0].alert.hurt, logs[0].alert.text.slice(0, 26), typeof logs[0].alert.sentAt, logs[0].alert.to.length], [true, 'close', false, 'Bundle slid off the ridge,', 'number', 4]);
@@ -282,7 +282,7 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await tap(page, '[data-lang="es"]', 400);
   check('Spanish: the header, the badge, the questions, the buttons, the tabs',
     [await txt(page, '#logK'), await txt(page, '#syncBadge'), await page.locator('.dlh').allTextContents(), await txt(page, '#dlTalk'), await txt(page, '#dlType'), await page.locator('[data-yn]').allTextContents(), await txt(page, '#dlReview'), await txt(page, '#dlNormal'), await page.locator('#tabs .tl').allTextContents()],
-    ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Recogiste o recibiste material?', '¿Quién más estuvo en el sitio? · toca lo que aplique', '¿Hubo retrasos?', '¿Alguien lastimado o casi?'], 'Hablar', 'Escribir', ['Sí', 'No', 'Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
+    ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Hubo retrasos?', '¿Alguien lastimado o casi?', '¿Recogiste o recibiste material?', '¿Quién más estuvo en el sitio? · toca lo que aplique'], 'Hablar', 'Escribir', ['Sí', 'No', 'Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
   check('...the date in Spanish', /^(Dom|Lun|Mar|Mié|Jue|Vie|Sáb), \d+ (ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/.test(await txt(page, '#logDate')), true);
   check('...the placeholder too', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n')[0], 'Toca aquí y escribe, o usa Hablar');
   await tap(page, '[data-yn="f:22PC7jQ6BkBC"][data-v="1"]', 300);

@@ -133,11 +133,12 @@ sentence the owner has been writing in a daily log by hand.
 the owner's second-hand dictation ("Report via Tyler we were short eight pieces
 of drip edge … Tyler left about 430 and so I don't know the condition of the
 job"). One story box — a real text box, Talk or Type — and then JobTread's own
-questions: the org's daily-log fields, in the office's order, with each list's
-own options. Today that is "Any material pickups or deliveries?", "Who else was
-on site?" (Carpentry … Roofing … Site Manager), "Any delays?" (yes opens
-Weather · Short Labor · Short Material · Other) and "Anyone hurt or a close
-call?" (yes is amber and opens the safety alert, below). The definitions come
+questions: the org's daily-log fields, with each list's own options. "Any
+delays?" (yes opens Weather · Short Labor · Short Material · Other) and "Anyone
+hurt or a close call?" (yes is amber and opens the safety alert, below) come
+first, under the story; then the rest in the office's order, today "Any
+material pickups or deliveries?" and "Who else was on site?" (Carpentry …
+Roofing … Site Manager). The definitions come
 from JobTread with the rest of the start-up data and are kept on the phone, so
 a field the office adds or renames shows up by itself; the office's free-text
 fields (Unplanned Tasks, Internal Notes) are its own and stay blank. One draft

@@ -3197,13 +3197,13 @@ function fileName(item){
    The form is one story box, JobTread's own questions and one
    Send. The story — typed or talked, plus the timestamped lines
    that went to the PM during the day — is the log's Notes. The
-   questions are the org's own daily-log fields, in the office's
-   order and with each list's own options — Material Pickups /
-   Deliveries, Trades Onsite, Anticipated Delays with Delay Reason
-   under its yes, Safety Incidents as "Anyone hurt or a close
-   call?" — answered by field id, so nothing about the fields
-   lives here and a field the office adds shows up by itself. A
-   normal day is one tap.
+   questions are the org's own daily-log fields with each list's
+   own options — "Any delays?" (Anticipated Delays, with Delay
+   Reason under its yes) and "Anyone hurt or a close call?"
+   (Safety Incidents) first, then the rest in the office's order:
+   Material Pickups / Deliveries, Trades Onsite — answered by field
+   id, so nothing about the fields lives here and a field the
+   office adds shows up by itself. A normal day is one tap.
    ========================================================= */
 var DL_KEY = 'dbtc_daylog';
 var DL_PHOTO_WAIT_MS = 2 * 60 * 1000;
@@ -3264,12 +3264,12 @@ function loadLogFields(){
   try { var p = JSON.parse(localStorage.getItem(LOG_FIELDS_KEY) || 'null'); if (p && Array.isArray(p.fields)) S.logFields = p.fields; } catch(e){}
 }
 function logFieldById(id){ return (S.logFields || []).filter(function(f){ return f.id === id; })[0] || null; }
-var SAFETY_FIELD_RE = /safety|incident/i;
+var SAFETY_FIELD_RE = /safety|incident/i, DELAYS_FIELD_RE = /anticipated\s*delays?/i;
 /* How each field is asked: the design's words for the three the log was
    built around, plain words for the two the office also keeps, and a new
    field is asked by its own name. The value posted is always JobTread's. */
 var FIELD_WORDS = [
-  { re: /anticipated\s*delays?/i, key: 'delays' },
+  { re: DELAYS_FIELD_RE,          key: 'delays' },
   { re: /delay\s*reason/i,        key: 'why' },
   { re: SAFETY_FIELD_RE,          key: 'safety' },
   { re: /material\s*pick/i,       en: 'Any material pickups or deliveries?', es: '¿Recogiste o recibiste material?' },
@@ -3286,12 +3286,14 @@ var OPTION_ES = { 'Weather':'Clima', 'Short Labor':'Falta gente', 'Short Materia
   'Foundation':'Cimentación', 'Framing':'Estructura', 'HVAC':'HVAC', 'Masonry':'Albañilería', 'Mechanical':'Mecánico', 'Painting':'Pintura',
   'Plumbing':'Plomería', 'Roofing':'Techado', 'Tile':'Azulejo', 'Production Manager':'Gerente de producción', 'Site Manager':'Encargado de sitio', 'Sales Rep':'Vendedor' };
 function optionLabel(o){ return (S.lang === 'es' && OPTION_ES[o]) || o; }
-/* The questions, in JobTread's order: every yes/no field and every pick
-   list; the Safety field is the amber question with the alert under it; a
-   "reason" list sits under the yes/no field before it and shows on yes. The
-   office's text fields (Unplanned Tasks, Internal Notes) are its own and
-   stay blank. The safety question always stands, field list or not: the
-   alert must never depend on a fetch. */
+/* The questions: "Any delays?" and "Anyone hurt or a close call?" first,
+   under the story — the two the log is built around — then the rest of
+   JobTread's fields in the office's order: every yes/no field and every
+   pick list; a "reason" list sits under the yes/no field before it and
+   shows on yes; the Safety field is the amber question with the alert under
+   it. The office's text fields (Unplanned Tasks, Internal Notes) are its
+   own and stay blank. The safety question always stands, field list or
+   not: the alert must never depend on a fetch. */
 function dlQuestions(){
   var out = [], prevBool = null, safety = false;
   (S.logFields || []).forEach(function(f){
@@ -3304,7 +3306,10 @@ function dlQuestions(){
     if (f.type === 'text' && SAFETY_FIELD_RE.test(name) && !safety){ out.push({ kind:'safety', field:f, reason:null }); safety = true; prevBool = null; }
   });
   if (!safety) out.push({ kind:'safety', field:null, reason:null });
-  return out;
+  var lead = function(q){ return q.kind === 'safety' ? 1 : (q.kind === 'bool' && DELAYS_FIELD_RE.test(String(q.field.name || ''))) ? 0 : 2; };
+  return out.map(function(q, i){ return { q:q, i:i }; })
+            .sort(function(a, b){ return (lead(a.q) - lead(b.q)) || (a.i - b.i); })
+            .map(function(x){ return x.q; });
 }
 function dlBoolAnswer(d, id){ var v = ((d && d.fields) || {})[id]; return v === true ? true : v === false ? false : null; }
 function dlPicked(d, id){ var v = ((d && d.fields) || {})[id]; return Array.isArray(v) ? v : (v ? [v] : []); }
@@ -3684,8 +3689,8 @@ function dlBodyHtml(cur, e, date){
        '<div class="pt1">Something the PM needs right now?</div>' +
        '<div class="pt2">Sends what you just said to the PM this minute. Today’s log still goes when you hit Send.</div></div>' +
        '<button class="pmbtn" id="dlTellPm">Tell the PM now</button></div>';
-  // 2. JobTread's own questions, in its order: the yes/no fields, the pick
-  // lists, and "Anyone hurt or a close call?" — amber, the one warning voice.
+  // 2. JobTread's own questions: delays, then "Anyone hurt or a close
+  // call?" — amber, the one warning voice — then the rest in the office's order.
   dlQuestions().forEach(function(q){ h += dlQuestionHtml(q, d, cur, date); });
   // 3. Send, and 4. the one tap for a normal day.
   h += dlSendHtml(d, has) + dlNormalHtml(d, has);
