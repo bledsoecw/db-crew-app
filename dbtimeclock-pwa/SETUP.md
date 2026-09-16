@@ -218,6 +218,16 @@ firebase use --add          # pick your project
 firebase deploy --only hosting
 ```
 
+**How a build reaches the phones.** An installed app checks for a new
+service worker when it is opened and again when it is brought back from the
+app switcher (at most every ten minutes). The new worker takes over as soon as
+it has installed, and the page reloads itself once, when no call is out and no
+video is recording. The Build panel's Check for update button forces that
+check and reloads. Phones running a build older than T1.13 have neither and
+can sit on a stale page for as long as iOS keeps it alive: one Check for
+update (or removing and re-adding the app to the Home Screen) moves them on,
+and from then on they keep themselves current.
+
 ## 6. Install on phones
 
 Open `https://<project-id>.web.app`, sign in with the work Google account, then

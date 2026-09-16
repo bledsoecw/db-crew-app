@@ -669,7 +669,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.12 (2026-09-15)';
+var APP_BUILD = 'T1.13 (2026-09-16)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -858,6 +858,7 @@ var apiLanes = {};
 var API_TIMEOUTS = { sendDailyLog: 60000, uploadCapture: 90000 };
 var API_THAW_GRACE_MS = 5000;   // after a freeze: how long a request still gets
 var apiServer = {};   // fn -> the server's own timing from its reply, cleared as each call starts
+var apiBusy = 0;      // calls out right now; a new build waits for zero before it reloads the page
 
 function apiCall(fn, args, co){
   if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
@@ -865,11 +866,11 @@ function apiCall(fn, args, co){
   if (co.timeout == null && API_TIMEOUTS[fn]) co.timeout = API_TIMEOUTS[fn];
   var lane = co.lane || API_LANE[fn] || 'main';
   var queuedAt = Date.now(), t0 = 0;
-  var run = function(){ t0 = Date.now(); return apiAttempt(fn, args, 1, co); };
+  var run = function(){ t0 = Date.now(); apiBusy++; return apiAttempt(fn, args, 1, co); };
   var p = (apiLanes[lane] || Promise.resolve()).then(run, run);
   apiLanes[lane] = p.then(function(){}, function(){});
-  return p.then(function(v){ apiNote(fn, queuedAt, t0, true, null); return v; },
-                function(e){ apiNote(fn, queuedAt, t0, false, e); throw e; });
+  return p.then(function(v){ apiBusy--; apiNote(fn, queuedAt, t0, true, null); return v; },
+                function(e){ apiBusy--; apiNote(fn, queuedAt, t0, false, e); throw e; });
 }
 /* The last dozen calls as the phone saw them — how long in line, how long
    out, and the API's own clock on the same call when the reply came back.
@@ -1472,31 +1473,26 @@ function renderApiBox(){
     (seen.length ? '<div class="k" style="margin-top:8px">API calls · as the API saw them</div><div class="em">' + seen.map(function(c){ return esc(seenLine(c)); }).join('<br>') + '</div>' : '');
 }
 
-/* The service worker keeps a copy of the shell so the app opens with no
-   signal. That is also why a fresh deploy can appear not to have landed. This
-   throws that copy away and reloads; the clock is server-side and queued
-   captures live in IndexedDB, so neither is touched. */
+/* The Build panel's button. It used to wipe every cache and reload, which on
+   a phone with no signal left nothing to fall back on. Now it asks for a new
+   worker: if one installs, the page reloads itself the moment the worker takes
+   over (see the registration below); if there is none, it reloads anyway,
+   network-first, so a page that missed an update still comes back current.
+   The clock is server-side and the drafts, ticks and photos are on the phone,
+   so a reload never loses anything. */
 function forceUpdate(){
-  toast('Updating…');
-  var jobs = [];
-  try {
-    if (window.caches && caches.keys) {
-      jobs.push(caches.keys().then(function(keys){
-        return Promise.all(keys.map(function(k){ return caches.delete(k); }));
-      }));
-    }
-  } catch(e){}
-  try {
-    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
-      jobs.push(navigator.serviceWorker.getRegistrations().then(function(rs){
-        return Promise.all(rs.map(function(r){ return r.update(); }));
-      }));
-    }
-  } catch(e){}
-  // Reload whatever happens — a failed cache purge must not strand the button.
-  Promise.all(jobs).catch(function(){}).then(function(){
-    setTimeout(function(){ location.reload(); }, 250);
-  });
+  toast('Checking for a new version…');
+  var reloaded = false;
+  var reload = function(){ if (reloaded) return; reloaded = true; location.reload(); };
+  var fallback = setTimeout(reload, 8000);   // the worker never came back: reload regardless
+  if (!(navigator.serviceWorker && navigator.serviceWorker.getRegistration)){ clearTimeout(fallback); setTimeout(reload, 250); return; }
+  navigator.serviceWorker.getRegistration().then(function(reg){
+    if (!reg) throw new Error('no worker');
+    return reg.update().then(function(){
+      if (reg.installing || reg.waiting){ toast('Installing the new version…'); return; }   // the takeover reloads
+      clearTimeout(fallback); setTimeout(reload, 250);
+    });
+  }).catch(function(){ clearTimeout(fallback); setTimeout(reload, 250); });
 }
 
 function renderLog(){ renderDayLog(); }
@@ -3770,7 +3766,32 @@ setInterval(function(){
 }, 1000);
 
 if ('serviceWorker' in navigator){
+  /* A deployed build reaches an installed phone by itself. The new worker
+     takes over as soon as it has installed (skipWaiting + claim in sw.js);
+     the page hears that and reloads itself once — for an UPDATE only, never
+     the first install, and not in the middle of a call or a recording. An
+     iOS app resumed from the switcher is not a navigation, so a resume asks
+     for a new worker too, at most every ten minutes. Without this a phone
+     iOS kept alive in the switcher ran a stale page for as long as it liked,
+     and a build with no Check for update button had no way out (Sep 2026). */
+  var swHadController = !!navigator.serviceWorker.controller, swReloading = false, swLastCheck = 0, swWaitedMs = 0;
   navigator.serviceWorker.register('sw.js').catch(function(){});
+  var swCheck = function(){
+    if (Date.now() - swLastCheck < 10 * 60 * 1000) return;
+    swLastCheck = Date.now();
+    navigator.serviceWorker.getRegistration().then(function(reg){ if (reg) return reg.update(); }).catch(function(){});
+  };
+  var swReloadWhenIdle = function(){
+    if (swReloading) return;
+    if ((apiBusy > 0 || S.recStart) && swWaitedMs < 15000){ swWaitedMs += 1000; setTimeout(swReloadWhenIdle, 1000); return; }
+    swReloading = true;
+    location.reload();
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if (!swHadController){ swHadController = true; return; }   // the first install: nothing to replace
+    swReloadWhenIdle();
+  });
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') swCheck(); });
   // A tapped notification while the app is already open: the worker says
   // where to go rather than reloading the page.
   navigator.serviceWorker.addEventListener('message', function(ev){
