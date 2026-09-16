@@ -41,7 +41,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.10 (2026-09-15)';
+var APP_BUILD = 'T1.11 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -1229,14 +1229,15 @@ function dailyLogText_(me, log) {
     L.push('');
   }
   var photos = (log.photos || []).filter(function (p) { return p && p.fileId; });
-  var left = Number(log.photosPending) || 0;
-  if (photos.length || left) {
+  var left = Number(log.photosPending) || 0, lost = Number(log.photosFailed) || 0;
+  if (photos.length || left || lost) {
     var byTag = {};
     photos.forEach(function (p) { var t = String(p.tag || 'photo').toLowerCase(); byTag[t] = (byTag[t] || 0) + 1; });
     var parts = ['before', 'during', 'after'].filter(function (t) { return byTag[t]; }).map(function (t) { return byTag[t] + ' ' + t; });
     L.push('PHOTOS');
     if (photos.length) L.push(photos.length + ' attached' + (parts.length ? ' (' + parts.join(', ') + ')' : '') + ' · also in DB Cam on the job');
-    if (left) L.push(left + ' more still uploading from the phone when this was sent — see DB Cam on the job');
+    if (left) L.push(left + ' more still to upload from the phone when this was sent — ' + (left === 1 ? 'it lands' : 'they land') + ' in DB Cam on the job');
+    if (lost) L.push(lost + ' photo' + (lost === 1 ? '' : 's') + ' did not upload and ' + (lost === 1 ? 'is' : 'are') + ' gone from the phone — to be taken again');
     L.push('');
   }
   L.push('— sent from DB Time Clock');

@@ -342,6 +342,26 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await ctx.close();
 }
 
+// ---- a photo the old build stranded: named as gone, and dismissible ----
+{
+  const old = { id: 'ph_old', jobId: 'j_2841', tag: 'before', time: '3:41p', at: Date.now() - 120000, pending: true, thumb: '' };
+  const { ctx, page, errs } = await boot({}, `localStorage.setItem('dbtc_prefs', ${JSON.stringify(JSON.stringify({ photos: [old] }))});`);
+  await page.waitForTimeout(800);
+  await tap(page, '.tab[data-tab="log"]', 500);
+  check('a stranded photo is marked as gone', await page.evaluate(() => S.photos.map(p => [p.err, !!p.lost])), [['not uploaded — take it again', true]]);
+  check('...and the summary says so', /1notuploaded:notuploaded—takeitagain/.test(await compact(page, '.dlsum')), true);
+  await page.locator('#dlDone').fill('Done.');
+  await tap(page, '#dlSend', 400);
+  await tap(page, '#slYes', 1500);
+  const logs = await grab(page, '__LOGS');
+  check('the log carries it as gone, not as coming', [logs[0].photosPending, logs[0].photosFailed], [0, 1]);
+  check('...and the sent card says to take it again', /1 photo never uploaded and is gone from this phone/.test(await txt(page, '.dlsent .s')), true);
+  await tap(page, '.dropph', 400);
+  check('dismissed: the phone stops asking about it', await page.evaluate(() => S.photos.length), 0);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 await browser.close();
 let failed = 0;
 for (const r of results) {

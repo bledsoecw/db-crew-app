@@ -266,6 +266,7 @@ button[disabled]{cursor:default}
 #errBox .k{color:var(--rec)}
 #errBox .em{font:400 14px/1.45 var(--sans);color:var(--fg);margin-top:6px;word-break:break-word}
 #apiBox{margin-top:11px;border:1px solid var(--line);border-radius:6px;padding:13px 15px}
+.tile .dropph{position:absolute;top:6px;right:6px;width:36px;height:36px;border-radius:18px;border:0;background:rgba(0,0,0,.62);color:#fff;font:600 16px/36px var(--sans);text-align:center;padding:0}
 #apiBox .k{color:var(--mut)}
 #apiBox .em{font:400 13px/1.5 var(--sans);color:var(--fg);margin-top:6px;word-break:break-word}
 #jobsHead{padding:calc(var(--sat) + 8px) 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
@@ -662,7 +663,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.10 (2026-09-15)';
+var APP_BUILD = 'T1.11 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -2940,7 +2941,7 @@ function pump(){
       var queued = {};
       rest.forEach(function(it){ queued[it.id] = 1; });
       S.photos.forEach(function(p){
-        if (p.pending && !queued[p.id] && Date.now() - (p.at || 0) > 60000 && !p.err) p.err = 'not uploaded — take it again';
+        if (p.pending && !queued[p.id] && Date.now() - (p.at || 0) > 60000 && !p.err){ p.err = 'not uploaded — take it again'; p.lost = true; }
       });
       savePrefs(); render();
       if (!rest.length){ pumpFails = 0; dlRetryPending(); return; }
@@ -3152,6 +3153,7 @@ function dlPayload(e){
     notes: (e.notes || []).filter(function(n){ return !n.later; }).map(function(n){ return { time: n.time, body: n.body, urgent: !!n.urgent }; }),
     photos: photos.map(function(p){ return { fileId: p.fileId, name: p.name || '', tag: p.tag, time: p.time }; }),
     photosPending: e.photosPending || 0,
+    photosFailed: e.photosFailed || 0,
     hours: e.date === isoLocal() ? hoursFor(e.jobId) : [],
     checks: checksFor(e.jobId)
   };
@@ -3201,7 +3203,12 @@ function dlFlush(k){
     dlSchedule(k, 5000);
     return Promise.resolve();
   }
-  e.photosPending = pend.length;
+  // What the log says about the photos it goes without: the ones still to
+  // upload (a refused or read-only upload keeps its file and goes when it
+  // can) apart from the ones gone from the phone for good.
+  var lost = pend.filter(function(p){ return p.lost; }).length;
+  e.photosPending = pend.length - lost;
+  e.photosFailed = lost;
   e.sending = true; e.err = ''; e.lastTry = Date.now();
   dlPersist();
   renderLogStatus();
@@ -3209,7 +3216,7 @@ function dlFlush(k){
     e.sending = false;
     r = r || {};
     e.sent = { at: Date.now(), id: r.dailyLogId || '', assigned: r.assigned || [], unresolved: r.unresolved || [],
-               commented: !!r.commented, flag: r.flag || '', photos: r.photos || 0, left: e.photosPending || 0 };
+               commented: !!r.commented, flag: r.flag || '', photos: r.photos || 0, left: e.photosPending || 0, lost: e.photosFailed || 0 };
     e.wantSend = false; e.err = ''; e.prompt = false;
     dlRetries[k] = 0;
     dlPersist();
@@ -3334,7 +3341,8 @@ function dlBodyHtml(cur, e, date){
     h += '<div id="grid" style="margin-top:10px">' + photos.slice().reverse().map(function(p){
       return '<div class="tile" style="' + (p.thumb ? 'background-image:url(' + p.thumb + ')' : '') + '">' +
         '<span class="tg ' + esc(p.tag) + '">' + esc(p.tag) + '</span><span class="tm">' + esc(p.time) + '</span>' +
-        (p.pending ? '<span class="up"' + (p.err ? ' style="background:var(--rec)"' : '') + '></span>' : '') + '</div>';
+        (p.pending ? '<span class="up"' + (p.err ? ' style="background:var(--rec)"' : '') + '></span>' : '') +
+        (p.lost ? '<button class="dropph" data-ph="' + esc(p.id) + '" aria-label="Dismiss this photo">✕</button>' : '') + '</div>';
     }).join('') + '</div>';
   }
   if (date === today && S.job && S.job.id === cur.id){
@@ -3347,7 +3355,8 @@ function dlBodyHtml(cur, e, date){
     h += '<div class="dlsent" style="margin-top:18px"><div class="t">Sent ' + esc(clockLabel(e.sent.at)) + '</div>' +
          '<div class="s">On the job as a daily log, ' + to + (e.sent.commented ? '. They were also pinged in the activity feed' + (e.sent.flag === 'problems' ? ' about the problems' : ' about the crew still on site') + '.' : '.') +
          (e.sent.unresolved.length ? ' Could not find ' + esc(e.sent.unresolved.join(', ')) + ' in JobTread.' : '') +
-         (e.sent.left ? ' Sent without ' + e.sent.left + ' photo' + (e.sent.left === 1 ? '' : 's') + ' that had not uploaded; they land in DB Cam on the job when they do.' : '') + '</div></div>';
+         (e.sent.left ? ' Sent without ' + e.sent.left + ' photo' + (e.sent.left === 1 ? '' : 's') + ' still to upload; ' + (e.sent.left === 1 ? 'it lands' : 'they land') + ' in DB Cam on the job when ' + (e.sent.left === 1 ? 'it does' : 'they do') + '.' : '') +
+         (e.sent.lost ? ' ' + e.sent.lost + ' photo' + (e.sent.lost === 1 ? '' : 's') + ' never uploaded and ' + (e.sent.lost === 1 ? 'is' : 'are') + ' gone from this phone — take ' + (e.sent.lost === 1 ? 'it' : 'them') + ' again and ' + (e.sent.lost === 1 ? 'it goes' : 'they go') + ' to DB Cam on the job.' : '') + '</div></div>';
     h += '<div class="dlq"><span class="k">Add to the sent log</span><textarea id="dlLater" placeholder="Something after the send — it goes on the log as a note."></textarea>' +
          '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:10px;min-height:60px;font-size:15px">Add to the log</button></div>';
     var later = (e.notes || []).filter(function(n){ return n.later; });
@@ -3416,6 +3425,17 @@ function wireDayLog(cur, date){
   if (send) send.onclick = function(){ S.dlJobId = cur.id; S.dlDate = date; openSheet('sendlog'); };
   var ap = $('dlAddPhoto');
   if (ap) ap.onclick = function(){ S.returnToClock = false; setTab('cam'); };
+  // A photo the phone no longer has: dismissing it only stops the app asking
+  // about it. Nothing is lost that was not lost already.
+  [].forEach.call(document.querySelectorAll('.dropph'), function(b){
+    b.onclick = function(ev){
+      ev.stopPropagation();
+      var id = b.getAttribute('data-ph');
+      S.photos = S.photos.filter(function(p){ return p.id !== id; });
+      savePrefs(); render();
+      toast('Photo dismissed — take it again when you can');
+    };
+  });
   var lb = $('dlLaterBtn');
   if (lb) lb.onclick = function(){
     var text = ($('dlLater') && $('dlLater').value || '').trim();

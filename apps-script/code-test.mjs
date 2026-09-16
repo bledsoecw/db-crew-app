@@ -642,7 +642,10 @@ freshDay();
 t('a bad date falls back to the script\'s today', sandbox.sendDailyLog(ME, { ...LOG, date: 'soon' }).date, today);
 freshDay();
 sandbox.sendDailyLog(ME, { ...LOG, photos: [], photosPending: 2 });
-t('photos left uploading are named in the log', jtCalls[0][1].notes.indexOf('2 more still uploading from the phone when this was sent') > -1, true);
+t('photos left uploading are named in the log', jtCalls[0][1].notes.indexOf('2 more still to upload from the phone when this was sent') > -1, true);
+freshDay();
+sandbox.sendDailyLog(ME, { ...LOG, photos: [], photosPending: 0, photosFailed: 1 });
+t('a photo gone from the phone is named as gone, not as coming', jtCalls[0][1].notes.indexOf('1 photo did not upload and is gone from the phone — to be taken again') > -1, true);
 
 // A phone that timed out waiting for the answer sends the same day again.
 freshDay();
