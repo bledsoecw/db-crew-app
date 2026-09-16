@@ -222,8 +222,8 @@ firebase deploy --only hosting
 service worker when it is opened and again when it is brought back from the
 app switcher (at most every ten minutes). The new worker takes over as soon as
 it has installed, and the page reloads itself once, when no call is out and no
-video is recording. The Build panel's Check for update button forces that
-check and reloads. Phones running a build older than T1.13 have neither and
+video is recording. The Check for update button on the Diagnostics screen (the
+footer line at the bottom of the Clock tab) forces that check and reloads. Phones running a build older than T1.13 have neither and
 can sit on a stale page for as long as iOS keeps it alive: one Check for
 update (or removing and re-adding the app to the Home Screen) moves them on,
 and from then on they keep themselves current.

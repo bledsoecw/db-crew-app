@@ -265,10 +265,19 @@ button[disabled]{cursor:default}
 #errBox{margin-top:11px;border:1px solid var(--rec);border-radius:6px;padding:13px 15px;background:rgba(192,57,43,.12)}
 #errBox .k{color:var(--rec)}
 #errBox .em{font:400 14px/1.45 var(--sans);color:var(--fg);margin-top:6px;word-break:break-word}
-#apiBox{margin-top:11px;border:1px solid var(--line);border-radius:6px;padding:13px 15px}
+#apiBox{margin-top:11px;border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px}
 .tile .dropph{position:absolute;top:6px;right:6px;width:36px;height:36px;border-radius:18px;border:0;background:rgba(0,0,0,.62);color:#fff;font:600 16px/36px var(--sans);text-align:center;padding:0}
-#apiBox .k{color:var(--mut)}
-#apiBox .em{font:400 13px/1.5 var(--sans);color:var(--fg);margin-top:6px;word-break:break-word}
+#apiBox .k{margin:8px 0 4px}
+#apiBox .ln{font:400 14px/1.5 var(--sans);color:var(--mut);word-break:break-word}
+
+/* ---------------- diagnostics ----------------
+   Build, the API timings and the update button, off the Day log and behind
+   one quiet footer line on the Clock tab. For the office; rarely needed. */
+#diagLine{width:100%;min-height:44px;margin-top:28px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--lab);flex:none}
+#diagHead{padding:calc(var(--sat) + 8px) 20px 14px;display:flex;align-items:center;gap:14px;flex:none}
+#diagBack{width:52px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--fg)}
+#diagTitle{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px}
+.diagbtn{min-height:60px;font-size:15px;letter-spacing:.6px;margin-top:12px}
 #jobsHead{padding:calc(var(--sat) + 8px) 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
 #jobsCrew{font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #jobsRefresh{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--mut)}
@@ -462,8 +471,8 @@ button[disabled]{cursor:default}
     <div id="offlineBar" class="warnbar hidden"></div>
     <div id="roBar" class="warnbar robar hidden"></div>
     <button id="clockNudge" class="nudge hidden"></button>
-    <div class="scroll" style="padding-bottom:26px">
-      <div class="pad">
+    <div class="scroll" style="padding-bottom:26px;display:flex;flex-direction:column">
+      <div class="pad" style="flex:none">
         <div class="card" id="jobCard">
           <div class="in">
             <div class="k" id="jobK">Today's job</div>
@@ -519,6 +528,12 @@ button[disabled]{cursor:default}
           <div id="crewList" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
       </div>
+      <div style="flex:1"></div>
+      <button id="diagLine" class="k9" aria-label="Diagnostics">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        <span><span id="diagVer"></span> · Diagnostics</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
     </div>
   </div>
 
@@ -572,17 +587,6 @@ button[disabled]{cursor:default}
     <div class="scroll" style="padding:0 20px 26px">
       <div id="dlChips" class="dlchips"></div>
       <div id="dlBody"></div>
-
-      <div class="sect">
-        <div class="k">Build</div>
-        <div class="tbl" id="verTbl"></div>
-        <div id="apiBox" class="hidden"></div>
-        <div id="errBox" class="hidden"></div>
-        <button class="btn btn-out hidden" id="copyDiagBtn" style="margin-top:12px">Copy diagnostics</button>
-        <button class="btn btn-out hidden" id="pushBtn" style="margin-top:12px">Turn on notifications</button>
-        <button class="btn btn-out" id="updateBtn" style="margin-top:12px">Check for update</button>
-        <div class="foot">Clears this phone's copy of the app and reloads it. Your hours and any queued photos are untouched.</div>
-      </div>
     </div>
   </div>
 
@@ -624,6 +628,30 @@ button[disabled]{cursor:default}
     </div>
   </div>
 
+  <!-- ============ DIAGNOSTICS ============ -->
+  <div id="vDiag" class="view">
+    <div id="diagHead">
+      <button id="diagBack" aria-label="Back to the clock">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div style="min-width:0">
+        <div class="k">For the office · rarely needed</div>
+        <div id="diagTitle">Diagnostics</div>
+      </div>
+    </div>
+    <div class="scroll" style="padding:0 20px 26px">
+      <div class="k">Build</div>
+      <div class="tbl" id="verTbl"></div>
+      <button class="btn btn-out diagbtn hidden" id="pushBtn">Turn on notifications</button>
+      <div class="k hidden" id="apiK" style="margin-top:22px">API calls · this phone</div>
+      <div id="apiBox" class="hidden"></div>
+      <button class="btn btn-out diagbtn hidden" id="copyDiagBtn">Copy diagnostics</button>
+      <button class="btn btn-nav diagbtn" id="updateBtn">Check for update</button>
+      <div class="foot">Clears this phone's copy of the app and reloads it. Your hours and any queued photos are untouched.</div>
+      <div id="errBox" class="hidden"></div>
+    </div>
+  </div>
+
   <!-- ============ TABS ============ -->
   <div id="tabs">
     <button class="tab on" data-tab="job">
@@ -633,10 +661,6 @@ button[disabled]{cursor:default}
     <button class="tab" data-tab="jobs">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.9-7-10.4A7 7 0 0 1 19 10.6C19 16.1 12 21 12 21z"/><circle cx="12" cy="10.4" r="2.6"/></svg>
       <span class="tl">My jobs</span>
-    </button>
-    <button class="tab" data-tab="cam">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
-      <span class="tl">Capture</span>
     </button>
     <button class="tab" data-tab="log">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11M10 12h11M10 18h11"/><polyline points="3 6 4.2 7.2 6.4 5"/><polyline points="3 12 4.2 13.2 6.4 11"/><polyline points="3 18 4.2 19.2 6.4 17"/></svg>
@@ -669,7 +693,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.13 (2026-09-16)';
+var APP_BUILD = 'T1.14 (2026-09-16)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -916,7 +940,7 @@ function loadPrefs(){
     S.nudged = !!p.nudged;
     S.jobPickedDay = String(p.jobPickedDay || '');
     // The device stays registered across launches; only this page's memory of
-    // it is lost. Restoring it stops the Build panel claiming "not checked
+    // it is lost. Restoring it stops Diagnostics claiming "not checked
     // yet" about a phone that is already receiving nudges.
     if (p.push && p.push !== 'unknown') pushState = p.push;
     return p.jobId || '';
@@ -962,7 +986,7 @@ function openSeconds(){ return S.open ? Math.max(0, (Date.now() - new Date(S.ope
    ========================================================= */
 /* A toast is gone in four seconds and there is no console on a phone, so an
    error that only toasts is an error nobody can report. Every raw failure is
-   also kept here and shown on the Day log's Build panel, naming the call that
+   also kept here and shown on the Diagnostics screen, naming the call that
    produced it — the difference between "something went wrong" and a fault
    somebody can act on. */
 function failed(where, e, quiet){
@@ -978,7 +1002,7 @@ function failed(where, e, quiet){
   S.errs.push(S.lastErr);
   if (S.errs.length > 5) S.errs.shift();
   try { renderVersion(); } catch(_){}
-  // `quiet`: recorded for the Build panel, but not toasted — a save that will
+  // `quiet`: recorded for Diagnostics, but not toasted — a save that will
   // retry on its own says so in place, and a red toast on a dead spot is noise.
   if (!quiet) toast(msg, true);
 }
@@ -1182,7 +1206,7 @@ function enablePush(){
     .catch(function(e){
       // Push is a nudge, never a dependency — the clock is untouched either
       // way. But a failure only written to console.warn is a failure nobody
-      // can report from a roof, so it goes to the Build panel by name.
+      // can report from a roof, so it goes to the Diagnostics screen by name.
       if (pushState !== 'denied') pushState = 'off';
       savePrefs();
       failed('push · ' + step, e);
@@ -1452,7 +1476,8 @@ function renderVersion(){
 /* Two clocks on every call — the phone's and the API's — plus the API's own
    memory of its last calls, which is the only record of a call the phone gave
    up on. What the office needs to answer "why was it slow" without opening
-   the Apps Script console. */
+   the Apps Script console. One column of lines on the Diagnostics screen,
+   the API's own memory under its own heading. */
 function apiLine(r){
   var srv = r.server ? ' · api ' + fmtMs(r.server.total) + (r.server.pave ? ' (' + r.server.pave + ' JT ' + fmtMs(r.server.paveMs) + ')' : '') : '';
   return clockLabel(r.at) + ' ' + r.fn + ' ' + (r.ok ? '' : 'FAILED ') + fmtMs(r.ms) +
@@ -1463,17 +1488,20 @@ function seenLine(c){
          (c.pave ? ' (' + c.pave + ' JT ' + fmtMs(c.paveMs) + ')' : '') + (c.who ? ' · ' + c.who : '') + (c.err ? ' — ' + c.err : '');
 }
 function renderApiBox(){
-  var box = $('apiBox');
+  var box = $('apiBox'), head = $('apiK');
   if (!box) return;
   var mine = S.apiLog.slice(-6).reverse(), seen = (S.recent || []).slice(-6).reverse();
-  box.classList.toggle('hidden', !mine.length && !seen.length);
-  if (!mine.length && !seen.length) return;
+  var none = !mine.length && !seen.length;
+  box.classList.toggle('hidden', none);
+  head.classList.toggle('hidden', none);
+  if (none) return;
   box.innerHTML =
-    (mine.length ? '<div class="k">API calls · this phone</div><div class="em">' + mine.map(function(r){ return esc(apiLine(r)); }).join('<br>') + '</div>' : '') +
-    (seen.length ? '<div class="k" style="margin-top:8px">API calls · as the API saw them</div><div class="em">' + seen.map(function(c){ return esc(seenLine(c)); }).join('<br>') + '</div>' : '');
+    mine.map(function(r){ return '<div class="ln">' + esc(apiLine(r)) + '</div>'; }).join('') +
+    (seen.length ? '<div class="k">As the API saw them</div>' +
+      seen.map(function(c){ return '<div class="ln">' + esc(seenLine(c)) + '</div>'; }).join('') : '');
 }
 
-/* The Build panel's button. It used to wipe every cache and reload, which on
+/* The Check for update button. It used to wipe every cache and reload, which on
    a phone with no signal left nothing to fall back on. Now it asks for a new
    worker: if one installs, the page reloads itself the moment the worker takes
    over (see the registration below); if there is none, it reloads anyway,
@@ -2433,10 +2461,12 @@ function setTab(t){
   $('vChecks').classList.toggle('on', t==='checks');
   $('vCam').classList.toggle('on', t==='cam');
   $('vLog').classList.toggle('on', t==='log');
+  $('vDiag').classList.toggle('on', t==='diag');
   // First visit to the tab fetches; after that the refresh button is explicit.
   if (t === 'jobs' && !S.assign && !S.assignLoading) loadAssignments();
-  // The checklist is a screen inside My jobs, so that tab stays lit.
-  var lit = t === 'checks' ? 'jobs' : t;
+  // The checklist is a screen inside My jobs, so that tab stays lit. The
+  // camera and Diagnostics are reached from the clock, so Clock stays lit.
+  var lit = t === 'checks' ? 'jobs' : (t === 'cam' || t === 'diag') ? 'job' : t;
   [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===lit); });
   if (t === 'cam') startCamera(); else stopCamera();
   render();
@@ -3716,6 +3746,9 @@ $('copyDiagBtn').onclick = function(){
   }
 };
 
+$('diagVer').textContent = APP_BUILD.split(' ')[0];
+$('diagLine').onclick = function(){ setTab('diag'); };
+$('diagBack').onclick = function(){ setTab('job'); };
 $('pushBtn').onclick = function(){
   toast('Asking for permission…');
   enablePush().then(function(){
@@ -3726,9 +3759,7 @@ $('pushBtn').onclick = function(){
 $('updateBtn').onclick = forceUpdate;
 $('notif').onclick = function(){ $('notif').style.display='none'; closeSheet(); S.capture='before'; S.returnToClock=true; setTab('cam'); };
 [].forEach.call(document.querySelectorAll('.tab'), function(b){
-  // A self-directed trip to the camera keeps you in the camera; a prompted one
-  // returns to the running clock.
-  b.onclick = function(){ if (b.getAttribute('data-tab')==='cam') S.returnToClock = false; setTab(b.getAttribute('data-tab')); };
+  b.onclick = function(){ setTab(b.getAttribute('data-tab')); };
 });
 [].forEach.call(document.querySelectorAll('.tagbtn'), function(b){
   b.onclick = function(){ S.capture = b.getAttribute('data-tag'); renderCam(); };

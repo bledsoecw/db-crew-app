@@ -68,8 +68,13 @@ const allErrs = [];
   await shot(page, '06-clock-out-blocked');
 
   await tap(page, '#sheetClose');
-  await tap(page, '.tab[data-tab="cam"]', 1200);
+  await tap(page, '#remind', 1200);          // the camera is reached from the clock, not a tab
   await shot(page, '07-capture');
+
+  await tap(page, '.tab[data-tab="job"]', 400);
+  await tap(page, '#diagLine', 500);
+  await shot(page, '07b-diagnostics');
+  await tap(page, '#diagBack', 300);
 
   await tap(page, '.tab[data-tab="log"]', 600);
   await shot(page, '08-day-log');

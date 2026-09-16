@@ -349,7 +349,7 @@ and `getStart` hands back the API's last thirty calls — the only record of a
 call the phone gave up on. The phone runs three lanes (boot and writes; the
 code list and other reads; the board), so a slow read can never hold a save
 or a send behind it, gives the daily-log send sixty seconds and a photo
-riding through the API ninety, and shows all of it in the Build panel:
+riding through the API ninety, and shows all of it on the Diagnostics screen:
 its own clock and the API's on every call, and the API's memory of the
 rest.
 
