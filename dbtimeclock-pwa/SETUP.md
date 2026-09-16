@@ -101,6 +101,14 @@ So keep a copy somewhere outside the repo:
 curl.exe -s https://db-time-clock.web.app/config.js -o C:\dev\config-live-backup.js
 ```
 
+The push keys (the `firebase` block and `vapidKey`) live in config.js too. A
+config.js restored from an old backup deploys fine and silently turns push off
+on every phone: Diagnostics reads "Push: not set up" and the Turn on
+notifications button is hidden. Because config.js sits in the service worker's
+cached shell, getting the corrected file onto the phones takes a new build
+(bump `CACHE` in `public/sw.js`), not just a redeploy. The phones' own choice
+survives: one that granted permission before turns push back on by itself.
+
 `check-config.mjs` runs as a Firebase **predeploy** hook and refuses the deploy
 if `public/config.js` is missing, if `apiUrl` or `clientId` is empty, or if
 `apiUrl` is not an Apps Script `/exec` URL. It prints the command to fix

@@ -148,7 +148,13 @@ const pushKeys = { apiKey: fb.apiKey, projectId: fb.projectId, messagingSenderId
 const set = Object.entries(pushKeys).filter(([, v]) => typeof v === 'string' && v.trim()).map(([k]) => k);
 const unset = Object.keys(pushKeys).filter((k) => !set.includes(k));
 if (set.length === 0) {
-  console.log('config.js: push notifications not configured (optional) — the app will say "not set up".');
+  // Optional, so not a refusal — but a config.js restored from an old backup
+  // turns push OFF on every phone (Diagnostics: "Push: not set up", the Turn
+  // on notifications button hidden), and config.js sits in the service
+  // worker's cached shell, so the fix needs a new build, not just a redeploy.
+  console.log(`${YEL}${BOLD}config.js: push notifications not configured${OFF}${YEL} — the app will say "Push: not set up" and hide the Turn on notifications button.${OFF}`);
+  console.log(`${YEL}  Fine for a site that never had push. If the live site HAS it, this deploy turns it off on every phone: restore the firebase block${OFF}`);
+  console.log(`${YEL}  and vapidKey (SETUP.md 4b), then bump CACHE in public/sw.js so the phones fetch the new file.${OFF}`);
 } else if (unset.length) {
   console.log(`${YEL}config.js: push is half configured — missing ${unset.join(', ')}. It will stay off until all five are set.${OFF}`);
 } else {
