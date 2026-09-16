@@ -186,6 +186,58 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await ctx.close();
 }
 
+// ---- anyone hurt or a close call: the alert goes the second it is sent, and the log waits for it ----
+{
+  const { ctx, page, errs } = await boot();
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await tap(page, '[data-yn="safety"][data-v="1"]', 400);
+  check('yes is amber, and opens the alert card', [await cls(page, '[data-yn="safety"][data-v="1"]'), await page.locator('#alertCard').count(), await txt(page, '#alertCard .warnbar')], ['ynbtn on amber', 1, 'Goes to the PM, Shawn, Neal and Carl the second you send']);
+  check('the review waits until the alert has gone', [await cls(page, '#dlReview'), await txt(page, '#dlBlockedFoot'), await page.locator('#dlNormal').isVisible()], ['btn btn-go sendbig off', 'Day log waits until the alert has gone.', false]);
+  check('the five kinds, single-select; hurt or nobody hurt', [await page.locator('[data-kind]').allTextContents(), await page.locator('[data-hurt]').allTextContents()], [['Fall', 'Cut', 'Heat', 'Close call', 'Other'], ['Hurt', 'Nobody hurt']]);
+  await tap(page, '#alertSend', 400);
+  check('no alert without hurt or nobody hurt', [(await grab(page, '__ALERTS')).length, await txt(page, '#toast span')], [0, 'Tap Hurt or Nobody hurt']);
+  await tap(page, '[data-kind="fall"]', 200);
+  await tap(page, '[data-kind="close"]', 200);
+  check('one kind at a time', await page.locator('[data-kind].on').allTextContents(), ['Close call']);
+  await page.locator('#alertText').fill('Bundle slid off the ridge, landed about three feet from Marcos. Nobody hit.');
+  await tap(page, '[data-hurt="0"]', 300);
+  check('nobody hurt, navy', await cls(page, '[data-hurt="0"]'), 'ynbtn on');
+  await tap(page, '#alertCam', 900);
+  check('the camera square opens the camera, During, with the Day log lit', [await page.evaluate(() => S.tab), await page.evaluate(() => S.capture), await txt(page, '.tab.on .tl')], ['cam', 'during', 'Day log']);
+  await shoot(page);
+  await page.waitForTimeout(1500);
+  check('...and the shot comes back to the card, on the alert', [await page.evaluate(() => S.tab), await page.evaluate(() => dlGet(S.dlJobId, isoLocal()).alert.photoIds.length), await txt(page, '#alertCam .k9')], ['log', 1, '1']);
+  await tap(page, '#alertSend', 900);
+  const alerts = await grab(page, '__ALERTS');
+  check('Send alert now goes at once, with the kind, hurt, the words, the photo and the job', [alerts.length, alerts[0].jobId, alerts[0].alert.kind, alerts[0].alert.hurt, alerts[0].alert.text, alerts[0].alert.photoIds, alerts[0].alert.photos, alerts[0].alert.jobLabel],
+    [1, 'j_2841', 'close', false, 'Bundle slid off the ridge, landed about three feet from Marcos. Nobody hit.', ['f1'], 1, '26-0890 Noah Webster']);
+  check('...before the log went', (await grab(page, '__LOGS')).length, 0);
+  check('the strip says it went, the card collapses, the review comes back', [/^Alert sent \d+:\d\d[ap] · PM, Shawn, Neal, Carl$/.test(await txt(page, '#alertCard .warnbar')), await txt(page, '.alertsum'), await cls(page, '#dlReview'), await page.locator('#dlBlockedFoot').count()],
+    [true, 'Close call · Nobody hurt · Bundle slid off the ridge, landed about three feet from Marcos. Nobody hit. · 1 photo', 'btn btn-go sendbig', 0]);
+  await tap(page, '[data-yn="safety"][data-v="0"]', 300);
+  check('no after a sent alert stays yes: the incident happened', await cls(page, '[data-yn="safety"][data-v="1"]'), 'ynbtn on amber');
+  await tap(page, '#dlReview', 400);
+  check('the review names it', await page.locator('.rvrow .rv').allTextContents(), ['3h 00m · 2 codes', '1', '—', 'Yes · Close call']);
+  await tap(page, '#dlSend', 1500);
+  const logs = await grab(page, '__LOGS');
+  check('the log carries the alert for its Safety field', [logs[0].safety, logs[0].alert.kind, logs[0].alert.hurt, logs[0].alert.text.slice(0, 26), typeof logs[0].alert.sentAt, logs[0].alert.to.length], [true, 'close', false, 'Bundle slid off the ridge,', 'number', 4]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  const { ctx, page, errs } = await boot({}, 'window.__MOCK_ALERTFAIL=true;');
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await tap(page, '[data-yn="safety"][data-v="1"]', 400);
+  await tap(page, '[data-hurt="1"]', 200);
+  await tap(page, '#alertSend', 1500);
+  check('an alert that could not go stays unsent, said in red, and can be tried again', [/boom/.test(await txt(page, '#toast span')), await txt(page, '#alertSend'), await cls(page, '#dlReview')], [true, 'Send alert now', 'btn btn-go sendbig off']);
+  await page.evaluate(() => { window.__MOCK_ALERTFAIL = false; });
+  await tap(page, '#alertSend', 900);
+  check('...and lands the second time', [(await grab(page, '__ALERTS')).length, await cls(page, '#dlReview')], [1, 'btn btn-go sendbig']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 // ---- Talk: no dictation in this browser, so the keyboard's mic is the way, said once ----
 {
   const { ctx, page, errs } = await boot();

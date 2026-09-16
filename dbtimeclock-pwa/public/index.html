@@ -418,6 +418,22 @@ button[disabled]{cursor:default}
 .sentcard .sl{display:flex;align-items:center;gap:10px;font:600 11px/1 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:#7ef08a}
 .sentcard .st{font:800 28px/1.05 var(--head);letter-spacing:-.28px;text-transform:uppercase}
 .sentcard .ss{font:400 14px/1.4 var(--sans);color:rgba(255,255,255,.72)}
+/* The safety alert card, under "Anyone hurt or a close call?" — yes. Amber
+   is the one warning voice; the strip says where it goes. */
+.alertcard{margin-top:14px;border:2px solid var(--warn);border-radius:8px;background:var(--surf);overflow:hidden}
+.alertcard .warnbar{padding:12px 16px}
+.alertbody{padding:14px 16px 4px}
+.alerth{font:800 18px/1.1 var(--head);letter-spacing:.2px;text-transform:uppercase;color:var(--fg)}
+.whychip.small{min-height:48px;padding:0 14px}
+.alertta{display:block;width:100%;min-height:52px;resize:none;border:0;outline:none;background:transparent;padding:12px 0 0;color:var(--fg);font:400 16px/1.45 var(--sans);-webkit-appearance:none;overflow:hidden}
+.alertta::placeholder{color:var(--lab)}
+.hurtrow{margin-top:12px}
+.hurtrow .ynbtn{min-height:56px;font:800 20px/1 var(--head);letter-spacing:.8px}
+.alertfoot{padding:12px;display:flex;gap:10px}
+.sqnav{flex:none;width:60px;min-height:60px;border:2px solid var(--nav);color:var(--nav);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.alertsend{flex:1;min-height:60px;border-radius:6px;background:var(--warn);color:var(--warnink);font:800 17px/1 var(--head);letter-spacing:.68px;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:10px}
+.alertsend.off{opacity:.55;pointer-events:none}
+.alertsum{padding:12px 16px;font:400 14px/1.4 var(--sans);color:var(--mut)}
 
 #tabs{position:absolute;left:0;right:0;bottom:0;display:flex;background:var(--tabbg);border-top:1px solid var(--line);padding-bottom:max(calc(var(--sab) - 8px),12px);z-index:60}
 .tab{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-top:3px solid transparent;margin-top:-1px;color:rgba(255,255,255,.74)}
@@ -923,7 +939,7 @@ var S = {
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
   checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
-  dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false,
+  dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false, alertFor:null,
   pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
   apiLog:[], errs:[], recent:[]
@@ -2484,7 +2500,7 @@ function setTab(t){
   if (t === 'jobs' && !S.assign && !S.assignLoading) loadAssignments();
   // The checklist is a screen inside My jobs, so that tab stays lit. The
   // camera and Diagnostics are reached from the clock, so Clock stays lit.
-  var lit = t === 'checks' ? 'jobs' : (t === 'cam' || t === 'diag') ? 'job' : t;
+  var lit = t === 'checks' ? 'jobs' : t === 'cam' ? (S.alertFor ? 'log' : 'job') : t === 'diag' ? 'job' : t;
   [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===lit); });
   if (t === 'cam') startCamera(); else stopCamera();
   render();
@@ -2901,6 +2917,11 @@ function captured(blob, mime){
     var rec = { id:id, tag:tag, codeId:codeId, at:at, time:clockLabel(at), thumb:thumb, pending:true, jobId:S.job.id, name:fileName(item) };
     S.photos.push(rec);
     dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
+    // Shot from the safety alert card: it belongs to the alert too.
+    if (S.alertFor){
+      var ae = dlGet(S.alertFor.jobId, S.alertFor.date);
+      if (ae && ae.alert && !ae.alert.sentAt){ ae.alert.photoIds = (ae.alert.photoIds || []).concat([id]); dlPersist(); }
+    }
     savePrefs();
     render();
     enqueueUpload(item);
@@ -2911,6 +2932,11 @@ function captured(blob, mime){
 }
 
 function settleAfterShot(tag){
+  if (S.alertFor){
+    var back = S.alertFor;
+    setTimeout(function(){ S.alertFor = null; openLog(back.jobId, back.date); }, 640);
+    return;
+  }
   if (tag === 'after' && S.afterRequired && S.pendingCode){
     var c = S.pendingCode;
     setTimeout(function(){ doSwitch(c); }, 520);
@@ -3506,7 +3532,7 @@ function ynRowHtml(field, val, amber){
 /* Anything to look over — a story, a yes — goes through the review; a blank
    log with nothing to report is the one-tap button below, never Send. */
 function dlReviewable(d, has){ return has || d.delays === true || d.safety === true; }
-function dlBlocked(d){ return !!(d.alert && !d.alert.sentAt); }
+function dlBlocked(d){ return d.safety === true && !(d.alert && d.alert.sentAt); }
 function dlSendHtml(d, has){
   var ok = dlReviewable(d, has), blocked = dlBlocked(d);
   var h = '<button class="btn btn-go sendbig' + ((!ok || blocked) ? ' off' : '') + '" id="dlReview">' +
@@ -3519,8 +3545,68 @@ function dlNormalHtml(d, has){
   return '<div id="dlNormalWrap"' + (show ? '' : ' class="hidden"') + '><button class="btn btn-out normalday" id="dlNormal">' + esc(T('normal')) + '</button>' +
          '<div class="foot">' + esc(T('normalFoot')) + '</div></div>';
 }
-/* The safety alert card lives in the next step; until then yes is just yes. */
-function dlAlertHtml(cur, d, date){ return ''; }
+/* The safety alert card (2b), under "Anyone hurt or a close call?" — yes.
+   It goes the second it is sent, apart from the log: a text to the PM,
+   Shawn, Neal and Carl and a comment on the job assigned to the PM. It also
+   lands in the day's log Safety field when that goes. */
+var ALERT_KINDS = [{ key:'fall', label:'Fall' }, { key:'cut', label:'Cut' }, { key:'heat', label:'Heat' }, { key:'close', label:'Close call' }, { key:'other', label:'Other' }];
+var ALERT_TO_WORDS = 'PM, Shawn, Neal, Carl';
+function alertSummary(a){
+  return [alertKindLabel(a.kind || ''), a.hurt === true ? 'Hurt' : a.hurt === false ? 'Nobody hurt' : '', String(a.text || '').trim(),
+          (a.photoIds || []).length ? (a.photoIds.length + (a.photoIds.length === 1 ? ' photo' : ' photos')) : ''].filter(Boolean).join(' · ');
+}
+function dlAlertHtml(cur, d, date){
+  var a = d.alert || {};
+  var h = '<div class="alertcard" id="alertCard">';
+  if (a.sentAt){
+    h += '<div class="warnbar">' + ico('alert', 18) + '<span>Alert sent ' + esc(clockLabel(a.sentAt)) + ' · ' + ALERT_TO_WORDS + '</span></div>' +
+         '<div class="alertsum">' + esc(alertSummary(a)) + '</div></div>';
+    return h;
+  }
+  var n = (a.photoIds || []).length;
+  h += '<div class="warnbar">' + ico('alert', 18) + '<span>Goes to the PM, Shawn, Neal and Carl the second you send</span></div>';
+  h += '<div class="alertbody"><div class="alerth">What happened?</div>' +
+       '<div class="whychips" style="margin-top:12px">' + ALERT_KINDS.map(function(k){
+         return '<button class="whychip small' + (a.kind === k.key ? ' on' : '') + '" data-kind="' + k.key + '">' + esc(k.label) + '</button>';
+       }).join('') + '</div>' +
+       '<textarea id="alertText" class="alertta" rows="1" placeholder="Say what happened" autocomplete="off">' + esc(a.text || '') + '</textarea>' +
+       '<div class="ynrow hurtrow"><button class="ynbtn' + (a.hurt === true ? ' on' : '') + '" data-hurt="1">Hurt</button>' +
+       '<button class="ynbtn' + (a.hurt === false ? ' on' : '') + '" data-hurt="0">Nobody hurt</button></div></div>';
+  h += '<div class="alertfoot"><button class="sqnav" id="alertMic" aria-label="Talk">' + ico('mic', 24) + '</button>' +
+       '<button class="sqnav" id="alertCam" aria-label="Take a photo">' + ico('camera', 24) + (n ? '<span class="k9">' + n + '</span>' : '') + '</button>' +
+       '<button class="alertsend' + (a.sending ? ' off' : '') + '" id="alertSend">' + (a.sending ? 'Sending…' : 'Send alert now') + '</button></div></div>';
+  h += '<div class="foot">Sends as a text and a JobTread comment right away. It also lands in today’s log Safety field.</div>';
+  return h;
+}
+function dlAlertSet(jobId, date, field, val){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  if (!e.alert) e.alert = { kind:'', hurt:null, text:'', photoIds:[], sentAt:null, to:[] };
+  if (e.alert.sentAt) return;
+  e.alert[field] = val; e.seq = (e.seq || 0) + 1;
+  dlPersist();
+}
+function dlSendAlert(jobId, date){
+  var e = dlGet(jobId, date), a = e && e.alert, ta = $('alertText');
+  if (!e || e.sent) return;
+  if (!a){ dlAlertSet(jobId, date, 'text', ta ? ta.value : ''); a = e.alert; }
+  if (ta) a.text = ta.value;
+  if (a.sentAt || a.sending) return;
+  if (a.hurt !== true && a.hurt !== false){ toast('Tap Hurt or Nobody hurt', true); return; }
+  a.sending = true; dlPersist(); renderDayLog();
+  // The photos that have reached JobTread ride by id; the rest are counted.
+  var fileIds = (a.photoIds || []).map(photoRec).filter(function(p){ return p && p.fileId; }).map(function(p){ return p.fileId; });
+  apiCall('sendSafetyAlert', [jobId, { kind: a.kind || '', hurt: a.hurt, text: a.text || '', photoIds: fileIds, photos: (a.photoIds || []).length, jobLabel: e.jobLabel || '' }]).then(function(r){
+    a.sending = false; a.sentAt = Date.now(); a.to = (r && r.to) || []; a.assigned = (r && r.assigned) || [];
+    e.seq = (e.seq || 0) + 1; dlPersist();
+    toast('Alert sent');
+    render();
+  }).catch(function(err){
+    a.sending = false; dlPersist();
+    showErr(err, 'safety alert');
+    renderDayLog();
+  });
+}
 
 /* The review (1c): what the phone knows, the two answers, the story, and
    who it goes to. */
@@ -3694,8 +3780,28 @@ function wireDayLog(cur, date){
   };
   if (lta) lta.oninput = function(){ autoGrow(lta); };
 }
-/* The safety alert's handlers live in the next step. */
-function wireAlert(cur, date){}
+function wireAlert(cur, date){
+  var body = $('dlBody'), ta = $('alertText');
+  [].forEach.call(body.querySelectorAll('[data-kind]'), function(b){
+    b.onclick = function(){ dlAlertSet(cur.id, date, 'kind', b.getAttribute('data-kind')); renderDayLog(); };
+  });
+  [].forEach.call(body.querySelectorAll('[data-hurt]'), function(b){
+    b.onclick = function(){ dlAlertSet(cur.id, date, 'hurt', b.getAttribute('data-hurt') === '1'); renderDayLog(); };
+  });
+  if (ta){
+    autoGrow(ta);
+    ta.oninput = function(){ dlAlertSet(cur.id, date, 'text', ta.value); autoGrow(ta); };
+  }
+  if ($('alertMic')) $('alertMic').onclick = function(){ dlTalk(ta); };
+  if ($('alertCam')) $('alertCam').onclick = function(){
+    if (!S.job){ toast('Pick a job first'); return; }
+    dlAlertSet(cur.id, date, 'text', ta ? ta.value : '');
+    S.alertFor = { jobId: cur.id, date: date };
+    S.capture = 'during'; S.returnToClock = false;
+    setTab('cam');
+  };
+  if ($('alertSend')) $('alertSend').onclick = function(){ dlSendAlert(cur.id, date); };
+}
 
 /* =========================================================
    BOOT

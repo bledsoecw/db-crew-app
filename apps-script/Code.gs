@@ -24,6 +24,8 @@
 //                     run installAccessFeedRefresh once: the feed is read from a
 //                     copy a trigger keeps warm, never fetched while a phone waits
 //   ACCESS_FEED_KEY   the feed key, if it isn't already baked into the URL
+//   SAFETY_ALERT_TO   comma-separated addresses a safety alert is texted to — an
+//                     email, or a carrier's SMS gateway address (4195551234@vtext.com)
 //   FCM_PROJECT_ID / FCM_SERVICE_ACCOUNT / PUSH_ENABLED  (push, see below)
 //                     With push on, run installSchedulePushTrigger once as well:
 //                     the evening "Tomorrow: …" line and "Schedule changed".
@@ -340,6 +342,7 @@ function doPost(e) {
       sendDailyLog: sendDailyLog,
       addDailyLogNote: addDailyLogNote,
       tellPm: tellPm,
+      sendSafetyAlert: sendSafetyAlert,
       registerPushToken: registerPushToken,
       unregisterPushToken: unregisterPushToken
     };
@@ -1453,6 +1456,65 @@ function dailyLogTail_(me, log) {
  *  comment on the job, assigned to them. The log still carries it. */
 function tellPm(me, jobId, text) {
   return postJobNote(jobId, text, me.name, true);
+}
+
+// ===========================================================
+// SAFETY ALERT — "Anyone hurt or a close call?" answered yes on the Day log.
+//
+// Goes out the second it is sent, apart from the log: a comment on the job
+// assigned to the PM, and a text to everyone in SAFETY_ALERT_TO (a Script
+// Property, comma-separated — an email address, or a carrier's SMS gateway
+// address such as 4195551234@vtext.com, which lands on the phone as a text;
+// MailApp sends both). The names on the phone's card are the design's; the
+// addresses are the office's to keep. It also lands in the day's log Safety
+// field when that is sent. Either channel going is a success; neither going
+// is an error the phone keeps the alert unsent for.
+// ===========================================================
+function alertRecipients_() {
+  var raw = '';
+  try { raw = PropertiesService.getScriptProperties().getProperty('SAFETY_ALERT_TO') || ''; } catch (e) {}
+  return raw.split(/[,;\s]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+}
+function clockWords_(d) {
+  // The hour in the script's own zone; the minutes are the same in any.
+  var h = d.getHours(), m = d.getMinutes();
+  try { var zh = Number(Utilities.formatDate(d, Session.getScriptTimeZone(), 'H')); if (!isNaN(zh)) h = zh; } catch (e) {}
+  return (h % 12 || 12) + ':' + (m < 10 ? '0' : '') + m + (h >= 12 ? 'p' : 'a');
+}
+function sendSafetyAlert(me, jobId, alert) {
+  jobId = String(jobId || '').trim();
+  if (!jobId) throw new Error('Missing job id.');
+  alert = alert || {};
+  if (alert.hurt !== true && alert.hurt !== false) throw new Error('Say whether anyone was hurt.');
+  assertWrite_(jobId);
+  var kind = ALERT_KIND_WORDS[alert.kind] || String(alert.kind || '').trim();
+  var text = String(alert.text || '').trim();
+  var photos = Number(alert.photos) || (alert.photoIds || []).length || 0;
+  var label = String(alert.jobLabel || '').trim() || jobId;
+  var line = '🚨 Safety alert — ' + label + ': ' +
+    [kind, alert.hurt ? 'HURT' : 'Nobody hurt', text].filter(Boolean).join(' · ') +
+    (photos ? ' · ' + photos + ' photo' + (photos === 1 ? '' : 's') + ' in DB Cam on the job' : '') +
+    ' (' + me.name + ', ' + clockWords_(new Date()) + ')';
+
+  // 1. The comment on the job, assigned to the PM.
+  var commented = false, assigned = [];
+  try {
+    var r = postJobNote(jobId, line, '', true);
+    commented = true; assigned = r.assigned || [];
+  } catch (e1) { /* the text still goes */ }
+
+  // 2. The text, to each address the office listed.
+  var to = alertRecipients_(), sent = [], failed = [];
+  to.forEach(function (addr) {
+    try {
+      MailApp.sendEmail({ to: addr, subject: 'Safety alert — ' + label, body: line });
+      sent.push(addr);
+    } catch (e2) { failed.push(addr); }
+  });
+  if (!commented && !sent.length) {
+    throw new Error('The alert did not go: JobTread could not be reached' + (to.length ? ' and no text went' : ', and SAFETY_ALERT_TO is not set') + '. Call the PM.');
+  }
+  return { ok: true, at: Date.now(), commented: commented, assigned: assigned, to: sent, failed: failed, line: line };
 }
 
 function firstName_(name) { return String(name || '').trim().split(/\s+/)[0] || 'me'; }

@@ -72,6 +72,7 @@ In Apps Script > Project Settings > **Script Properties**:
 | `APP_URL` | optional, `https://<project-id>.web.app` — makes the bare `/exec` link redirect to the app |
 | `WRITE_ENABLED` | **leave unset until you are ready.** `true` lets the app post time entries, photos and notes to JobTread. |
 | `WRITE_JOB_ALLOWLIST` | optional, a comma-separated list of job ids. While set, writes are refused for any other job — useful for a contained first test. |
+| `SAFETY_ALERT_TO` | for the safety alert — comma-separated addresses the alert is texted to the second it is sent: an email address, or a carrier's SMS gateway address (`4195551234@vtext.com`). See "Safety alerts" under 4c. The JobTread comment assigned to the PM goes either way. |
 | `DAILY_LOG_PING_FIELDS` | optional. A regular expression matched against the names of JobTread's daily-log fields; a filled one pings the PM and sales in the feed, like a problem. Default `safety|incident|delay`. |
 | `BOARD_API_URL` | for the My jobs tab — the Production Board origin, e.g. `https://ops.deitemeyerbrothers.com`. Leave unset and the tab falls back to recent jobs (see 4c). |
 | `CREW_APP_SECRET` | for the My jobs tab and the site checks — the shared secret the board checks. Same value on both sides. |
@@ -206,6 +207,17 @@ catches the call. The app reports that case separately rather than calling it
 unreachable.
 
 The full request and response shape is in `../CREW-ASSIGNMENTS-API.md`.
+
+### Safety alerts
+
+A crew member answering **Anyone hurt or a close call?** with yes on the Day
+log gets an alert card that goes out the second it is sent, apart from the
+log: a comment on the job assigned to the PM, and a text. Set the Script
+Property `SAFETY_ALERT_TO` to the comma-separated addresses the text goes to
+— an email address, or a carrier's SMS gateway address such as
+`4195551234@vtext.com` (Verizon), `@txt.att.net` (AT&T), `@tmomail.net`
+(T-Mobile), which lands on the phone as a text. Without it the comment still
+goes and the alert still counts as sent.
 
 ## 5. Publish
 

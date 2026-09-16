@@ -293,6 +293,15 @@
     },
     // "Tell the PM now": a comment on the job, assigned to the PM.
     tellPm: function (jobId, text) { return HANDLERS.postJobNote(jobId, text, 'Tyler B.', true); },
+    // The safety alert: a comment assigned to the PM and a text to the
+    // office's list, recorded in window.__ALERTS. __MOCK_ALERTFAIL makes it throw.
+    sendSafetyAlert: function (jobId, alert) {
+      if (window.__MOCK_ALERTFAIL) throw new Error('Pave error (HTTP 500): boom');
+      window.__ALERTS = window.__ALERTS || [];
+      window.__ALERTS.push(JSON.parse(JSON.stringify({ jobId: jobId, alert: alert })));
+      return { ok: true, at: Date.now(), commented: true, assigned: ['Neal Deitemeyer'],
+               to: ['pm@deitemeyerbrothers.com', 'shawn@deitemeyerbrothers.com', 'neal@deitemeyerbrothers.com', 'carl@deitemeyerbrothers.com'], failed: [] };
+    },
     // The daily log, as Code.gs answers: the id, who it was assigned to, and
     // whether the feed was pinged. __MOCK_LOGFAIL makes it throw. A story
     // log (T1.14) pings on a delay or an incident; the older shape on its

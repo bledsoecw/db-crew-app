@@ -792,6 +792,36 @@ freshDay(); cacheStore = {};
 fetchImpl = STORY_ROUTE();
 r = sandbox.sendDailyLog(ME, LOG);
 t('a phone on the old build still sends its log', [jtCalls.filter(c => c[0] === 'dailyLog').length, r.flag, jtCalls[0][1].notes.indexOf('WHAT GOT DONE') > -1], [1, 'problems', true]);
+// ---- the safety alert: a comment assigned to the PM, and a text to the office's list ----
+let mails = [];
+sandbox.MailApp = { sendEmail: (o) => { if (/fail/.test(o.to)) throw new Error('bounce'); mails.push(o); } };
+props.SAFETY_ALERT_TO = 'pm@x.com, 4195551234@vtext.com;fail@x.com';
+jtCalls.length = 0; mails = [];
+r = sandbox.sendSafetyAlert(ME, 'j9', { kind: 'close', hurt: false, text: 'Bundle slid off the ridge', photoIds: ['f1'], photos: 2, jobLabel: '26-1490 Courtney' });
+t('the alert is a comment on the job, assigned to the PM, saying what', [jtCalls[0][0], jtCalls[0][1].assignees, /^🚨 Safety alert — 26-1490 Courtney: Close call · Nobody hurt · Bundle slid off the ridge · 2 photos in DB Cam on the job \(Tyler B\., \d+:\d\d[ap]\)$/.test(jtCalls[0][1].message)], ['comment', [{ membershipId: 'm_dave' }], true]);
+t('...and a text to each address, the one that bounced named', [mails.map(m => m.to), mails[0].subject, mails[0].body === jtCalls[0][1].message, r.to, r.failed, r.commented, r.assigned], [['pm@x.com', '4195551234@vtext.com'], 'Safety alert — 26-1490 Courtney', true, ['pm@x.com', '4195551234@vtext.com'], ['fail@x.com'], true, ['Dave Elick']]);
+jtCalls.length = 0; mails = [];
+r = sandbox.sendSafetyAlert(ME, 'j9', { kind: 'fall', hurt: true, text: '' });
+t('hurt is said loudly', /Fall · HURT \(/.test(jtCalls[0][1].message), true);
+delete props.SAFETY_ALERT_TO; jtCalls.length = 0; mails = [];
+r = sandbox.sendSafetyAlert(ME, 'j9', { kind: 'cut', hurt: true, text: 'x' });
+t('no list: the comment alone still counts as sent', [mails.length, r.commented, r.to], [0, true, []]);
+let noHurt = '';
+try { sandbox.sendSafetyAlert(ME, 'j9', { kind: 'cut', text: 'x' }); } catch (e) { noHurt = e.message; }
+t('hurt or nobody hurt is required', /hurt/.test(noHurt), true);
+props.SAFETY_ALERT_TO = 'fail@x.com'; jtCalls.length = 0;
+fetchImpl = STORY_ROUTE({ comment: () => { throw new Error('pave down'); } });
+let none = '';
+try { sandbox.sendSafetyAlert(ME, 'j9', { kind: 'cut', hurt: true, text: 'x' }); } catch (e) { none = e.message; }
+t('neither channel going is an error, so the phone keeps it unsent', /did not go/.test(none), true);
+delete props.SAFETY_ALERT_TO;
+props.WRITE_ENABLED = '';
+let ro = '';
+try { sandbox.sendSafetyAlert(ME, 'j9', { kind: 'cut', hurt: true, text: 'x' }); } catch (e) { ro = e.message; }
+t('a read-only build sends no alert', ro.indexOf('READ_ONLY'), 0);
+props.WRITE_ENABLED = 'true';
+fetchImpl = STORY_ROUTE();
+
 jtCalls.length = 0;
 r = sandbox.tellPm(ME, 'j9', 'Need drip edge now');
 t('tellPm is a comment on the job, signed, assigned to the PM', [jtCalls[0][1].targetType, jtCalls[0][1].message, jtCalls[0][1].assignees, r.assigned], ['job', 'Tyler B.: Need drip edge now', [{ membershipId: 'm_dave' }], ['Dave Elick']]);
