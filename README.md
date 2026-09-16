@@ -352,3 +352,13 @@ or a send behind it, gives the daily-log send sixty seconds and a photo
 riding through the API ninety, and shows all of it in the Build panel:
 its own clock and the API's on every call, and the API's memory of the
 rest.
+
+**JobTread's own log fields ride along.** The office's custom fields on
+daily logs (Trades Onsite, Anticipated Delays, Delay Reason, Safety
+Incidents and the rest) are pulled from JobTread with their options, drawn
+on the day-log form by type (yes/no, a pick list of one or several, a text
+box), kept on the phone, and sent on the log as JobTread's own fields, so
+what the office sees is one record. A field added or renamed in JobTread
+shows up on the phones by itself. A filled field whose name matches
+`safety|incident|delay` (or the `DAILY_LOG_PING_FIELDS` Script Property)
+also pings the PM and sales in the activity feed, the way problems do.

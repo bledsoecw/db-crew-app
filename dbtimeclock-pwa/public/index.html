@@ -393,6 +393,12 @@ button[disabled]{cursor:default}
 .dlleft .k{margin:0;flex:none}
 .dlleft input{flex:1;min-width:0;min-height:44px;border:1.5px solid var(--line);border-radius:6px;background:var(--surf);padding:8px 12px;color:var(--fg);font:400 16px var(--sans);outline:none;-webkit-appearance:none}
 .dlleft input::placeholder{color:var(--lab)}
+.dlf{margin-top:14px}
+.dlf .fk{display:block;font:600 10.5px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--mut);margin-bottom:7px}
+.dlf .tog{margin-bottom:0}
+.dlf textarea{min-height:56px}
+.dlf input{width:100%;min-height:44px;border:1.5px solid var(--line);border-radius:6px;background:var(--surf);padding:8px 12px;color:var(--fg);font:400 16px var(--sans);outline:none;-webkit-appearance:none}
+.dlf input::placeholder{color:var(--lab)}
 .dlstatus{padding:8px 9px;border-radius:2px;font:600 10px/1.3 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut);display:inline-flex;align-items:center;gap:6px;flex:none;max-width:50%;text-align:right}
 .dlstatus.ok{background:var(--go);color:var(--goink)}
 .dlstatus.bad{background:var(--warn);color:var(--warnink)}
@@ -663,7 +669,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.11 (2026-09-15)';
+var APP_BUILD = 'T1.12 (2026-09-15)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -893,7 +899,7 @@ var S = {
   checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
   dlJobId:null, dlDate:'', pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
-  apiLog:[], errs:[], recent:[]
+  apiLog:[], errs:[], recent:[], logFields:[]
 };
 
 function savePrefs(){
@@ -1583,6 +1589,10 @@ function loadExtras(){
     S.codes = d.codes || [];
     S.jobOptions = d.jobOptions || [];
     S.crew = d.crew || [];
+    if (Array.isArray(d.logFields)){
+      S.logFields = d.logFields;
+      try { localStorage.setItem(LOG_FIELDS_KEY, JSON.stringify(d.logFields)); } catch(e){}
+    }
     extrasTries = 0;
   }).catch(function(e){
     failed('extras', e);
@@ -3056,11 +3066,17 @@ try { dlStore = JSON.parse(localStorage.getItem(DL_KEY) || '{}') || {}; } catch(
 // so sending again is safe.
 for (var dlK in dlStore){ if (dlStore[dlK]) dlStore[dlK].sending = false; }
 function dlPersist(){ try { localStorage.setItem(DL_KEY, JSON.stringify(dlStore)); } catch(e){} }
+/* JobTread's own daily-log fields, as the API last handed them over — kept on
+   the phone so the form is whole with no signal, replaced whenever the API
+   answers with a list (an empty list is an answer; null is "could not ask"). */
+var LOG_FIELDS_KEY = 'dbtc_logfields';
+try { S.logFields = JSON.parse(localStorage.getItem(LOG_FIELDS_KEY) || '[]') || []; } catch(e){ S.logFields = []; }
+function logFieldById(id){ return S.logFields.filter(function(f){ return f.id === id; })[0] || null; }
 function dlKey(jobId, date){ return jobId + '|' + date; }
 function dlGet(jobId, date){ return dlStore[dlKey(jobId, date)] || null; }
 function dlHasContent(e){
   return !!(e && (String(e.done||'').trim() || String(e.condition||'').trim() || String(e.problems||'').trim() ||
-            e.crewOnSite != null || e.tarped != null || (e.notes && e.notes.length) || e.activity));
+            e.crewOnSite != null || e.tarped != null || (e.notes && e.notes.length) || (e.fields && Object.keys(e.fields).length) || e.activity));
 }
 /* Start, or refresh, the day's draft for a job. `info` is the job's label
    and people from the visit, kept on the draft so it still reads right after
@@ -3070,7 +3086,7 @@ function dlTouch(jobId, date, info){
   var k = dlKey(jobId, date), e = dlStore[k];
   if (!e){
     e = dlStore[k] = { jobId:jobId, date:date, jobLabel:'', jobNum:'', cust:'', address:'', alongside:null, pm:'', reps:[],
-                       done:'', condition:'', crewOnSite:null, tarped:null, leftAt:'', problems:'', notes:[],
+                       done:'', condition:'', crewOnSite:null, tarped:null, leftAt:'', problems:'', notes:[], fields:{},
                        sent:null, wantSend:false, sending:false, err:'', prompt:false, activity:false, at:Date.now(), seq:0 };
   }
   if (info) for (var f in info){ if (info[f] != null && info[f] !== '' && !(Array.isArray(info[f]) && !info[f].length)) e[f] = info[f]; }
@@ -3109,6 +3125,19 @@ function dlSet(jobId, date, field, value){
   var e = dlTouch(jobId, date, dlInfoFor(jobId));
   if (!e || e.sent) return;
   e[field] = value; e.seq = (e.seq || 0) + 1;
+  dlPersist();
+  renderLogStatus();
+}
+/* One of JobTread's own fields on the draft: booleans as they are, options
+   as a list of the field's own strings, everything else as typed. Emptied
+   means gone from the draft, so nothing blank is ever sent. */
+function dlSetField(jobId, date, id, value){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  e.fields = e.fields || {};
+  var empty = value == null || value === '' || (Array.isArray(value) && !value.length);
+  if (empty) delete e.fields[id]; else e.fields[id] = value;
+  e.seq = (e.seq || 0) + 1;
   dlPersist();
   renderLogStatus();
 }
@@ -3154,6 +3183,7 @@ function dlPayload(e){
     photos: photos.map(function(p){ return { fileId: p.fileId, name: p.name || '', tag: p.tag, time: p.time }; }),
     photosPending: e.photosPending || 0,
     photosFailed: e.photosFailed || 0,
+    fields: e.fields || {},
     hours: e.date === isoLocal() ? hoursFor(e.jobId) : [],
     checks: checksFor(e.jobId)
   };
@@ -3333,6 +3363,8 @@ function dlBodyHtml(cur, e, date){
     h += '<div class="row"><span>Hours today</span><b class="tabular">' + hm(tot * 60) + '</b></div>';
   } else if (date === today) h += '<div class="row"><span>Hours today</span><b>Not on the clock here</b></div>';
   if (ck) h += '<div class="row"><span>Site checks</span><b>' + esc(ck.words || '') + (ck.magnetBy ? ' · magnet by ' + esc(ck.magnetBy) : '') + '</b></div>';
+  var nf = Object.keys((e && e.fields) || {}).length;
+  if (nf) h += '<div class="row"><span>JobTread fields</span><b>' + nf + ' filled</b></div>';
   var bad = photos.filter(function(p){ return p.pending && p.err; });
   h += '<div class="row"><span>Photos</span><b>' + photos.length + (pending - bad.length > 0 ? ' · ' + (pending - bad.length) + ' uploading' : '') +
        (bad.length ? ' · ' + bad.length + ' not uploaded: ' + esc(bad[0].err) : '') + '</b></div>';
@@ -3353,7 +3385,7 @@ function dlBodyHtml(cur, e, date){
   if (e && e.sent){
     var to = e.sent.assigned.length ? 'to ' + esc(e.sent.assigned.join(', ')) : 'with nobody to assign it to';
     h += '<div class="dlsent" style="margin-top:18px"><div class="t">Sent ' + esc(clockLabel(e.sent.at)) + '</div>' +
-         '<div class="s">On the job as a daily log, ' + to + (e.sent.commented ? '. They were also pinged in the activity feed' + (e.sent.flag === 'problems' ? ' about the problems' : ' about the crew still on site') + '.' : '.') +
+         '<div class="s">On the job as a daily log, ' + to + (e.sent.commented ? '. They were also pinged in the activity feed' + (e.sent.flag === 'problems' ? ' about the problems' : e.sent.flag === 'fields' ? ' about what was flagged in the log fields' : ' about the crew still on site') + '.' : '.') +
          (e.sent.unresolved.length ? ' Could not find ' + esc(e.sent.unresolved.join(', ')) + ' in JobTread.' : '') +
          (e.sent.left ? ' Sent without ' + e.sent.left + ' photo' + (e.sent.left === 1 ? '' : 's') + ' still to upload; ' + (e.sent.left === 1 ? 'it lands' : 'they land') + ' in DB Cam on the job when ' + (e.sent.left === 1 ? 'it does' : 'they do') + '.' : '') +
          (e.sent.lost ? ' ' + e.sent.lost + ' photo' + (e.sent.lost === 1 ? '' : 's') + ' never uploaded and ' + (e.sent.lost === 1 ? 'is' : 'are') + ' gone from this phone — take ' + (e.sent.lost === 1 ? 'it' : 'them') + ' again and ' + (e.sent.lost === 1 ? 'it goes' : 'they go') + ' to DB Cam on the job.' : '') + '</div></div>';
@@ -3377,6 +3409,11 @@ function dlBodyHtml(cur, e, date){
        '<textarea id="dlCond" placeholder="Decking, what is open, what the crew still has to do…">' + esc(d.condition || '') + '</textarea></div>';
   h += '<div class="dlq"><span class="k">Problems, extras, returns</span><textarea id="dlProb" placeholder="Short drip edge, two boxes of staples, or nothing">' + esc(d.problems || '') + '</textarea>' +
        '<div class="fine" style="margin-top:6px">Anything here pings the PM and sales in the activity feed when the log is sent.</div></div>';
+  if (S.logFields.length){
+    h += '<div class="dlq"><span class="k">JobTread’s log fields</span>' +
+         '<div class="fine" style="margin:-2px 0 4px">The same fields the office fills on a daily log in JobTread. Leave blank what does not apply.</div>' +
+         S.logFields.map(function(f){ return logFieldHtml(f, (d.fields || {})[f.id]); }).join('') + '</div>';
+  }
   var notes = (d.notes || []);
   h += '<div class="dlq"><span class="k">Notes during the day' + (notes.length ? ' · ' + notes.length : '') + '</span>' +
        '<div class="fine" style="margin:-2px 0 8px">A timestamped line in tonight’s log, typed when it happens. Tick the box and it also goes to the PM right now.</div>' +
@@ -3393,6 +3430,28 @@ function dlBodyHtml(cur, e, date){
        '<div class="foot">Goes on the job as a daily log' + (people.length ? ', assigned to ' + esc(people.join(', ')) : ', assigned to the job’s PM and sales rep') + '. Hours and photos are already in JobTread; this is the day in your words.</div></div>';
   return h;
 }
+/* One of JobTread's fields, drawn by its type: yes/no, a pick list (one or
+   several), a text box, or the right kind of input. Types the app has not
+   met degrade to a text box rather than vanish. */
+function logFieldHtml(f, val){
+  var out = '<div class="dlf"><span class="fk">' + esc(f.name) + (f.required ? ' · required' : '') + '</span>';
+  if (f.type === 'boolean'){
+    out += '<div class="tog"><button class="togbtn' + (val === true ? ' on' : '') + '" data-fld="' + esc(f.id) + '" data-fval="true">Yes</button>' +
+           '<button class="togbtn' + (val === false ? ' on' : '') + '" data-fld="' + esc(f.id) + '" data-fval="false">No</button></div>';
+  } else if (f.type === 'option' && f.options && f.options.length){
+    var picked = Array.isArray(val) ? val : (val ? [val] : []);
+    out += '<div class="tog">' + f.options.map(function(o){
+      return '<button class="togbtn' + (picked.indexOf(o) !== -1 ? ' on' : '') + '" data-fld="' + esc(f.id) + '" data-opt="' + esc(o) + '">' + esc(o) + '</button>';
+    }).join('') + '</div>' + (f.multi ? '<div class="fine" style="margin-top:2px">Pick all that apply.</div>' : '');
+  } else if (f.type === 'text'){
+    out += '<textarea data-fld="' + esc(f.id) + '" placeholder="' + esc(f.name) + '">' + esc(val == null ? '' : val) + '</textarea>';
+  } else {
+    var type = f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'time' ? 'time'
+             : f.type === 'emailAddress' ? 'email' : f.type === 'phoneNumber' ? 'tel' : f.type === 'url' ? 'url' : 'text';
+    out += '<input type="' + type + '"' + (type === 'number' ? ' inputmode="decimal"' : '') + ' data-fld="' + esc(f.id) + '" value="' + esc(val == null ? '' : val) + '" placeholder="' + esc(f.name) + '" autocomplete="off">';
+  }
+  return out + '</div>';
+}
 function noteCardHtml(n){
   return '<div class="notecard' + (n.urgent ? ' urgent' : '') + '"><span class="nm">' + esc(n.time || '') +
     (n.urgent ? ' · ' + (n.posted ? 'sent to ' + esc(n.to || 'the office') : 'sending to the office…') : '') + (n.later ? ' · added after the send' : '') +
@@ -3403,6 +3462,24 @@ function wireDayLog(cur, date){
   var body = $('dlBody');
   var ta = function(id, field){ var el = $(id); if (el) el.oninput = function(){ dlSet(cur.id, date, field, el.value); }; };
   ta('dlDone', 'done'); ta('dlCond', 'condition'); ta('dlProb', 'problems'); ta('dlLeft', 'leftAt');
+  [].forEach.call(body.querySelectorAll('textarea[data-fld], input[data-fld]'), function(el){
+    el.oninput = function(){ dlSetField(cur.id, date, el.getAttribute('data-fld'), el.value); };
+  });
+  [].forEach.call(body.querySelectorAll('button[data-fld]'), function(b){
+    b.onclick = function(){
+      var id = b.getAttribute('data-fld'), f = logFieldById(id), e = dlGet(cur.id, date), have = (e && e.fields || {})[id];
+      if (b.hasAttribute('data-fval')){
+        var val = b.getAttribute('data-fval') === 'true';
+        dlSetField(cur.id, date, id, have === val ? null : val);   // tap again to clear
+      } else {
+        var opt = b.getAttribute('data-opt'), list = Array.isArray(have) ? have.slice() : (have ? [have] : []);
+        var i = list.indexOf(opt);
+        if (i !== -1) list.splice(i, 1); else if (f && f.multi) list.push(opt); else list = [opt];
+        dlSetField(cur.id, date, id, list);
+      }
+      renderDayLog();
+    };
+  });
   [].forEach.call(body.querySelectorAll('[data-tog]'), function(b){
     b.onclick = function(){
       var f = b.getAttribute('data-tog'), val = b.getAttribute('data-val') === 'true';
@@ -3478,6 +3555,7 @@ function sendLogHtml(){
   var ck = checksFor(cur.id); if (ck && ck.words) lines.push(ck.words);
   var hrs = date === isoLocal() ? hoursFor(cur.id) : []; if (hrs.length){ var tot = 0; hrs.forEach(function(x){ tot += x.minutes; }); lines.push(hm(tot * 60) + ' on the clock here'); }
   var notes = (e.notes || []).filter(function(n){ return !n.later; }); if (notes.length) lines.push(notes.length + ' note' + (notes.length === 1 ? '' : 's'));
+  var nf = Object.keys(e.fields || {}).length; if (nf) lines.push(nf + ' JobTread field' + (nf === 1 ? '' : 's') + ' filled');
   return '<div class="sheetpad">' +
     '<div class="promptbox' + (flag ? ' warn' : '') + '">' +
       '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +

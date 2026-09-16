@@ -257,3 +257,26 @@ same `createComment` at a well-formed job id that does not exist fails on
 `emailAddress` with the nested shape and on the missing job with the flat one
 (input validation runs before the lookup). `createDailyLog`, `createComment`
 and `createTask` all take the same type.
+
+## Custom fields on daily logs
+
+The org's daily-log fields come from `organization.customFields` where
+`targetType = 'dailyLog'`, sorted by `position`. Each has `type` (one of
+address, boolean, date, datetime, emailAddress, number, option, phoneNumber,
+text, time, url), `options` (strings, for option fields), `minValuesRequired`
+(0 = optional) and `maxValuesAllowed` (`null` = several may be picked, `1` =
+one). On 2026-09-15 the org had seven: Material Pickups / Deliveries
+(boolean), Trades Onsite (option, several), Unplanned Tasks (text),
+Anticipated Delays (boolean), Delay Reason (option, several), Safety
+Incidents (text), Internal Notes (text).
+
+`createDailyLog.$.customFieldValues` is a map of field id to value: booleans
+as booleans, text as strings, option fields as an array of the list's own
+strings (a plain string is accepted too), numbers as numbers. Input
+validation does not check option strings against the list — proved with the
+same no-write probe as the assignee shape (a well-formed job id that does not
+exist fails on the job, after validation) — so the app only ever offers the
+list's own options. The app fetches the definitions through the API
+(`getExtras.logFields`, cached six hours), keeps them on the phone, and
+sends the answers with the log; nothing about the fields is written into the
+app.

@@ -55,6 +55,16 @@
   // three phases, 28 lines, two carrying a value. The app draws from THIS and
   // hardcodes nothing; the words below are the board's `checksWords`, ported
   // here only so the fixture can answer the way the board does after a save.
+  // The org's daily-log custom fields, as JobTread returned them on 2026-09-15.
+  var LOG_FIELDS = [
+    { id: '22PC7jNSGzEb', name: 'Material Pickups / Deliveries', type: 'boolean', options: null, multi: false, required: false },
+    { id: '22PC7jNshbiK', name: 'Trades Onsite', type: 'option', options: ['Carpentry', 'Concrete', 'Electrical', 'Engineering', 'Excavation', 'Foundation', 'Framing', 'HVAC', 'Masonry', 'Mechanical', 'Painting', 'Plumbing', 'Roofing', 'Tile', 'Other', 'Production Manager', 'Site Manager', 'Sales Rep'], multi: true, required: false },
+    { id: '22PC7jPsepri', name: 'Unplanned Tasks', type: 'text', options: null, multi: false, required: false },
+    { id: '22PC7jQ6BkBC', name: 'Anticipated Delays', type: 'boolean', options: null, multi: false, required: false },
+    { id: '22PLhdEgfHXF', name: 'Delay Reason', type: 'option', options: ['Weather', 'Short Labor', 'Short Material', 'Other'], multi: true, required: false },
+    { id: '22PLhcfDaJ7r', name: 'Safety Incidents', type: 'text', options: null, multi: false, required: false },
+    { id: '22PLbmgVwteK', name: 'Internal Notes', type: 'text', options: null, multi: false, required: false }
+  ];
   var CHECKLIST = {
     phases: [
       { key: 'before', label: 'Before the tear-off', tag: null, when: 'the morning the crew starts' },
@@ -186,7 +196,7 @@
     getExtras: function (jobId) {
       var b = HANDLERS.getBoot();
       return { codes: jobId ? CODES : [], jobOptions: HANDLERS.getJobOptions(),
-               crew: b.isForeman ? HANDLERS.getCrewOnClock() : [] };
+               crew: b.isForeman ? HANDLERS.getCrewOnClock() : [], logFields: LOG_FIELDS };
     },
     getToday: function (jobId) {
       // __MOCK_NOJOB: nothing remembered on the phone — the seed-from-the-schedule case.
@@ -288,7 +298,11 @@
       window.__LOGS = window.__LOGS || [];
       window.__LOGS.push(JSON.parse(JSON.stringify(log)));
       var signed = log.checks && log.checks.signedOff;
-      var flag = String(log.problems || '').trim() ? 'problems' : (log.crewOnSite === true && !signed ? 'crew-on-site' : '');
+      var pings = Object.keys(log.fields || {}).filter(function (id) {
+        var f = LOG_FIELDS.filter(function (x) { return x.id === id; })[0], v = log.fields[id];
+        return f && /safety|incident|delay/i.test(f.name) && (v === true || (typeof v === 'string' && v.trim()) || (Array.isArray(v) && v.length));
+      });
+      var flag = String(log.problems || '').trim() ? 'problems' : pings.length ? 'fields' : (log.crewOnSite === true && !signed ? 'crew-on-site' : '');
       return { ok: true, dailyLogId: 'dl' + window.__LOGS.length, date: log.date, assigned: ['Neal Deitemeyer', 'Justin Phillips'], unresolved: [],
                flag: flag, commented: !!flag, photos: (log.photos || []).length };
     },

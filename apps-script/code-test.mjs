@@ -212,6 +212,16 @@ t('a second ask is served from cache', [sandbox.getJobCodes('j1').map(c => c.id)
 t('a different job is not', [sandbox.getJobCodes('j2').length, fetched.length > afterFirst], [1, true]);
 
 // A router for the stubbed fetch: by URL, then by the shape of the Pave query.
+// The org's daily-log custom fields as JobTread returned them on 2026-09-15.
+const LOG_FIELDS = [
+  { id: '22PC7jNSGzEb', name: 'Material Pickups / Deliveries', type: 'boolean', options: null, minValuesRequired: 0, maxValuesAllowed: 1, position: 'n' },
+  { id: '22PC7jNshbiK', name: 'Trades Onsite', type: 'option', options: ['Carpentry', 'Concrete', 'Electrical', 'Engineering', 'Excavation', 'Foundation', 'Framing', 'HVAC', 'Masonry', 'Mechanical', 'Painting', 'Plumbing', 'Roofing', 'Tile', 'Other', 'Production Manager', 'Site Manager', 'Sales Rep'], minValuesRequired: 0, maxValuesAllowed: null, position: 't' },
+  { id: '22PC7jPsepri', name: 'Unplanned Tasks', type: 'text', options: null, minValuesRequired: 0, maxValuesAllowed: 1, position: 'w' },
+  { id: '22PC7jQ6BkBC', name: 'Anticipated Delays', type: 'boolean', options: null, minValuesRequired: 0, maxValuesAllowed: 1, position: 'y' },
+  { id: '22PLhdEgfHXF', name: 'Delay Reason', type: 'option', options: ['Weather', 'Short Labor', 'Short Material', 'Other'], minValuesRequired: 0, maxValuesAllowed: null, position: 'yab' },
+  { id: '22PLhcfDaJ7r', name: 'Safety Incidents', type: 'text', options: null, minValuesRequired: 0, maxValuesAllowed: 1, position: 'yb' },
+  { id: '22PLbmgVwteK', name: 'Internal Notes', type: 'text', options: null, minValuesRequired: 0, maxValuesAllowed: 1, position: 'z' }
+];
 const paveOf = (opts) => { try { return JSON.parse(opts.payload).query; } catch { return null; } };
 function route(handlers) {
   return (url, opts) => {
@@ -226,6 +236,7 @@ function route(handlers) {
     if (q.createDailyLog) return handlers.dailyLog ? handlers.dailyLog(q) : { code: 200, body: '{"createDailyLog":{"createdDailyLog":{"id":"dl1"}}}' };
     if (q.createComment) return handlers.comment ? handlers.comment(q) : { code: 200, body: '{"createComment":{"createdComment":{"id":"c1","createdAt":"2026-09-15T20:00:00Z"}}}' };
     if (q.job && q.job.costItems) return handlers.codes ? handlers.codes(q) : { code: 200, body: '{"job":{"costItems":{"nextPage":null,"nodes":[]}}}' };
+    if (q.organization && q.organization.customFields) return handlers.fields ? handlers.fields(q) : { code: 200, body: JSON.stringify({ organization: { customFields: { nodes: LOG_FIELDS } } }) };
     if (q.organization && q.organization.jobs) return handlers.jobs ? handlers.jobs(q) : { code: 200, body: '{"organization":{"jobs":{"nodes":[]}}}' };
     if (q.organization && q.organization.timeEntries) return handlers.entries ? handlers.entries(q) : { code: 200, body: '{"organization":{"timeEntries":{"nodes":[]}}}' };
     return { code: 200, body: '{}' };
@@ -245,6 +256,7 @@ let pushes = [];
 const kindOf = (f) => {
   const q = paveOf(f.opts) || {}, o = q.organization || {};
   if (q.job) return 'codes';
+  if (o.customFields) return 'fields';
   if (o.jobs) return o.jobs.nodes && o.jobs.nodes.customFieldValues ? 'people' : 'job';
   if (o.timeEntries) {
     const a = o.timeEntries.$;
@@ -289,7 +301,7 @@ fetchImpl = route({ jobs: JOBS, entries: ENTRIES, codes: CODES });
 const x1 = sandbox.getExtras(crewMe, 'j1');
 t('getExtras carries the codes and the picker', [x1.codes.length, x1.jobOptions.length], [1, 2]);
 t('a crew member gets no crew block', [x1.crew.length, fetched.map(kindOf).indexOf('crew')], [0, -1]);
-t('cold: one round trip for the codes and the recent jobs, then the picker\'s details', [trips, fetched.map(kindOf)], [1, ['codes', 'recent', 'job']]);
+t('cold: one round trip for the codes, the recent jobs and the log fields, then the picker\'s details', [trips, fetched.map(kindOf)], [1, ['codes', 'recent', 'fields', 'job']]);
 fetched = []; trips = 0;
 const x2 = sandbox.getExtras(crewMe, 'j1');
 t('warm: nothing is asked at all', [x2.codes.length, x2.jobOptions.length, fetched.length], [1, 2, 0]);
@@ -308,6 +320,18 @@ cacheStore = {}; fetched = [];
 fetchImpl = route({ codes: DOWN, entries: ENTRIES, jobs: JOBS });
 const x4 = sandbox.getExtras(bossMe, 'j1');
 t('one failing beside the others leaves theirs alone', [x4.codes.length, x4.jobOptions.length, x4.crew.length], [0, 2, 1]);
+
+// ---- JobTread's own daily-log fields, inherited ----
+cacheStore = {}; fetched = []; trips = 0;
+fetchImpl = route({ jobs: JOBS, entries: ENTRIES, codes: CODES });
+const xf = sandbox.getExtras(crewMe, 'j1');
+t('extras carries the org\'s daily-log fields, in JobTread\'s order', xf.logFields.map(f => f.name), ['Material Pickups / Deliveries', 'Trades Onsite', 'Unplanned Tasks', 'Anticipated Delays', 'Delay Reason', 'Safety Incidents', 'Internal Notes']);
+t('...typed, with their options, and whether several may be picked', [xf.logFields[1].type, xf.logFields[1].multi, xf.logFields[1].options.length, xf.logFields[3].type, xf.logFields[3].multi, xf.logFields[0].required], ['option', true, 18, 'boolean', false, false]);
+fetched = [];
+t('...and from the cache the second time', [sandbox.getExtras(crewMe, 'j1').logFields.length, fetched.map(kindOf).indexOf('fields')], [7, -1]);
+cacheStore = {}; fetched = [];
+fetchImpl = route({ jobs: JOBS, entries: ENTRIES, codes: CODES, fields: DOWN });
+t('could not ask is null, so the phone keeps what it has; no fields is []', [sandbox.getExtras(crewMe, 'j1').logFields, (fetchImpl = route({ jobs: JOBS, entries: ENTRIES, codes: CODES, fields: () => ({ code: 200, body: '{"organization":{"customFields":{"nodes":[]}}}' }) }), cacheStore = {}, sandbox.getExtras(crewMe, 'j1').logFields)], [null, []]);
 
 // ---- paveAll_: one round trip, the answers kept apart ----
 fetched = []; trips = 0; sandbox.PAVE_T.n = 0;
@@ -638,6 +662,28 @@ t('a crew left on site without a sign-off is flagged', [r.flag, r.commented, jtC
 freshDay();
 r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: true, checks: { words: 'Signed off — Tyler · Sep 15', magnetBy: null, signedOff: 'Tyler · Sep 15' } });
 t('...but not once it is signed off', [r.flag, jtCalls.map(c => c[0])], ['', ['dailyLog']]);
+// JobTread's own fields: sent as fields, repeated in the notes, and a delay
+// or an incident pings the feed the way a problem does.
+freshDay(); cacheStore = {};
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false, fields: { '22PC7jQ6BkBC': true, '22PLhdEgfHXF': ['Weather', 'Not a reason'], '22PC7jNshbiK': ['Roofing', 'Masonry'], '22PLhcfDaJ7r': '  Ladder slipped, nobody hurt ', '22PC7jPsepri': '   ', '22PC7jNSGzEb': false, 'zz_gone_field': 'x' } });
+const dlf = jtCalls.filter(c => c[0] === 'dailyLog')[0][1];
+t('the answers ride on the log as JobTread\'s own fields, cleaned', dlf.customFieldValues, { '22PC7jQ6BkBC': true, '22PLhdEgfHXF': ['Weather'], '22PC7jNshbiK': ['Roofing', 'Masonry'], '22PLhcfDaJ7r': 'Ladder slipped, nobody hurt', '22PC7jNSGzEb': false });
+t('...and read in the notes under their own names', ['LOG FIELDS', 'Anticipated Delays: Yes', 'Delay Reason: Weather', 'Trades Onsite: Roofing, Masonry', 'Safety Incidents: Ladder slipped, nobody hurt', 'Material Pickups / Deliveries: No'].map(x => dlf.notes.indexOf(x) > -1), [true, true, true, true, true, true]);
+t('a delay or a safety incident pings the feed like a problem does', [r.flag, r.commented, r.fields, /Anticipated Delays: Yes · Delay Reason: Weather · Safety Incidents: Ladder slipped, nobody hurt/.test(jtCalls.filter(c => c[0] === 'comment')[0][1].message)], ['fields', true, 5, true]);
+t('the field definitions were asked for alongside the people, once', fetched.map(kindOf).filter(k => k === 'fields').length, 1);
+freshDay();
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false, fields: { '22PC7jNshbiK': ['Roofing'], '22PLbmgVwteK': 'for the office' } });
+t('trades on site and internal notes do not', [r.flag, jtCalls.map(c => c[0])], ['', ['dailyLog']]);
+props.DAILY_LOG_PING_FIELDS = 'internal';
+freshDay();
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false, fields: { '22PLbmgVwteK': 'for the office' } });
+t('...unless the office says so in DAILY_LOG_PING_FIELDS', r.flag, 'fields');
+delete props.DAILY_LOG_PING_FIELDS;
+freshDay();
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: 'Short 8 pieces of drip edge.', fields: { '22PC7jQ6BkBC': true } });
+t('with problems too, the pointer carries both', /Short 8 pieces of drip edge\. · Anticipated Delays: Yes/.test(jtCalls.filter(c => c[0] === 'comment')[0][1].message), true);
+freshDay();
+t('no fields, no field on the log', 'customFieldValues' in (sandbox.sendDailyLog(ME, LOG), jtCalls.filter(c => c[0] === 'dailyLog')[0][1]), false);
 freshDay();
 t('a bad date falls back to the script\'s today', sandbox.sendDailyLog(ME, { ...LOG, date: 'soon' }).date, today);
 freshDay();

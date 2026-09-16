@@ -41,7 +41,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.11 (2026-09-15)';
+var APP_BUILD = 'T1.12 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -1092,6 +1092,92 @@ function assigneesFor_(names) {
 // the job, and the log carries them too, so the PM opens one thing.
 // ===========================================================
 var DAILY_LOG_NOTES_MAX = 10000;   // JobTread's ceiling, verified
+
+// ---- the org's own daily-log fields, inherited ----
+// JobTread lets the office add custom fields to daily logs (Trades Onsite,
+// Anticipated Delays, Safety Incidents…). The app shows those same fields,
+// with their options, and sends the answers on the log — so the office sees
+// one record, not a note plus a form. The definitions come from JobTread and
+// are cached; nothing about them lives in the app, so a field added or
+// renamed in JobTread shows up on the phones by itself.
+var LOG_FIELDS_KEY = 'dlfields_v1', LOG_FIELDS_CACHE_SEC = 21600;
+// Which fields, when filled, also ping the PM and sales in the activity feed
+// the way a problem does. A regular expression matched against field names;
+// the Script Property DAILY_LOG_PING_FIELDS overrides this default.
+var LOG_PING_DEFAULT = 'safety|incident|delay';
+
+function dailyLogFieldsQuery_() {
+  return {
+    organization: {
+      '$': { id: ORG },
+      customFields: {
+        '$': { where: ['targetType', 'dailyLog'], size: 50, sortBy: [{ field: 'position' }] },
+        nodes: { id: {}, name: {}, type: {}, options: {}, minValuesRequired: {}, maxValuesAllowed: {}, position: {} }
+      }
+    }
+  };
+}
+function dailyLogFieldsFrom_(d) {
+  var ns = (((d.organization || {}).customFields || {}).nodes) || [];
+  var out = ns.map(function (f) {
+    return { id: f.id, name: String(f.name || ''), type: String(f.type || 'text'), options: f.options || null,
+             multi: f.maxValuesAllowed == null || Number(f.maxValuesAllowed) > 1,
+             required: (Number(f.minValuesRequired) || 0) > 0 };
+  });
+  cachePut_(LOG_FIELDS_KEY, out, LOG_FIELDS_CACHE_SEC);
+  return out;
+}
+function dailyLogFields_() {
+  var hit = cacheGet_(LOG_FIELDS_KEY);
+  if (hit) return hit;
+  return dailyLogFieldsFrom_(pave(dailyLogFieldsQuery_()));
+}
+function pingFieldRe_() {
+  var src = '';
+  try { src = PropertiesService.getScriptProperties().getProperty('DAILY_LOG_PING_FIELDS') || ''; } catch (e) {}
+  try { return new RegExp(src || LOG_PING_DEFAULT, 'i'); } catch (e2) { return new RegExp(LOG_PING_DEFAULT, 'i'); }
+}
+/** The phone's { fieldId: value } as JobTread takes it — booleans as they
+ *  are, text trimmed, options as the list's own strings (an array when the
+ *  field allows several), numbers as numbers; empties dropped, and only ids
+ *  the org's daily-log fields know, so a stale phone cannot write to a field
+ *  that is gone. Also the filled ones with their names, for the notes, and
+ *  the ones that ping. */
+function dailyLogFieldValues_(raw) {
+  var values = {}, filled = [], pings = [];
+  if (!raw || typeof raw !== 'object') return { values: values, filled: filled, pings: pings };
+  var defs = null;
+  try { defs = {}; dailyLogFields_().forEach(function (f) { defs[f.id] = f; }); } catch (e) { defs = null; }
+  var pingRe = pingFieldRe_();
+  for (var id in raw) {
+    var f = defs ? defs[id] : null;
+    if (defs && !f) continue;
+    var v = raw[id];
+    var type = f ? f.type : (typeof v === 'boolean' ? 'boolean' : Array.isArray(v) ? 'option' : 'text');
+    var text = '', exceptional = false;
+    if (type === 'boolean') {
+      if (v !== true && v !== false) continue;
+      values[id] = v; text = v ? 'Yes' : 'No'; exceptional = v === true;
+    } else if (type === 'option') {
+      var list = (Array.isArray(v) ? v : [v]).map(function (x) { return String(x == null ? '' : x).trim(); }).filter(Boolean);
+      if (f && f.options) list = list.filter(function (x) { return f.options.indexOf(x) !== -1; });
+      if (!list.length) continue;
+      values[id] = (f && !f.multi) ? list[0] : list; text = list.join(', '); exceptional = true;
+    } else if (type === 'number') {
+      var num = Number(v);
+      if (v === '' || v == null || isNaN(num)) continue;
+      values[id] = num; text = String(num); exceptional = true;
+    } else {
+      var str = String(v == null ? '' : v).trim();
+      if (!str) continue;
+      values[id] = str; text = str; exceptional = true;
+    }
+    var name = f ? f.name : id;
+    filled.push({ id: id, name: name, text: text });
+    if (exceptional && pingRe.test(name)) pings.push({ id: id, name: name, text: text });
+  }
+  return { values: values, filled: filled, pings: pings };
+}
 // A sent log is remembered for this long, keyed by who, which job, which
 // day. A phone that timed out waiting for the answer sends again; the
 // second send must find the first, never create a twin.
@@ -1127,11 +1213,20 @@ function sendDailyLog(me, log) {
              flag: prior.flag || '', commented: !!prior.commented, photos: prior.photos || 0, duplicate: true };
   }
 
+  // The job's people, and the org's daily-log fields if the cache is cold and
+  // the phone filled any — one round trip. Each is best effort: the log goes
+  // assigned to nobody rather than not at all.
   var people = { pm: '', reps: [] };
-  try { people = jobPeopleByIds_([jobId])[jobId] || people; } catch (e0) { /* assign nobody rather than fail */ }
+  var wantFields = log.fields && typeof log.fields === 'object' && Object.keys(log.fields).length > 0;
+  var qs = [jobPeopleQuery_([jobId])];
+  if (wantFields && !cacheGet_(LOG_FIELDS_KEY)) qs.push(dailyLogFieldsQuery_());
+  var rs = paveAll_(qs);
+  if (!rs[0].error) { try { people = jobPeopleFrom_(rs[0].data)[jobId] || people; } catch (e0) {} }
+  if (rs[1] && !rs[1].error) { try { dailyLogFieldsFrom_(rs[1].data); } catch (e00) {} }
   var who = assigneesFor_([people.pm].concat(people.reps || []));
+  var fields = dailyLogFieldValues_(log.fields);
 
-  var text = dailyLogText_(me, log).slice(0, DAILY_LOG_NOTES_MAX);
+  var text = dailyLogText_(me, log, fields).slice(0, DAILY_LOG_NOTES_MAX);
   var files = [];
   (log.photos || []).forEach(function (p) {
     if (!p || !p.fileId || files.length >= 100) return;
@@ -1139,17 +1234,18 @@ function sendDailyLog(me, log) {
   });
   var args = { jobId: jobId, date: date, notes: text, assignees: who.assignees, notify: true };
   if (files.length) args.files = files;
+  if (fields.filled.length) args.customFieldValues = fields.values;
   var d = pave({ createDailyLog: { '$': args, createdDailyLog: { id: {} } } });
   var id = (((d.createDailyLog || {}).createdDailyLog) || {}).id;
   if (!id) throw new Error('createDailyLog failed: ' + JSON.stringify(d).slice(0, 200));
 
-  var flag = dailyLogFlag_(log);
+  var flag = dailyLogFlag_(log, fields);
   var commented = false;
   if (flag) {
     try {
       pave({
         createComment: {
-          '$': { targetType: 'job', targetId: jobId, message: dailyLogPointer_(me, log, flag), assignees: who.assignees },
+          '$': { targetType: 'job', targetId: jobId, message: dailyLogPointer_(me, log, flag, fields), assignees: who.assignees },
           createdComment: { id: {} }
         }
       });
@@ -1162,27 +1258,32 @@ function sendDailyLog(me, log) {
     pruneDailyLogKeys_(props);
   } catch (e4) { /* the log is in; the memory of it is best effort */ }
   return { ok: true, dailyLogId: id, date: date, assigned: who.assigned, unresolved: who.unresolved,
-           flag: flag, commented: commented, photos: files.length };
+           flag: flag, commented: commented, photos: files.length, fields: fields.filled.length };
 }
 
 /** What needs a decision: '' when nothing does. */
-function dailyLogFlag_(log) {
+function dailyLogFlag_(log, fields) {
   if (String(log.problems || '').trim()) return 'problems';
+  if (fields && fields.pings && fields.pings.length) return 'fields';
   if (log.crewOnSite === true && !(log.checks && log.checks.signedOff)) return 'crew-on-site';
   return '';
 }
 
-function dailyLogPointer_(me, log, flag) {
+function pingsLine_(fields) {
+  return ((fields && fields.pings) || []).map(function (x) { return x.name + ': ' + x.text.split(/\r?\n/)[0].slice(0, 80); }).join(' · ');
+}
+function dailyLogPointer_(me, log, flag, fields) {
   var label = String(log.jobLabel || log.jobId || '').trim();
   var day = fmtDayShort_(log.date);
   var what = flag === 'problems'
-    ? String(log.problems || '').trim().split(/\r?\n/)[0].slice(0, 160)
+    ? String(log.problems || '').trim().split(/\r?\n/)[0].slice(0, 160) + (pingsLine_(fields) ? ' · ' + pingsLine_(fields) : '')
+    : flag === 'fields' ? pingsLine_(fields)
     : 'crew still on site' + (log.leftAt ? ' when ' + firstName_(me.name) + ' left at ' + log.leftAt : '') + ', not signed off';
-  return '📋 Site log ' + day + ' — ' + label + ': ' + what + ' — full log under Daily Logs. (' + me.name + ')';
+  return '📋 Site log ' + day + ' — ' + label + ': ' + what.slice(0, 240) + ' — full log under Daily Logs. (' + me.name + ')';
 }
 
 /** Plain text, in the order the owner's own log reads. */
-function dailyLogText_(me, log) {
+function dailyLogText_(me, log, fields) {
   var L = [];
   L.push('Site manager\'s log — ' + me.name + ' · ' + fmtDayLong_(log.date));
   var head = [String(log.jobLabel || '').trim(), log.alongside ? 'with ' + log.alongside : ''].filter(Boolean).join(' · ');
@@ -1203,6 +1304,14 @@ function dailyLogText_(me, log) {
   L.push('PROBLEMS, EXTRAS, RETURNS');
   L.push(String(log.problems || '').trim() || 'None');
   L.push('');
+  // JobTread's own fields ride on the log as fields; they are repeated here
+  // so the notification's plain text carries them too.
+  var filled = (fields && fields.filled) || [];
+  if (filled.length) {
+    L.push('LOG FIELDS');
+    filled.forEach(function (x) { L.push(x.name + ': ' + x.text); });
+    L.push('');
+  }
   var ck = log.checks || {};
   if (ck.words || ck.magnetBy) {
     L.push('SITE CHECKS');
@@ -1581,15 +1690,17 @@ function getStart(me, jobId) {
 // without the job list you can still search, without the codes the sheet says
 // so and reloads.
 function getExtras(me, jobId) {
-  var out = { codes: [], jobOptions: [], crew: [] };
+  var out = { codes: [], jobOptions: [], crew: [], logFields: null };
   var codesHit = jobId ? cacheGet_('jc_' + jobId) : null;
   var optsHit = me.userId ? cacheGet_('jo_' + me.userId) : null;
+  var fieldsHit = cacheGet_(LOG_FIELDS_KEY);
   var foreman = bootProfile_(me).isForeman;
   // Whatever the cache doesn't hold goes out in one round trip. Each part is
   // best effort, as before: an empty code list is a tap from another ask.
   var qs = [], tags = [];
   if (jobId && !codesHit) { qs.push(jobCodesQuery_(jobId, null)); tags.push('codes'); }
   if (me.userId && !optsHit) { qs.push(recentJobsQuery_(me.userId)); tags.push('recent'); }
+  if (!fieldsHit) { qs.push(dailyLogFieldsQuery_()); tags.push('fields'); }
   if (foreman) { qs.push(crewOnClockQuery_()); tags.push('crew'); }
   var got = {};
   paveAll_(qs).forEach(function (r, i) { got[tags[i]] = r; });
@@ -1598,6 +1709,10 @@ function getExtras(me, jobId) {
   if (optsHit) out.jobOptions = optsHit;
   else if (got.recent && !got.recent.error) { try { out.jobOptions = jobOptionsFrom_(me.userId, got.recent.data); } catch (e2) {} }
   if (got.crew && !got.crew.error) { try { out.crew = crewFrom_(got.crew.data); } catch (e3) {} }
+  // null means "could not ask": the phone keeps the list it has. An empty
+  // list is an answer — the org has no such fields.
+  if (fieldsHit) out.logFields = fieldsHit;
+  else if (got.fields && !got.fields.error) { try { out.logFields = dailyLogFieldsFrom_(got.fields.data); } catch (e4) {} }
   return out;
 }
 

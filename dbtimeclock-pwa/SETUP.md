@@ -72,6 +72,7 @@ In Apps Script > Project Settings > **Script Properties**:
 | `APP_URL` | optional, `https://<project-id>.web.app` — makes the bare `/exec` link redirect to the app |
 | `WRITE_ENABLED` | **leave unset until you are ready.** `true` lets the app post time entries, photos and notes to JobTread. |
 | `WRITE_JOB_ALLOWLIST` | optional, a comma-separated list of job ids. While set, writes are refused for any other job — useful for a contained first test. |
+| `DAILY_LOG_PING_FIELDS` | optional. A regular expression matched against the names of JobTread's daily-log fields; a filled one pings the PM and sales in the feed, like a problem. Default `safety|incident|delay`. |
 | `BOARD_API_URL` | for the My jobs tab — the Production Board origin, e.g. `https://ops.deitemeyerbrothers.com`. Leave unset and the tab falls back to recent jobs (see 4c). |
 | `CREW_APP_SECRET` | for the My jobs tab and the site checks — the shared secret the board checks. Same value on both sides. |
 | `EXTRA_ALLOWED_EMAILS` | optional — comma-separated Google addresses let through the sign-in beside the company domain, without a code change. The two site managers on Gmail are already in `SITE_MANAGER_EMAILS` in `Code.gs`; this is for the next one. It is an explicit list, never a domain. |

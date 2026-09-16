@@ -362,6 +362,35 @@ const dayLabel = (d) => DOW3[d.getDay()] + ' ' + (d.getMonth() + 1) + '/' + d.ge
   await ctx.close();
 }
 
+// ---- JobTread's own daily-log fields, inherited: shown by type, sent with the log ----
+{
+  const { ctx, page, errs } = await boot();
+  await tap(page, '.tab[data-tab="log"]', 500);
+  check('the org\'s fields are on the form, in JobTread\'s order', await page.evaluate(() => [...document.querySelectorAll('#dlBody .dlf .fk')].map(x => x.textContent)), ['Material Pickups / Deliveries', 'Trades Onsite', 'Unplanned Tasks', 'Anticipated Delays', 'Delay Reason', 'Safety Incidents', 'Internal Notes']);
+  check('each by its type: yes/no, a pick list, a text box', await page.evaluate(() => [document.querySelectorAll('button[data-fld="22PC7jQ6BkBC"]').length, document.querySelectorAll('button[data-fld="22PC7jNshbiK"]').length, !!document.querySelector('textarea[data-fld="22PLhcfDaJ7r"]')]), [2, 18, true]);
+  await tap(page, 'button[data-fld="22PC7jQ6BkBC"][data-fval="true"]', 300);
+  await tap(page, 'button[data-fld="22PLhdEgfHXF"][data-opt="Weather"]', 300);
+  await tap(page, 'button[data-fld="22PC7jNshbiK"][data-opt="Roofing"]', 300);
+  await tap(page, 'button[data-fld="22PC7jNshbiK"][data-opt="Masonry"]', 300);
+  await page.locator('textarea[data-fld="22PLhcfDaJ7r"]').fill('Ladder slipped, nobody hurt');
+  await page.locator('#dlDone').fill('Done.');
+  check('several trades stay picked; the draft carries them', await page.evaluate(() => { const e = dlGet('j_2841', isoLocal()); return [document.querySelectorAll('button[data-fld="22PC7jNshbiK"].on').length, e.fields['22PC7jNshbiK'], e.fields['22PC7jQ6BkBC']]; }), [2, ['Roofing', 'Masonry'], true]);
+  await tap(page, 'button[data-fld="22PC7jNshbiK"][data-opt="Roofing"]', 300);
+  check('...and a second tap un-picks one', await page.evaluate(() => dlGet('j_2841', isoLocal()).fields['22PC7jNshbiK']), ['Masonry']);
+  await tap(page, 'button[data-fld="22PC7jQ6BkBC"][data-fval="true"]', 300);
+  check('...or clears a yes/no', await page.evaluate(() => 'fields' in dlGet('j_2841', isoLocal()) && !('22PC7jQ6BkBC' in dlGet('j_2841', isoLocal()).fields)), true);
+  await tap(page, 'button[data-fld="22PC7jQ6BkBC"][data-fval="true"]', 300);
+  check('the summary counts them', /JobTreadfields4filled/.test(await compact(page, '.dlsum')), true);
+  await tap(page, '#dlSend', 400);
+  check('the send sheet names them', /4 JobTread fields filled/.test(await txt(page, '.ckmiss')), true);
+  await tap(page, '#slYes', 1500);
+  const logs = await grab(page, '__LOGS');
+  check('they go with the log as JobTread\'s own fields', logs[0].fields, { '22PLhdEgfHXF': ['Weather'], '22PC7jNshbiK': ['Masonry'], '22PLhcfDaJ7r': 'Ladder slipped, nobody hurt', '22PC7jQ6BkBC': true });
+  check('...and the sent card says the feed was pinged about them', /pinged in the activity feed about what was flagged in the log fields/.test(await txt(page, '.dlsent .s')), true);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 await browser.close();
 let failed = 0;
 for (const r of results) {
