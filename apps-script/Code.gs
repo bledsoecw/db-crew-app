@@ -41,7 +41,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.9 (2026-09-15)';
+var APP_BUILD = 'T1.10 (2026-09-15)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -1037,7 +1037,12 @@ function membershipByName_(name) {
   return id;
 }
 
-/** [{membership:{membershipId}}] for a list of names, plus who resolved and who didn't. */
+/** [{membershipId}] for a list of names, plus who resolved and who didn't.
+ *  An `assignee` is a one-of (role / membership / user) written FLAT: Pave
+ *  picks the variant from the fields present — roleId, membershipId, or
+ *  emailAddress+name. The nested { membership: { membershipId } } matches
+ *  none, falls through to `user`, and every send died with "A non-null value
+ *  is required at assignees.0.emailAddress". Verified live 2026-09-15. */
 function assigneesFor_(names) {
   var want = [];
   (names || []).forEach(function (n) { n = String(n || '').trim(); if (n && want.indexOf(n) === -1) want.push(n); });
@@ -1057,7 +1062,7 @@ function assigneesFor_(names) {
   var assignees = [], assigned = [], unresolved = [];
   want.forEach(function (n) {
     var mid = ids[n];
-    if (mid) { assignees.push({ membership: { membershipId: mid } }); assigned.push(n); }
+    if (mid) { assignees.push({ membershipId: mid }); assigned.push(n); }
     else unresolved.push(n);
   });
   return { assignees: assignees, assigned: assigned, unresolved: unresolved };

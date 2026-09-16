@@ -209,7 +209,7 @@ condition of the job").
 `createDailyLog` takes `jobId`, `date`, `notes` (up to 10,000 characters),
 `files` (up to 100 — a new `uploadRequestId`, or `copyFromFileId` to attach a
 file already on the job without a second upload; `name` required),
-`assignees` (up to 100, `{ membership: { membershipId } }`, or by role or
+`assignees` (up to 100, written FLAT: `{ membershipId }`, or `{ roleId }`, or
 user) and `notify` (default true). It answers `createdDailyLog { id }`.
 **There is no `updateDailyLog`** — only create and delete — so the app sends a
 log once and anything later is a comment on it: `createComment` accepts
@@ -244,3 +244,16 @@ Boot (`getStart`) is one round trip — the open entry, today's entries and the
 last job — and `getExtras` one or two. Every reply carries `ms.pave` (how many
 calls) and `ms.paveMs` (how long they took), so the Build panel can say
 whether a slow call was JobTread or the script in front of it.
+
+## Assignees are flat
+
+An `assignee` input is a one-of (role / membership / user), and Pave picks
+the variant from the fields present at the top level of the object:
+`{ membershipId }`, `{ roleId }`, or `{ emailAddress, name }`. The nested
+form `{ membership: { membershipId } }` matches no variant, falls through to
+`user`, and fails with "A non-null value is required at
+assignees.0.emailAddress". Proved 2026-09-15 without writing anything: the
+same `createComment` at a well-formed job id that does not exist fails on
+`emailAddress` with the nested shape and on the missing job with the flat one
+(input validation runs before the lookup). `createDailyLog`, `createComment`
+and `createTask` all take the same type.

@@ -619,7 +619,7 @@ fetchImpl = route({ people: PEOPLE, member: MEMBER,
 r = sandbox.sendDailyLog(ME, LOG);
 const dl = jtCalls.find(c => c[0] === 'dailyLog')[1];
 t('one daily log on the job, dated, notify on', [dl.jobId, dl.date, dl.notify], ['j9', '2026-09-15', true]);
-t('assigned to the PM and the reps JobTread knows', dl.assignees, [{ membership: { membershipId: 'm_dave' } }, { membership: { membershipId: 'm_shawn' } }]);
+t('assigned to the PM and the reps JobTread knows', dl.assignees, [{ membershipId: 'm_dave' }, { membershipId: 'm_shawn' }]);
 t('photos ride by reference, only the uploaded ones, names made safe', dl.files, [{ copyFromFileId: 'f1', name: 'a.jpg' }, { copyFromFileId: 'f2', name: 'b-c.jpg' }]);
 const N = dl.notes;
 t('the notes read in the owner\'s order', [N.indexOf('WHAT GOT DONE') > -1, N.indexOf('WHAT GOT DONE') < N.indexOf('CONDITION WHEN I LEFT'), N.indexOf('CONDITION WHEN I LEFT') < N.indexOf('PROBLEMS, EXTRAS, RETURNS')], [true, true, true]);
@@ -660,7 +660,7 @@ t('a later note is a comment on the log itself, signed', [jtCalls[0][1].targetTy
 
 jtCalls.length = 0;
 r = sandbox.postJobNote('j9', 'Need drip edge now', 'Tyler B.', true);
-t('an urgent note is assigned to the PM', [jtCalls[0][1].assignees, r.assigned], [[{ membership: { membershipId: 'm_dave' } }], ['Dave Elick']]);
+t('an urgent note is assigned to the PM', [jtCalls[0][1].assignees, r.assigned], [[{ membershipId: 'm_dave' }], ['Dave Elick']]);
 jtCalls.length = 0;
 sandbox.postJobNote('j9', 'FYI', 'Tyler B.');
 t('a plain note is not', 'assignees' in jtCalls[0][1], false);
