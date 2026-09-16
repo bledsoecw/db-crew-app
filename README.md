@@ -94,6 +94,10 @@ and the write — and this app draws it from what the board sends
 (`checklist.phases`, `checklist.lines`) and posts ticks back through the board.
 Nothing about the list is hardcoded here, so the board can reword a line
 without an app release, and this app never talks to JobTread for any of it.
+Every save from the phone lands in JobTread as the checklist on that "Roof
+install" line — each tick a checked item, the magnet name and the sign-off on
+their lines — so the office sees it on the schedule task itself, and the
+task's progress moves with it.
 
 Each roofing job's card carries the board's own sentence about where the list
 stands ("Before tear-off — 6 of 11 done", "Signed off — Tyler · Sep 15"),
@@ -128,24 +132,32 @@ sentence the owner has been writing in a daily log by hand.
 **Day log.** The site manager's own record of the day, on the job, in place of
 the owner's second-hand dictation ("Report via Tyler we were short eight pieces
 of drip edge … Tyler left about 430 and so I don't know the condition of the
-job"). One story box — a real text box, Talk or Type — and two questions: "Any
-delays?" (yes opens Weather · Short on people · Waiting on material · Other)
-and "Anyone hurt or a close call?" (yes is amber and opens the safety alert,
-below). One draft per job per day, kept on the phone and touched by anything
-that happens on that roof, so a day with two roofs has two drafts and the tab
-shows one chip per roof. "Tell the PM now" sends what is in the box to the PM
-this minute as a comment on the job and keeps it in the log as a timestamped
-line. A normal day is one tap: "Normal day · nothing to report" marks no
-delays, no incidents, and sends. EN / ES flips the tab's own words; the story
-posts as spoken.
+job"). One story box — a real text box, Talk or Type — and then JobTread's own
+questions: the org's daily-log fields, in the office's order, with each list's
+own options. Today that is "Any material pickups or deliveries?", "Who else was
+on site?" (Carpentry … Roofing … Site Manager), "Any delays?" (yes opens
+Weather · Short Labor · Short Material · Other) and "Anyone hurt or a close
+call?" (yes is amber and opens the safety alert, below). The definitions come
+from JobTread with the rest of the start-up data and are kept on the phone, so
+a field the office adds or renames shows up by itself; the office's free-text
+fields (Unplanned Tasks, Internal Notes) are its own and stay blank. One draft
+per job per day, kept on the phone and touched by anything that happens on
+that roof, so a day with two roofs has two drafts and the tab shows one chip
+per roof. "Tell the PM now" sends what is in the box to the PM this minute as
+a comment on the job and keeps it in the log as a timestamped line. A normal
+day is one tap: "Normal day · nothing to report" answers No to every yes/no
+field, no incident, and sends. EN / ES flips the tab's own words, the
+questions and the options to the eye; the story posts as spoken and every
+answer posts as JobTread spells it.
 
-**Review & send** shows the hours, the photos, the two answers and the story,
-names who it goes to, and writes one JobTread daily log on the job, assigned to
-the job's Project Manager and Sales Reps with notify on, with the day's photos
-attached by reference. The story and the lines are the log's notes; the
-answers land on the org's own daily-log fields — Anticipated Delays, Delay
-Reason, Safety Incidents — found by name, so nothing about the fields lives in
-the app. A delay or an incident also posts a one-line comment assigned to the
+**Review & send** shows the hours, the photos, every answer under JobTread's
+own name for the field, and the story, names who it goes to, and writes one
+JobTread daily log on the job, assigned to the job's Project Manager and Sales
+Reps with notify on, with the day's photos attached by reference. The story
+and the lines are the log's Notes; the answers land on the org's own fields by
+id, exactly as picked, and the incident on Safety Incidents, found by name; the
+Notes repeat every answer in words, so the notification reads whole. A delay or
+an incident also posts a one-line comment assigned to the
 same people, so the activity feed only lights up when something needs a
 decision. It is sent once — JobTread has no update for daily logs — and a
 forgotten line goes on the same log with the time. A dead spot or a JobTread

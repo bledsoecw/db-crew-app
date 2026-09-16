@@ -382,7 +382,7 @@ button[disabled]{cursor:default}
 .todaypick{display:flex;flex-direction:column;gap:10px;margin-top:14px}
 
 /* ---------------- day log ----------------
-   One story box, two yes/no questions, one Send. The draft lives per job
+   One story box, JobTread's own questions, one Send. The draft lives per job
    per day; a two-roof day gets a chip per roof. Everything below is drawn
    from the design system's own variables and sizes. */
 .dlchips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
@@ -952,7 +952,7 @@ var S = {
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
   checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
-  dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false, alertFor:null,
+  dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false, alertFor:null, logFields:null,
   pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
   apiLog:[], errs:[], recent:[]
@@ -1632,6 +1632,9 @@ function loadExtras(){
     S.codes = d.codes || [];
     S.jobOptions = d.jobOptions || [];
     S.crew = d.crew || [];
+    // JobTread's own daily-log fields: the questions on the Day log tab.
+    // null means the API could not ask; the phone keeps the list it has.
+    if (Array.isArray(d.logFields)){ S.logFields = d.logFields; saveLogFields(); }
     extrasTries = 0;
   }).catch(function(e){
     failed('extras', e);
@@ -3191,13 +3194,15 @@ function fileName(item){
    job's PM and sales reps — there is no update call for daily
    logs, so anything after the send is a comment on it.
 
-   The form is one story box, two yes/no questions and one Send.
-   The story — typed or talked, plus the timestamped lines that
-   went to the PM during the day — is the log's Notes. "Any
-   delays?" and its reasons are JobTread's own Anticipated Delays
-   and Delay Reason fields; "Anyone hurt or a close call?" is the
-   Safety Incidents field. The API maps the answers to the org's
-   fields by name, so nothing about the fields lives here. A
+   The form is one story box, JobTread's own questions and one
+   Send. The story — typed or talked, plus the timestamped lines
+   that went to the PM during the day — is the log's Notes. The
+   questions are the org's own daily-log fields, in the office's
+   order and with each list's own options — Material Pickups /
+   Deliveries, Trades Onsite, Anticipated Delays with Delay Reason
+   under its yes, Safety Incidents as "Anyone hurt or a close
+   call?" — answered by field id, so nothing about the fields
+   lives here and a field the office adds shows up by itself. A
    normal day is one tap.
    ========================================================= */
 var DL_KEY = 'dbtc_daylog';
@@ -3221,12 +3226,14 @@ var L10N = {
         talk:'Talk', type:'Type', delays:'Any delays?', yes:'Yes', no:'No', why:'Why · tap all that fit',
         safety:'Anyone hurt or a close call?', send:'Send log', review:'Review & send',
         normal:'Normal day · nothing to report', normalFoot:'One tap. Marks no delays, no incidents, and sends it.',
+        rest:'Say the rest in your story above.',
         tabs:{ job:'Clock', jobs:'My jobs', log:'Day log' } },
   es: { k:'Registro', notSent:'Sin enviar', sent:'Enviado', queued:'Queued', how:'¿Cómo fue el día?',
         ph:'Toca aquí y escribe, o usa Hablar\n¿A qué hora llegaste?\n¿Qué se hizo?\n¿Algo que estorbó?',
         talk:'Hablar', type:'Escribir', delays:'¿Hubo retrasos?', yes:'Sí', no:'No', why:'¿Por qué · toca lo que aplique',
         safety:'¿Alguien lastimado o casi?', send:'Enviar registro', review:'Revisar y enviar',
         normal:'Día normal · nada que reportar', normalFoot:'Un toque. Marca sin retrasos, sin incidentes, y lo envía.',
+        rest:'Cuenta el resto en tu historia arriba.',
         tabs:{ job:'Reloj', jobs:'Mis trabajos', log:'Registro' } }
 };
 function T(key){ return (L10N[S.lang] || L10N.en)[key]; }
@@ -3244,18 +3251,81 @@ function renderLang(){
   });
   [].forEach.call(document.querySelectorAll('#langTog button'), function(b){ b.classList.toggle('on', b.getAttribute('data-lang') === S.lang); });
 }
-/* Why a delay, as chips. The key is what the draft keeps and what the API
-   maps to the Delay Reason option; the label is what the crew reads. */
-var DELAY_WHY = [
-  { key:'weather',  en:'Weather',             es:'Clima' },
-  { key:'people',   en:'Short on people',     es:'Falta gente' },
-  { key:'material', en:'Waiting on material', es:'Esperando material' },
-  { key:'other',    en:'Other',               es:'Otro' }
+/* ---- JobTread's own daily-log fields, as the questions ----
+   The office keeps the fields on the daily log in JobTread — Material
+   Pickups / Deliveries, Trades Onsite, Anticipated Delays, Delay Reason,
+   Safety Incidents… — and the tab asks exactly those, in that order, with
+   each list's own options, so what the site manager answers is what the PM
+   sees on the log. The definitions come with the extras and are kept on the
+   phone; nothing about a field lives here. */
+var LOG_FIELDS_KEY = 'dbtc_logfields';
+function saveLogFields(){ try { localStorage.setItem(LOG_FIELDS_KEY, JSON.stringify({ at: Date.now(), fields: S.logFields })); } catch(e){} }
+function loadLogFields(){
+  try { var p = JSON.parse(localStorage.getItem(LOG_FIELDS_KEY) || 'null'); if (p && Array.isArray(p.fields)) S.logFields = p.fields; } catch(e){}
+}
+function logFieldById(id){ return (S.logFields || []).filter(function(f){ return f.id === id; })[0] || null; }
+var SAFETY_FIELD_RE = /safety|incident/i;
+/* How each field is asked: the design's words for the three the log was
+   built around, plain words for the two the office also keeps, and a new
+   field is asked by its own name. The value posted is always JobTread's. */
+var FIELD_WORDS = [
+  { re: /anticipated\s*delays?/i, key: 'delays' },
+  { re: /delay\s*reason/i,        key: 'why' },
+  { re: SAFETY_FIELD_RE,          key: 'safety' },
+  { re: /material\s*pick/i,       en: 'Any material pickups or deliveries?', es: '¿Recogiste o recibiste material?' },
+  { re: /trades?\s*on\s*site/i,   en: 'Who else was on site? · tap all that fit', es: '¿Quién más estuvo en el sitio? · toca lo que aplique' }
 ];
-function whyLabel(key){ var w = DELAY_WHY.filter(function(x){ return x.key === key; })[0]; return w ? (w[S.lang] || w.en) : key; }
+function fieldQuestion(f){
+  var w = FIELD_WORDS.filter(function(x){ return x.re.test(String(f.name || '')); })[0];
+  if (w) return w.key ? T(w.key) : (w[S.lang] || w.en);
+  return f.type === 'boolean' ? String(f.name) + '?' : String(f.name);
+}
+/* Spanish is only what the eye sees; the option goes as JobTread spells it. */
+var OPTION_ES = { 'Weather':'Clima', 'Short Labor':'Falta gente', 'Short Material':'Falta material', 'Other':'Otro',
+  'Carpentry':'Carpintería', 'Concrete':'Concreto', 'Electrical':'Eléctrico', 'Engineering':'Ingeniería', 'Excavation':'Excavación',
+  'Foundation':'Cimentación', 'Framing':'Estructura', 'HVAC':'HVAC', 'Masonry':'Albañilería', 'Mechanical':'Mecánico', 'Painting':'Pintura',
+  'Plumbing':'Plomería', 'Roofing':'Techado', 'Tile':'Azulejo', 'Production Manager':'Gerente de producción', 'Site Manager':'Encargado de sitio', 'Sales Rep':'Vendedor' };
+function optionLabel(o){ return (S.lang === 'es' && OPTION_ES[o]) || o; }
+/* The questions, in JobTread's order: every yes/no field and every pick
+   list; the Safety field is the amber question with the alert under it; a
+   "reason" list sits under the yes/no field before it and shows on yes. The
+   office's text fields (Unplanned Tasks, Internal Notes) are its own and
+   stay blank. The safety question always stands, field list or not: the
+   alert must never depend on a fetch. */
+function dlQuestions(){
+  var out = [], prevBool = null, safety = false;
+  (S.logFields || []).forEach(function(f){
+    var name = String(f.name || '');
+    if (f.type === 'boolean'){ prevBool = { kind:'bool', field:f, reason:null }; out.push(prevBool); return; }
+    if (f.type === 'option' && f.options && f.options.length){
+      if (/reason/i.test(name) && prevBool && !prevBool.reason){ prevBool.reason = f; return; }
+      out.push({ kind:'opt', field:f, reason:null }); prevBool = null; return;
+    }
+    if (f.type === 'text' && SAFETY_FIELD_RE.test(name) && !safety){ out.push({ kind:'safety', field:f, reason:null }); safety = true; prevBool = null; }
+  });
+  if (!safety) out.push({ kind:'safety', field:null, reason:null });
+  return out;
+}
+function dlBoolAnswer(d, id){ var v = ((d && d.fields) || {})[id]; return v === true ? true : v === false ? false : null; }
+function dlPicked(d, id){ var v = ((d && d.fields) || {})[id]; return Array.isArray(v) ? v : (v ? [v] : []); }
+/* Something to report: a yes, a pick, an incident. */
+function dlAnyYes(d){
+  if (!d) return false;
+  if (d.safety === true) return true;
+  var f = d.fields || {};
+  for (var id in f){ if (f[id] === true || (Array.isArray(f[id]) && f[id].length)) return true; }
+  return false;
+}
+function dlAnswered(d){
+  if (!d) return false;
+  if (d.safety != null) return true;
+  var f = d.fields || {};
+  for (var id in f){ if (f[id] === true || f[id] === false || (Array.isArray(f[id]) && f[id].length)) return true; }
+  return false;
+}
 
 function dlHasContent(e){
-  return !!(e && (String(e.story||'').trim() || (e.lines && e.lines.length) || e.delays != null || e.safety != null || e.alert || e.activity ||
+  return !!(e && (String(e.story||'').trim() || (e.lines && e.lines.length) || dlAnswered(e) || e.alert || e.activity ||
             (e.notes && e.notes.length) || String(e.done||'').trim() || String(e.problems||'').trim()));
 }
 /* Start, or refresh, the day's draft for a job. `info` is the job's label
@@ -3266,11 +3336,11 @@ function dlTouch(jobId, date, info){
   var k = dlKey(jobId, date), e = dlStore[k];
   if (!e){
     e = dlStore[k] = { jobId:jobId, date:date, jobLabel:'', jobNum:'', cust:'', address:'', alongside:null, pm:'', reps:[],
-                       story:'', lines:[], delays:null, delayWhy:[], safety:null, alert:null, notes:[],
+                       story:'', lines:[], fields:{}, safety:null, alert:null, notes:[],
                        sent:null, wantSend:false, sending:false, err:'', prompt:false, activity:false, at:Date.now(), seq:0 };
   }
   if (!e.lines) e.lines = [];
-  if (!e.delayWhy) e.delayWhy = [];
+  if (!e.fields) e.fields = {};
   if (!e.notes) e.notes = [];
   if (info) for (var f in info){ if (info[f] != null && info[f] !== '' && !(Array.isArray(info[f]) && !info[f].length)) e[f] = info[f]; }
   e.activity = true;
@@ -3311,8 +3381,8 @@ function dlSet(jobId, date, field, value){
   dlPersist();
   renderLogStatus();
 }
-/* Yes or no to one of the two questions. Once a safety alert has gone, the
-   answer to "anyone hurt" stays yes — the incident happened. */
+/* Yes or no to "anyone hurt or a close call". Once a safety alert has gone,
+   the answer stays yes — the incident happened. */
 function dlAnswer(jobId, date, field, val){
   var e = dlTouch(jobId, date, dlInfoFor(jobId));
   if (!e || e.sent) return;
@@ -3320,12 +3390,26 @@ function dlAnswer(jobId, date, field, val){
   if (field === 'safety' && val === false) e.alert = null;
   dlSet(jobId, date, field, val);
 }
-function dlToggleWhy(jobId, date, key){
+/* Yes or no to one of JobTread's yes/no fields. No takes the reason list
+   under it away with it. */
+function dlAnswerField(jobId, date, id, val){
   var e = dlTouch(jobId, date, dlInfoFor(jobId));
   if (!e || e.sent) return;
-  var list = (e.delayWhy || []).slice(), i = list.indexOf(key);
-  if (i === -1) list.push(key); else list.splice(i, 1);
-  dlSet(jobId, date, 'delayWhy', list);
+  var f = {}; for (var k in (e.fields || {})) f[k] = e.fields[k];
+  f[id] = val;
+  if (val === false) dlQuestions().forEach(function(q){ if (q.field && q.field.id === id && q.reason) delete f[q.reason.id]; });
+  dlSet(jobId, date, 'fields', f);
+}
+/* One option on a pick list: tap to pick, tap again to un-pick; a list that
+   takes one answer swaps it. */
+function dlToggleOption(jobId, date, id, opt){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  var f = {}; for (var k in (e.fields || {})) f[k] = e.fields[k];
+  var def = logFieldById(id), list = dlPicked(e, id).slice(), i = list.indexOf(opt);
+  if (i !== -1) list.splice(i, 1); else if (def && def.multi === false) list = [opt]; else list.push(opt);
+  if (list.length) f[id] = list; else delete f[id];
+  dlSet(jobId, date, 'fields', f);
 }
 
 /* ---- what the phone already knows about the day on this job ---- */
@@ -3373,14 +3457,30 @@ function dlStoryText(e){
 }
 
 /* ---- sending ---- */
+/* The answers as JobTread takes them: yes/no as booleans, picks as the
+   list's own strings; and the fields' names, for the notes on a day the API
+   cannot reach the field list. */
+function dlFieldsOut(e){
+  var out = {}, f = e.fields || {};
+  for (var id in f){
+    if (f[id] === true || f[id] === false) out[id] = f[id];
+    else if (Array.isArray(f[id]) && f[id].length) out[id] = f[id].slice();
+  }
+  return out;
+}
+function dlFieldNames(e){
+  var out = {}, f = e.fields || {};
+  for (var id in f){ var def = logFieldById(id); if (def) out[id] = def.name; }
+  return out;
+}
 function dlPayload(e){
   var photos = photosFor(e.jobId, e.date).filter(function(p){ return p.fileId; });
   return {
     jobId: e.jobId, date: e.date, jobLabel: e.jobLabel || e.jobId, alongside: e.alongside || null,
     story: String(e.story || '').trim(),
     lines: (e.lines || []).map(function(l){ return { time: l.time, text: l.text, pmTold: !!l.pmTold }; }),
-    delays: e.delays == null ? null : !!e.delays,
-    delayWhy: (e.delayWhy || []).slice(),
+    fields: dlFieldsOut(e),
+    fieldNames: dlFieldNames(e),
     safety: e.safety == null ? null : !!e.safety,
     alert: e.alert ? { kind: e.alert.kind || '', hurt: e.alert.hurt == null ? null : !!e.alert.hurt, text: e.alert.text || '',
                        sentAt: e.alert.sentAt || null, to: e.alert.to || [] } : null,
@@ -3584,19 +3684,10 @@ function dlBodyHtml(cur, e, date){
        '<div class="pt1">Something the PM needs right now?</div>' +
        '<div class="pt2">Sends what you just said to the PM this minute. Today’s log still goes when you hit Send.</div></div>' +
        '<button class="pmbtn" id="dlTellPm">Tell the PM now</button></div>';
-  // 2. Any delays?
-  h += '<div class="dlh">' + esc(T('delays')) + '</div>' + ynRowHtml('delays', d.delays, false);
-  if (d.delays === true){
-    h += '<div class="k" style="margin-top:14px">' + esc(T('why')) + '</div><div class="whychips">' +
-         DELAY_WHY.map(function(w){
-           return '<button class="whychip' + ((d.delayWhy || []).indexOf(w.key) !== -1 ? ' on' : '') + '" data-why="' + w.key + '">' + esc(whyLabel(w.key)) + '</button>';
-         }).join('') + '</div>' +
-         '<div style="margin-top:8px;font:400 14px/1.4 var(--sans);color:var(--mut)">Say the rest in your story above.</div>';
-  }
-  // 3. Anyone hurt or a close call? Yes is amber, the one warning voice.
-  h += '<div class="dlh">' + esc(T('safety')) + '</div>' + ynRowHtml('safety', d.safety, true);
-  if (d.safety === true) h += dlAlertHtml(cur, d, date);
-  // 4. Send, and 5. the one tap for a normal day.
+  // 2. JobTread's own questions, in its order: the yes/no fields, the pick
+  // lists, and "Anyone hurt or a close call?" — amber, the one warning voice.
+  dlQuestions().forEach(function(q){ h += dlQuestionHtml(q, d, cur, date); });
+  // 3. Send, and 4. the one tap for a normal day.
   h += dlSendHtml(d, has) + dlNormalHtml(d, has);
   if (d.wantSend) h += '<div class="foot" id="dlQueued" style="margin-top:12px">' + esc(dlQueuedWords(d)) + '</div>';
   return h;
@@ -3605,6 +3696,31 @@ function dlLineHtml(l){
   return '<div class="dlline"><span class="k9">' + esc(l.time) + '</span><span class="lt">' + esc(l.text) + '</span>' +
          (l.pmTold ? '<span class="pm">PM told</span>' : '') + '</div>';
 }
+function dlQuestionHtml(q, d, cur, date){
+  var h = '';
+  if (q.kind === 'safety'){
+    h += '<div class="dlh">' + esc(T('safety')) + '</div>' + ynRowHtml('safety', d.safety, true);
+    if (d.safety === true) h += dlAlertHtml(cur, d, date);
+    return h;
+  }
+  var f = q.field;
+  if (q.kind === 'bool'){
+    var v = dlBoolAnswer(d, f.id);
+    h += '<div class="dlh">' + esc(fieldQuestion(f)) + '</div>' + ynRowHtml('f:' + f.id, v, false);
+    if (v === true && q.reason){
+      h += '<div class="k" style="margin-top:14px">' + esc(fieldQuestion(q.reason)) + '</div>' + optChipsHtml(q.reason, d) +
+           '<div style="margin-top:8px;font:400 14px/1.4 var(--sans);color:var(--mut)">' + esc(T('rest')) + '</div>';
+    }
+    return h;
+  }
+  return '<div class="dlh">' + esc(fieldQuestion(f)) + '</div>' + optChipsHtml(f, d);
+}
+function optChipsHtml(f, d){
+  var picked = dlPicked(d, f.id);
+  return '<div class="whychips">' + (f.options || []).map(function(o){
+    return '<button class="whychip' + (picked.indexOf(o) !== -1 ? ' on' : '') + '" data-opt="' + esc(f.id) + '" data-val="' + esc(o) + '">' + esc(optionLabel(o)) + '</button>';
+  }).join('') + '</div>';
+}
 function ynRowHtml(field, val, amber){
   return '<div class="ynrow">' +
     '<button class="ynbtn' + (val === true ? ' on' + (amber ? ' amber' : '') : '') + '" data-yn="' + field + '" data-v="1">' + esc(T('yes')) + '</button>' +
@@ -3612,7 +3728,7 @@ function ynRowHtml(field, val, amber){
 }
 /* Anything to look over — a story, a yes — goes through the review; a blank
    log with nothing to report is the one-tap button below, never Send. */
-function dlReviewable(d, has){ return has || d.delays === true || d.safety === true; }
+function dlReviewable(d, has){ return has || dlAnyYes(d); }
 function dlBlocked(d){ return d.safety === true && !(d.alert && d.alert.sentAt); }
 function dlSendHtml(d, has){
   var ok = dlReviewable(d, has), blocked = dlBlocked(d);
@@ -3622,7 +3738,7 @@ function dlSendHtml(d, has){
   return h;
 }
 function dlNormalHtml(d, has){
-  var show = !has && d.delays !== true && d.safety !== true;
+  var show = !has && !dlAnyYes(d);
   return '<div id="dlNormalWrap"' + (show ? '' : ' class="hidden"') + '><button class="btn btn-out normalday" id="dlNormal">' + esc(T('normal')) + '</button>' +
          '<div class="foot">' + esc(T('normalFoot')) + '</div></div>';
 }
@@ -3689,16 +3805,26 @@ function dlSendAlert(jobId, date){
   });
 }
 
-/* The review (1c): what the phone knows, the two answers, the story, and
+/* The review (1c): what the phone knows, the answers, the story, and
    who it goes to. */
 function dlRowsHtml(cur, d, date, short){
   var today = isoLocal(), hrs = date === today ? hoursFor(cur.id) : [];
   var tot = 0; hrs.forEach(function(x){ tot += x.minutes; });
   var hours = hrs.length ? hm(tot * 60) + (short ? '' : ' · ' + hrs.length + (hrs.length === 1 ? ' code' : ' codes')) : (date === today ? 'Not on the clock here' : '—');
-  var delays = d.delays === true ? 'Yes' + ((d.delayWhy || []).length ? ' · ' + d.delayWhy.map(whyLabel).join(' · ') : '') : d.delays === false ? 'No' : '—';
-  var hurt = d.safety === true ? 'Yes' + (d.alert && d.alert.kind ? ' · ' + alertKindLabel(d.alert.kind) : '') : d.safety === false ? 'None' : '—';
-  var row = function(k, v){ return '<div class="rvrow' + (short ? ' short' : '') + '"><span class="rk">' + k + '</span><span class="rv tabular">' + esc(v) + '</span></div>'; };
-  return row('Hours', hours) + row('Photos', String(photosFor(cur.id, date).length)) + row('Delays', delays) + row('Hurt / close call', hurt);
+  var row = function(k, v){ return '<div class="rvrow' + (short ? ' short' : '') + '"><span class="rk">' + esc(k) + '</span><span class="rv tabular">' + esc(v) + '</span></div>'; };
+  var h = row('Hours', hours) + row('Photos', String(photosFor(cur.id, date).length));
+  // One row per question, under JobTread's own name for the field.
+  dlQuestions().forEach(function(q){ h += row(q.field ? q.field.name : 'Hurt / close call', dlAnswerWords(q, d)); });
+  return h;
+}
+function dlAnswerWords(q, d){
+  if (q.kind === 'safety') return d.safety === true ? 'Yes' + (d.alert && d.alert.kind ? ' · ' + alertKindLabel(d.alert.kind) : '') : d.safety === false ? 'None' : '—';
+  if (q.kind === 'bool'){
+    var v = dlBoolAnswer(d, q.field.id), why = q.reason ? dlPicked(d, q.reason.id) : [];
+    return v === true ? 'Yes' + (why.length ? ' · ' + why.map(optionLabel).join(', ') : '') : v === false ? 'No' : '—';
+  }
+  var picked = dlPicked(d, q.field.id);
+  return picked.length ? picked.map(optionLabel).join(', ') : '—';
 }
 function alertKindLabel(kind){ return { fall:'Fall', cut:'Cut', heat:'Heat', close:'Close call', other:'Other' }[kind] || kind; }
 function dlReviewHtml(cur, d, date){
@@ -3751,7 +3877,7 @@ function dlSyncStory(cur, date){
   var ok = dlReviewable(d, has), blocked = dlBlocked(d), rv = $('dlReview');
   rv.classList.toggle('off', !ok || blocked);
   rv.innerHTML = ok ? esc(T('review')) + ico('chev', 24, 2.4) : ico('send', 24) + esc(T('send'));
-  $('dlNormalWrap').classList.toggle('hidden', has || d.delays === true || d.safety === true);
+  $('dlNormalWrap').classList.toggle('hidden', has || dlAnyYes(d));
 }
 /* Talk: where the browser can listen, it listens into the box; where it
    cannot (iOS), the keyboard's own mic is the way, and the toast says so the
@@ -3811,7 +3937,10 @@ function dlTellPm(jobId, date){
 function dlNormalDay(jobId, date){
   var e = dlTouch(jobId, date, dlInfoFor(jobId));
   if (!e || e.sent) return;
-  e.delays = false; e.safety = false; e.story = 'Normal day, nothing to report.'; e.seq = (e.seq || 0) + 1;
+  // Every yes/no field is No, nothing is picked, no incident.
+  var f = {};
+  dlQuestions().forEach(function(q){ if (q.kind === 'bool') f[q.field.id] = false; });
+  e.fields = f; e.safety = false; e.story = 'Normal day, nothing to report.'; e.seq = (e.seq || 0) + 1;
   dlPersist();
   dlQueueSend(jobId, date);
   render();
@@ -3838,10 +3967,14 @@ function wireDayLog(cur, date){
   if ($('dlType')) $('dlType').onclick = function(){ if (ta){ ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} } };
   if ($('dlTellPm')) $('dlTellPm').onclick = function(){ dlTellPm(cur.id, date); };
   [].forEach.call(body.querySelectorAll('[data-yn]'), function(b){
-    b.onclick = function(){ dlAnswer(cur.id, date, b.getAttribute('data-yn'), b.getAttribute('data-v') === '1'); renderDayLog(); };
+    b.onclick = function(){
+      var q = b.getAttribute('data-yn'), v = b.getAttribute('data-v') === '1';
+      if (q.indexOf('f:') === 0) dlAnswerField(cur.id, date, q.slice(2), v); else dlAnswer(cur.id, date, q, v);
+      renderDayLog();
+    };
   });
-  [].forEach.call(body.querySelectorAll('[data-why]'), function(b){
-    b.onclick = function(){ dlToggleWhy(cur.id, date, b.getAttribute('data-why')); renderDayLog(); };
+  [].forEach.call(body.querySelectorAll('[data-opt]'), function(b){
+    b.onclick = function(){ dlToggleOption(cur.id, date, b.getAttribute('data-opt'), b.getAttribute('data-val')); renderDayLog(); };
   });
   if ($('dlReview')) $('dlReview').onclick = function(){
     S.dlReview = true; renderDayLog();
@@ -3892,6 +4025,7 @@ function start(){
   $('app').classList.remove('hidden');
   measureTabs();
   var lastJob = loadPrefs();
+  loadLogFields();
   S.checksRO = ckLoadRO();
   restoreAssign();   // last known schedule on screen at once; refresh behind it
   applyTheme();

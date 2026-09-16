@@ -333,8 +333,12 @@
       if (window.__MOCK_LOGFAIL) throw new Error('Pave error (HTTP 500): boom');
       window.__LOGS = window.__LOGS || [];
       window.__LOGS.push(JSON.parse(JSON.stringify(log)));
-      if ('story' in log || 'delays' in log) {
-        var sflag = (log.delays === true || log.safety === true) ? 'fields' : '';
+      if ('story' in log || 'safety' in log) {
+        var spings = Object.keys(log.fields || {}).filter(function (id) {
+          var f = LOG_FIELDS.filter(function (x) { return x.id === id; })[0], v = log.fields[id];
+          return f && /safety|incident|delay/i.test(f.name) && (v === true || (typeof v === 'string' && v.trim()) || (Array.isArray(v) && v.length));
+        });
+        var sflag = (spings.length || log.safety === true) ? 'fields' : '';
         return { ok: true, dailyLogId: 'dl' + window.__LOGS.length, date: log.date, assigned: ['Neal Deitemeyer', 'Justin Phillips'], unresolved: [],
                  flag: sflag, commented: !!sflag, photos: (log.photos || []).length };
       }

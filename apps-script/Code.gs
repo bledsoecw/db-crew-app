@@ -1081,16 +1081,17 @@ function assigneesFor_(names) {
 // Tyler we were short eight pieces of drip edge … Tyler left about 430 and
 // so I don't know the condition of the job"). This is the person who was on
 // the roof writing it, from what the phone already knows — the hours, the
-// site checks, the photos — plus one story and two yes/no answers.
+// site checks, the photos — plus one story and the org's own questions.
 //
 // Since T1.14 the phone sends the STORY shape: `story` and the timestamped
-// `lines` that went to the PM during the day are the log's notes; `delays`
-// and `delayWhy` are the org's own Anticipated Delays and Delay Reason
-// fields; `safety` and the `alert` are its Safety Incidents field. The
-// fields are found by NAME in the org's daily-log field list, so nothing
-// about them lives on the phone. Unplanned Tasks and Internal Notes stay
-// blank. The older shape (done / condition / problems / fields) is still
-// taken, for a phone that has not updated.
+// `lines` that went to the PM during the day are the log's NOTES; `fields`
+// are the org's own daily-log fields as answered on the phone, by id, as
+// JobTread takes them (the phone asks exactly the fields getExtras handed
+// it, in the office's order, with each list's own options); `safety` and
+// the `alert` are its Safety Incidents field, found by name. The office's
+// text fields (Unplanned Tasks, Internal Notes) stay blank. The older shape
+// (done / condition / problems / fields) is still taken, for a phone that
+// has not updated.
 //
 // One JobTread daily log per site manager per job per day, sent ONCE: there
 // is no update call for daily logs (verified against the schema), only
@@ -1157,8 +1158,9 @@ function pingFieldRe_() {
  *  field allows several), numbers as numbers; empties dropped, and only ids
  *  the org's daily-log fields know, so a stale phone cannot write to a field
  *  that is gone. Also the filled ones with their names, for the notes, and
- *  the ones that ping. */
-function dailyLogFieldValues_(raw) {
+ *  the ones that ping. `names` is the phone's own copy of the field names,
+ *  used only when the org's list cannot be had. */
+function dailyLogFieldValues_(raw, names) {
   var values = {}, filled = [], pings = [];
   if (!raw || typeof raw !== 'object') return { values: values, filled: filled, pings: pings };
   var defs = null;
@@ -1187,7 +1189,7 @@ function dailyLogFieldValues_(raw) {
       if (!str) continue;
       values[id] = str; text = str; exceptional = true;
     }
-    var name = f ? f.name : id;
+    var name = f ? f.name : ((names && names[id]) || id);
     filled.push({ id: id, name: name, text: text });
     if (exceptional && pingRe.test(name)) pings.push({ id: id, name: name, text: text });
   }
@@ -1233,17 +1235,17 @@ function sendDailyLog(me, log) {
   // best effort: the log goes assigned to nobody rather than not at all.
   var story = dailyLogIsStory_(log);
   var people = { pm: '', reps: [] };
-  var wantFields = story ? (log.delays === true || log.delays === false || log.safety === true)
-                         : (log.fields && typeof log.fields === 'object' && Object.keys(log.fields).length > 0);
+  var anyFields = !!(log.fields && typeof log.fields === 'object' && Object.keys(log.fields).length > 0);
+  var wantFields = anyFields || (story && log.safety === true);
   var qs = [jobPeopleQuery_([jobId])];
   if (wantFields && !cacheGet_(LOG_FIELDS_KEY)) qs.push(dailyLogFieldsQuery_());
   var rs = paveAll_(qs);
   if (!rs[0].error) { try { people = jobPeopleFrom_(rs[0].data)[jobId] || people; } catch (e0) {} }
   if (rs[1] && !rs[1].error) { try { dailyLogFieldsFrom_(rs[1].data); } catch (e00) {} }
   var who = assigneesFor_([people.pm].concat(people.reps || []));
-  var fields = dailyLogFieldValues_(story ? storyFieldsRaw_(log) : log.fields);
+  var fields = dailyLogFieldValues_(story ? storyFieldsRaw_(log) : log.fields, log.fieldNames);
 
-  var text = (story ? dailyLogStoryText_(me, log) : dailyLogText_(me, log, fields)).slice(0, DAILY_LOG_NOTES_MAX);
+  var text = (story ? dailyLogStoryText_(me, log, fields) : dailyLogText_(me, log, fields)).slice(0, DAILY_LOG_NOTES_MAX);
   var files = [];
   (log.photos || []).forEach(function (p) {
     if (!p || !p.fileId || files.length >= 100) return;
@@ -1279,9 +1281,9 @@ function sendDailyLog(me, log) {
 }
 
 /** What needs a decision: '' when nothing does. A story log pings on a
- *  delay or an incident, whether or not the org's fields could be resolved. */
+ *  filled field that pings (a delay, by default) or an incident. */
 function dailyLogFlag_(log, fields) {
-  if (dailyLogIsStory_(log)) return (log.delays === true || log.safety === true) ? 'fields' : '';
+  if (dailyLogIsStory_(log)) return ((fields && fields.pings && fields.pings.length) || log.safety === true) ? 'fields' : '';
   if (String(log.problems || '').trim()) return 'problems';
   if (fields && fields.pings && fields.pings.length) return 'fields';
   if (log.crewOnSite === true && !(log.checks && log.checks.signedOff)) return 'crew-on-site';
@@ -1296,7 +1298,7 @@ function dailyLogPointer_(me, log, flag, fields) {
   var day = fmtDayShort_(log.date);
   var what = flag === 'problems'
     ? String(log.problems || '').trim().split(/\r?\n/)[0].slice(0, 160) + (pingsLine_(fields) ? ' · ' + pingsLine_(fields) : '')
-    : flag === 'fields' ? (pingsLine_(fields) || storyPingLine_(log))
+    : flag === 'fields' ? storyPingLine_(log, fields)
     : 'crew still on site' + (log.leftAt ? ' when ' + firstName_(me.name) + ' left at ' + log.leftAt : '') + ', not signed off';
   return '📋 Site log ' + day + ' — ' + label + ': ' + what.slice(0, 240) + ' — full log under Daily Logs. (' + me.name + ')';
 }
@@ -1336,36 +1338,25 @@ function dailyLogText_(me, log, fields) {
 
 // ---- the story shape (T1.14) ----
 function dailyLogIsStory_(log) {
-  return !!(log && (Object.prototype.hasOwnProperty.call(log, 'story') || Object.prototype.hasOwnProperty.call(log, 'delays') || Array.isArray(log.lines)));
+  return !!(log && (Object.prototype.hasOwnProperty.call(log, 'story') || Object.prototype.hasOwnProperty.call(log, 'safety') || Array.isArray(log.lines)));
 }
-var STORY_FIELD_MATCH = { delays: /anticipated\s*delays?/i, reason: /delay\s*reason/i, safety: /safety/i };
-// The chips on the phone against the Delay Reason field's own options
-// ("Weather", "Short Labor", "Short Material", "Other" when this was written).
-var DELAY_WHY_OPTION = { weather: /weather/i, people: /labor|labour|people|crew|staff/i, material: /material/i, other: /other/i };
-var DELAY_WHY_WORDS = { weather: 'Weather', people: 'Short on people', material: 'Waiting on material', other: 'Other' };
+var SAFETY_FIELD_RE = /safety|incident/i;
 var ALERT_KIND_WORDS = { fall: 'Fall', cut: 'Cut', heat: 'Heat', close: 'Close call', other: 'Other' };
-/** The two answers as JobTread's own fields, found by name. Delays yes or no
- *  is Anticipated Delays; the chips are Delay Reason, matched against the
- *  field's own option list; an incident is Safety Incidents as one line.
- *  Without the definitions (JobTread could not be asked) nothing is mapped,
- *  and the notes carry the answers instead. */
+/** The answers as JobTread's own fields: what the phone answered, by id
+ *  (checked against the org's list downstream), plus the incident as the
+ *  Safety Incidents field, found by name, unless the phone filled that one
+ *  itself. Without the definitions (JobTread could not be asked) the
+ *  phone's answers still go as sent, and the notes name them from the
+ *  phone's own copy of the names. */
 function storyFieldsRaw_(log) {
-  var raw = {}, defs = [];
-  try { defs = dailyLogFields_() || []; } catch (e) { defs = []; }
-  var find = function (re) { return defs.filter(function (f) { return re.test(String(f.name || '')); })[0] || null; };
-  var fDelays = find(STORY_FIELD_MATCH.delays), fReason = find(STORY_FIELD_MATCH.reason), fSafety = find(STORY_FIELD_MATCH.safety);
-  if (fDelays && (log.delays === true || log.delays === false)) raw[fDelays.id] = log.delays;
-  if (fReason && log.delays === true) {
-    var opts = fReason.options || [], picked = [];
-    (log.delayWhy || []).forEach(function (key) {
-      var re = DELAY_WHY_OPTION[key];
-      var opt = re ? opts.filter(function (o) { return re.test(String(o)); })[0] : null;
-      if (!opt) opt = opts.filter(function (o) { return String(o).toLowerCase() === String(key).toLowerCase(); })[0] || null;
-      if (opt && picked.indexOf(opt) === -1) picked.push(opt);
-    });
-    if (picked.length) raw[fReason.id] = picked;
+  var raw = {}, src = (log.fields && typeof log.fields === 'object') ? log.fields : {};
+  for (var id in src) if (Object.prototype.hasOwnProperty.call(src, id)) raw[id] = src[id];
+  if (log.safety === true) {
+    var defs = [];
+    try { defs = dailyLogFields_() || []; } catch (e) { defs = []; }
+    var fSafety = defs.filter(function (f) { return f.type === 'text' && SAFETY_FIELD_RE.test(String(f.name || '')); })[0];
+    if (fSafety && !String(raw[fSafety.id] == null ? '' : raw[fSafety.id]).trim()) raw[fSafety.id] = safetyWords_(log);
   }
-  if (fSafety && log.safety === true) raw[fSafety.id] = safetyWords_(log);
   return raw;
 }
 function safetyWords_(log) {
@@ -1375,18 +1366,14 @@ function safetyWords_(log) {
   if (a.sentAt) s += ' — alert sent' + (a.to && a.to.length ? ' to ' + a.to.join(', ') : '');
   return s;
 }
-function delayWords_(log) {
-  if (log.delays !== true) return log.delays === false ? 'No' : '';
-  var why = (log.delayWhy || []).map(function (k) { return DELAY_WHY_WORDS[k] || String(k); });
-  return 'Yes' + (why.length ? ' · ' + why.join(', ') : '');
-}
-function storyPingLine_(log) {
-  var dw = delayWords_(log);
-  return [dw ? 'Delays: ' + dw : '', log.safety === true ? 'Hurt / close call: ' + safetyWords_(log) : ''].filter(Boolean).join(' · ');
+/** What the ping names: the filled fields that ping, else the incident. */
+function storyPingLine_(log, fields) {
+  return pingsLine_(fields) || (log.safety === true ? 'Hurt / close call: ' + safetyWords_(log) : '');
 }
 /** Plain text for the story shape: the lines the PM was told, with their
- *  times, then the story, then the two answers, then what the phone knows. */
-function dailyLogStoryText_(me, log) {
+ *  times, then the story, then the answers under the fields' own names,
+ *  then what the phone knows. */
+function dailyLogStoryText_(me, log, fields) {
   var L = [];
   L.push('Site manager\'s log — ' + me.name + ' · ' + fmtDayLong_(log.date));
   var head = [String(log.jobLabel || '').trim(), log.alongside ? 'with ' + log.alongside : ''].filter(Boolean).join(' · ');
@@ -1402,11 +1389,12 @@ function dailyLogStoryText_(me, log) {
   if (story) { any = true; L.push(story); }
   if (!any) L.push('—');
   L.push('');
-  var dw = delayWords_(log);
-  if (dw) L.push('Delays: ' + dw);
-  if (log.safety === true) L.push('Hurt / close call: ' + safetyWords_(log));
-  else if (log.safety === false) L.push('Hurt / close call: None');
-  if (dw || log.safety != null) L.push('');
+  var filled = (fields && fields.filled) || [], answered = false;
+  filled.forEach(function (x) { L.push(x.name + ': ' + x.text); answered = true; });
+  var safetyOnLog = filled.some(function (x) { return SAFETY_FIELD_RE.test(String(x.name || '')); });
+  if (log.safety === true && !safetyOnLog) { L.push('Hurt / close call: ' + safetyWords_(log)); answered = true; }
+  else if (log.safety === false) { L.push('Hurt / close call: None'); answered = true; }
+  if (answered) L.push('');
   return L.concat(dailyLogTail_(me, log)).join('\n');
 }
 /** The site checks, the hours, the photos and the sign-off — the same on
