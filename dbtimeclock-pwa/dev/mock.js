@@ -148,19 +148,22 @@
         crewNote: 'Dumpster on the north side. Gate code 1412 — do not block the neighbour\u2019s drive.',
         cust: 'Noah Webster', city: 'Van Wert', address: '408 Euclid Ave, Van Wert, OH 45891, USA',
         status: 'Production', jtype: 'Foundation',
-        material: { text: 'Material ordered \u2713', cls: 'good' },
+        material: { text: 'Ordered \u2014 drop booked, not on site yet', cls: 'warn' },
+        warehouse: null,
         checks: null, alongside: null, pm: 'Neal Deitemeyer', reps: ['Justin Phillips'] },
       { taskId: 't4', jobId: 'j4', jobNum: '26-1490', jobName: '261490 Courtney_Roof',
         start: isoAdd(-1), end: isoAdd(-1), days: 1, dayOf: null, today: false,
         crewNote: '', cust: 'Courtney', city: 'Ohio City', address: '1140 Bittersweet Ln, Ohio City, OH 45874, USA',
         status: 'Production', jtype: 'Roofing',
-        material: { text: 'Material ordered \u2713', cls: 'good' },
+        material: { text: 'Loaded for the crew \u2713', cls: 'good' },
+        warehouse: { delivered: false, pulled: true, staged: true, where: 'Bay 3', loaded: true, toWarehouse: false, words: 'Pulled, staged and loaded for the crew' },
         checks: checksFor('t4roof'), alongside: 'Platinum (Shingle)', pm: 'Dave Elick', reps: ['Shawn Deitemeyer', 'Jenn Grubb'] },
       { taskId: 't2', jobId: 'j2', jobNum: '26-1045', jobName: '261045 Lucas_Roof',
         start: isoAdd(TWO ? 0 : 2), end: isoAdd(TWO ? 0 : 2), days: 1, dayOf: TWO ? 1 : null, today: TWO,
         crewNote: '', cust: 'Lucas', city: 'Van Wert', address: '812 S Washington St, Van Wert, OH 45891, USA',
         status: 'Production', jtype: 'Roofing',
         material: { text: 'Pull from shop', cls: 'warn' },
+        warehouse: { delivered: false, pulled: false, staged: false, where: null, loaded: false, toWarehouse: false, words: 'Still on the shelf' },
         checks: checksFor('t2roof'), alongside: 'Platinum', pm: 'Dave Elick', reps: ['Shawn Deitemeyer'] },
       { taskId: 't3', jobId: 'j3', jobNum: '26-1102', jobName: '261102 Harmon_Siding',
         start: isoAdd(7), end: isoAdd(8), days: 2, dayOf: null, today: false,
@@ -168,6 +171,7 @@
         cust: 'Dale Harmon', city: 'Delphos', address: '221 N Main St, Delphos, OH 45833, USA',
         status: 'Production', jtype: 'Siding',
         material: { text: 'PART ORDER \u2014 check first', cls: 'bad' },
+        warehouse: null,
         checks: null, alongside: null, pm: '', reps: [] }
     ];
   }
@@ -249,6 +253,15 @@
       return { status: 200, reason: '', body: {
         human: jobLabel + ' \u2014 ' + checksWords(cur), api: [],
         checks: JSON.parse(JSON.stringify(cur)), previous: previous } };
+    },
+    // The one material fact the phone records. Same door as the checks, so
+    // __MOCK_NOTMANAGER covers it too.
+    saveMaterialLoaded: function (jobId, jobLabel, loaded) {
+      window.__LOADS = window.__LOADS || [];
+      window.__LOADS.push({ jobId: jobId, jobLabel: jobLabel, loaded: loaded });
+      if (window.__MOCK_NOTMANAGER) return { status: 403, reason: 'board-http-403', body: { error: 'Only a site manager can record the material loaded \u2014 ask the office.' } };
+      if (window.__MOCK_PUTFAIL) return { status: 502, reason: 'board-http-502', body: { error: 'JobTread write failed' } };
+      return { status: 200, reason: '', body: { human: jobLabel + ' \u2014 ' + (loaded ? 'pulled, staged and loaded for the crew' : 'no longer loaded'), api: [] } };
     },
     getJobOptions: function () { return [JOB, LUCAS]; },
     searchJobs: function () { return [JOB]; },
@@ -409,7 +422,7 @@
       // The first seconds of a real boot: the clock is drawn, the code list
       // and job picker are not here yet. Hard to catch by hand, easy to break.
       var hold = (body.fn === 'getExtras' && Number(window.__MOCK_SLOWEXTRAS)) ||
-                 (body.fn === 'saveSiteChecks' && Number(window.__MOCK_SLOWPUT)) ||
+                 ((body.fn === 'saveSiteChecks' || body.fn === 'saveMaterialLoaded') && Number(window.__MOCK_SLOWPUT)) ||
                  (body.fn === 'sendDailyLog' && Number(window.__MOCK_SLOWLOG)) || 0;
       if (!hold) return Promise.resolve(res);
       return new Promise(function (ok) { setTimeout(function () { ok(res); }, hold); });

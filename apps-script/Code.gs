@@ -341,6 +341,7 @@ function doPost(e) {
       getMyDay: getMyDay,
       getMyJobs: getMyJobs,
       saveSiteChecks: saveSiteChecks,
+      saveMaterialLoaded: saveMaterialLoaded,
       sendDailyLog: sendDailyLog,
       addDailyLogNote: addDailyLogNote,
       tellPm: tellPm,
@@ -888,6 +889,11 @@ function shapeVisit_(v, today) {
     status: v.status || '',
     jtype: v.jtype || '',
     material: v.material || null,
+    // The WAREHOUSE half of this job's material, or null when the job has
+    // none — no DB inventory pull and no supplier drop routed to our own
+    // building. It carries the board's own `words`, and `loaded` is the one
+    // material fact this app records (saveMaterialLoaded). Untouched.
+    warehouse: v.warehouse || null,
     // The JOB's site checks, or null when the job has none. `checks.taskId` is
     // the task the list sits on — usually the roofing crew's line, not this
     // visit's own task — and is what saveSiteChecks must be given. Untouched.
@@ -1631,6 +1637,84 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
   // a card that was just ticked), so drop the copy the next getMyJobs would
   // serve. Only the default window is cached by the app; a custom range is
   // never sent by it.
+  if (out.status === 200) {
+    try {
+      var win = boardWindow_(isoDay_(new Date()));
+      CacheService.getScriptCache().remove(myJobsCacheKey_(me.membershipId, win.from, win.to));
+    } catch (e2) { /* a stale cache is a cosmetic problem, not a failure */ }
+  }
+  return out;
+}
+
+// ===========================================================
+// MATERIAL LOADED — the one material fact this app records.
+//
+// Carl, 19 Sep 2026: "the crew app should be where the site manager checks
+// off the material is loaded ready to go to site." The person who knows it is
+// on the truck is standing beside the truck, not at a desk.
+//
+// ONE boolean, never a state object. The board reads the job's checklist and
+// writes on top of it, so the staged LOCATION somebody in the yard typed
+// ("Staged at: Bay 3") can never be blanked by a phone that had to guess at
+// it — and loading implies pulling and staging there, because nobody loads
+// material they never pulled.
+//
+// Registered in WITH_USER, like saveSiteChecks: `me` comes from the verified
+// Google token and the board applies the same rule it applies to the site
+// checks — the membership has to be a site manager. Saying a thing happened
+// is what a site manager is for; this is not scheduling and never becomes
+// scheduling.
+//
+// No offline queue, unlike the checks. A tick here is one fact with no
+// ordering against anything else, and the honest failure is the button
+// staying as it was with the reason said out loud.
+// ===========================================================
+function saveMaterialLoaded(me, jobId, jobLabel, loaded) {
+  jobId = String(jobId || '').trim();
+  if (!jobId) throw new Error('Missing job id.');            // the app's bug, not the board's
+
+  var out = { status: 0, reason: '', body: null };
+  if (!me.membershipId) { out.reason = 'no-membership'; return out; }
+  var cfg = boardConfig_();
+  if (!cfg.url || !cfg.secret) { out.reason = 'not-configured'; return out; }
+
+  var payload = {
+    membershipId: me.membershipId,
+    jobId: jobId,
+    jobLabel: String(jobLabel || '').slice(0, 80),
+    loaded: !!loaded
+  };
+
+  var startedMs = Date.now(), elapsedMs = 0;
+  try {
+    var resp = UrlFetchApp.fetch(cfg.url + '/api/crew/loaded', {
+      method: 'put',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      headers: { Authorization: 'Bearer ' + cfg.secret },
+      muteHttpExceptions: true,
+      followRedirects: false
+    });
+    elapsedMs = Date.now() - startedMs;
+    if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
+    out.status = resp.getResponseCode();
+    out.boardMs = elapsedMs;
+    var text = resp.getContentText();
+    try { out.body = JSON.parse(text); } catch (pe) { out.body = null; out.text = String(text || '').slice(0, 300); }
+    if (out.status === 307 || out.status === 302) out.reason = 'board-signin-bounce';
+    else if (out.status !== 200) out.reason = 'board-http-' + out.status;
+  } catch (e) {
+    elapsedMs = Date.now() - startedMs;
+    if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
+    out.reason = 'board-unreachable';
+    out.boardMs = elapsedMs;
+    out.error = (e && e.message) || String(e);
+    return out;
+  }
+
+  // Written. The cached job list now says the material is still staged under
+  // a card that was just loaded, so drop the copy the next getMyJobs would
+  // serve — the same reason saveSiteChecks does it.
   if (out.status === 200) {
     try {
       var win = boardWindow_(isoDay_(new Date()));

@@ -77,7 +77,22 @@ job. Don't lose that by filtering the result again on `start >= from`.
       "jtype":   "Foundation",
 
       // materialWords(job, visit)
-      "material": { "text": "Material ordered ✓", "cls": "good" },
+      "material": { "text": "Material due today — not confirmed", "cls": "warn" },
+
+      // the WAREHOUSE half of this job's material, and the one tick this app
+      // owns — see "The material loaded tick" below. null when the job has no
+      // warehouse half at all (ABC booms straight onto the roof). Added
+      // 2026-09-19; additive, so an app built to the earlier contract
+      // ignores it.
+      "warehouse": {
+        "delivered": false,       // a drop routed to OUR building has landed there
+        "pulled":    true,
+        "staged":    true,
+        "where":     "Bay 3",     // free text the yard typed; null when unanswered
+        "loaded":    false,       // THE tick this app records
+        "toWarehouse": false,     // the supplier drop lands at the DB warehouse
+        "words":     "Staged at Bay 3"   // render as-is, same sentence as the board
+      },
 
       // the JOB's site checks — see "Site checks" below. null when the job
       // has none. Added 2026-09-15; additive, so an app built to the earlier
@@ -120,8 +135,34 @@ the card loses a line the crew already expects to see.
 `material` is `materialWords`' own return value — `{ text, cls }` where `cls` is
 `good` | `warn` | `bad`, or `null` when no chip applies. This app renders the
 text as-is and colours from `cls`; it deliberately does **not** re-derive the
-words, so "Material ordered ✓ / Pull from shop / PART ORDER — check first" stays
-defined in one place.
+words, so they stay defined in one place.
+
+**The words changed on 18 Sep 2026 and this app must not paper over it.**
+Ordered, booked and delivered used to collapse into one green `Material
+ordered ✓`, so a job nobody had rung ABC about read on a crew's phone exactly
+like one whose bundles were on the roof. Only two states are `good` now, and
+both mean a person said so:
+
+| text | cls | means |
+| --- | --- | --- |
+| `Material on site ✓` | good | the site manager ticked "Material on site and counted against the order" |
+| `Loaded for the crew ✓` | good | the warehouse pull is on the truck |
+| `Material due today — not confirmed` | warn | the supplier drop was booked for today or earlier; nobody has confirmed it landed |
+| `Ordered — drop booked, not on site yet` | warn | a drop date is set for a later day |
+| `Ordered — coming to the shop first` | warn | the drop is routed to the DB warehouse, not the job |
+| `Due at the shop today — not confirmed` | warn | that warehouse drop was booked for today or earlier |
+| `Ordered — no drop date yet` | warn | ordered, nobody has rung the supplier for a date |
+| `Staged at Bay 3 — not loaded` | warn | pulled and staged in OUR warehouse, still not on the truck |
+| `Pull from shop` | warn | a DB inventory pull nobody has been to the shelf for |
+| `PART ORDER — check first` | bad | some supplier orders still in draft |
+| `NOTHING ORDERED — check first` | bad | no supplier order and no DB inventory pull |
+
+`matLine()` in `index.html` used to re-word these into three of its own, which
+is the same bug from the other side: every `good` line became "Material on
+site", so LOADED FOR THE CREW — on our own truck, nowhere near the roof — read
+as material standing on the job. It renders the board's text as it arrives now
+(the tick is still stripped: the self-hosted face draws U+2713 as a radical
+sign). Do not put a rewrite back.
 
 `days` is *m*. Day *n* of *m* is computed in this app from `start` vs today —
 the board must **not** expand one row per calendar day. A three-day install is
@@ -298,3 +339,96 @@ Every save posts one job comment naming what changed ("📋 Site checks: signed
 off by Tyler — via Production Board (Tyler Mohr)"), like every other board
 write. Ticking inside JobTread's own app writes no comment and records no
 author — the board's route is what makes the tap a signature.
+
+## The material loaded tick (added 2026-09-19)
+
+Carl: *"The crew app should be where the site manager checks off the material
+is loaded ready to go to site."* And it is the right place — the person who
+knows the material is on the truck is standing beside the truck, not at a desk.
+
+This is the **only** material fact this app records. What was ordered, when the
+drop is, whether the yard pulled and staged it: those stay on the board, where
+the office and the yard answer them. One tick here, and it is `loaded`.
+
+**Show the tick only when `warehouse` is non-null.** It is null on a job whose
+material goes straight to the roof (ABC booms it on the morning the crew
+starts), and a button that records something that never happens is worse than
+no button.
+
+`warehouse` is present when the job has a DB inventory pull **or** a supplier
+drop routed to the DB warehouse (`toWarehouse: true`). The second is new: an
+ABC order that comes to the yard instead of the roof still has to be taken in,
+pulled, staged and loaded like stock, and `delivered` is the yard recording
+that it turned up. Render `words` as-is — it is the same sentence every board
+screen says about that job.
+
+### `PUT /api/crew/loaded`
+
+```
+PUT /api/crew/loaded
+Authorization: Bearer $CREW_APP_SECRET
+Content-Type: application/json
+
+{
+  "membershipId": "22PLtN4cBYPH",   // resolved server-side here, as for GET
+  "jobId":   "22P…",
+  "jobLabel": "26-1490 Courtney",   // optional; the toast/comment wording
+  "loaded":  true                   // false takes it back off the truck
+}
+```
+
+| Case | Status | Body |
+| --- | --- | --- |
+| Written | 200 | `{ "human": "…", "api": […] }` — refetch the assignments to pick up the new `warehouse`. |
+| Membership is not a site manager | **403** | `{ "error": "Only a site manager can record the material loaded — ask the office." }` |
+| Missing ids, or `loaded` is not a boolean | 400 | `{ "error": "…" }` |
+| Wrong or missing bearer token | 401 | as GET |
+| JobTread write failed | 502 | `{ "error": "…" }` |
+
+**Same door as the site checks**: the shared secret, then the membership has to
+carry JobTread's **"Site Manager"** role (or resolve to a roster crew whose
+trade line reads "Site Manager"). Ticking this is saying a thing happened,
+which is what a site manager is for — it is not scheduling, and it never
+becomes scheduling.
+
+**Loading implies pulling and staging**, the same rule the board's own popup
+follows: nobody loads material they never pulled. The board reads the checklist
+first and writes on top of it, so the staged LOCATION somebody in the yard
+typed is never blanked — which is why this call takes one boolean and not a
+state object.
+
+**Where it is written**: the job's "Order materials" task in JobTread, as the
+`Loaded for the crew` line of the six-line material checklist —
+
+```
+Ordered from ABC Supply            ← derived by the board, off the PO
+Drop booked: Sep 22 · job site     ← derived by the board, off the drop date
+Delivered to the warehouse         ← only when the drop lands at ours
+Pulled from DB inventory
+Staged at: Bay 3
+Loaded for the crew                ← this call
+```
+
+The first two are derived and nobody ticks them, here or anywhere. One job
+comment is posted per save, naming the actor, like every other board write.
+
+**Loaded is not on site.** It is the last thing OUR side can say; the site
+manager's own checklist line — *"Material on site and counted against the
+order"* — is what says the material reached the roof, and it stays the only
+thing that turns anything green.
+
+### This app's half
+
+`saveMaterialLoaded(me, jobId, jobLabel, loaded)` in `Code.gs`, registered in
+`WITH_USER` so `membershipId` is stamped from the verified token and never sent
+by the phone. It mirrors `saveSiteChecks`: PUTs to the board, hands back the
+board's status and JSON verbatim (never thrown), drops the cached job list on a
+200 so the card stops saying "staged at Bay 3" under a load that just landed,
+and is NOT gated on `WRITE_ENABLED` — that flag keeps this script's grant key
+off payroll, and the checklist is the board's write under the board's own gate.
+
+No offline queue, unlike the checks: a tick here is one fact with no ordering
+against anything else, and the honest failure is the button staying as it was
+with the reason said out loud. `index.html` draws the button only when
+`warehouse` is non-null and never to somebody the board has already said cannot
+sign the site checks — it is the same door, so a 403 puts both read-only.

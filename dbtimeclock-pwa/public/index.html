@@ -319,6 +319,11 @@ button[disabled]{cursor:default}
 .jck.amber{color:var(--ckamber)}
 .jck.green{color:var(--acc)}
 .jbtn{min-height:var(--tap);width:100%;display:flex;align-items:center;justify-content:space-between;gap:11px;padding:0 16px;border-top:1px solid var(--line);background:var(--surf2);color:var(--fg);font:700 15px/1 var(--head);letter-spacing:.6px;text-transform:uppercase;text-align:left}
+/* A material load already recorded. No tick glyph: the self-hosted face draws
+   U+2713 as a radical sign, so the state is the colour and the words. */
+.jbtn.ok{color:var(--acc)}
+.jbtn[disabled]{opacity:.55}
+.jbtn-k{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);flex:none}
 .nudge{width:100%;min-height:68px;display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--warn);color:var(--warnink);text-align:left;flex:none}
 .nudge .nk{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;opacity:.8;display:block;margin-bottom:4px}
 .nudge .nt{display:block;font:600 15px/1.3 var(--sans)}
@@ -725,7 +730,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.16 (2026-09-16)';
+var APP_BUILD = 'T1.17 (2026-09-19)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1738,16 +1743,21 @@ function assignNote(a){
    materialWords() in the board so they stay defined in one place. */
 function matWords(t){ return String(t||'').replace(/[\u2713\u2714]\s*$/, '').trim(); }
 
-/* The material line, in the card's own words: on site, not there yet,
-   pull from shop — from the board's class and its text, so a part order
-   still says what the board says. */
+/* The material line, in the BOARD's words — rendered as they arrive.
+   This used to re-word them into three of its own, and that is exactly the
+   bug Carl caught on 18 Sep from the other side: every `good` line became
+   "Material on site", so LOADED FOR THE CREW — material on our own truck,
+   nowhere near the roof — read as material standing on the job, and every
+   warn line that did not say "pull" became "Material not there yet ·
+   ordered", which threw away where it is sitting.
+   CREW-ASSIGNMENTS-API.md says it plainly: the words are defined once, in
+   the board's materialWords(), and anything that rewords them here is wrong
+   twice over. The tick is still stripped — the self-hosted face draws U+2713
+   as a radical sign — and the colour still comes from `cls`. */
 function matLine(m){
   if (!m || !m.text) return null;
-  var cls = m.cls === 'bad' ? 'bad' : m.cls === 'warn' ? 'warn' : 'good', raw = matWords(m.text);
-  var text = cls === 'good' ? 'Material on site'
-           : cls === 'warn' ? (/pull/i.test(raw) ? 'Pull from shop' : 'Material not there yet · ordered')
-           : raw;
-  return { cls: cls, text: text };
+  var cls = m.cls === 'bad' ? 'bad' : m.cls === 'warn' ? 'warn' : 'good';
+  return { cls: cls, text: matWords(m.text) };
 }
 /* Hand the street address to whatever maps app the phone has. A geo: URL is
    ignored by iOS, so this is the one form that opens Maps on both. */
@@ -1793,6 +1803,7 @@ function visitCardHtml(v){
   if (!v.start || v.start <= today) h += checksLineHtml(v);
   if (v.crewNote) h += '<div class="jnote"><span class="k">From the office</span>' + esc(v.crewNote) + '</div>';
   h += '<div class="jrow">' + navCellHtml(v.address) + actionCellHtml(v) + '</div>';
+  h += loadedBtnHtml(v);
   if (v.checks && v.checks.taskId){
     h += '<button class="jbtn" data-checks="' + esc(v.checks.taskId) + '">Site checks' + CK_CHEV + '</button>';
   }
@@ -1924,6 +1935,14 @@ function renderJobs(){
       if (S.open){ S.moving = true; pickJob(id); return; }
       pickJob(id);
       setTab('job');
+    };
+  });
+  [].forEach.call($('jobsList').querySelectorAll('[data-loaded]'), function(b){
+    b.onclick = function(){
+      var id = b.getAttribute('data-loaded');
+      var v = (S.assign && S.assign.visits || []).filter(function(x){ return x.jobId === id; })[0];
+      var on = v && v.warehouse ? !v.warehouse.loaded : true;
+      saveLoaded(id, on);
     };
   });
   [].forEach.call($('jobsList').querySelectorAll('[data-checks]'), function(b){
@@ -2249,6 +2268,59 @@ function checksCls(v){
   for (var k in st.done) if (st.done[k]) return 'amber';
   return 'none';
 }
+/* "Material loaded for the crew" — the one material fact this app records
+   (Carl, 19 Sep 2026: the person who knows it is on the truck is standing
+   beside the truck). The board sends `warehouse` only when the job HAS a
+   warehouse half: a DB inventory pull, or a supplier drop routed to our own
+   building. On a job ABC booms straight onto the roof there is nothing to
+   load, and a button that records something that never happens is worse than
+   no button. Not offered to somebody the board has already said cannot sign
+   the site checks — it is the same door. */
+function loadedBtnHtml(v){
+  var w = v.warehouse;
+  if (!w || ckReadOnly()) return '';
+  var busy = mlBusy[v.jobId], on = !!w.loaded;
+  var label = on ? 'Loaded for the crew' : 'Material loaded for the crew';
+  return '<button class="jbtn' + (on ? ' ok' : '') + '" data-loaded="' + esc(v.jobId) + '"' +
+    (busy ? ' disabled' : '') + '><span>' + esc(busy ? 'Saving\u2026' : label) + '</span>' +
+    (on ? '<span class="jbtn-k">Tap to undo</span>' : CK_CHEV) + '</button>';
+}
+/* Which jobs have a save in flight. What the board recorded is written
+   straight onto the visit the phone is holding — the Apps Script drops its
+   cached job list on a 200, so the next real fetch agrees, and nothing here
+   can out-argue a list that has actually come back. */
+var mlBusy = {};
+
+function saveLoaded(jobId, on){
+  if (mlBusy[jobId]) return;
+  var v = (S.assign && S.assign.visits || []).filter(function(x){ return x.jobId === jobId; })[0];
+  if (!v) return;
+  mlBusy[jobId] = true; render();
+  apiCall('saveMaterialLoaded', [jobId, (v.jobNum ? 'JT #' + v.jobNum + ' ' : '') + (v.cust || ''), on])
+    .then(function(r){
+      mlBusy[jobId] = false;
+      r = r || {};
+      if (r.status === 200){
+        if (v.warehouse) v.warehouse.loaded = on;
+        render();
+        return;
+      }
+      if (r.status === 403){
+        // Not a site manager, says JobTread — the same answer the site checks
+        // give, so the same read-only state covers both.
+        ckSetRO((r.body && r.body.error) || 'Only a site manager can record the material loaded — ask the office.');
+        render();
+        return;
+      }
+      render();
+      failed('material loaded', new Error(
+        r.reason === 'not-configured' ? 'The board isn\u2019t connected to this app yet.'
+        : r.status === 401 ? 'The board rejected the app\u2019s key. Ask the office.'
+        : 'Not saved \u2014 the board answered ' + (r.status || r.reason || 'nothing') + '.'), true);
+    })
+    .catch(function(e){ mlBusy[jobId] = false; render(); failed('material loaded', e, true); });
+}
+
 function checksLineHtml(v){
   var text = (v.checks && v.checks.taskId) ? (v.checks.words || '') : 'No checklist on this job yet';
   return '<div class="jck ' + checksCls(v) + '"><span class="dot"></span>' + esc(text) + '</div>';

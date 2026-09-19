@@ -450,6 +450,8 @@ fetchImpl = () => ({ code: 200, body: JSON.stringify({
   checklist: SHAPE,
   visits: [
     { taskId: 't_mine', jobId: 'j9', jobNum: '26-1490', start: yday, end: yday, days: 1, cust: 'Courtney',
+      warehouse: { delivered: false, pulled: true, staged: true, where: 'Bay 3', loaded: false,
+                   toWarehouse: false, words: 'Staged at Bay 3' },
       checks: { taskId: 't_roof', state: { done: { address: true }, magnetBy: null, signedOff: null },
                 progress: [{ phase: 'before', label: 'Before the tear-off', done: 1, total: 11 }],
                 words: 'Before tear-off — 1 of 11 done' } },
@@ -461,6 +463,9 @@ t('the checklist shape passes through untouched', r.checklist, SHAPE);
 t('checks pass through; taskId is the LIST\'s, not the visit\'s',
   [r.visits[0].checks.taskId, r.visits[0].taskId, r.visits[0].checks.words], ['t_roof', 't_mine', 'Before tear-off — 1 of 11 done']);
 t('a job with no list is null, never invented', r.visits[1].checks, null);
+t('the warehouse half rides through untouched, null when the job has none',
+  [r.visits[0].warehouse, r.visits[1].warehouse],
+  [{ delivered: false, pulled: true, staged: true, where: 'Bay 3', loaded: false, toWarehouse: false, words: 'Staged at Bay 3' }, null]);
 t('a visit that ended yesterday is kept — no re-filter on start >= from', r.visits.map(v => v.taskId), ['t_mine', 't_found']);
 t('a current visit means no recent-jobs list is needed', r.jobs.length, 0);
 
@@ -535,6 +540,47 @@ t('no membership -> says so', r.reason, 'no-membership');
 let bad = '';
 try { sandbox.saveSiteChecks(ME, '', 'j9', '', today, { done: {} }); } catch (e) { bad = e.message; }
 t('a missing checklist id is the app\'s bug and is thrown', /checklist id/.test(bad), true);
+
+/* ---- MATERIAL LOADED: one boolean, and it must stay one boolean ----
+   The staged LOCATION is free text somebody in the yard typed. A phone that
+   posted a whole state would have to guess at it and would blank it, which is
+   why this call carries `loaded` and nothing else. */
+props = { BOARD_API_URL: 'https://ops.example.com', CREW_APP_SECRET: 's3cret' };
+cacheStore = {}; fetched = [];
+fetchImpl = () => ({ code: 200, body: JSON.stringify({ human: '26-1490 Courtney — pulled, staged and loaded for the crew', api: [] }) });
+r = sandbox.saveMaterialLoaded(ME, 'j9', '26-1490 Courtney', 1);
+const mput = fetched[0], msent = JSON.parse(mput.opts.payload);
+t('PUT /api/crew/loaded on the board', [mput.url, mput.opts.method], ['https://ops.example.com/api/crew/loaded', 'put']);
+t('membershipId is the verified caller\'s, never the phone\'s', msent.membershipId, 'm1');
+t('one boolean and the ids — never a state the phone had to guess',
+  [Object.keys(msent).sort(), msent.loaded, msent.jobId], [['jobId', 'jobLabel', 'loaded', 'membershipId'], true, 'j9']);
+t('bearer header, JSON body, no redirects', [mput.opts.headers.Authorization, mput.opts.contentType, mput.opts.followRedirects], ['Bearer s3cret', 'application/json', false]);
+t('200 comes back as data', [r.status, r.reason], [200, '']);
+
+// Taking it back off the truck is the same call.
+cacheStore = {}; fetched = [];
+sandbox.saveMaterialLoaded(ME, 'j9', '', false);
+t('unloading is the same call with false', JSON.parse(fetched[0].opts.payload).loaded, false);
+
+// The card says "staged at Bay 3" until the list is re-read, so drop the copy.
+cacheStore = {}; fetched = [];
+cacheStore[winKey] = '{"stale":1}';
+sandbox.saveMaterialLoaded(ME, 'j9', '', true);
+t('a written load drops the cached job list', cacheStore[winKey], undefined);
+
+// The board decides who may: a site manager, exactly as for the site checks.
+fetchImpl = () => ({ code: 403, body: '{"error":"Only a site manager can record the material loaded — ask the office."}' });
+r = sandbox.saveMaterialLoaded(ME, 'j9', '', true);
+t('403 -> the board\'s own words, never thrown', [r.status, r.body.error.slice(0, 22)], [403, 'Only a site manager ca']);
+fetchImpl = () => { throw new Error('dns'); };
+r = sandbox.saveMaterialLoaded(ME, 'j9', '', true);
+t('a thrown request never propagates', [r.status, r.reason], [0, 'board-unreachable']);
+r = sandbox.saveMaterialLoaded({ ...ME, membershipId: '' }, 'j9', '', true);
+t('no membership -> says so', r.reason, 'no-membership');
+bad = '';
+try { sandbox.saveMaterialLoaded(ME, '', '', true); } catch (e) { bad = e.message; }
+t('a missing job id is the app\'s bug and is thrown', /job id/.test(bad), true);
+fetchImpl = () => ({ code: 200, body: '{"human":"x","api":[]}' });
 
 // A slow board trips the breaker for the NEXT job-list fetch, but an open
 // breaker never blocks a save: the manager tapped, on their own slot, and a
