@@ -99,7 +99,10 @@ job. Don't lose that by filtering the result again on `start >= from`.
       // contract ignores it.
       "checks": {
         "taskId": "22P…",                      // the task the list is ON — NOT this visit's
-        "state": { "done": { "address": true, "…": false }, "magnetBy": null, "signedOff": null },
+        "state": {
+          "done": { "address": true, "…": false }, "magnetBy": null, "signedOff": null,
+          "notes": { "septic": "Tank lid is under the back deck" }   // per-line notes, keyed like done (added 2026-09-20)
+        },
         "progress": [
           { "phase": "before",   "label": "Before the tear-off",             "done": 1, "total": 11 },
           { "phase": "handover", "label": "Before the site manager leaves",  "done": 0, "total": 7 },
@@ -153,6 +156,8 @@ both mean a person said so:
 | `Due at the shop today — not confirmed` | warn | that warehouse drop was booked for today or earlier |
 | `Ordered — no drop date yet` | warn | ordered, nobody has rung the supplier for a date |
 | `Staged at Bay 3 — not loaded` | warn | pulled and staged in OUR warehouse, still not on the truck |
+| `Pulled — not staged yet` | warn | the DB inventory pull is off the shelf, nothing staged (added 2026-09-20) |
+| `At the shop — not pulled yet` | warn | a supplier drop routed to the DB warehouse has landed there; nobody has pulled for the crew (added 2026-09-20) |
 | `Pull from shop` | warn | a DB inventory pull nobody has been to the shelf for |
 | `PART ORDER — check first` | bad | some supplier orders still in draft |
 | `NOTHING ORDERED — check first` | bad | no supplier order and no DB inventory pull |
@@ -310,7 +315,8 @@ Content-Type: application/json
   "checks": {
     "done": { "address": true, "homeowner": true },  // only the keys you changed are needed
     "magnetBy": "Kenton",                              // or null
-    "signOff": true                                    // sign it (false takes a signature off)
+    "signOff": true,                                   // sign it (false takes a signature off)
+    "notes": { "septic": "Tank lid is under the back deck", "address": "" }  // a note per line key; "" clears (added 2026-09-20)
   }
 }
 ```
@@ -346,6 +352,39 @@ or unsigns the list ("📋 Site checks: signed off by Tyler …"). A burst that
 finishes nothing posts nothing. The office's own route (a button press) still
 comments on every save. Ticking inside JobTread's own app writes no comment
 and records no author — the board's route is what makes the tap a signature.
+
+### A note on a line (added 2026-09-20)
+
+The paper checklist had a margin and the list did not: *"the check list has
+no way for the site managers to make on the spot notes on the check item"*
+(Carl). Every line except the sign-off can carry ONE note now — `state.notes`
+on the GET, keyed by `checklist.lines[].key` exactly like `done`, and
+`checks.notes` on the PUT.
+
+- **One line of text, 140 characters** (`NOTE_MAX` in the board's
+  `install-checks.ts`). The board collapses whitespace and cuts at 140; send
+  what was typed. It rides the subtask's NAME in JobTread after ` — note: `,
+  the same trick as `magnetBy` and the sign-off, so a PM reading the task in
+  JobTread's own app sees *"Well and septic located — note: Tank lid is under
+  the back deck"*.
+- **Send every key you show, `""` for none** — the PUT's `notes` is merged
+  onto what is written: a key present with text sets it, `""` clears it, a key
+  left out is left alone. So a phone that sends all 27 keys every burst is
+  right, and one that sends only the changed key is also right; what is wrong
+  is sending a key with stale text after somebody cleared it in JobTread.
+- **Notes reach the job comment with the group they sit in.** Under this
+  route's policy (one comment when a group finishes) the comment names every
+  note in the group that just finished — *"📋 Site checks: before the tear-off
+  — all 11 done · notes — Well and septic located: Tank lid is under the back
+  deck"* — and a note changed on a group ALREADY complete posts on its own
+  (*"📋 Site checks: notes — …"*), because that is the afterthought the PM
+  would otherwise never see. A sign-off carries every note on the list. A
+  note typed on a group still in progress waits for the group.
+- **The line reads DB Cam now**: `20–30 photos in DB Cam (8 from the ground,
+  each side)` — the company's own photo app, never CompanyCam. The board reads
+  the old wording as the same line and rewrites it on the next save, so a list
+  seeded before 20 Sep needs nothing. This app draws `checklist.lines[].label`
+  verbatim, so it changes on the next GET.
 
 ## The material loaded tick (added 2026-09-19)
 

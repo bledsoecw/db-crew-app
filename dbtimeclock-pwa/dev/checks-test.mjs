@@ -96,43 +96,55 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   await page.waitForTimeout(900);
   check('the header words refresh from the board', await txt(page, '#ckWords'), 'Before tear-off — 3 of 11 done');
 
+  // A note on a line (T1.20): the pen opens a box under the row, the text
+  // rides the next burst, and comes back lit after the save.
+  check('every row has a pen, none lit yet', [await page.locator('.cknote-pen').count(), await page.locator('.cknote-pen.has').count()], [27, 0]);
+  await tap(page, '[data-note-add="septic"]', 200);
+  check('the pen opens a note box under that line', await page.locator('[data-note="septic"]').count(), 1);
+  await page.locator('[data-note="septic"]').fill('septic is east of the drive');
+  await page.waitForTimeout(2600);
+  p = await puts(page);
+  check('the note rides the next save, every key present', [p.length, p[p.length - 1].checks.notes.septic, p[p.length - 1].checks.notes.address, Object.keys(p[p.length - 1].checks.notes).length], [2, 'septic is east of the drive', '', 27]);
+  check('...and the pen is lit once it is there', await cls(page, '[data-note-add="septic"]'), 'cknote-pen has');
+  check('the box keeps the words after the save', await page.locator('[data-note="septic"]').inputValue(), 'septic is east of the drive');
+
   await tap(page, '.ckphase[data-phase="finished"] .ckph', 300);
   await tap(page, '.ckrow[data-line="magnet"]', 100);
   check('the "who ran it?" field is not prefilled', await page.locator('#ckWho').inputValue(), '');
   await tap(page, '#ckWhoMe', 2600);
   p = await puts(page);
-  check('the chip fills the first name and saves it', [p.length, p[1].checks.magnetBy, p[1].checks.done.magnet], [2, 'Tyler', true]);
+  check('the chip fills the first name and saves it', [p.length, p[2].checks.magnetBy, p[2].checks.done.magnet], [3, 'Tyler', true]);
 
   check('the sign-off button carries the signed-in first name', await txt(page, '#ckSignBtn'), 'Sign off as Tyler');
   await tap(page, '#ckSignBtn', 500);
   check('the confirm counts what is not ticked', await txt(page, '#sheetBody .body'), '23 lines not ticked — sign anyway?');
   await tap(page, '#skYes', 2200);
   p = await puts(page);
-  check('yes -> one save with signOff true', [p.length, p[2].checks.signOff], [3, true]);
+  check('yes -> one save with signOff true', [p.length, p[3].checks.signOff], [4, true]);
   check('the signature shown is the board\'s', await txt(page, '.cksign .st'), 'Signed off: Tyler · ' + shortToday);
   check('the button becomes Unsign', await page.locator('#ckUnsign').count(), 1);
   check('...and the words go green', await cls(page, '#ckWords'), 'jck green');
 
   await tap(page, '.ckrow[data-line="cleanup"]', 2600);
   p = await puts(page);
-  check('ticks stay editable, and keep the signature', [p.length, p[3].checks.signOff, p[3].checks.done.cleanup], [4, true, true]);
+  check('ticks stay editable, and keep the signature', [p.length, p[4].checks.signOff, p[4].checks.done.cleanup], [5, true, true]);
 
   await tap(page, '#ckUnsign', 400);
   await tap(page, '#ukYes', 2200);
   p = await puts(page);
-  check('unsign -> signOff false', [p.length, p[4].checks.signOff], [5, false]);
+  check('unsign -> signOff false', [p.length, p[5].checks.signOff], [6, false]);
   check('...and the sign-off button is back', await page.locator('#ckSignBtn').count(), 1);
 
   await tap(page, '.ckrow[data-line="nails"]', 60);
   await tap(page, '#ckBack', 800);
   p = await puts(page);
-  check('leaving the screen saves without waiting', [p.length, p[5].checks.done.nails], [6, true]);
+  check('leaving the screen saves without waiting', [p.length, p[6].checks.done.nails], [7, true]);
   check('the checklist header reflected the state before leaving', true, true);
   check('the day list still lights the My jobs tab from the checklist', await cls(page, '.tab[data-tab="jobs"]'), 'tab on');
 
   // Signing off asked for the day log, and that comes first; the unsigned
   // roof from yesterday is the next item on the same banner.
-  check('after a sign-off the banner asks for the day log first', await txt(page, '#jobsNudge .nt'), 'Send today’s log for Lucas? · +1 more');
+  check('after a sign-off the banner asks for the day log first', await txt(page, '#jobsNudge .nt'), 'Signed off — send today’s log for Lucas? · +1 more');
   await page.evaluate(() => nudgeItems().filter((i) => i.kind === 'unsigned')[0].go());
   await page.waitForTimeout(500);
   check('the sign-off nudge opens that roof\'s checklist', await txt(page, '#ckK'), 'Site checks · JT #26-1490');

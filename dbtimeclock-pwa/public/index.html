@@ -388,6 +388,19 @@ button[disabled]{cursor:default}
 .ckwho input::placeholder{color:var(--lab)}
 .ckwho input:disabled{opacity:.5}
 .ckwho .chipbtn{min-height:50px;padding:0 14px;border-radius:6px;border:1.5px solid var(--line2);font:700 14px/1 var(--head);letter-spacing:.3px;text-transform:uppercase;color:var(--fg);flex:none}
+/* A note on a line: the pen sits at the row's end (the row keeps its whole
+   width as the tap target), lit once a note is there; the box opens under. */
+.ckline{position:relative}
+.ckline.pen .ckrow{padding-right:64px}
+.cknote-pen{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--lab)}
+.cknote-pen svg{width:20px;height:20px}
+.cknote-pen.has{color:var(--acc);background:var(--total)}
+.cknote{padding:0 16px 12px 64px}
+.cknote-in{width:100%;min-height:50px;border:1.5px solid var(--line);border-radius:6px;background:var(--bg);padding:10px 12px;font:400 16px var(--sans);color:var(--fg);outline:none;-webkit-appearance:none}
+.cknote-in::placeholder{color:var(--lab)}
+.cknote.ro{display:flex;gap:10px;align-items:baseline}
+.cknote .nk{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);flex:none}
+.cknote .nt{font:400 15px/1.4 var(--sans);color:var(--mut)}
 .cksign{padding:14px 16px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
 .cksign .signed{display:flex;align-items:center;gap:12px;min-height:56px;color:var(--acc)}
 .cksign .signed .st{font:800 18px/1.15 var(--head);letter-spacing:.18px;text-transform:uppercase;flex:1;min-width:0}
@@ -759,7 +772,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.19 (2026-09-20)';
+var APP_BUILD = 'T1.20 (2026-09-20)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -985,7 +998,7 @@ var S = {
   clockGate:null, gateCode:null, switching:null, onBreak:null, dlNudge:false,
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
-  checksTask:null, checksVisit:null, ckOpen:{}, checksRO:null, assignAgain:false,
+  checksTask:null, checksVisit:null, ckOpen:{}, ckNoteOpen:{}, checksRO:null, assignAgain:false,
   dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false, alertFor:null, logFields:null,
   pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
@@ -2085,7 +2098,7 @@ function ckLineByKey(key){ return ckLines().filter(function(l){ return l.key ===
 function ckBlank(){
   var d = {};
   ckLines().forEach(function(l){ d[l.key] = false; });
-  return { done: d, magnetBy: null, signedOff: null };
+  return { done: d, magnetBy: null, signedOff: null, notes: {} };
 }
 /* Every line the board knows, plus any key it sent that this shape doesn't
    carry yet — nothing is dropped on the way back. */
@@ -2094,6 +2107,12 @@ function ckNorm(st){
   for (var k in d) out.done[k] = !!d[k];
   out.magnetBy = (st && st.magnetBy) || null;
   out.signedOff = (st && st.signedOff) || null;
+  // A note per line, one clean line of text each (the board caps it too).
+  var notes = (st && st.notes) || {};
+  for (var nk in notes){
+    var t = typeof notes[nk] === 'string' ? notes[nk].replace(/\s+/g, ' ').trim().slice(0, 140) : '';
+    if (t) out.notes[nk] = t;
+  }
   return out;
 }
 /* The state the screen shows: the phone's own copy while it holds one, else
@@ -2163,7 +2182,12 @@ function ckTouch(v, mutate){
   var sh = ckShape();
   if (sh && sh.phases.length > 1){
     var hp = sh.phases[sh.phases.length - 2].key, st = e.state;
-    if (ckLinesOf(hp).length && ckLinesOf(hp).every(function(l){ return l.value === 'signedOff' || !!st.done[l.key]; })) dlPromptFor(v.jobId);
+    if (ckLinesOf(hp).length && ckLinesOf(hp).every(function(l){ return l.value === 'signedOff' || !!st.done[l.key]; })) dlPromptFor(v.jobId, 'handover');
+    // Ticks in the LAST group mean the site manager stayed, so the
+    // handing-over prompt was premature: it stands down until sign-off
+    // (Carl, 20 Sep 2026 — "why is it asking already?").
+    var lp = sh.phases[sh.phases.length - 1].key;
+    if (ckLinesOf(lp).some(function(l){ return l.value !== 'signedOff' && !!st.done[l.key]; })) dlUnprompt(v.jobId, 'handover');
   }
 }
 
@@ -2198,6 +2222,10 @@ function ckFlush(tid, opts){
   var payload = { done: {}, magnetBy: e.state.magnetBy || null,
                   signOff: e.signIntent != null ? e.signIntent : !!e.state.signedOff };
   for (var k in e.state.done) payload.done[k] = !!e.state.done[k];
+  // Every line's note, "" for none — the whole state, like the ticks, so a
+  // note wiped here comes off the line in JobTread too.
+  payload.notes = {};
+  ckLines().forEach(function(l){ if (l.value !== 'signedOff') payload.notes[l.key] = (e.state.notes && e.state.notes[l.key]) || ''; });
   e.inflight = true; e.err = '';
   renderCkStatus();
   return apiCall('saveSiteChecks', [tid, e.jobId, e.jobLabel, isoLocal(), payload]).then(function(r){
@@ -2208,7 +2236,7 @@ function ckFlush(tid, opts){
       ckAdopt(e, r.body.checks, sentSeq);
       ckRetries[tid] = 0;
       // A signature that just landed is the other moment the log should go.
-      if (!wasSigned && e.state.signedOff){ var sv = visitForChecks(tid); if (sv) dlPromptFor(sv.jobId); }
+      if (!wasSigned && e.state.signedOff){ var sv = visitForChecks(tid); if (sv) dlPromptFor(sv.jobId, 'signoff'); }
       if (e.dirty) ckSchedule(tid, 300);   // taps landed while this was in flight
       else ckRefreshWords();
       renderChecksAfterSave();
@@ -2445,7 +2473,13 @@ function nudgeItems(){
     if (!e || e.sent || e.wantSend) continue;
     var who = e.cust || e.jobLabel || e.jobNum;
     if (e.date === today && e.prompt){
-      items.push({ kind: 'log-now', k: 'Day log', at: e.promptAt || e.at || 0, text: 'Send today’s log for ' + who + '?', go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
+      // Say WHY it is asking (Carl, 20 Sep 2026): the handing-over group
+      // finished, or the list was signed — not a question out of nowhere.
+      var why = e.promptWhy || '';
+      var text = why === 'handover' ? 'You’ve handed over — send today’s log for ' + who + ' before you go?'
+               : why === 'signoff' ? 'Signed off — send today’s log for ' + who + '?'
+               : 'Send today’s log for ' + who + '?';
+      items.push({ kind: 'log-now', k: 'Day log', at: e.promptAt || e.at || 0, text: text, go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
     } else if (e.date === yday && dlHasContent(e)){
       items.push({ kind: 'log-late', k: 'Day log', at: e.at || 0, text: 'Yesterday’s log for ' + who + ' wasn’t sent', go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
     }
@@ -2558,7 +2592,8 @@ function renderChecks(){
   wireChecks();
 }
 function renderChecksAfterSave(){
-  if (document.activeElement && document.activeElement.id === 'ckWho'){ renderCkStatus(); return; }
+  var ae = document.activeElement;
+  if (ae && (ae.id === 'ckWho' || ae.hasAttribute('data-note'))){ renderCkStatus(); return; }
   render();
 }
 function ckBodyHtml(v){
@@ -2576,9 +2611,21 @@ function ckBodyHtml(v){
     h += '<div class="ckrows">';
     lines.forEach(function(l){
       if (l.value === 'signedOff') return;   // the signature is a button, below, not a box
-      var on = !!st.done[l.key];
-      h += '<button class="ckrow' + (on ? ' on' : '') + '" data-line="' + esc(l.key) + '"' + (ro ? ' disabled' : '') + '>' +
-           '<span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(l.label) + '</span></button>';
+      var on = !!st.done[l.key], note = (st.notes && st.notes[l.key]) || '', nopen = !!S.ckNoteOpen[l.key];
+      // The margin of the paper sheet: a pen at the row's end opens a
+      // one-line note under it, lit once a note is there. A note is written
+      // onto the line in JobTread and read back by the board and the PM's
+      // feed when the group finishes (Carl, 20 Sep 2026).
+      h += '<div class="ckline' + (ro ? '' : ' pen') + '">' +
+           '<button class="ckrow' + (on ? ' on' : '') + '" data-line="' + esc(l.key) + '"' + (ro ? ' disabled' : '') + '>' +
+           '<span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(l.label) + '</span></button>' +
+           (ro ? '' : '<button class="cknote-pen' + (note ? ' has' : '') + '" data-note-add="' + esc(l.key) + '" aria-label="Note on this line">' + CK_PEN + '</button>') +
+           '</div>';
+      if (!ro && (note || nopen)){
+        h += '<div class="cknote"><input class="cknote-in" data-note="' + esc(l.key) + '" placeholder="Your note on this line" autocomplete="off" maxlength="140" value="' + esc(note) + '"></div>';
+      } else if (ro && note){
+        h += '<div class="cknote ro"><span class="nk">Note</span><span class="nt">' + esc(note) + '</span></div>';
+      }
       if (l.value === 'magnetBy'){
         // The paper's "Who" is a real question, so the name is never prefilled.
         h += '<div class="ckwho"><input id="ckWho" placeholder="who ran it?" autocomplete="off" maxlength="40" value="' + esc(st.magnetBy || '') + '"' + (ro ? ' disabled' : '') + '>' +
@@ -2627,6 +2674,23 @@ function wireChecks(){
       ckTouch(v, function(st){ st.done[k] = !st.done[k]; });
       ckOpenNextIfDone(v, k);
       renderChecks();
+    };
+  });
+  [].forEach.call(body.querySelectorAll('[data-note-add]'), function(b){
+    b.onclick = function(){
+      var k = b.getAttribute('data-note-add');
+      S.ckNoteOpen[k] = true;
+      renderChecks();
+      var inp = body.querySelector('[data-note="' + k + '"]');
+      if (inp) inp.focus();
+    };
+  });
+  [].forEach.call(body.querySelectorAll('[data-note]'), function(inp){
+    inp.oninput = function(){
+      var v = cur(); if (!v) return;
+      var k = inp.getAttribute('data-note'), t = inp.value.replace(/\s+/g, ' ').trim();
+      ckTouch(v, function(st){ st.notes = st.notes || {}; if (t) st.notes[k] = t; else delete st.notes[k]; });
+      renderCkStatus();
     };
   });
   var who = $('ckWho');
@@ -2941,7 +3005,7 @@ function commitStart(item, rec){
         // is owed its log.
         S.job = S.pendingJob; S.pendingJob = null; S.moving = false;
         S.dlJobId = S.job.id; S.jobPickedDay = isoLocal();
-        if (prev && prev.id !== S.job.id) dlPromptFor(prev.id);
+        if (prev && prev.id !== S.job.id) dlPromptFor(prev.id, 'switch');
         toast('Now at ' + (S.job.customer || streetOf(S.job.address) || 'the next job') + ' · ' + codeLabel(code));
       } else {
         toast((sw ? 'Now on ' : 'On the clock · ') + codeLabel(code));
@@ -3531,9 +3595,17 @@ function visitByJob(jobId){
   return vs.filter(function(v){ return v.start <= today && (v.end || v.start) >= today; })[0] || vs[0] || null;
 }
 /* The moments a log should go: leaving a roof, handing over, signing off. */
-function dlPromptFor(jobId){
+function dlPromptFor(jobId, why){
   var e = dlTouch(jobId, isoLocal(), dlInfoFor(jobId));
-  if (e && !e.sent){ e.prompt = true; e.promptAt = Date.now(); dlPersist(); }
+  if (e && !e.sent){ e.prompt = true; e.promptAt = Date.now(); e.promptWhy = why || ''; dlPersist(); }
+  try { renderNudge(); } catch (err) {}
+}
+/* The prompt stands down when the reason for it turned out wrong — only
+   for that reason, so a sign-off's prompt is never taken down by a tick. */
+function dlUnprompt(jobId, why){
+  var e = dlGet(jobId, isoLocal());
+  if (!e || e.sent || !e.prompt || (why && e.promptWhy !== why)) return;
+  e.prompt = false; e.promptWhy = ''; dlPersist();
   try { renderNudge(); } catch (err) {}
 }
 function openLog(jobId, date){

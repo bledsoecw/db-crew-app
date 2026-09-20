@@ -1602,7 +1602,15 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
     checks: {
       done: done,
       magnetBy: (checks.magnetBy == null || String(checks.magnetBy).trim() === '') ? null : String(checks.magnetBy).trim().slice(0, 40),
-      signOff: !!checks.signOff
+      signOff: !!checks.signOff,
+      // A note per line, one clean line each; "" takes a note off (T1.20).
+      notes: (function () {
+        var n = {}, src = (checks.notes && typeof checks.notes === 'object') ? checks.notes : {};
+        for (var nk in src) if (Object.prototype.hasOwnProperty.call(src, nk)) {
+          n[String(nk)] = String(src[nk] == null ? '' : src[nk]).replace(/\s+/g, ' ').trim().slice(0, 140);
+        }
+        return n;
+      })()
     }
   };
 

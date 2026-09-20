@@ -97,7 +97,7 @@
       { key: 'blown', phase: 'finished', label: 'Roof blown off' },
       { key: 'tabs', phase: 'finished', label: 'Plastic tabs pulled' },
       { key: 'magnet', phase: 'finished', label: 'Magnet run, lawn and beds \u2014 by:', value: 'magnetBy' },
-      { key: 'photos', phase: 'finished', label: '20\u201330 photos in CompanyCam (8 from the ground, each side)' },
+      { key: 'photos', phase: 'finished', label: '20\u201330 photos in DB Cam (8 from the ground, each side)' },
       { key: 'extras', phase: 'finished', label: 'Returns and extras logged' },
       { key: 'signoff', phase: 'finished', label: 'Signed off:', value: 'signedOff' }
     ]
@@ -107,7 +107,7 @@
   function blankChecks(ticked) {
     var done = {};
     CHECKLIST.lines.forEach(function (l) { done[l.key] = (ticked || []).indexOf(l.key) !== -1; });
-    return { done: done, magnetBy: null, signedOff: null };
+    return { done: done, magnetBy: null, signedOff: null, notes: {} };
   }
   // One list per JOB, on the roofing crew's line — so its id is never the
   // visit's own taskId. 26-1490 ended yesterday and was never signed off.
@@ -265,7 +265,9 @@
       for (var k in (checks.done || {})) if (LINE_KEYS[k]) done[k] = !!checks.done[k];
       var signedOff = checks.signOff ? (cur.signedOff || ('Tyler \u00b7 ' + shortDate(today))) : null;
       done.signoff = !!signedOff;
-      cur = CHECKS[taskId] = { done: done, magnetBy: String(checks.magnetBy || '').trim().slice(0, 40) || null, signedOff: signedOff };
+      var notes = Object.assign({}, cur.notes || {});
+      for (var nk in (checks.notes || {})) if (LINE_KEYS[nk]) { var nt = String(checks.notes[nk] || '').replace(/\s+/g, ' ').trim().slice(0, 140); if (nt) notes[nk] = nt; else delete notes[nk]; }
+      cur = CHECKS[taskId] = { done: done, magnetBy: String(checks.magnetBy || '').trim().slice(0, 40) || null, signedOff: signedOff, notes: notes };
       return { status: 200, reason: '', body: {
         human: jobLabel + ' \u2014 ' + checksWords(cur), api: [],
         checks: JSON.parse(JSON.stringify(cur)), previous: previous } };

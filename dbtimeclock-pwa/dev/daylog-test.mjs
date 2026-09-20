@@ -308,7 +308,7 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   for (const k of ['tearoff', 'shingles', 'tarped', 'special', 'matcheck', 'photos1']) await tap(page, `.ckrow[data-line="${k}"]`, 60);
   check('no prompt until the phase is done', /hidden/.test(await cls(page, '#ckNudge')), true);
   await tap(page, '.ckrow[data-line="pm"]', 300);
-  check('finishing "before the site manager leaves" asks for the log', [/hidden/.test(await cls(page, '#ckNudge')), await txt(page, '#ckNudge .nt')], [false, 'Send today’s log for Lucas?']);
+  check('finishing "before the site manager leaves" asks for the log', [/hidden/.test(await cls(page, '#ckNudge')), await txt(page, '#ckNudge .nt')], [false, 'You’ve handed over — send today’s log for Lucas before you go?']);
   await tap(page, '#ckNudge', 500);
   check('...and opens that roof\'s log', [await txt(page, '#logK'), await txt(page, '#dlChips .dlchip.on')], ['Day log · JT #26-1045', 'Lucas']);
   check('two roofs today, two chips', await page.locator('#dlChips .dlchip').count(), 2);
