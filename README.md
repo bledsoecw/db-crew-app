@@ -363,7 +363,9 @@ log. `dev/push-test.mjs` covers the push-registration branches (14
 assertions), `dev/checks-test.mjs` drives the site checks end to end in the
 real page (one save per burst, the whole state every time, the sign-off, the
 board's 403 going read-only, a dead spot, a 502, the unsaved state surviving a
-reload), `dev/daylog-test.mjs` drives the week strip, today's job from the
+reload), `dev/loaded-test.mjs` drives the material-loaded button (the save,
+the material line re-asked from the board afterwards, the "are you sure"
+before an undo, the 403 and a 502), `dev/daylog-test.mjs` drives the week strip, today's job from the
 schedule, a move between roofs and the day log (the draft, the notes, a photo
 by reference, the send and what it carries, yesterday's log, a dead spot, a
 JobTread hiccup, a boot the API is too slow to answer, a send that was in

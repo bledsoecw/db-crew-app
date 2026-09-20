@@ -730,7 +730,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.17 (2026-09-19)';
+var APP_BUILD = 'T1.18 (2026-09-20)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1942,8 +1942,18 @@ function renderJobs(){
       var id = b.getAttribute('data-loaded');
       var v = (S.assign && S.assign.visits || []).filter(function(x){ return x.jobId === id; })[0];
       var on = v && v.warehouse ? !v.warehouse.loaded : true;
+      // Taking a load back off is asked about first (Carl, 19 Sep 2026): the
+      // green button is what a crew reads on the way out of the yard, and one
+      // brushed thumb must not turn it amber and post a note to the job.
+      if (!on){ mlConfirm[id] = true; render(); return; }
       saveLoaded(id, on);
     };
+  });
+  [].forEach.call($('jobsList').querySelectorAll('[data-loaded-undo]'), function(b){
+    b.onclick = function(){ saveLoaded(b.getAttribute('data-loaded-undo'), false); };
+  });
+  [].forEach.call($('jobsList').querySelectorAll('[data-loaded-keep]'), function(b){
+    b.onclick = function(){ delete mlConfirm[b.getAttribute('data-loaded-keep')]; render(); };
   });
   [].forEach.call($('jobsList').querySelectorAll('[data-checks]'), function(b){
     b.onclick = function(){ openChecks(b.getAttribute('data-checks')); };
@@ -2280,21 +2290,41 @@ function loadedBtnHtml(v){
   var w = v.warehouse;
   if (!w || ckReadOnly()) return '';
   var busy = mlBusy[v.jobId], on = !!w.loaded;
+  if (!on) delete mlConfirm[v.jobId];                 // nothing to take back
+  if (on && mlConfirm[v.jobId] && !busy){
+    // "Are you sure" before an undo. The words say what the undo does — the
+    // board reads not loaded again and the office gets a note — and the two
+    // answers are 44px cells in the same row the card already uses.
+    return '<div class="jnote jsure"><span class="k">Undo the load \u2014 are you sure?</span>' +
+      'The board will read not loaded for the crew again, and the office gets a note saying so.</div>' +
+      '<div class="jrow">' +
+      '<button class="jact" data-loaded-keep="' + esc(v.jobId) + '"><span class="a1">No, keep it</span><span class="a2">Still loaded</span></button>' +
+      '<button class="jact warn" data-loaded-undo="' + esc(v.jobId) + '"><span class="a1">Yes, undo it</span><span class="a2">Not loaded after all</span></button>' +
+      '</div>';
+  }
   var label = on ? 'Loaded for the crew' : 'Material loaded for the crew';
   return '<button class="jbtn' + (on ? ' ok' : '') + '" data-loaded="' + esc(v.jobId) + '"' +
     (busy ? ' disabled' : '') + '><span>' + esc(busy ? 'Saving\u2026' : label) + '</span>' +
     (on ? '<span class="jbtn-k">Tap to undo</span>' : CK_CHEV) + '</button>';
 }
-/* Which jobs have a save in flight. What the board recorded is written
-   straight onto the visit the phone is holding — the Apps Script drops its
-   cached job list on a 200, so the next real fetch agrees, and nothing here
-   can out-argue a list that has actually come back. */
+/* Which jobs have a save in flight, and which are being asked "are you sure"
+   before an undo. What the board recorded is written straight onto the visit
+   the phone is holding, so the button answers at once — and then the board's
+   own sentence is asked for again (ckRefreshWords), exactly as a site-checks
+   save does. T1.17 skipped that second step: the button went green and the
+   material line above it kept saying STAGED AT BAY 3 — NOT LOADED until
+   something else happened to refresh the list (Carl, 19 Sep 2026). The words
+   are the board's, never re-derived here, so re-asking is the only honest way
+   to change them; the Apps Script drops its cached job list on a 200, so the
+   re-ask cannot come back stale. */
 var mlBusy = {};
+var mlConfirm = {};
 
 function saveLoaded(jobId, on){
   if (mlBusy[jobId]) return;
   var v = (S.assign && S.assign.visits || []).filter(function(x){ return x.jobId === jobId; })[0];
   if (!v) return;
+  delete mlConfirm[jobId];
   mlBusy[jobId] = true; render();
   apiCall('saveMaterialLoaded', [jobId, (v.jobNum ? 'JT #' + v.jobNum + ' ' : '') + (v.cust || ''), on])
     .then(function(r){
@@ -2303,6 +2333,9 @@ function saveLoaded(jobId, on){
       if (r.status === 200){
         if (v.warehouse) v.warehouse.loaded = on;
         render();
+        // The material line is the board's sentence, so ask for it again —
+        // the same fetch a site-checks save makes.
+        ckRefreshWords();
         return;
       }
       if (r.status === 403){

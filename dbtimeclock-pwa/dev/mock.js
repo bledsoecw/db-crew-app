@@ -141,8 +141,12 @@
     return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getDate();
   }
 
+  // What the phone has recorded about a warehouse half, by job. Applied to
+  // every answer, the way the board's own list reflects a save once its cache
+  // is dropped — which is what T1.18's re-ask after a save relies on.
+  var WAREHOUSE = {};
   function visits() {
-    return [
+    var out = [
       { taskId: 't1', jobId: 'j_2841', jobNum: '26-0890', jobName: '260890 Webster_Foundation',
         start: isoAdd(-1), end: isoAdd(1), days: 3, dayOf: 2, today: true,
         crewNote: 'Dumpster on the north side. Gate code 1412 — do not block the neighbour\u2019s drive.',
@@ -174,6 +178,17 @@
         warehouse: null,
         checks: null, alongside: null, pm: '', reps: [] }
     ];
+    out.forEach(function (v) {
+      var w = v.warehouse, o = WAREHOUSE[v.jobId];
+      if (!w || !o) return;
+      w.pulled = o.pulled; w.staged = o.staged; w.loaded = o.loaded;
+      w.words = o.loaded ? 'Pulled, staged and loaded for the crew' : o.staged ? 'Pulled and staged' : 'Still on the shelf';
+      // The board's materialWords(), in miniature.
+      v.material = o.loaded ? { text: 'Loaded for the crew \u2713', cls: 'good' }
+        : o.staged ? { text: w.where ? 'Staged at ' + w.where + ' \u2014 not loaded' : 'Staged \u2014 not loaded yet', cls: 'warn' }
+        : { text: 'Pull from shop', cls: 'warn' };
+    });
+    return out;
   }
 
   var ST = { open: null, entries: [], pushToken: null, nudged: null, n: 0, files: 0 };
@@ -211,6 +226,7 @@
     getMyDay: function () { return ST.entries; },
     getJobCodes: function () { return CODES; },
     getMyJobs: function () {
+      window.__MYJOBS = (window.__MYJOBS || 0) + 1;   // how many times the list was asked for
       // __MOCK_NOBOARD exercises the fallback path — the board down, or not
       // deployed yet. The clock must stay usable either way.
       if (window.__MOCK_NOBOARD) {
@@ -261,6 +277,11 @@
       window.__LOADS.push({ jobId: jobId, jobLabel: jobLabel, loaded: loaded });
       if (window.__MOCK_NOTMANAGER) return { status: 403, reason: 'board-http-403', body: { error: 'Only a site manager can record the material loaded \u2014 ask the office.' } };
       if (window.__MOCK_PUTFAIL) return { status: 502, reason: 'board-http-502', body: { error: 'JobTread write failed' } };
+      // Loading implies pulling and staging, as the board's setMaterialLoaded
+      // does; an undo only clears the load.
+      var vis = visits().filter(function (v) { return v.jobId === jobId; })[0];
+      var cur = (vis && vis.warehouse) || { pulled: false, staged: false, loaded: false };
+      WAREHOUSE[jobId] = loaded ? { pulled: true, staged: true, loaded: true } : { pulled: cur.pulled, staged: cur.staged, loaded: false };
       return { status: 200, reason: '', body: { human: jobLabel + ' \u2014 ' + (loaded ? 'pulled, staged and loaded for the crew' : 'no longer loaded'), api: [] } };
     },
     getJobOptions: function () { return [JOB, LUCAS]; },

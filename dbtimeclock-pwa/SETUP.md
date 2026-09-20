@@ -285,6 +285,7 @@ cd public && python3 -m http.server 8100     # in one shell
 node dev/preview.mjs ./shots                 # in another (needs playwright)
 node dev/push-test.mjs                       # exercises the push paths
 node dev/checks-test.mjs                     # the site checks, end to end in the page
+node dev/loaded-test.mjs                     # material loaded for the crew: the save, the re-asked line, the undo that asks first
 node dev/daylog-test.mjs                     # the week view, today's job and the day log, end to end
 node ../apps-script/code-test.mjs            # getMyJobs + saveSiteChecks, no deps, no network
 ```
