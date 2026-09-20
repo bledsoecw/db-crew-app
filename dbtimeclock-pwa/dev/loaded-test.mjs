@@ -62,7 +62,7 @@ const LUCAS = '.jcard:has([data-pick="j2"])';
   check('a card with a warehouse half carries the button', await count(page, '[data-loaded="j2"]'), 1);
   check('a card with no warehouse half does not', await count(page, '[data-loaded="j_2841"]'), 0);
   check('a load already recorded reads loaded, with the undo kicker',
-    [await txt(page, '[data-loaded="j4"] > span:first-child'), await txt(page, '[data-loaded="j4"] .jbtn-k')],
+    [await txt(page, '[data-loaded="j4"] > span:first-child'), await txt(page, '[data-loaded="j4"] .s')],
     ['Loaded for the crew', 'Tap to undo']);
   check('before: the line is the board\'s words', await txt(page, `${LUCAS} .jmat`), 'Pull from shop');
   const askedBefore = await asked(page);
@@ -70,7 +70,7 @@ const LUCAS = '.jcard:has([data-pick="j2"])';
   await tap(page, '[data-loaded="j2"]', 2000);
   let l = await loads(page);
   check('one save, loaded, with the job label', [l.length, l[0].jobId, l[0].loaded, l[0].jobLabel], [1, 'j2', true, 'JT #26-1045 Lucas']);
-  check('the button reads loaded', [await txt(page, '[data-loaded="j2"] > span:first-child'), await txt(page, '[data-loaded="j2"] .jbtn-k')], ['Loaded for the crew', 'Tap to undo']);
+  check('the button reads loaded', [await txt(page, '[data-loaded="j2"] > span:first-child'), await txt(page, '[data-loaded="j2"] .s')], ['Loaded for the crew', 'Tap to undo']);
   check('the list was asked for again after the save', (await asked(page)) - askedBefore, 1);
   check('so the material line is the board\'s new sentence, tick stripped', await txt(page, `${LUCAS} .jmat`), 'Loaded for the crew');
   check('in green', /\bgood\b/.test(await cls(page, `${LUCAS} .jmat`)), true);
@@ -93,7 +93,7 @@ const LUCAS = '.jcard:has([data-pick="j2"])';
   await tap(page, '[data-loaded-undo="j2"]', 2000);
   l = await loads(page);
   check('"Yes, undo it": the undo is saved', [l.length, l[1].jobId, l[1].loaded], [2, 'j2', false]);
-  check('the button offers the load again', await txt(page, '[data-loaded="j2"] > span:first-child'), 'Material loaded for the crew');
+  check('the button offers the load again', await txt(page, '[data-loaded="j2"] > span:first-child'), 'Mark loaded for the crew');
   check('and the line follows the board: staged, not loaded', [await txt(page, `${LUCAS} .jmat`), /\bwarn\b/.test(await cls(page, `${LUCAS} .jmat`))], ['Staged — not loaded yet', true]);
   check('no page errors', errs, []);
   await ctx.close();
@@ -118,7 +118,7 @@ const LUCAS = '.jcard:has([data-pick="j2"])';
   await tap(page, '.tab[data-tab="jobs"]', 900);
   const askedBefore = await asked(page);
   await tap(page, '[data-loaded="j2"]', 1500);
-  check('a 502 leaves the button offering the load', await txt(page, '[data-loaded="j2"] > span:first-child'), 'Material loaded for the crew');
+  check('a 502 leaves the button offering the load', await txt(page, '[data-loaded="j2"] > span:first-child'), 'Mark loaded for the crew');
   check('and the line as it was', await txt(page, `${LUCAS} .jmat`), 'Pull from shop');
   check('nothing was re-asked for a save that did not land', (await asked(page)) - askedBefore, 0);
   check('the save was attempted once', (await loads(page)).length, 1);
