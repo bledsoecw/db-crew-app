@@ -490,9 +490,22 @@ t('membershipId is the verified caller\'s, never the phone\'s', sent.membershipI
 t('the ids, the label and the PHONE\'s date ride along', [sent.taskId, sent.jobId, sent.jobLabel, sent.today], ['t_roof', 'j9', '26-1490 Courtney', '2026-09-15']);
 t('done coerced to booleans, magnetBy trimmed', [sent.checks.done, sent.checks.magnetBy, sent.checks.signOff],
   [{ address: true, homeowner: true, scope: false }, 'Kenton', false]);
-t('never sends a name or a date for the signature', Object.keys(sent.checks).sort(), ['done', 'magnetBy', 'signOff']);
+t('never sends a name or a date for the signature', Object.keys(sent.checks).sort(), ['done', 'magnetBy', 'notes', 'signOff']);
+t('no notes sent -> an empty notes map, never a missing key', sent.checks.notes, {});
 t('bearer header, JSON body, no redirects', [put.opts.headers.Authorization, put.opts.contentType, put.opts.followRedirects], ['Bearer s3cret', 'application/json', false]);
 t('200 -> status and body come back verbatim', [r.status, r.reason, r.body.checks], [200, '', written]);
+
+// ---- the notes (T1.20): one clean line per key, "" carried so the board clears it ----
+cacheStore = {}; fetched = [];
+sandbox.saveSiteChecks(ME, 't_roof', 'j9', '26-1490 Courtney', '2026-09-20',
+  { done: { septic: true }, magnetBy: null, signOff: false,
+    notes: { septic: '  Tank lid   is under\n the back deck  ', address: '', photos: 'x'.repeat(200), bogus: null } });
+const notesSent = JSON.parse(fetched[0].opts.payload).checks.notes;
+t('a note is collapsed to one line and trimmed', notesSent.septic, 'Tank lid is under the back deck');
+t('an emptied note is sent as "" so the board takes it off', notesSent.address, '');
+t('a note is cut at 140 characters, the board\'s NOTE_MAX', notesSent.photos.length, 140);
+t('a null note reads as cleared, not the word null', notesSent.bogus, '');
+
 
 // A bad date from the phone falls back to the script's own today, not to nothing.
 cacheStore = {}; fetched = [];
