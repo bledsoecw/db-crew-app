@@ -335,10 +335,17 @@ other item on the checklist across untouched. The sign-off name and date are
 stamped by the board from the membership; once signed, re-saving ticks does not
 re-sign, and `signOff: false` is the only way a signature comes off.
 
-Every save posts one job comment naming what changed ("📋 Site checks: signed
-off by Tyler — via Production Board (Tyler Mohr)"), like every other board
-write. Ticking inside JobTread's own app writes no comment and records no
-author — the board's route is what makes the tap a signature.
+The ticks are written on every save. The job comment is not (changed
+2026-09-20): the phone saves in bursts with no button, and a site manager
+who paused between boxes put "4 of 7 done", "5 of 7 done" and "all 7 done"
+in the activity feed inside a minute. From this route the board posts one
+comment only when a save FINISHES a group — whichever box in the group came
+last ("📋 Site checks: before the site manager leaves — all 7 done — via
+Production Board (Tyler Mohr)"; two groups finished in one burst are both named) — or signs
+or unsigns the list ("📋 Site checks: signed off by Tyler …"). A burst that
+finishes nothing posts nothing. The office's own route (a button press) still
+comments on every save. Ticking inside JobTread's own app writes no comment
+and records no author — the board's route is what makes the tap a signature.
 
 ## The material loaded tick (added 2026-09-19)
 
