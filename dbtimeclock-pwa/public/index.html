@@ -448,7 +448,7 @@ button[disabled]{cursor:default}
 .story.has{border:1px solid var(--line)}
 .story textarea{display:block;width:100%;min-height:150px;resize:none;border:0;outline:none;background:transparent;padding:16px;color:var(--fg);font:400 16px/1.45 var(--sans);-webkit-appearance:none;overflow:hidden}
 .story textarea::placeholder{color:var(--lab);font:400 16px/1.35 var(--sans)}
-.story.has textarea{min-height:52px;padding:14px 16px 6px}
+.story.has textarea{min-height:52px;padding:14px 16px 12px}
 .dlline{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);font:400 14px/1.4 var(--sans);color:var(--mut)}
 .dlline .k9{color:var(--lab);flex:none}
 .dlline .lt{flex:1;min-width:0}
@@ -458,6 +458,11 @@ button[disabled]{cursor:default}
 .talkbtn{flex:1;min-height:64px;border-radius:6px;display:flex;align-items:center;justify-content:center;gap:10px;font:700 17px/1 var(--head);letter-spacing:.68px;text-transform:uppercase}
 .talkbtn.talk{background:var(--nav);color:#fff}
 .talkbtn.type{border:2px solid var(--nav);color:var(--nav);background:var(--surf)}
+.talkbtn.talk.on{background:var(--rec);color:#fff}
+.recdot{width:10px;height:10px;border-radius:50%;background:currentColor;flex:none;animation:pulse 1.1s infinite}
+.reccap{display:flex;align-items:center;gap:9px;margin-top:8px;padding:0 4px;min-height:22px;font:600 14px/1.3 var(--sans);color:var(--rec)}
+.reccap i{font-style:normal;font-weight:500;color:var(--fg)}
+.sqnav.on{background:var(--rec);border-color:var(--rec);color:#fff}
 .pmrow{margin-top:12px;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--surf)}
 .pmrow .pt1{font:600 14px/1.3 var(--sans);color:var(--fg)}
 .pmrow .pt2{font:400 13px/1.4 var(--sans);color:var(--mut);margin-top:3px}
@@ -772,7 +777,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.21 (2026-09-20)';
+var APP_BUILD = 'T1.22 (2026-09-20)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -2039,7 +2044,8 @@ var ICONS = {
   check: '<polyline points="20 6 9 17 4 12"/>',
   camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/>',
   alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
-  stop: '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>'
+  stop: '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
 };
 function ico(name, size, sw){
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (sw || 2.2) +
@@ -2774,6 +2780,8 @@ function unsignHtml(){
 function setTab(t){
   // Leaving the checklist saves whatever is unsaved, without waiting.
   if (S.tab === 'checks' && t !== 'checks') ckLeave();
+  // Leaving the log stops the mic: the words would have nowhere to land.
+  if (S.tab === 'log' && t !== 'log') dlRecStop();
   S.tab = t;
   $('vClock').classList.toggle('on', t==='job');
   $('vJobs').classList.toggle('on', t==='jobs');
@@ -3463,15 +3471,21 @@ function dlGet(jobId, date){ return dlStore[dlKey(jobId, date)] || null; }
    posts to JobTread as spoken and is never translated. */
 var L10N = {
   en: { k:'Day log', notSent:'Not sent', sent:'Sent', queued:'Queued', how:'How did today go?',
-        ph:'Tap here and type, or use Talk below\nWhen did you get on the job?\nWhat got done?\nAnything in the way?',
-        talk:'Talk', type:'Type', delays:'Any delays?', yes:'Yes', no:'No', why:'Why · tap all that fit',
+        ph:'Tap here and type, or use Record below\nWhen did you get on the job?\nWhat got done?\nAnything in the way?',
+        record:'Record', stop:'Stop', type:'Type', listening:'Listening… tap Stop when you’re done',
+        micKeyboard:'Tap the mic on your keyboard',
+        micBlocked:'The phone is blocking the mic for this app — allow it in Settings, or tap the mic on your keyboard',
+        recStopped:'Stopped listening — tap Record to go on', delays:'Any delays?', yes:'Yes', no:'No', why:'Why · tap all that fit',
         safety:'Anyone hurt or a close call?', send:'Send log', review:'Review & send',
         normal:'Normal day · nothing to report', normalFoot:'One tap. Marks no delays, no incidents, and sends it.',
         rest:'Say the rest in your story above.',
         tabs:{ job:'Clock', jobs:'My jobs', log:'Day log' } },
   es: { k:'Registro', notSent:'Sin enviar', sent:'Enviado', queued:'Queued', how:'¿Cómo fue el día?',
-        ph:'Toca aquí y escribe, o usa Hablar\n¿A qué hora llegaste?\n¿Qué se hizo?\n¿Algo que estorbó?',
-        talk:'Hablar', type:'Escribir', delays:'¿Hubo retrasos?', yes:'Sí', no:'No', why:'¿Por qué · toca lo que aplique',
+        ph:'Toca aquí y escribe, o usa Grabar\n¿A qué hora llegaste?\n¿Qué se hizo?\n¿Algo que estorbó?',
+        record:'Grabar', stop:'Detener', type:'Escribir', listening:'Escuchando… toca Detener al terminar',
+        micKeyboard:'Toca el micrófono del teclado',
+        micBlocked:'El teléfono bloquea el micrófono para esta app — permítelo en Ajustes, o toca el micrófono del teclado',
+        recStopped:'Dejó de escuchar — toca Grabar para seguir', delays:'¿Hubo retrasos?', yes:'Sí', no:'No', why:'¿Por qué · toca lo que aplique',
         safety:'¿Alguien lastimado o casi?', send:'Enviar registro', review:'Revisar y enviar',
         normal:'Día normal · nada que reportar', normalFoot:'Un toque. Marca sin retrasos, sin incidentes, y lo envía.',
         rest:'Cuenta el resto en tu historia arriba.',
@@ -3929,10 +3943,12 @@ function dlBodyHtml(cur, e, date){
   // to the PM sit above it with their time.
   h += '<div class="dlh first">' + esc(T('how')) + '</div>';
   h += '<div class="story' + (has ? ' has' : '') + '" id="storyBox">' + lines.map(dlLineHtml).join('') +
-       '<textarea id="dlStory" rows="1" placeholder="' + esc(T('ph')) + '" autocomplete="off">' + esc(story) + '</textarea>' +
-       '<button class="addmore' + (has ? '' : ' hidden') + '" id="dlAddMore">' + ico('mic', 22) + 'Add more</button></div>';
-  h += '<div class="talkrow' + (has ? ' hidden' : '') + '" id="dlTalkRow">' +
-       '<button class="talkbtn talk" id="dlTalk">' + ico('mic', 24) + esc(T('talk')) + '</button>' +
+       '<textarea id="dlStory" rows="1" placeholder="' + esc(T('ph')) + '" autocomplete="off">' + esc(story) + '</textarea></div>';
+  // Record / Stop and Type stay put whether or not there is text: a button
+  // that vanished the moment the first words landed is how dictation read
+  // as broken (Carl, 20 Sep 2026).
+  h += '<div class="reccap hidden" data-reccap="dlStory"></div>';
+  h += '<div class="talkrow" id="dlTalkRow">' + recBtnHtml('dlStory', 'dlTalk') +
        '<button class="talkbtn type" id="dlType">' + ico('keyboard', 24) + esc(T('type')) + '</button></div>';
   h += '<div class="pmrow' + (hasText ? '' : ' hidden') + '" id="dlPmRow"><div style="flex:1;min-width:0">' +
        '<div class="pt1">Something the PM needs right now?</div>' +
@@ -4021,9 +4037,10 @@ function dlAlertHtml(cur, d, date){
          return '<button class="whychip small' + (a.kind === k.key ? ' on' : '') + '" data-kind="' + k.key + '">' + esc(k.label) + '</button>';
        }).join('') + '</div>' +
        '<textarea id="alertText" class="alertta" rows="1" placeholder="Say what happened" autocomplete="off">' + esc(a.text || '') + '</textarea>' +
+       '<div class="reccap hidden" data-reccap="alertText"></div>' +
        '<div class="ynrow hurtrow"><button class="ynbtn' + (a.hurt === true ? ' on' : '') + '" data-hurt="1">Hurt</button>' +
        '<button class="ynbtn' + (a.hurt === false ? ' on' : '') + '" data-hurt="0">Nobody hurt</button></div></div>';
-  h += '<div class="alertfoot"><button class="sqnav" id="alertMic" aria-label="Talk">' + ico('mic', 24) + '</button>' +
+  h += '<div class="alertfoot"><button class="sqnav" id="alertMic" data-rec="alertText" aria-label="Record" aria-pressed="false">' + ico('mic', 24) + '</button>' +
        '<button class="sqnav" id="alertCam" aria-label="Take a photo">' + ico('camera', 24) + (n ? '<span class="k9">' + n + '</span>' : '') + '</button>' +
        '<button class="alertsend' + (a.sending ? ' off' : '') + '" id="alertSend">' + (a.sending ? 'Sending…' : 'Send alert now') + '</button></div></div>';
   h += '<div class="foot">Sends as a text and a JobTread comment right away. It also lands in today’s log Safety field.</div>';
@@ -4109,8 +4126,11 @@ function dlSentHtml(cur, d, date){
   h += '<div class="rvcard" style="margin-top:14px">' + dlRowsHtml(cur, d, date, true) + '</div>';
   var later = (d.notes || []).filter(function(n){ return n.later; });
   if (later.length) h += '<div class="rvcard" style="margin-top:14px">' + later.map(function(n){ return dlLineHtml({ time: n.time, text: n.body }); }).join('') + '</div>';
-  h += '<div class="story has hidden" id="dlLaterBox" style="margin-top:14px"><textarea id="dlLater" rows="1" autocomplete="off"></textarea></div>';
-  h += '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:22px;min-height:68px">' + ico('mic', 22) + 'Forgot something? Add a line</button>';
+  h += '<div class="story has hidden" id="dlLaterBox" style="margin-top:14px"><textarea id="dlLater" rows="1" autocomplete="off" placeholder="What did you forget?"></textarea></div>';
+  h += '<div class="reccap hidden" data-reccap="dlLater"></div>';
+  h += '<div class="talkrow hidden" id="dlLaterRow">' + recBtnHtml('dlLater', 'dlLaterRec') +
+       '<button class="talkbtn type" id="dlLaterType">' + ico('keyboard', 24) + esc(T('type')) + '</button></div>';
+  h += '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:22px;min-height:68px">' + ico('plus', 22) + 'Forgot something? Add a line</button>';
   h += '<div class="foot" style="margin-top:12px">Anything you add now goes on the same log with the time.</div>';
   return h;
 }
@@ -4118,53 +4138,132 @@ function dlSentHtml(cur, d, date){
 /* The box grows with the story instead of scrolling inside itself. */
 function autoGrow(ta){ if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.max(ta.scrollHeight, 0) + 'px'; }
 /* Typing must not rebuild the screen under the finger, so what depends on
-   whether there is text — the border, Talk / Type against Add more, the
-   PM row, the Send label, the one-tap — is switched in place. */
+   whether there is text — the border, the PM row, the Send label, the
+   one-tap — is switched in place. Record / Stop and Type never move. */
 function dlSyncStory(cur, date){
   var ta = $('dlStory'), box = $('storyBox'); if (!ta || !box) return;
   var d = dlGet(cur.id, date) || {};
   var hasText = !!ta.value.trim(), has = hasText || !!box.querySelector('.dlline');
   box.classList.toggle('has', has);
-  $('dlTalkRow').classList.toggle('hidden', has);
-  $('dlAddMore').classList.toggle('hidden', !has);
   $('dlPmRow').classList.toggle('hidden', !hasText);
   var ok = dlReviewable(d, has), blocked = dlBlocked(d), rv = $('dlReview');
   rv.classList.toggle('off', !ok || blocked);
   rv.innerHTML = ok ? esc(T('review')) + ico('chev', 24, 2.4) : ico('send', 24) + esc(T('send'));
   $('dlNormalWrap').classList.toggle('hidden', has || dlAnyYes(d));
 }
-/* Talk: where the browser can listen, it listens into the box; where it
-   cannot (iOS), the keyboard's own mic is the way, and the toast says so the
-   first time. Either way the box is focused. */
-var dlSpeech = null;
-function dlTalk(ta){
-  if (!ta) return;
+/* ---- Dictation: one Record / Stop button, its state on its face (T1.22) ----
+   Tap Record: the button goes red and reads Stop, a caption under the box
+   says it is listening and shows the words as they come, and each finished
+   sentence lands in the box — the button stays where it was pressed. It
+   keeps listening until Stop is tapped: Android ends a session after a few
+   seconds of quiet, so one is started again under the hood. It gives up by
+   itself after 45s with nothing heard, or five minutes in all, and says so.
+   Where the browser cannot listen (iOS), the keyboard's own mic is the way,
+   and the toast says so on EVERY tap — a Record button that does nothing is
+   the confusion this replaces (Carl, 20 Sep 2026: "the mic button should be
+   a record / stop button. the way its setup now is confusing."). */
+var REC_IDLE_MS = 45000, REC_MAX_MS = 5 * 60000;
+var dlRec = { taId: null, want: false, rec: null, interim: '', startedAt: 0, heardAt: 0, fast: 0, timer: null };
+function recBtnHtml(taId, id){
+  return '<button class="talkbtn talk" id="' + id + '" data-rec="' + taId + '" aria-pressed="false">' + ico('mic', 24) + esc(T('record')) + '</button>';
+}
+function dlRecSR(){ return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
+function dlRecToggle(taId){
+  if (dlRec.want && dlRec.taId === taId) dlRecStop(); else dlRecStart(taId);
+}
+function dlRecStart(taId){
+  var ta = $(taId); if (!ta) return;
+  if (dlRec.want) dlRecStop();
   ta.focus();
   try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){}
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR){ talkHint(); return; }
-  try {
-    if (dlSpeech){ try { dlSpeech.stop(); } catch(e0){} }
-    var rec = dlSpeech = new SR();
-    rec.lang = S.lang === 'es' ? 'es-MX' : 'en-US';
-    rec.interimResults = false; rec.continuous = false;
-    rec.onresult = function(ev){
-      var t = '';
-      for (var i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) t += ev.results[i][0].transcript;
-      t = t.trim();
-      if (!t) return;
-      ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + ' ' : '') + t;
-      ta.dispatchEvent(new Event('input'));
-    };
-    rec.onerror = function(){ talkHint(); };
-    rec.onend = function(){ if (dlSpeech === rec) dlSpeech = null; };
-    rec.start();
-  } catch(e){ talkHint(); }
+  if (!dlRecSR()){ talkHint('none'); return; }
+  dlRec.taId = taId; dlRec.want = true; dlRec.interim = '';
+  dlRec.startedAt = dlRec.heardAt = Date.now(); dlRec.fast = 0;
+  dlRecSpin();
+  dlRecPaint();
+  dlRecWatch();
 }
-function talkHint(){
-  if (S.talkHinted) return;
-  S.talkHinted = true; savePrefs();
-  toast('Tap the mic on your keyboard');
+function dlRecSpin(){
+  var SR = dlRecSR(), rec;
+  try { rec = new SR(); } catch(e){ dlRecStop(); talkHint('none'); return; }
+  rec.lang = S.lang === 'es' ? 'es-MX' : 'en-US';
+  rec.continuous = true; rec.interimResults = true;
+  var born = Date.now(), heard = false;
+  rec.onresult = function(ev){
+    var fin = '', tmp = '';
+    for (var i = ev.resultIndex; i < ev.results.length; i++){
+      var r = ev.results[i], t = (r && r[0] && r[0].transcript) || '';
+      if (r.isFinal) fin += t; else tmp += t;
+    }
+    heard = true; dlRec.fast = 0; dlRec.heardAt = Date.now();
+    if (fin.trim()) dlRecAppend(fin.trim());
+    dlRec.interim = tmp.trim();
+    dlRecPaint();
+  };
+  rec.onerror = function(ev){
+    var k = (ev && ev.error) || '';
+    if (k === 'no-speech' || k === 'aborted') return;   // quiet, or our own stop: onend decides
+    dlRecStop(); talkHint(k);
+  };
+  rec.onend = function(){
+    if (dlRec.rec !== rec) return;
+    dlRec.rec = null;
+    if (!dlRec.want){ dlRecPaint(); return; }
+    // Ended on its own. Quiet for a moment is normal — go again. Dying at
+    // birth twice over means it cannot listen here at all.
+    if (!heard && Date.now() - born < 1500 && ++dlRec.fast >= 2){ dlRecStop(); talkHint('dead'); return; }
+    dlRecSpin();
+  };
+  dlRec.rec = rec;
+  try { rec.start(); } catch(e){ dlRec.rec = null; dlRecStop(); talkHint('none'); }
+}
+function dlRecWatch(){
+  clearTimeout(dlRec.timer);
+  if (!dlRec.want) return;
+  dlRec.timer = setTimeout(function(){
+    if (!dlRec.want) return;
+    var now = Date.now();
+    if (now - dlRec.heardAt >= REC_IDLE_MS || now - dlRec.startedAt >= REC_MAX_MS){ dlRecStop(); toast(T('recStopped')); return; }
+    dlRecWatch();
+  }, 5000);
+}
+function dlRecStop(){
+  dlRec.want = false;
+  var r = dlRec.rec; dlRec.rec = null;
+  if (r){ r.onend = null; r.onresult = null; r.onerror = null; try { r.stop(); } catch(e){} }
+  clearTimeout(dlRec.timer); dlRec.timer = null;
+  dlRec.interim = '';
+  dlRecPaint();
+}
+function dlRecAppend(t){
+  var ta = dlRec.taId ? $(dlRec.taId) : null;
+  if (!ta){ dlRecStop(); return; }   // the box is gone (another screen): nowhere for the words to land
+  ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + ' ' : '') + t;
+  ta.dispatchEvent(new Event('input'));
+}
+/* Every Record button on screen and the caption under the box it feeds,
+   drawn from the one state — so a re-render puts them straight back. */
+function dlRecPaint(){
+  var on = dlRec.want, id = dlRec.taId;
+  [].forEach.call(document.querySelectorAll('[data-rec]'), function(b){
+    var mine = on && b.getAttribute('data-rec') === id, sq = b.classList.contains('sqnav');
+    b.classList.toggle('on', mine);
+    b.setAttribute('aria-pressed', mine ? 'true' : 'false');
+    b.innerHTML = mine
+      ? ico('stop', 24) + (sq ? '' : esc(T('stop')) + '<span class="recdot"></span>')
+      : ico('mic', 24) + (sq ? '' : esc(T('record')));
+    if (sq) b.setAttribute('aria-label', mine ? T('stop') : T('record'));
+  });
+  [].forEach.call(document.querySelectorAll('[data-reccap]'), function(c){
+    var mine = on && c.getAttribute('data-reccap') === id;
+    c.classList.toggle('hidden', !mine);
+    c.innerHTML = mine ? '<span class="recdot"></span>' + (dlRec.interim ? '<i>' + esc(dlRec.interim) + '</i>' : esc(T('listening'))) : '';
+  });
+}
+/* Why it could not listen, said every time. */
+function talkHint(why){
+  var blocked = why === 'not-allowed' || why === 'service-not-allowed';
+  toast(T(blocked ? 'micBlocked' : 'micKeyboard'), blocked);
 }
 /* "Tell the PM now": what is in the box goes to the PM this minute as a
    comment on the job, and stays in the log as a timestamped line. */
@@ -4216,8 +4315,6 @@ function wireDayLog(cur, date){
     autoGrow(ta);
     ta.oninput = function(){ dlSet(cur.id, date, 'story', ta.value); autoGrow(ta); dlSyncStory(cur, date); };
   }
-  if ($('dlTalk')) $('dlTalk').onclick = function(){ dlTalk(ta); };
-  if ($('dlAddMore')) $('dlAddMore').onclick = function(){ dlTalk(ta); };
   if ($('dlType')) $('dlType').onclick = function(){ if (ta){ ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} } };
   if ($('dlTellPm')) $('dlTellPm').onclick = function(){ dlTellPm(cur.id, date); };
   [].forEach.call(body.querySelectorAll('[data-yn]'), function(b){
@@ -4238,15 +4335,28 @@ function wireDayLog(cur, date){
   if ($('dlSend')) $('dlSend').onclick = function(){ dlQueueSend(cur.id, date); renderDayLog(); };
   if ($('dlBack')) $('dlBack').onclick = function(){ S.dlReview = false; renderDayLog(); };
   wireAlert(cur, date);
-  var lb = $('dlLaterBtn'), lbox = $('dlLaterBox'), lta = $('dlLater');
+  var lb = $('dlLaterBtn'), lbox = $('dlLaterBox'), lrow = $('dlLaterRow'), lta = $('dlLater');
   if (lb) lb.onclick = function(){
-    if (lbox.classList.contains('hidden')){ lbox.classList.remove('hidden'); dlTalk(lta); return; }
+    if (lbox.classList.contains('hidden')){
+      lbox.classList.remove('hidden'); lrow.classList.remove('hidden');
+      lb.innerHTML = ico('plus', 22) + 'Add it to the log';
+      lta.focus(); return;
+    }
     var text = (lta.value || '').trim();
-    if (!text){ dlTalk(lta); return; }
-    lbox.classList.add('hidden'); lta.value = '';
+    if (!text){ lta.focus(); return; }
+    dlRecStop();
+    lbox.classList.add('hidden'); lrow.classList.add('hidden'); lta.value = '';
+    lb.innerHTML = ico('plus', 22) + 'Forgot something? Add a line';
     dlAddLater(cur.id, date, text);
   };
+  if ($('dlLaterType')) $('dlLaterType').onclick = function(){ if (lta) lta.focus(); };
   if (lta) lta.oninput = function(){ autoGrow(lta); };
+  // Every Record / Stop on the screen — the story, the alert, the later
+  // line — is the one recorder, and a re-render is repainted from its state.
+  [].forEach.call(body.querySelectorAll('[data-rec]'), function(b){
+    b.onclick = function(){ dlRecToggle(b.getAttribute('data-rec')); };
+  });
+  dlRecPaint();
 }
 function wireAlert(cur, date){
   var body = $('dlBody'), ta = $('alertText');
@@ -4260,7 +4370,6 @@ function wireAlert(cur, date){
     autoGrow(ta);
     ta.oninput = function(){ dlAlertSet(cur.id, date, 'text', ta.value); autoGrow(ta); };
   }
-  if ($('alertMic')) $('alertMic').onclick = function(){ dlTalk(ta); };
   if ($('alertCam')) $('alertCam').onclick = function(){
     if (!S.job){ toast('Pick a job first'); return; }
     dlAlertSet(cur.id, date, 'text', ta ? ta.value : '');
@@ -4454,7 +4563,7 @@ window.addEventListener('resize', measureTabs);
 // The copy in localStorage is what actually guarantees it.
 window.addEventListener('pagehide', ckFlushAll);
 document.addEventListener('visibilitychange', function(){
-  if (document.visibilityState !== 'visible'){ ckFlushAll(); return; }
+  if (document.visibilityState !== 'visible'){ ckFlushAll(); dlRecStop(); return; }
   ckRetryPending();
   dlRetryPending();
   // A phone that spent an hour in a pocket should show the right number

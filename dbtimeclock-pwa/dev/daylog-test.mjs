@@ -121,10 +121,10 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   check('the header names the job', await txt(page, '#logK'), 'Day log · JT #26-0890');
   check('not sent', await txt(page, '#syncBadge'), 'Not sent');
   check('a blank log: Talk and Type, the one-tap, and Send log inert', [await page.locator('#dlTalkRow').isVisible(), await page.locator('#dlNormal').isVisible(), await txt(page, '#dlReview'), await cls(page, '#dlReview')], [true, true, 'Send log', 'btn btn-go sendbig off']);
-  check('the story box is a real text box with the four placeholder lines', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n'), ['Tap here and type, or use Talk below', 'When did you get on the job?', 'What got done?', 'Anything in the way?']);
+  check('the story box is a real text box with the four placeholder lines', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n'), ['Tap here and type, or use Record below', 'When did you get on the job?', 'What got done?', 'Anything in the way?']);
   await page.locator('#dlStory').fill('Got on the job after 8 a.m. due to appointment');
   await page.waitForTimeout(200);
-  check('typing switches the card in place: Add more and the PM row, no Talk / Type, Review & send, no one-tap', [await page.locator('#dlTalkRow').isVisible(), await page.locator('#dlAddMore').isVisible(), await page.locator('#dlPmRow').isVisible(), await txt(page, '#dlReview'), await page.locator('#dlNormal').isVisible()], [false, true, true, 'Review & send', false]);
+  check('typing switches the card in place: the PM row, Review & send, no one-tap — and Record / Type stay put', [await page.locator('#dlTalkRow').isVisible(), await txt(page, '#dlTalk'), await page.locator('#dlPmRow').isVisible(), await txt(page, '#dlReview'), await page.locator('#dlNormal').isVisible()], [true, 'Record', true, 'Review & send', false]);
   check('...still not sent', await txt(page, '#syncBadge'), 'Not sent');
   await tap(page, '#dlTellPm', 700);
   const notes = await grab(page, '__NOTES');
@@ -264,13 +264,61 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await ctx.close();
 }
 
-// ---- Talk: no dictation in this browser, so the keyboard's mic is the way, said once ----
+// ---- Record / Stop: one button, its state on its face (T1.22) ----
+const SR_STUB = `window.__sr = []; window.SpeechRecognition = function(){ var r = this; r.started = 0; r.stopped = 0;
+  r.start = function(){ r.started++; window.__srLive = r; }; r.stop = function(){ r.stopped++; }; window.__sr.push(r); };`;
+const SR_DEAD = `window.SpeechRecognition = function(){ var r = this;
+  r.start = function(){ setTimeout(function(){ r.onerror && r.onerror({ error: window.__srErr || 'audio-capture' }); r.onend && r.onend(); }, 10); };
+  r.stop = function(){}; };`;
+const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
+  const row = [{ transcript: tx }]; row.isFinal = fin;
+  window.__srLive.onresult({ resultIndex: 0, results: [row] });
+}, [text, isFinal]);
 {
-  const { ctx, page, errs } = await boot();
+  const { ctx, page, errs } = await boot({}, SR_STUB);
   await tap(page, '.tab[data-tab="log"]', 500);
-  await tap(page, '#dlTalk', 900);
-  check('Talk focuses the box', await page.evaluate(() => document.activeElement && document.activeElement.id), 'dlStory');
-  check('...and says, once, to use the keyboard mic', await txt(page, '#toast span'), 'Tap the mic on your keyboard');
+  check('idle: the button reads Record, no caption', [await txt(page, '#dlTalk'), await page.locator('[data-reccap="dlStory"]').isVisible()], ['Record', false]);
+  await tap(page, '#dlTalk', 300);
+  check('tap: it reads Stop, red, and the caption says it is listening', [await txt(page, '#dlTalk'), await cls(page, '#dlTalk'), await page.locator('[data-reccap="dlStory"]').isVisible(), await txt(page, '[data-reccap="dlStory"]')], ['Stop', 'talkbtn talk on', true, 'Listening… tap Stop when you’re done']);
+  check('...the box has the focus and one continuous recognition is running', await page.evaluate(() => [document.activeElement.id, window.__sr.length, window.__sr[0].started, window.__sr[0].continuous, window.__sr[0].interimResults, window.__sr[0].lang]), ['dlStory', 1, 1, true, true, 'en-US']);
+  await result(page, 'got on the job at', false);
+  check('words on the way in show under the box', await txt(page, '[data-reccap="dlStory"]'), 'got on the job at');
+  await result(page, 'Got on the job at eight.', true);
+  await page.waitForTimeout(200);
+  check('a finished sentence lands in the box; the button is STILL Stop, the row still there', [await page.locator('#dlStory').inputValue(), await txt(page, '#dlTalk'), await page.locator('#dlTalkRow').isVisible(), await txt(page, '[data-reccap="dlStory"]')], ['Got on the job at eight.', 'Stop', true, 'Listening… tap Stop when you’re done']);
+  await page.evaluate(() => window.__srLive.onend());
+  await page.waitForTimeout(100);
+  check('a session that ends on its own (quiet) is started again, still Stop', [await page.evaluate(() => window.__sr.length), await txt(page, '#dlTalk')], [2, 'Stop']);
+  await result(page, 'Tear-off done by ten.', true);
+  await page.waitForTimeout(200);
+  check('...and the next sentence goes on the end', await page.locator('#dlStory').inputValue(), 'Got on the job at eight. Tear-off done by ten.');
+  await tap(page, '#dlTalk', 300);
+  check('Stop: back to Record, caption gone, the recognition told to stop once', [await txt(page, '#dlTalk'), await cls(page, '#dlTalk'), await page.locator('[data-reccap="dlStory"]').isVisible(), await page.evaluate(() => window.__sr[1].stopped)], ['Record', 'talkbtn talk', false, 1]);
+  check('...the words stay', await page.locator('#dlStory').inputValue(), 'Got on the job at eight. Tear-off done by ten.');
+  // The safety alert's square mic is the same recorder.
+  await tap(page, '[data-yn="safety"][data-v="1"]', 400);
+  await tap(page, '#alertMic', 300);
+  check('the alert mic goes red and reads Stop; the story button does not', [await cls(page, '#alertMic'), await page.locator('#alertMic').getAttribute('aria-label'), await txt(page, '#dlTalk'), await page.locator('[data-reccap="alertText"]').isVisible()], ['sqnav on', 'Stop', 'Record', true]);
+  await result(page, 'Ladder slipped, nobody hurt.', true);
+  await page.waitForTimeout(200);
+  check('...and its words land in the alert box', await page.locator('#alertText').inputValue(), 'Ladder slipped, nobody hurt.');
+  await tap(page, '#dlTalk', 300);
+  check('Record on the story takes the mic off the alert', [await cls(page, '#alertMic'), await txt(page, '#dlTalk')], ['sqnav', 'Stop']);
+  await tap(page, '.tab[data-tab="job"]', 300);
+  check('leaving the log stops it', await page.evaluate(() => [window.__srLive.stopped, window.__sr.length]), [1, 4]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+// ---- no dictation here: the keyboard's mic is the way, said every time ----
+{
+  const { ctx, page, errs } = await boot({}, SR_DEAD);
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await tap(page, '#dlTalk', 600);
+  check('Record focuses the box', await page.evaluate(() => document.activeElement && document.activeElement.id), 'dlStory');
+  check('...falls back to Record and says to use the keyboard mic', [await txt(page, '#dlTalk'), await txt(page, '#toast span')], ['Record', 'Tap the mic on your keyboard']);
+  await page.evaluate(() => { window.__srErr = 'not-allowed'; });
+  await tap(page, '#dlTalk', 600);
+  check('a blocked mic says so, and says it again on the next tap', [await txt(page, '#dlTalk'), await txt(page, '#toast span')], ['Record', 'The phone is blocking the mic for this app — allow it in Settings, or tap the mic on your keyboard']);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -282,9 +330,9 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await tap(page, '[data-lang="es"]', 400);
   check('Spanish: the header, the badge, the questions, the buttons, the tabs',
     [await txt(page, '#logK'), await txt(page, '#syncBadge'), await page.locator('.dlh').allTextContents(), await txt(page, '#dlTalk'), await txt(page, '#dlType'), await page.locator('[data-yn]').allTextContents(), await txt(page, '#dlReview'), await txt(page, '#dlNormal'), await page.locator('#tabs .tl').allTextContents()],
-    ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Hubo retrasos?', '¿Alguien lastimado o casi?', '¿Recogiste o recibiste material?', '¿Quién más estuvo en el sitio? · toca lo que aplique'], 'Hablar', 'Escribir', ['Sí', 'No', 'Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
+    ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Hubo retrasos?', '¿Alguien lastimado o casi?', '¿Recogiste o recibiste material?', '¿Quién más estuvo en el sitio? · toca lo que aplique'], 'Grabar', 'Escribir', ['Sí', 'No', 'Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
   check('...the date in Spanish', /^(Dom|Lun|Mar|Mié|Jue|Vie|Sáb), \d+ (ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/.test(await txt(page, '#logDate')), true);
-  check('...the placeholder too', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n')[0], 'Toca aquí y escribe, o usa Hablar');
+  check('...the placeholder too', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n')[0], 'Toca aquí y escribe, o usa Grabar');
   await tap(page, '[data-yn="f:22PC7jQ6BkBC"][data-v="1"]', 300);
   check('...and the reasons, to the eye', await page.locator('[data-opt="22PLhdEgfHXF"]').allTextContents(), ['Clima', 'Falta gente', 'Falta material', 'Otro']);
   check('...a trade too, while the value stays JobTread\'s', [await txt(page, '[data-opt="22PC7jNshbiK"][data-val="Roofing"]'), await page.locator('[data-opt="22PC7jNshbiK"][data-val="Roofing"]').count()], ['Techado', 1]);
