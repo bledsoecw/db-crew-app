@@ -104,6 +104,10 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   await page.locator('[data-note="septic"]').fill('septic is east of the drive');
   await page.waitForTimeout(2600);
   p = await puts(page);
+  check('typing alone sends nothing — a note goes when the box is left (T1.21)', p.length, 1);
+  await page.locator('[data-note="septic"]').press('Enter');
+  await page.waitForTimeout(2600);
+  p = await puts(page);
   check('the note rides the next save, every key present', [p.length, p[p.length - 1].checks.notes.septic, p[p.length - 1].checks.notes.address, Object.keys(p[p.length - 1].checks.notes).length], [2, 'septic is east of the drive', '', 27]);
   check('...and the pen is lit once it is there', await cls(page, '[data-note-add="septic"]'), 'cknote-pen has');
   check('the box keeps the words after the save', await page.locator('[data-note="septic"]').inputValue(), 'septic is east of the drive');

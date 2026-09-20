@@ -372,14 +372,18 @@ on the GET, keyed by `checklist.lines[].key` exactly like `done`, and
   left out is left alone. So a phone that sends all 27 keys every burst is
   right, and one that sends only the changed key is also right; what is wrong
   is sending a key with stale text after somebody cleared it in JobTread.
-- **Notes reach the job comment with the group they sit in.** Under this
-  route's policy (one comment when a group finishes) the comment names every
-  note in the group that just finished — *"📋 Site checks: before the tear-off
-  — all 11 done · notes — Well and septic located: Tank lid is under the back
-  deck"* — and a note changed on a group ALREADY complete posts on its own
-  (*"📋 Site checks: notes — …"*), because that is the afterthought the PM
-  would otherwise never see. A sign-off carries every note on the list. A
-  note typed on a group still in progress waits for the group.
+- **A note is the TASK's message, never the job feed's** (Carl, 20 Sep 2026:
+  *"notes land on the task's message, not directly on the activity feed"*).
+  Every save that adds, changes or clears a note posts ONE comment on the
+  install task itself (`createComment` with `targetType: "task"`) — *"📝 Site
+  check note — Well and septic located: Tank lid is under the back deck — via
+  Production Board (Tyler Mohr)"*, every changed note named, a cleared one as
+  *"note taken off"* — under BOTH comment policies, the moment the note
+  arrives. The group-finished comment on the job feed names ticks only.
+  **So send a note once, when it is finished**: this app commits a note when
+  its box is left (blur, Enter, or the phone going away — T1.21), never per
+  keystroke burst, or a pause mid-sentence would post half of one to the
+  task.
 - **The line reads DB Cam now**: `20–30 photos in DB Cam (8 from the ground,
   each side)` — the company's own photo app, never CompanyCam. The board reads
   the old wording as the same line and rewrites it on the next save, so a list

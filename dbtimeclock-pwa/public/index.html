@@ -772,7 +772,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.20 (2026-09-20)';
+var APP_BUILD = 'T1.21 (2026-09-20)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -2168,6 +2168,20 @@ function ckEntry(v){
   }
   return e;
 }
+/* The note in a box, taken into the state when the box is left. Idempotent:
+   the same words twice touch nothing, so blur after Enter is free. */
+function ckNoteCommit(inp){
+  var v = S.checksVisit; if (!v || !v.checks || !inp || ckReadOnly()) return;
+  var k = inp.getAttribute('data-note'), t = String(inp.value || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+  var have = ((ckEntry(v).state || {}).notes || {})[k] || '';
+  if (t === have) return;
+  ckTouch(v, function(st){ st.notes = st.notes || {}; if (t) st.notes[k] = t; else delete st.notes[k]; });
+  renderCkStatus();
+}
+function ckNoteCommitFocused(){
+  var ae = document.activeElement;
+  if (ae && ae.hasAttribute && ae.hasAttribute('data-note')) ckNoteCommit(ae);
+}
 function ckTouch(v, mutate){
   if (ckReadOnly() || !v || !v.checks) return;
   var e = ckEntry(v);
@@ -2311,9 +2325,10 @@ function ckRetryPending(){
   }
 }
 function ckFlushAll(){
+  ckNoteCommitFocused();
   for (var tid in ckStore){ var e = ckStore[tid]; if (e && e.dirty && !e.inflight) ckFlush(tid); }
 }
-function ckLeave(){ if (S.checksTask) ckFlush(S.checksTask); }
+function ckLeave(){ ckNoteCommitFocused(); if (S.checksTask) ckFlush(S.checksTask); }
 /* The words on the card are the board's sentence, never re-derived here, so
    after a save they are re-asked for. The server drops its cached copy on a
    written save; this is the fetch that picks the new one up. */
@@ -2686,12 +2701,12 @@ function wireChecks(){
     };
   });
   [].forEach.call(body.querySelectorAll('[data-note]'), function(inp){
-    inp.oninput = function(){
-      var v = cur(); if (!v) return;
-      var k = inp.getAttribute('data-note'), t = inp.value.replace(/\s+/g, ' ').trim();
-      ckTouch(v, function(st){ st.notes = st.notes || {}; if (t) st.notes[k] = t; else delete st.notes[k]; });
-      renderCkStatus();
-    };
+    // A note is committed when the box is LEFT — blur, Enter, or the phone
+    // going away — never per keystroke burst (T1.21). The board posts every
+    // committed note as a message on the task, and a pause mid-sentence must
+    // not post half of one.
+    inp.onchange = function(){ ckNoteCommit(inp); };
+    inp.onkeydown = function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); ckNoteCommit(inp); inp.blur(); } };
   });
   var who = $('ckWho');
   if (who){
