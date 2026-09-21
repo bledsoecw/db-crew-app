@@ -290,6 +290,10 @@ node dev/daylog-test.mjs                     # the week view, today's job and th
 node ../apps-script/code-test.mjs            # getMyJobs + saveSiteChecks, no deps, no network
 ```
 
+The dev tests import `playwright`, so run `npm install playwright` in
+`dbtimeclock-pwa/` (or link a global install) before `node dev/checks-test.mjs`
+and friends.
+
 `push-test.mjs` fakes the browser push stack and the Firebase SDK, then checks
 each branch: permission granted registers a token with the right VAPID key,
 denied and unconfigured stay silent, an iPhone in a Safari tab reports
