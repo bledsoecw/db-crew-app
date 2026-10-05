@@ -17,14 +17,30 @@ https://script.google.com/home/usersettings.)
 
 Or paste `Code.gs` into the editor by hand.
 
-Either way, after a code change: **Deploy > Manage deployments > edit the
-existing deployment > new version**, so the `/exec` URL the app is pointed at
-stays stable.
+Either way, a `clasp push` alone reaches nobody: a deployment serves the
+version it was pinned to. After a code change, cut a new version on the SAME
+deployment, so the `/exec` URL the phones are pointed at stays stable. The
+live API deployment is
+`AKfycbwNrg4UOrOVgIHptfKWjcG76iTaHlYAKY2EYEUmDf61aovgaNpqu790__4u71dg0p2z`
+(the `AKfycb…` part of `apiUrl` in `../dbtimeclock-pwa/public/config.js`;
+`clasp deployments` lists it beside an early leftover pinned at version 2 and
+`@HEAD` — don't guess from that list). Ready to paste, from this folder:
+
+```
+clasp push -f
+clasp deploy -i AKfycbwNrg4UOrOVgIHptfKWjcG76iTaHlYAKY2EYEUmDf61aovgaNpqu790__4u71dg0p2z -d "<what changed>"
+```
+
+The editor route is the same thing: **Deploy > Manage deployments > pencil
+on the live one > Version: New version > Deploy**. Confirm it landed on the
+phone's Diagnostics screen (tap the build line at the foot of the clock): the
+`api` line prints the build actually serving that URL. Then `firebase deploy
+--only hosting` from `../dbtimeclock-pwa` for the front end.
 
 ## Tests
 
 ```
-node code-test.mjs      # 252 assertions, no dependencies, no network
+node code-test.mjs      # 270 assertions, no dependencies, no network
 ```
 
 Covers `getMyJobs` and `saveSiteChecks` — the functions here that depend on
