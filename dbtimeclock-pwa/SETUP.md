@@ -31,6 +31,10 @@ files on Firebase Hosting.
    `<project-id>.web.app` site cannot be renamed, which is why DB Crew is a
    second site in the DB Time Clock project rather than a new project: push
    notifications belong to the project and keep working across the move.
+   The project's own site, `db-time-clock.web.app`, is a second entry in
+   `firebase.json` that serves only a redirect to the new address (the
+   `redirect/` folder), so an old link or icon lands on the real app;
+   `firebase deploy --only hosting` deploys both sites every time.
 
 ## 3. OAuth client (sign-in)
 
