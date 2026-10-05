@@ -17,7 +17,10 @@
   // A session token the app will accept: it only parses `exp` out of the payload.
   var payload = btoa(JSON.stringify({ email: 'tyler.b@deitemeyerbrothers.com', exp: 4102444800 }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  localStorage.setItem('dbtc_auth', JSON.stringify({ token: 'h.' + payload + '.s', exp: 4102444800 }));
+  // A phone that just signed out (T2.1) stays signed out across the reload the
+  // sign-out ends on, so the gate can be seen; everything else boots signed in.
+  if (localStorage.getItem('dbtc_pick_account') !== '1')
+    localStorage.setItem('dbtc_auth', JSON.stringify({ token: 'h.' + payload + '.s', exp: 4102444800 }));
 
   var JOB = {
     id: 'j_2841', name: '260890 Webster_Foundation', number: '26-0890',

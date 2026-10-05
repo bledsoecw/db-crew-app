@@ -70,6 +70,16 @@ Operations. The same screen carries **View the app as**, which lets the
 Operations account borrow another role's view — the navy bar names the
 borrowed view and the way back, and it is remembered on that phone.
 
+**Sign out** (T2.1) is the last button on the Diagnostics screen (tap the
+build line at the foot of the clock). Two taps — the first arms it and says
+what happens — and the phone forgets everything it held for that person
+(every `dbtc_*` key and the three IndexedDB stores) and lands on the sign-in
+screen with Google's account picker rather than the account that just left.
+It is refused, with the reason, while a photo, a site-check save, a day log
+or a close-out item is still waiting to send: those queues belong to the
+person signed in and would go with them. Hours already on the clock live in
+JobTread and are untouched. `dev/signout-test.mjs` walks it.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

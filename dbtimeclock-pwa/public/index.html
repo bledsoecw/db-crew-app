@@ -826,6 +826,8 @@ button[disabled]{cursor:default}
       <button class="btn btn-out diagbtn hidden" id="copyDiagBtn">Copy diagnostics</button>
       <button class="btn btn-nav diagbtn" id="updateBtn">Check for update</button>
       <div class="foot">Clears this phone's copy of the app and reloads it. Your hours and any queued photos are untouched.</div>
+      <button class="btn btn-out diagbtn" id="signOutBtn">Sign out</button>
+      <div class="foot" id="signOutFoot">Signs this phone out so somebody else can sign in. Hours already on the clock stay in JobTread; anything still waiting to send has to go first.</div>
       <div id="errBox" class="hidden"></div>
     </div>
   </div>
@@ -931,7 +933,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.0 (2026-10-05)';
+var APP_BUILD = 'T2.1 (2026-10-05)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -961,6 +963,10 @@ var CHECKS_RO_MEMORY_MS = 7 * 24 * 3600 * 1000;
    then a 30-day app session so the crew isn't re-prompted.
    ========================================================= */
 var AUTH = { token:'', exp:0, waiters:[] };
+/* Set by Sign out and cleared by the next sign-in: Google's One Tap must not
+   quietly pick the account that was just signed out (T2.1). */
+var PICK_ACCOUNT_KEY = 'dbtc_pick_account';
+function pickingAccount(){ try { return localStorage.getItem(PICK_ACCOUNT_KEY) === '1'; } catch(e){ return false; } }
 try {
   var saved = JSON.parse(localStorage.getItem('dbtc_auth') || '{}');
   if (saved && saved.token) { AUTH.token = saved.token; AUTH.exp = saved.exp || 0; }
@@ -980,6 +986,7 @@ function authClear(){
 }
 function authOnCredential(resp){
   if (!resp || !resp.credential) return;
+  try { localStorage.removeItem(PICK_ACCOUNT_KEY); } catch(e){}
   authStore(resp.credential);
   // Trade the short-lived Google token for a long app session immediately.
   apiCall('exchangeSession', []).then(function(s){ if (s && s.token) authStore(s.token); })
@@ -988,7 +995,7 @@ function authOnCredential(resp){
 }
 function authInitGis(){
   if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(authInitGis, 300); return; }
-  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: authOnCredential, auto_select: true });
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: authOnCredential, auto_select: !pickingAccount() });
   google.accounts.id.renderButton($('gateBtnWrap'), { theme:'filled_black', size:'large', text:'signin_with', shape:'rectangular' });
   google.accounts.id.prompt();
 }
@@ -1752,6 +1759,63 @@ function forceUpdate(){
       clearTimeout(fallback); setTimeout(reload, 250);
     });
   }).catch(function(){ clearTimeout(fallback); setTimeout(reload, 250); });
+}
+
+/* Sign out — the way to a different account on one phone (T2.1). Refused
+   while anything is still waiting to send, because every queue on this
+   phone belongs to the person signed in and would go with them. Two taps,
+   like the crew editor's remove: the first arms it and says what happens.
+   Everything the app keeps on the phone is wiped — the dbtc_* keys and the
+   three IndexedDB stores — so the next person starts clean, and Google's
+   One Tap is told not to pick the account that just left. */
+var signOutArmed = 0;
+function waitingToSend(){
+  var n = [];
+  if (S.queued) n.push(S.queued + (S.queued === 1 ? ' photo' : ' photos'));
+  var ck = 0; for (var t in ckStore){ if (ckStore[t] && ckStore[t].dirty) ck++; }
+  if (ck) n.push(ck + ' site-check save' + (ck === 1 ? '' : 's'));
+  var dl = 0; for (var k in dlStore){ var e = dlStore[k]; if (e && e.wantSend && !e.sent) dl++; }
+  if (dl) n.push(dl + ' day log' + (dl === 1 ? '' : 's'));
+  var co = ((window.CO && CO.outbox) || []).filter(function(it){ return it.status !== 'rejected'; }).length;
+  if (co) n.push(co + ' close-out item' + (co === 1 ? '' : 's'));
+  return n;
+}
+function wipePhoneState(){
+  authClear();
+  try {
+    var keys = [];
+    for (var i = 0; i < localStorage.length; i++){ var key = localStorage.key(i); if (/^dbtc_/.test(key)) keys.push(key); }
+    keys.forEach(function(key){ localStorage.removeItem(key); });
+    localStorage.setItem(PICK_ACCOUNT_KEY, '1');
+  } catch(e){}
+  return idb().then(function(db){
+    return Promise.all(['q', 'co', 'cophotos'].map(function(st){
+      return new Promise(function(res){
+        try { var tx = db.transaction(st, 'readwrite'); tx.objectStore(st).clear(); tx.oncomplete = res; tx.onerror = res; tx.onabort = res; }
+        catch(e){ res(); }
+      });
+    }));
+  }).catch(function(){});
+}
+function signOut(){
+  var btn = $('signOutBtn'), foot = $('signOutFoot');
+  var waiting = waitingToSend();
+  if (waiting.length){
+    signOutArmed = 0; btn.textContent = 'Sign out';
+    foot.textContent = 'Not yet — ' + waiting.join(', ') + ' still waiting to send from this phone. Get a signal, let it go, then sign out.';
+    return;
+  }
+  if (!signOutArmed || Date.now() - signOutArmed > 8000){
+    signOutArmed = Date.now();
+    btn.textContent = 'Tap again to sign out';
+    foot.textContent = 'This phone forgets ' + ((S.me && S.me.name) || 'you') + ' and shows the sign-in screen, where any account can be picked.';
+    setTimeout(function(){ if (signOutArmed && Date.now() - signOutArmed >= 8000){ signOutArmed = 0; btn.textContent = 'Sign out'; } }, 8300);
+    return;
+  }
+  signOutArmed = 0;
+  btn.disabled = true; btn.textContent = 'Signing out…';
+  try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch(e){}
+  wipePhoneState().then(function(){ location.replace(location.pathname); });
 }
 
 function renderLog(){ renderDayLog(); }
@@ -5652,6 +5716,7 @@ $('pushBtn').onclick = function(){
   });
 };
 $('updateBtn').onclick = forceUpdate;
+$('signOutBtn').onclick = signOut;
 [].forEach.call(document.querySelectorAll('.tab'), function(b){
   b.onclick = function(){ setTab(b.getAttribute('data-tab')); };
 });
@@ -5732,7 +5797,7 @@ if (!API_URL || !GOOGLE_CLIENT_ID){
 } else if (authFresh()){
   start();
 } else {
-  requireSignIn('');
+  requireSignIn(pickingAccount() ? 'Signed out. Pick the account to sign in with.' : '');
 }
 </script>
 </body>
