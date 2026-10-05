@@ -1,7 +1,7 @@
 {
-  "name": "DB Time Clock",
-  "short_name": "DB Clock",
-  "description": "Deitemeyer Brothers crew clock-in — hours and job photos, synced to JobTread",
+  "name": "DB Crew",
+  "short_name": "DB Crew",
+  "description": "Deitemeyer Brothers crew app — the time clock, your jobs, the site checks, the day log and Close Out, synced to JobTread",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

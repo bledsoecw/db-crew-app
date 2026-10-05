@@ -1,8 +1,12 @@
-# DB Time Clock
+# DB Crew
 
-Crew clock-in for **Deitemeyer Brothers Roofing & Construction**, built from the
-Claude Design handoff in `project/Crew App.dc.html` and the design conversation
-in `chats/chat1.md`.
+The crew's one app for **Deitemeyer Brothers Roofing & Construction**: the time
+clock, My jobs, the site checks, the day log — and, since T2.0 (Oct 2026),
+**Close Out**, the final inspection and punch repairs that used to be a second
+app (DB CheckOut). Built from the Claude Design handoff in
+`project/Crew App.dc.html` and the design conversation in `chats/chat1.md`.
+It was **DB Time Clock** until T2.0; the Firebase project, the Apps Script and
+the folder names still say so, and nothing depends on them changing.
 
 An installable PWA on Firebase Hosting talking to a Google Apps Script API that
 holds the JobTread grant key — the same architecture as **DB Cam Mobile**, which
@@ -46,9 +50,33 @@ shows a navy "READ-ONLY BUILD" bar while it's off, so a test build can't be
 mistaken for the real thing. `WRITE_JOB_ALLOWLIST` narrows writes to specific
 jobs for a contained first test. See SETUP.md for the go-live sequence.
 
-### Who can open it, and who sees the crew block
+### Who can open it, and what each person gets (roles, T2.0)
 
-Two gates, in order. A Google account on `@deitemeyerbrothers.com` — or on the
+The role decides the tabs. The API decides the role (`roleFor_` in
+`Code.gs`), the phone only draws it:
+
+| Role | Tabs | Who |
+|---|---|---|
+| Crew | Clock · My jobs | everyone, the default |
+| Site manager | Clock · My jobs · Day log | anyone whose JobTread role is Site Manager (Tyler, Kenton, Chris Blue) |
+| Service | Clock · Close Out | Alberto and Yahir (seeded by membership id), and `carl.bledsoe@deitemeyerbrothers.com` to test their view |
+| Operations | all of those, plus **People** | `operations@deitemeyerbrothers.com` — `OPS_EMAILS` in `Code.gs`, nowhere else |
+
+**People** is where Operations assigns roles: one tap per person, saved at
+once to the `ROLES_JSON` Script Property, and the API refuses anyone but
+Operations (`getPeople`, `setRole`). A stored answer wins over the defaults;
+clearing it puts the default back. Nothing on that screen can make anyone
+Operations. The same screen carries **View the app as**, which lets the
+Operations account borrow another role's view — the navy bar names the
+borrowed view and the way back, and it is remembered on that phone.
+
+A role grants nothing in JobTread. Who may tick a site checklist is still
+JobTread's Site Manager role, enforced by the board on every save; who gets a
+final inspection is still the board's roster (the board answers `inspector`
+on the assignments call, and Close Out says so beside a Service person the
+board would never send one).
+
+Two gates in front of all of that, in order. A Google account on `@deitemeyerbrothers.com` — or on the
 short explicit allow-list beside it (`SITE_MANAGER_EMAILS` in `Code.gs`, plus
 the optional `EXTRA_ALLOWED_EMAILS` Script Property; two of the three site
 managers sign in with Gmail addresses, which are also their JobTread user

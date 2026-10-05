@@ -32,7 +32,7 @@ async function session(flags = {}) {
     errs.push(m.text());
   });
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
-  await page.addInitScript(`window.__MOCK_FOREMAN=${!!flags.foreman};window.__MOCK_READONLY=${!!flags.readOnly};window.__MOCK_NOTMANAGER=${!!flags.notManager};window.__MOCK_TWO_TODAY=${!!flags.twoToday};`);
+  await page.addInitScript(`window.__MOCK_FOREMAN=${!!flags.foreman};window.__MOCK_READONLY=${!!flags.readOnly};window.__MOCK_NOTMANAGER=${!!flags.notManager};window.__MOCK_TWO_TODAY=${!!flags.twoToday};window.__MOCK_ROLE=${JSON.stringify(flags.role || 'siteManager')};`);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1400);
@@ -187,6 +187,54 @@ const allErrs = [];
   await tap(page, '#stopOut', 1000);
   await tap(page, '#shutter', 3500);
   await shot(page, '11b-clock-out-nudge');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- T2.0: the service crew's app (Clock + Close Out, Spanish first) ----
+{
+  const { ctx, page, errs } = await session({ role: 'service' });
+  await shot(page, '30-service-clock');
+  await tap(page, '.tab[data-tab="co"]', 900);
+  await shot(page, '31-close-out-queue');
+  await tap(page, '[data-cojob="co-hartman"]', 800);
+  await shot(page, '32-close-out-job');
+  await tap(page, '[data-coscreen="inspect"]', 500);
+  for (const k of ['22PdEQfPnVqh', '22PdEQfPnVqi', '22PdEQfPnVqj']) await tap(page, `.ans[data-key="${k}"] .ok`, 120);
+  await tap(page, '.ans[data-key="22PdEQfPnVqk"] .fix', 500);
+  await page.evaluate(() => { const v = coVisit('co-hartman'); v.reports[0].note = 'La bota del tubo de atrás está rota, le entra agua'; v.reports[0].noteEn = 'Pipe boot on the rear slope is cracked, water is getting in.'; v.reports[0].location = 'back'; coLocationWords(v.reports[0]); coPersist(); coRender(); });
+  await shot(page, '34-report-a-problem');
+  await page.evaluate(() => { coVisit('co-hartman').reports[0].saved = true; coPersist(); coBack(); });
+  await page.waitForTimeout(300);
+  await shot(page, '33-inspection');
+  await page.evaluate(() => { const v = coVisit('co-hartman'); CO_INSPECT.forEach((i, n) => { if (n !== 3) v.answers.inspection[i.key] = 'OK'; }); CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = 'OK'; }); coPersist(); coGo('send'); });
+  await shot(page, '35-review-and-send');
+  await page.evaluate(() => coGo('queue'));
+  await tap(page, '[data-cojob="co-okafor"]', 800);
+  await tap(page, '[data-coscreen="repairs"]', 800);
+  await shot(page, '36-repairs');
+  await tap(page, '[data-corepair="pt1"]', 500);
+  await shot(page, '37-one-repair');
+  await tap(page, '#coBack', 300); await tap(page, '#coBack', 300); await tap(page, '#coBack', 300);
+  await tap(page, '#coQueueHead [data-lang="en"]', 400);
+  await shot(page, '31b-close-out-queue-english');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+// ---- T2.0: Operations — People, a borrowed view ----
+{
+  const { ctx, page, errs } = await session({ role: 'ops' });
+  await tap(page, '.tab[data-tab="people"]', 900);
+  await shot(page, '38-people-roles');
+  await tap(page, '#peopleBody [data-viewas="service"]', 600);
+  await shot(page, '39-ops-viewing-as-service');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+// ---- T2.0: a crew member — two tabs, no day log ----
+{
+  const { ctx, page, errs } = await session({ role: 'crew' });
+  await shot(page, '40-crew-two-tabs');
   allErrs.push(...errs);
   await ctx.close();
 }

@@ -329,7 +329,7 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   await tap(page, '.tab[data-tab="log"]', 500);
   await tap(page, '[data-lang="es"]', 400);
   check('Spanish: the header, the badge, the questions, the buttons, the tabs',
-    [await txt(page, '#logK'), await txt(page, '#syncBadge'), await page.locator('.dlh').allTextContents(), await txt(page, '#dlTalk'), await txt(page, '#dlType'), await page.locator('[data-yn]').allTextContents(), await txt(page, '#dlReview'), await txt(page, '#dlNormal'), await page.locator('#tabs .tl').allTextContents()],
+    [await txt(page, '#logK'), await txt(page, '#syncBadge'), await page.locator('.dlh').allTextContents(), await txt(page, '#dlTalk'), await txt(page, '#dlType'), await page.locator('[data-yn]').allTextContents(), await txt(page, '#dlReview'), await txt(page, '#dlNormal'), await page.locator('#tabs .tab:not(.hidden) .tl').allTextContents()],
     ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Hubo retrasos?', '¿Alguien lastimado o casi?', '¿Recogiste o recibiste material?', '¿Quién más estuvo en el sitio? · toca lo que aplique'], 'Grabar', 'Escribir', ['Sí', 'No', 'Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
   check('...the date in Spanish', /^(Dom|Lun|Mar|Mié|Jue|Vie|Sáb), \d+ (ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/.test(await txt(page, '#logDate')), true);
   check('...the placeholder too', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n')[0], 'Toca aquí y escribe, o usa Grabar');
@@ -338,10 +338,10 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   check('...a trade too, while the value stays JobTread\'s', [await txt(page, '[data-opt="22PC7jNshbiK"][data-val="Roofing"]'), await page.locator('[data-opt="22PC7jNshbiK"][data-val="Roofing"]').count()], ['Techado', 1]);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  check('the language is remembered', await page.locator('#tabs .tl').allTextContents(), ['Reloj', 'Mis trabajos', 'Registro']);
+  check('the language is remembered', await page.locator('#tabs .tab:not(.hidden) .tl').allTextContents(), ['Reloj', 'Mis trabajos', 'Registro']);
   await tap(page, '.tab[data-tab="log"]', 400);
   await tap(page, '[data-lang="en"]', 300);
-  check('...and switches back', await page.locator('#tabs .tl').allTextContents(), ['Clock', 'My jobs', 'Day log']);
+  check('...and switches back', await page.locator('#tabs .tab:not(.hidden) .tl').allTextContents(), ['Clock', 'My jobs', 'Day log']);
   check('no page errors', errs, []);
   await ctx.close();
 }

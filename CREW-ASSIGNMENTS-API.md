@@ -56,6 +56,13 @@ job. Don't lose that by filtering the result again on `start >= from`.
     "leadMembershipId": "22PdPUpWzpHy",
     "leadUserName": "Alberto Gonzalez"
   },
+  // Added 2026-10-05: this crew is on a division's final-inspection list on
+  // the board (Operations → Divisions & PMs), i.e. the board assigns them
+  // inspections and DB Crew's Close Out tab has something to show. The
+  // app's Service ROLE (who sees the tab) and this (who gets the work) are
+  // two lists in two places on purpose; Close Out says so beside a person
+  // when they disagree. Absent on an older board = unknown, never no.
+  "inspector": true,
   "range": { "from": "2026-09-14", "to": "2026-09-27" },
   "visits": [
     {

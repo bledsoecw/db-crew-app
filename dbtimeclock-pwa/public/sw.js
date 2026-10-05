@@ -1,4 +1,4 @@
-/* DB Time Clock service worker — T1.1 (2026-07-28)
+/* DB Crew service worker — T1.1 (2026-07-28)
    Navigation: network-first (a fresh build wins), cache fallback so the app
    still opens with no signal. Same-origin assets: cache-first. Cross-origin
    (the Apps Script API, JobTread's CDN, FCM): never touched. */
@@ -48,12 +48,12 @@ self.addEventListener('fetch', function (e) {
 self.addEventListener('push', function (e) {
   var p = {};
   try { p = e.data ? e.data.json() : {}; }
-  catch (err) { p = { notification: { title: 'DB Time Clock', body: e.data ? e.data.text() : '' } }; }
+  catch (err) { p = { notification: { title: 'DB Crew', body: e.data ? e.data.text() : '' } }; }
   var n = p.notification || {};
   var d = p.data || {};
   // The tag and the kind ride in data (sendPush_ puts them there): a schedule
   // line must not replace a photo nudge, and it need not stay on screen.
-  e.waitUntil(self.registration.showNotification(n.title || 'DB Time Clock', {
+  e.waitUntil(self.registration.showNotification(n.title || 'DB Crew', {
     body: n.body || '',
     icon: 'app-icon-192.png',
     badge: 'app-icon-192.png',

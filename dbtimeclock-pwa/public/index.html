@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>DB Time Clock</title>
+<title>DB Crew</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -87,12 +87,12 @@ button[disabled]{cursor:default}
 #gateErr{font:400 13px/1.5 var(--sans);color:#f0a9a0;max-width:300px}
 
 /* ---------------- header ---------------- */
-#hdr{padding:calc(var(--sat) + 3px) 8px 6px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
-#hdrL{display:flex;align-items:center;gap:11px;min-width:0}
-#hdrL img{width:55px;height:55px;border-radius:12px;flex:none}
-#hdrT{font:800 15px/1 var(--head);letter-spacing:.15px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#hdrW{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#sunBtn{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--sunico)}
+#hdr,#hdrCo,#hdrPeople{padding:calc(var(--sat) + 3px) 8px 6px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
+#hdrL,.hdrL{display:flex;align-items:center;gap:11px;min-width:0}
+#hdrL img,.hdrL img{width:55px;height:55px;border-radius:12px;flex:none}
+#hdrT,.hdrT{font:800 15px/1 var(--head);letter-spacing:.15px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hdrW,.hdrW{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sunBtn,.sunbtn{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--sunico)}
 
 /* ---------------- banners ---------------- */
 .warnbar{display:flex;align-items:center;gap:9px;padding:10px 20px;background:var(--warn);color:var(--warnink);font:600 11px/1.3 var(--mono);letter-spacing:.99px;text-transform:uppercase;flex:none}
@@ -519,6 +519,98 @@ button[disabled]{cursor:default}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 @keyframes flashOut{from{opacity:.95}to{opacity:0}}
 @keyframes sheetUp{from{transform:translateY(22px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ---------------- roles, view-as, People ----------------
+   The role decides the tabs (T2.0). A borrowed view — Operations looking at
+   the app as somebody else — is named on a navy bar on every screen that has
+   a header of its own, with the way back on it, so a reduced app can never
+   be mistaken for a reduced account. */
+.viewbar{justify-content:space-between;gap:12px}
+.viewbar .vb-t{flex:1;min-width:0}
+.viewbar button{min-height:44px;padding:0 12px;border:1.5px solid rgba(255,255,255,.55);border-radius:4px;color:#fff;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;flex:none}
+.backbtn{width:62px;height:52px;border-radius:5px;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--fg)}
+.pcard{background:var(--surf);border:1px solid var(--line);border-radius:8px;margin-top:12px;padding:16px 18px 15px;display:flex;flex-direction:column;gap:7px}
+.pcard .pn{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.pcard .pname{font:800 19px/1.1 var(--head);letter-spacing:-.1px;text-transform:uppercase;color:var(--fg);min-width:0;overflow-wrap:anywhere}
+.pcard .pmail{font:400 13px/1.3 var(--sans);color:var(--mut);overflow-wrap:anywhere}
+.pcard .whychips{margin-top:6px}
+.pcard .whychip{min-height:48px;padding:0 14px}
+.pcard .whychip[disabled]{opacity:.5}
+.pfoot{font:400 12.5px/1.45 var(--sans);color:var(--lab);margin-top:2px}
+
+/* ---------------- close out ----------------
+   The final inspection, the cleanup, the problem reports and the punch
+   repairs — DB CheckOut's screens redrawn in this app's grammar (T2.0).
+   Spanish large, English small, the way CheckOut always read; the three-way
+   answer row and the status badges are the only shapes the site checks
+   never needed. Amber is still the one warning voice, green still means
+   somebody saw it. */
+.bi{display:flex;flex-direction:column;gap:3px;min-width:0}
+.bi .es{font:600 17px/1.25 var(--sans);color:var(--fg)}
+.bi .en{font:400 13px/1.3 var(--sans);color:var(--mut)}
+.seg{display:flex;gap:8px;padding:0 20px 12px;flex:none}
+.seg .dlchip{flex:1;justify-content:center;min-height:52px}
+.badge{padding:6px 8px;border-radius:2px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;background:var(--chip);color:var(--mut)}
+.badge.go{background:var(--go);color:var(--goink)}
+.badge.warn{background:var(--warn);color:var(--warnink)}
+.badge.nav{background:var(--nav);color:#fff}
+.jwhen .l{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
+.jtile{min-height:var(--tap);width:100%;display:flex;align-items:center;gap:14px;padding:0 16px;border-top:1px solid var(--line);background:var(--surf);text-align:left}
+.jtile:first-child{border-top:0}
+.jtile .bi{flex:1}
+.jtile .bi .es{font:800 17px/1.1 var(--head);letter-spacing:.17px;text-transform:uppercase}
+.jtile .cnt{font:700 16px/1 var(--head);color:var(--mut);flex:none}
+.jtile .cnt.all{color:var(--acc)}
+.jtile .cnt.warn{color:var(--ckamber)}
+.jtile .chev{color:var(--lab);flex:none}
+.ans{display:flex;gap:8px;padding:0 16px 14px}
+.ans button{flex:1;min-height:56px;border-radius:6px;border:2px solid var(--line2);color:var(--fg);font:800 16px/1 var(--head);letter-spacing:.64px;text-transform:uppercase;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.ans button .s{font:600 9px/1 var(--mono);letter-spacing:.81px;opacity:.7}
+.ans button.ok.on{background:var(--go);border-color:var(--go);color:var(--goink)}
+.ans button.na.on{background:var(--surf2);border-color:var(--line2);color:var(--fg)}
+.ans button.fix.on{background:var(--warn);border-color:var(--warn);color:var(--warnink)}
+.ckq{padding:14px 16px 10px;border-top:1px solid var(--line)}
+.ckq.first{border-top:0}
+.ckq .n{font:600 11px/1 var(--mono);letter-spacing:1px;color:var(--lab);margin-bottom:8px;display:block}
+.photos{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.ph{width:92px;height:92px;border-radius:6px;background:var(--surf2) center/cover no-repeat;border:1px solid var(--line);position:relative;flex:none;padding:0}
+.ph .tag{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.65);padding:5px 6px;font:600 9.5px/1 var(--mono);letter-spacing:.86px;color:#fff;border-radius:2px}
+.ph .rm{position:absolute;right:4px;top:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;display:flex;align-items:center;justify-content:center}
+.ph.add{background:var(--surf);border:2px dashed var(--line2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg);font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
+.phbig{flex:1;min-width:0;height:150px;border-radius:8px;border:1px solid var(--line);background:var(--surf2) center/cover no-repeat;position:relative;padding:0}
+.phbig.empty{background:var(--surf);border:2px dashed var(--line2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:0 10px}
+.phbig.empty.need{border-color:var(--warn)}
+.phbig .t{font:800 15px/1.1 var(--head);text-transform:uppercase;color:var(--fg)}
+.phbig .s{font:600 9.5px/1.3 var(--mono);letter-spacing:.86px;text-transform:uppercase;color:var(--lab)}
+.phbig.need .s{color:var(--ckamber)}
+.phbig .tag{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.65);padding:6px 7px;font:600 9.5px/1 var(--mono);letter-spacing:.86px;color:#fff;border-radius:2px}
+.hero{margin-top:14px;background:var(--band);border:1px solid var(--bandline);border-radius:8px;padding:22px 18px;display:flex;flex-direction:column;gap:8px;color:#fff}
+.hero .sl{display:flex;align-items:center;gap:10px;font:600 11px/1 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:#7ef08a}
+.hero .sl .dot{width:10px;height:10px;border-radius:50%;background:var(--live);flex:none}
+.hero.warn .sl{color:#ffd84d}
+.hero.warn .sl .dot{background:var(--warn)}
+.hero .st{font:800 30px/1.05 var(--head);letter-spacing:-.3px;text-transform:uppercase}
+.hero .ss{font:400 14px/1.4 var(--sans);color:rgba(255,255,255,.72)}
+.rep{width:100%;min-height:82px;display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid var(--line);text-align:left;background:var(--surf)}
+.rep:first-child{border-top:0}
+.rep .dot{width:34px;height:34px;border-radius:50%;border:2.5px solid var(--line2);display:flex;align-items:center;justify-content:center;flex:none;color:var(--fg);font:700 16px/1 var(--head)}
+.rep.done .dot{background:var(--go);border-color:var(--go);color:var(--goink)}
+.rep.done .bi .es{color:var(--mut);text-decoration:line-through}
+.rep .bi{flex:1}
+.rep[disabled]{opacity:.8}
+.obrow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line);font:400 14px/1.35 var(--sans);color:var(--mut)}
+.obrow:first-child{border-top:0}
+.obrow .st{flex:none;padding:5px 7px;border-radius:2px;font:600 9px/1 var(--mono);letter-spacing:.81px;text-transform:uppercase;background:var(--chip);color:var(--mut)}
+.obrow .st.bad{background:var(--rec);color:#fff}
+.obrow .st.ok{background:var(--go);color:var(--goink)}
+.obrow .st.wait{background:var(--warn);color:var(--warnink)}
+.obrow .ob-t{flex:1;min-width:0}
+.obrow button{min-height:44px;padding:0 12px;border:1.5px solid var(--line2);border-radius:5px;font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--mut);flex:none}
+.langtog{display:flex;border:1px solid var(--line2);border-radius:3px;overflow:hidden;flex:none}
+.langtog button{padding:8px 10px;color:var(--mut);min-height:44px}
+.langtog button.on{background:var(--nav);color:#fff}
+.coscope{margin-top:14px;border:1px solid var(--line);border-radius:8px;background:var(--surf);overflow:hidden}
+.coscope .rvstory{padding-top:10px}
 </style>
 </head>
 <body>
@@ -526,8 +618,8 @@ button[disabled]{cursor:default}
 <!-- ============ SIGN IN ============ -->
 <div id="gate">
   <img src="app-icon-192.png" alt="">
-  <div class="t">DB Time Clock</div>
-  <div class="s">Sign in with your Deitemeyer Brothers Google account. Your hours post to JobTread under your name.</div>
+  <div class="t">DB Crew</div>
+  <div class="s">Sign in with your Deitemeyer Brothers Google account. Your hours, your site checks and your close-outs post to JobTread under your name.</div>
   <div id="gateBtnWrap"></div>
   <div id="gateErr"></div>
 </div>
@@ -538,9 +630,9 @@ button[disabled]{cursor:default}
   <div id="vClock" class="view on">
     <div id="hdr">
       <div id="hdrL">
-        <img src="app-icon-192.png" alt="DB Time Clock">
+        <img src="app-icon-192.png" alt="DB Crew">
         <div style="min-width:0">
-          <div id="hdrT">DB Time Clock</div>
+          <div id="hdrT">DB Crew</div>
           <div id="hdrW"></div>
         </div>
       </div>
@@ -550,6 +642,7 @@ button[disabled]{cursor:default}
     </div>
     <div id="offlineBar" class="warnbar hidden"></div>
     <div id="roBar" class="warnbar robar hidden"></div>
+    <div id="viewBar" class="warnbar robar viewbar hidden"></div>
     <button id="clockNudge" class="nudge hidden"></button>
     <div class="scroll" style="padding-bottom:26px;display:flex;flex-direction:column">
       <div class="pad" style="flex:none">
@@ -737,6 +830,58 @@ button[disabled]{cursor:default}
     </div>
   </div>
 
+
+  <!-- ============ CLOSE OUT ============
+       The final inspection, the cleanup, the problem reports and the punch
+       repairs — one view, several screens inside it (coRender draws the
+       head and the body for whichever is open). -->
+  <div id="vCo" class="view">
+    <div id="hdrCo"></div>
+    <div id="viewBarCo" class="warnbar robar viewbar hidden"></div>
+    <div id="coHead" class="hidden" style="padding:calc(var(--sat) + 8px) 20px 10px;display:flex;align-items:center;gap:12px;flex:none">
+      <button id="coBack" class="backbtn" aria-label="Back">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div style="min-width:0;flex:1">
+        <div class="k" id="coK">Close Out</div>
+        <div id="coTitle" style="font:800 22px/1 var(--head);letter-spacing:-.22px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+      </div>
+    </div>
+    <div id="coQueueHead" class="hidden" style="padding:6px 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none">
+      <div style="min-width:0">
+        <div class="k" id="coQueueK">Close Out</div>
+        <div id="coQueueDate" style="font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex:none">
+        <button id="coStamp" class="k9" style="min-height:44px;padding:0 9px;border-radius:2px;background:var(--chip);color:var(--mut);white-space:nowrap" aria-label="Refresh">JT · —</button>
+        <div class="langtog"><button class="k9" data-lang="es">ES</button><button class="k9" data-lang="en">EN</button></div>
+      </div>
+    </div>
+    <div id="coBar" class="warnbar robar hidden"></div>
+    <div id="coState" class="hidden" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 20px 12px;flex:none"></div>
+    <div id="coSeg" class="seg hidden"></div>
+    <div class="scroll" style="padding:0 20px 26px">
+      <div id="coBody"></div>
+    </div>
+    <input type="file" id="coFile" accept="image/*" capture="environment" class="hidden">
+  </div>
+
+  <!-- ============ PEOPLE (Operations only) ============ -->
+  <div id="vPeople" class="view">
+    <div id="hdrPeople"></div>
+    <div id="viewBarPeople" class="warnbar robar viewbar hidden"></div>
+    <div style="padding:6px 20px 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none">
+      <div style="min-width:0">
+        <div class="k">People · who gets what</div>
+        <div style="font:800 25px/1 var(--head);letter-spacing:-.25px;text-transform:uppercase;margin-top:5px">Roles</div>
+      </div>
+      <button id="peopleStamp" class="k9" style="min-height:44px;padding:0 9px;border-radius:2px;background:var(--chip);color:var(--mut);white-space:nowrap" aria-label="Refresh">—</button>
+    </div>
+    <div class="scroll" style="padding:0 20px 26px">
+      <div id="peopleBody"></div>
+    </div>
+  </div>
+
   <!-- ============ TABS ============ -->
   <div id="tabs">
     <button class="tab on" data-tab="job">
@@ -750,6 +895,14 @@ button[disabled]{cursor:default}
     <button class="tab" data-tab="log">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11M10 12h11M10 18h11"/><polyline points="3 6 4.2 7.2 6.4 5"/><polyline points="3 12 4.2 13.2 6.4 11"/><polyline points="3 18 4.2 19.2 6.4 17"/></svg>
       <span class="tl">Day log</span>
+    </button>
+    <button class="tab" data-tab="co">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 3v2h6V3"/><polyline points="8 13 11 16 16 10"/></svg>
+      <span class="tl">Close Out</span>
+    </button>
+    <button class="tab" data-tab="people">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.6"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9.5" r="2.6"/><path d="M15.5 20a5 5 0 0 1 6 0"/></svg>
+      <span class="tl">People</span>
     </button>
   </div>
 
@@ -773,11 +926,12 @@ button[disabled]{cursor:default}
 <script>
 'use strict';
 /* ===========================================================
-   DB TIME CLOCK — T1.1
+   DB CREW — T1.1 (DB TIME CLOCK until T2.0, 2026-10-05: one app for
+   the clock, My jobs, the day log, the site checks and Close Out)
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T1.22 (2026-09-20)';
+var APP_BUILD = 'T2.0 (2026-10-05)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -940,7 +1094,7 @@ function apiAttempt(fn, args, attempt, co){
     if (e.noAccess) {
       $('gate').classList.remove('hidden');
       $('app').classList.add('hidden');
-      $('gateErr').textContent = 'Your Time Clock access is turned off in DB Hub — ask the office if that seems wrong.';
+      $('gateErr').textContent = 'Your DB Crew access is turned off in DB Hub — ask the office if that seems wrong.';
     }
     throw e;
   }).then(function(v){ clearTimeout(timer); return v; },
@@ -1007,12 +1161,13 @@ var S = {
   dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false, alertFor:null, logFields:null,
   pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
+  viewAs:'', langSet:false,
   apiLog:[], errs:[], recent:[]
 };
 
 function savePrefs(){
   try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, push:pushState, jobPickedDay:S.jobPickedDay,
-                                                            lang:S.lang, talkHinted:S.talkHinted, onBreak:S.onBreak })); } catch(e){}
+                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, viewAs:S.viewAs })); } catch(e){}
 }
 function loadPrefs(){
   try {
@@ -1025,6 +1180,8 @@ function loadPrefs(){
     // A break is today's or nothing: the phone must not open tomorrow "on break".
     if (p.onBreak && p.onBreak.date === isoLocal() && p.onBreak.code) S.onBreak = p.onBreak;
     if (p.lang === 'es' || p.lang === 'en') S.lang = p.lang;
+    S.langSet = !!p.langSet;
+    S.viewAs = (p.viewAs === 'crew' || p.viewAs === 'siteManager' || p.viewAs === 'service') ? p.viewAs : '';
     S.talkHinted = !!p.talkHinted;
     // The device stays registered across launches; only this page's memory of
     // it is lost. Restoring it stops Diagnostics claiming "not checked
@@ -1280,7 +1437,7 @@ function handleShootParam(){
     return;
   }
   // A schedule push lands on My jobs.
-  var m = /[?&]tab=(jobs|log|job)\b/.exec(q);
+  var m = /[?&]tab=(jobs|log|job|co|people)\b/.exec(q);
   if (m){ history.replaceState(null, '', location.pathname); setTab(m[1]); }
 }
 
@@ -1298,7 +1455,8 @@ function measureTabs(){
 
 function render(){
   applyTheme();
-  $('hdrW').textContent = S.me ? (S.me.name + ' · ' + (S.me.isForeman ? 'Foreman' : 'Crew')) : '';
+  $('hdrW').textContent = S.me ? (S.me.name + ' · ' + roleWords()) : '';
+  renderRoleChrome();
 
   var ob = $('offlineBar');
   ob.classList.toggle('hidden', S.online);
@@ -1318,6 +1476,8 @@ function render(){
   renderNudge();
   renderChecks();
   renderTodayPick();
+  coRender();
+  renderPeople();
 }
 
 /* JobTread returns a full formatted address ("408 Euclid Ave, Van Wert, OH
@@ -1817,6 +1977,7 @@ function navCellHtml(address){
    its log went, and a tap to do it. Any other: go there instead — the end
    photo first while on the clock. */
 function actionCellHtml(v){
+  if (!canTab('log')) return goCellHtml(v.jobId);
   var today = isoLocal();
   if (v.today || (v.end && v.end < today)){
     var date = v.today ? today : v.end, e = dlGet(v.jobId, date);
@@ -2046,6 +2207,8 @@ var ICONS = {
   alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
   stop: '<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor" stroke="none"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
 };
 function ico(name, size, sw){
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (sw || 2.2) +
@@ -2469,7 +2632,9 @@ function checksLineHtml(v){
    has already said cannot sign. */
 function nudgeVisits(){
   var a = S.assign;
-  if (!a || !a.visits || ckReadOnly()) return [];
+  // The checklist is a screen under My jobs; a role without that tab is
+  // never sent there (T2.0).
+  if (!a || !a.visits || ckReadOnly() || !canTab('jobs')) return [];
   var today = isoLocal();
   return a.visits.filter(function(v){
     if (!v.checks || !v.checks.taskId || !v.end || v.end >= today) return false;
@@ -2490,6 +2655,7 @@ function nudgeText(v){
 function nudgeItems(){
   var items = [], today = isoLocal(), yday = isoLocal(new Date(Date.now() - 86400000));
   for (var k in dlStore){
+    if (!canTab('log')) break;   // no Day log tab, no nudge towards it
     var e = dlStore[k];
     if (!e || e.sent || e.wantSend) continue;
     var who = e.cust || e.jobLabel || e.jobNum;
@@ -2778,6 +2944,9 @@ function unsignHtml(){
    TABS + SHEET
    ========================================================= */
 function setTab(t){
+  // A tab the role does not have falls back to the clock (T2.0) — a push
+  // or a saved pref can still name one.
+  if ((t === 'jobs' || t === 'log' || t === 'co' || t === 'people') && !canTab(t)) t = 'job';
   // Leaving the checklist saves whatever is unsaved, without waiting.
   if (S.tab === 'checks' && t !== 'checks') ckLeave();
   // Leaving the log stops the mic: the words would have nowhere to land.
@@ -2789,6 +2958,10 @@ function setTab(t){
   $('vCam').classList.toggle('on', t==='cam');
   $('vLog').classList.toggle('on', t==='log');
   $('vDiag').classList.toggle('on', t==='diag');
+  $('vCo').classList.toggle('on', t==='co');
+  $('vPeople').classList.toggle('on', t==='people');
+  if (t === 'co'){ coLoadQueue(false); coRefreshOutbox().then(coRender); }
+  if (t === 'people') peopleLoad(false);
   // First visit to the tab fetches; after that the refresh button is explicit.
   if (t === 'jobs' && !S.assign && !S.assignLoading) loadAssignments();
   // The checklist is a screen inside My jobs, so that tab stays lit. The
@@ -2796,6 +2969,7 @@ function setTab(t){
   var lit = t === 'checks' ? 'jobs' : t === 'cam' ? (S.alertFor ? 'log' : 'job') : t === 'diag' ? 'job' : t;
   // Leaving the camera by a tab drops a gate: a start photo not taken is no
   // entry, an end photo not taken is a clock still running.
+  if (t !== 'co' && dlRec.want && dlRec.taId === 'coNote') dlRecStop();
   if (t !== 'cam' && S.clockGate){ S.clockGate = null; S.gateCode = null; if (S.moving && S.pendingJob) cancelMove(); }
   [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===lit); });
   if (t === 'cam') startCamera(); else stopCamera();
@@ -3296,8 +3470,14 @@ var DB = null;
 function idb(){
   if (DB) return Promise.resolve(DB);
   return new Promise(function(res, rej){
-    var r = indexedDB.open('dbtc', 1);
-    r.onupgradeneeded = function(){ r.result.createObjectStore('q', { keyPath:'id' }); };
+    var r = indexedDB.open('dbtc', 2);
+    r.onupgradeneeded = function(){
+      var db = r.result;
+      if (!db.objectStoreNames.contains('q')) db.createObjectStore('q', { keyPath:'id' });
+      // Close Out (T2.0): the ordered outbox, and the photos it will send.
+      if (!db.objectStoreNames.contains('co')) db.createObjectStore('co', { keyPath:'id' });
+      if (!db.objectStoreNames.contains('cophotos')) db.createObjectStore('cophotos', { keyPath:'id' });
+    };
     r.onsuccess = function(){ DB = r.result; res(DB); };
     r.onerror = function(){ rej(r.error); };
   });
@@ -3479,7 +3659,7 @@ var L10N = {
         safety:'Anyone hurt or a close call?', send:'Send log', review:'Review & send',
         normal:'Normal day · nothing to report', normalFoot:'One tap. Marks no delays, no incidents, and sends it.',
         rest:'Say the rest in your story above.',
-        tabs:{ job:'Clock', jobs:'My jobs', log:'Day log' } },
+        tabs:{ job:'Clock', jobs:'My jobs', log:'Day log', co:'Close Out', people:'People' } },
   es: { k:'Registro', notSent:'Sin enviar', sent:'Enviado', queued:'Queued', how:'¿Cómo fue el día?',
         ph:'Toca aquí y escribe, o usa Grabar\n¿A qué hora llegaste?\n¿Qué se hizo?\n¿Algo que estorbó?',
         record:'Grabar', stop:'Detener', type:'Escribir', listening:'Escuchando… toca Detener al terminar',
@@ -3489,7 +3669,7 @@ var L10N = {
         safety:'¿Alguien lastimado o casi?', send:'Enviar registro', review:'Revisar y enviar',
         normal:'Día normal · nada que reportar', normalFoot:'Un toque. Marca sin retrasos, sin incidentes, y lo envía.',
         rest:'Cuenta el resto en tu historia arriba.',
-        tabs:{ job:'Reloj', jobs:'Mis trabajos', log:'Registro' } }
+        tabs:{ job:'Reloj', jobs:'Mis trabajos', log:'Registro', co:'Close Out', people:'Personas' } }
 };
 function T(key){ return (L10N[S.lang] || L10N.en)[key]; }
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -3504,7 +3684,7 @@ function renderLang(){
     var l = b.querySelector('.tl'), t = tabs[b.getAttribute('data-tab')];
     if (l && t) l.textContent = t;
   });
-  [].forEach.call(document.querySelectorAll('#langTog button'), function(b){ b.classList.toggle('on', b.getAttribute('data-lang') === S.lang); });
+  [].forEach.call(document.querySelectorAll('[data-lang]'), function(b){ b.classList.toggle('on', b.getAttribute('data-lang') === S.lang); });
 }
 /* ---- JobTread's own daily-log fields, as the questions ----
    The office keeps the fields on the daily log in JobTread — Material
@@ -3638,6 +3818,7 @@ function dlUnprompt(jobId, why){
   try { renderNudge(); } catch (err) {}
 }
 function openLog(jobId, date){
+  if (!canTab('log')) return;
   S.dlJobId = jobId; S.dlDate = date || isoLocal(); S.dlReview = false;
   setTab('log');
   var sc = $('vLog').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
@@ -4414,6 +4595,7 @@ function start(){
     // own calls, never ahead of them. A log that was waiting, likewise.
     ckRetryPending();
     dlRetryPending();
+    coRetryPending();
     // Re-register on every launch: FCM tokens rotate, and a stale one is a
     // nudge that silently goes nowhere. Once permission is granted this needs
     // no gesture — requestPermission is never reached — so it can run at boot
@@ -4437,6 +4619,9 @@ function bootStart(lastJob, attempt){
     S.job = d.job;
     S.entries = d.entries || [];
     S.recent = d.recent || [];
+    // Close Out's people read Spanish first (CheckOut's rule); a language
+    // somebody chose on this phone wins.
+    if (!S.langSet && S.me && S.me.appRole === 'service') S.lang = 'es';
     ckOnProfile();
     if (attempt > 0){
       // The late start: what the first attempt would have set in motion.
@@ -4462,11 +4647,929 @@ function bootStart(lastJob, attempt){
   });
 }
 
+
+/* =========================================================
+   ROLES — the role decides the tabs (T2.0, Carl 5 Oct 2026)
+
+     crew          Clock · My jobs
+     siteManager   Clock · My jobs · Day log
+     service       Clock · Close Out              Alberto, Yahir
+     ops           all of those · People          operations@, in the code
+
+   The API decides the role (roleFor_ in Code.gs: Operations' own
+   list, then the seeds, then JobTread's Site Manager role, else
+   crew) and the phone only draws it. A role grants nothing in
+   JobTread: who may tick a site checklist is still JobTread's
+   call on every save, and who gets an inspection is the board's.
+   Operations can borrow another role's view ("View the app as"
+   on People); the navy bar names the borrowed view and the way
+   back, so a reduced app is never mistaken for a reduced account.
+   ========================================================= */
+var TABS_BY_ROLE = { crew: ['job', 'jobs'], siteManager: ['job', 'jobs', 'log'], service: ['job', 'co'], ops: ['job', 'jobs', 'log', 'co', 'people'] };
+var ROLE_WORDS = { crew: 'Crew', siteManager: 'Site manager', service: 'Service', ops: 'Operations' };
+function appRole(){ return (S.me && TABS_BY_ROLE[S.me.appRole]) ? S.me.appRole : 'crew'; }
+function isOpsAccount(){ return !!(S.me && S.me.ops); }
+/* The role in force on this phone: a borrowed one, for Operations only. */
+function effRole(){ return (isOpsAccount() && S.viewAs && TABS_BY_ROLE[S.viewAs] && S.viewAs !== 'ops') ? S.viewAs : appRole(); }
+function roleTabs(){ return TABS_BY_ROLE[effRole()] || TABS_BY_ROLE.crew; }
+function canTab(t){ return roleTabs().indexOf(t) !== -1; }
+function roleWord(r){ return ROLE_WORDS[r] || 'Crew'; }
+function roleWords(){
+  var r = appRole(), w = roleWord(r);
+  // The foreman's crew block is a JobTread fact beside the app role.
+  if (r === 'crew' && S.me && S.me.isForeman) w = 'Foreman';
+  return w;
+}
+function setViewAs(role){
+  if (!isOpsAccount()) return;
+  S.viewAs = (role && TABS_BY_ROLE[role] && role !== 'ops') ? role : '';
+  savePrefs();
+  if (!canTab(S.tab) && S.tab !== 'cam' && S.tab !== 'diag' && S.tab !== 'checks') setTab('job'); else render();
+}
+function viewBarHtml(){
+  if (!isOpsAccount() || !S.viewAs || S.viewAs === appRole()) return '';
+  var who = S.viewAs === 'service' ? 'Alberto & Yahir’s app' : S.viewAs === 'siteManager' ? 'the site managers’ app' : 'the crew’s app';
+  return '<span class="vb-t">Viewing as ' + esc(roleWord(S.viewAs)) + ' · ' + esc(who) + '</span><button data-viewas="">Back to my own view</button>';
+}
+/* The same header as the Clock's, on the screens that have one of their own. */
+function hdrHtml(){
+  return '<div class="hdrL"><img src="app-icon-192.png" alt="DB Crew"><div style="min-width:0"><div class="hdrT">DB Crew</div>' +
+         '<div class="hdrW">' + esc(S.me ? (S.me.name + ' · ' + roleWords()) : '') + '</div></div></div>' +
+         '<button class="sunbtn" aria-label="Toggle sun mode"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.6v2.4M12 20v2.4M1.6 12H4M20 12h2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg></button>';
+}
+function renderRoleChrome(){
+  var tabs = roleTabs();
+  [].forEach.call(document.querySelectorAll('#tabs .tab'), function(b){ b.classList.toggle('hidden', tabs.indexOf(b.getAttribute('data-tab')) === -1); });
+  var vb = viewBarHtml();
+  ['viewBar', 'viewBarCo', 'viewBarPeople'].forEach(function(id){
+    var el = $(id); if (!el) return;
+    el.classList.toggle('hidden', !vb);
+    el.innerHTML = vb;
+  });
+  ['hdrCo', 'hdrPeople'].forEach(function(id){ var el = $(id); if (el) el.innerHTML = hdrHtml(); });
+  [].forEach.call(document.querySelectorAll('[data-viewas]'), function(b){ b.onclick = function(){ setViewAs(b.getAttribute('data-viewas')); }; });
+  [].forEach.call(document.querySelectorAll('.sunbtn'), function(b){ b.onclick = function(){ S.sun = !S.sun; savePrefs(); render(); }; });
+  measureTabs();
+}
+
+/* =========================================================
+   CLOSE OUT — DB CheckOut's job, inside this app (T2.0).
+
+   The final inspection (8 checks), the cleanup (5), problem
+   reports with photos and a note in either language, one send
+   that writes the whole visit onto the job's "Final inspection"
+   task, and the punch repairs with their before/after photos.
+   The DB CheckOut SERVER keeps the brains — which task completing
+   moves the job to Punch List or PM Review, the punch to-dos,
+   the re-send guard, the translation — and this app reaches it
+   through Code.gs (coQueue, coJob, …), which forwards with the
+   shared secret and WHO is asking. Nothing here talks to JobTread.
+
+   Everything is local-first: answers, notes and photos live on
+   the phone until "Terminar y enviar"; the send is an ordered
+   outbox in IndexedDB (reports, then their photos, then the
+   close) that delivers by itself when there is signal, keeps
+   going past an item the server refuses, and never creates a
+   twin — every item carries a client reference the server
+   recognises. A refusal is kept and shown, with the reason,
+   until the crew discards it.
+   ========================================================= */
+var CO_KEY = 'dbtc_co', CO_QUEUE_KEY = 'dbtc_co_queue';
+var CO_RETRY_MS = [15000, 45000, 120000, 300000];
+var CO_PHOTO_MAX = 1600, CO_PHOTO_Q = 0.72;
+var CO_QUEUE_STALE_MS = 10 * 60 * 1000;
+
+/* The checklist: DB CheckOut's own item keys and bilingual labels, so the
+   answers land on exactly the subtasks the PM reads (jobtread.ts / i18n.ts
+   in bledsoecw/DB-CheckOut). Answers are stored as the server's canonical
+   OK / N/A / ACTION whatever the language on screen. */
+var CO_INSPECT = [
+  { key: '22PdEQfPnVqh', n: '1', es: 'Tejas parejas, sin clavos expuestos', en: 'Shingles flat — no exposed nails' },
+  { key: '22PdEQfPnVqi', n: '2', es: 'Drip edge y bordes firmes', en: 'Starter & drip edge secure' },
+  { key: '22PdEQfPnVqj', n: '3', es: 'Caballete completo, valles limpios', en: 'Ridge caps seated — valleys clean' },
+  { key: '22PdEQfPnVqk', n: '4', es: 'Botas y ventilas bien selladas', en: 'Pipe boots & vents sealed' },
+  { key: '22PdEQfPnVqm', n: '5', es: 'Flashing en paredes completo', en: 'Step & wall flashing complete' },
+  { key: '22PdEQfPnVqn', n: '6', es: 'Chimenea y tragaluz con flashing', en: 'Chimney & skylight flashed' },
+  { key: '22PdEQfPnVqp', n: '7', es: 'Techo limpio, sin exceso de sellador', en: 'Roof clean — sealant used right' },
+  { key: '22PdEQfPnVqq', n: '8', es: 'Revisión del ático — puntos de fuga', en: 'Attic spot check — leak-prone areas' }
+];
+var CO_CLEAN = [
+  { key: '22PdEQhB6rSR', n: 'C1', es: 'Barrido con imán — entrada, banquetas y jardín', en: 'Magnet sweep — driveway, walks & yard' },
+  { key: '22PdEQhB6rSS', n: 'C2', es: 'Materiales, lonas y basura recogidos', en: 'Materials, tarps & trash removed' },
+  { key: '22PdEQhB6rST', n: 'C3', es: 'Canales y bajantes limpios y conectados', en: 'Gutters & downspouts clean, reconnected' },
+  { key: '22PdEQhB6rSU', n: 'C4', es: 'Sin daños — siding, ventanas, AC, plantas', en: 'No damage — siding, windows, AC, plants' },
+  { key: '22PdEQhB6rSV', n: 'C5', es: 'Listo para que lo vea el cliente', en: 'Ready for the homeowner to view' }
+];
+var CO_ANS = { OK: 'OK', NA: 'N/A', FIX: 'ACTION' };
+var CO_STATUS = { fi: 'Final Inspection', pl: 'Punch List', pr: 'PM Review' };
+/* Every word on these screens, both languages. The first is what shows
+   large; the other sits small beneath where the screen says both. */
+var CO_L10N = {
+  es: { tab:'Close Out', mine:'Asignados', all:'Todos', jobsToday:'hoy', queueNote:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.',
+        queueNote2:'Only jobs ready to inspect, or with repairs for you, show here.', inspection:'Inspección', cleanup:'Limpieza', problems:'Problemas', repairs:'Reparaciones',
+        start:'Empezar', cont:'Continuar', directions:'Cómo llegar', forYou:'Para ti', service:'Servicio', nobodyYet:'Nadie todavía', pmReview:'PM Review', waitingPm:'esperando al PM',
+        points:'puntos', optional:'opcional', withPhoto:'con foto', visitPhotos:'Fotos de la visita', visitPhotosSub:'condición del trabajo', review:'Revisar y enviar',
+        missing:'Falta', ok:'Bien', na:'N/A', naSub:'no aplica', fix:'Falla', fixSub:'Fix', fixNudge:'Reportar con foto y nota ›', fixK:'Falla · punto',
+        of:'de', toReport:'falla por reportar', toReportN:'fallas por reportar', next:'Siguiente', takePhotos:'Tomar fotos', required:'obligatoria', anotherPhoto:'Otra foto', photo:'Foto',
+        where:'¿Dónde está?', front:'Frente', back:'Atrás', left:'Izquierda', right:'Derecha', note:'Nota', type:'Escribir', record:'Grabar', englishNote:'Nota en inglés para la oficina',
+        translating:'Traduciendo…', fixed:'Lo arreglé', fixedSub:'fixed on site', notFixed:'No, falta', notFixedSub:'needs a return', sendReport:'Guardar reporte',
+        pmAssigns:'El PM lo ve en JobTread y asigna la reparación', reportSaved:'Problema guardado', reported:'reportado', reportedN:'reportados',
+        allDone:'Todo listo', checkSend:'Revisa y manda', checkSendSub:'One send writes the whole visit to JobTread.', whatNext:'Qué pasa después', whatNextSub:'what happens next',
+        toPunch:'El trabajo pasa a Punch List en JobTread. El PM ve la falla y asigna la reparación.', toPmReview:'El trabajo pasa a PM Review en JobTread.',
+        finishSend:'Terminar y enviar', offline:'Sin señal — todo se guarda · Se envía solo cuando haya señal', sending:'Enviando…', sent:'Enviado a JobTread',
+        sentSub:'Lo de abajo empieza una visita nueva.', queued:'Por enviar', rejected:'rechazado', rejectedN:'rechazados', tapToSee:'toca para ver', discard:'Quitar',
+        retry:'Reintentar', mineRepairs:'Míos', everyone:'Todos', nothingForYou:'Nada para ti en este trabajo. Toca Todos para ver el resto.', noRepairs:'No hay reparaciones en este trabajo.',
+        ready:'listas', readyOne:'lista', assignedTo:'Para', beforeAfter:'Foto de antes y después en cada reparación', lastCloses:'La última reparación cerrada manda el trabajo a PM Review.',
+        whatToDo:'Qué hacer', whatToDoSub:'what to do', autoTranslated:'Traducción automática · toca EN arriba para el original', assignedBy:'Para el', before:'Foto de antes', beforeSub:'opcional',
+        after:'Foto de después', afterSub:'Obligatoria para terminar', done:'Terminado', doneSub:'Toma la foto de después para terminar', pmChecks:'El PM lo revisa y lo cierra en JobTread',
+        repairDone:'Reparación terminada', noteOpt:'Nota (opcional)', soldScope:'Trabajo vendido', soldScopeSub:'lo que se vendió, en pocas palabras', loading:'Cargando…',
+        lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
+        notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
+        checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
+  en: { tab:'Close Out', mine:'Assigned', all:'All', jobsToday:'today', queueNote:'Only jobs ready to inspect, or with repairs for you, show here.',
+        queueNote2:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.', inspection:'Inspection', cleanup:'Cleanup', problems:'Problems', repairs:'Repairs',
+        start:'Start', cont:'Continue', directions:'Directions', forYou:'For you', service:'Service', nobodyYet:'Nobody yet', pmReview:'PM Review', waitingPm:'waiting on the PM',
+        points:'items', optional:'optional', withPhoto:'with a photo', visitPhotos:'Visit photos', visitPhotosSub:'job condition', review:'Review & send',
+        missing:'Missing', ok:'OK', na:'N/A', naSub:'not applicable', fix:'Fix', fixSub:'Falla', fixNudge:'Report it with a photo and a note ›', fixK:'Fix · item',
+        of:'of', toReport:'fix to report', toReportN:'fixes to report', next:'Next', takePhotos:'Take photos', required:'required', anotherPhoto:'Another photo', photo:'Photo',
+        where:'Where is it?', front:'Front', back:'Back', left:'Left', right:'Right', note:'Note', type:'Type', record:'Record', englishNote:'English note for the office',
+        translating:'Translating…', fixed:'Fixed it', fixedSub:'on site', notFixed:'Not fixed', notFixedSub:'needs a return', sendReport:'Save report',
+        pmAssigns:'The PM sees it in JobTread and assigns the repair', reportSaved:'Problem saved', reported:'reported', reportedN:'reported',
+        allDone:'All done', checkSend:'Check & send', checkSendSub:'Un envío escribe toda la visita en JobTread.', whatNext:'What happens next', whatNextSub:'qué pasa después',
+        toPunch:'The job moves to Punch List in JobTread. The PM sees the problem and assigns the repair.', toPmReview:'The job moves to PM Review in JobTread.',
+        finishSend:'Finish & send', offline:'No signal — everything is saved · Sends by itself when there is signal', sending:'Sending…', sent:'Sent to JobTread',
+        sentSub:'Anything below starts a new visit.', queued:'Waiting to send', rejected:'rejected', rejectedN:'rejected', tapToSee:'tap to see', discard:'Discard',
+        retry:'Retry', mineRepairs:'Mine', everyone:'Everyone', nothingForYou:'Nothing here is yours. Tap Everyone to see the rest.', noRepairs:'No repairs on this job.',
+        ready:'done', readyOne:'done', assignedTo:'For', beforeAfter:'Before & after photo on every repair', lastCloses:'The last repair closed moves the job to PM Review.',
+        whatToDo:'What to do', whatToDoSub:'qué hacer', autoTranslated:'Machine translation · tap ES above for the Spanish', assignedBy:'Due', before:'Before photo', beforeSub:'optional',
+        after:'After photo', afterSub:'Required to finish', done:'Done', doneSub:'Take the after photo to finish', pmChecks:'The PM checks it and closes it in JobTread',
+        repairDone:'Repair finished', noteOpt:'Note (optional)', soldScope:'Sold scope', soldScopeSub:'what was sold, in a few words', loading:'Loading…',
+        lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
+        notYours:'Close Out is for the service crew.', noJobs:'Nothing ready to inspect today.', noInspector:'The board doesn’t send you inspections yet — ask the office (Operations → Divisions & PMs).',
+        checkingJt:'Asking JobTread…', problemsHint:'Report a problem with a photo. Something you fixed on the spot counts too.', newReport:'Report another problem', photosHint:'Photos of the job’s condition. They go up with the send.' }
+};
+function co(k){ return (CO_L10N[S.lang] || CO_L10N.en)[k] || CO_L10N.en[k] || k; }
+function co2(k){ return (CO_L10N[S.lang === 'es' ? 'en' : 'es'])[k] || ''; }
+function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
+function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
+
+var CO = { screen: 'queue', jobs: null, jobsAt: 0, jobsSource: '', loading: false, err: '', reason: '', filter: 'mine',
+           jobId: null, job: null, jobLoading: false, jobErr: '', taskId: null, reportIdx: null, listFilter: 'mine',
+           scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null };
+/* The phone's copy of every visit in progress, keyed by job. */
+var coStore = { visits: {} };
+try { coStore = JSON.parse(localStorage.getItem(CO_KEY) || '{"visits":{}}') || { visits: {} }; if (!coStore.visits) coStore.visits = {}; } catch(e){ coStore = { visits: {} }; }
+function coPersist(){ try { localStorage.setItem(CO_KEY, JSON.stringify(coStore)); } catch(e){} }
+function coVisit(jobId){
+  var v = coStore.visits[jobId];
+  if (!v){ v = coStore.visits[jobId] = { answers: { inspection: {}, cleanup: {} }, notes: { inspection: '', cleanup: '' }, reports: [], photos: [], before: {}, after: {}, repairNote: {}, doneTasks: {}, sentAt: 0, startedAt: Date.now() }; coPersist(); }
+  v.reports = v.reports || []; v.photos = v.photos || []; v.before = v.before || {}; v.after = v.after || {}; v.repairNote = v.repairNote || {}; v.doneTasks = v.doneTasks || {};
+  return v;
+}
+function coCount(v, items, which){ var a = v.answers[which] || {}; return items.filter(function(i){ return !!a[i.key]; }).length; }
+function coFixes(v){ var a = v.answers.inspection || {}, c = v.answers.cleanup || {}; return CO_INSPECT.filter(function(i){ return a[i.key] === CO_ANS.FIX; }).concat(CO_CLEAN.filter(function(i){ return c[i.key] === CO_ANS.FIX; })); }
+function coItemByKey(k){ return CO_INSPECT.concat(CO_CLEAN).filter(function(i){ return i.key === k; })[0] || null; }
+/* What is still missing before the one send: a complete list on each side,
+   and a report for every line marked Falla. */
+function coMissing(v){
+  var m = [];
+  if (coCount(v, CO_INSPECT, 'inspection') < CO_INSPECT.length) m.push(co('inspection').toLowerCase() + ' (' + (CO_INSPECT.length - coCount(v, CO_INSPECT, 'inspection')) + ')');
+  if (coCount(v, CO_CLEAN, 'cleanup') < CO_CLEAN.length) m.push(co('cleanup').toLowerCase() + ' (' + (CO_CLEAN.length - coCount(v, CO_CLEAN, 'cleanup')) + ')');
+  var unreported = coFixes(v).filter(function(i){ return !v.reports.some(function(r){ return r.itemKey === i.key && r.saved; }); });
+  if (unreported.length) m.push(co('fixK').split(' ·')[0].toLowerCase() + ' ' + unreported.map(function(i){ return i.n; }).join(', '));
+  return m;
+}
+function coJobById(id){ return (CO.jobs || []).filter(function(j){ return j.id === id; })[0] || null; }
+function coJobLabel(j){ return j ? (streetOf(j.address) || jobTitle({ name: j.name }) || j.number || '—') : '—'; }
+function coCustomer(j){ var m = /^\d{6}\s+([^_]+)_/.exec(String(j && j.name || '')); return m ? m[1].trim() : ''; }
+function coSub(j){ return [coCustomer(j), cityOf(j.address), j.isService ? co('service').toLowerCase() : String(j.jobType || '').toLowerCase()].filter(Boolean).join(' · '); }
+function coKindOf(j){ return j.status === CO_STATUS.pl ? 'repairs' : j.status === CO_STATUS.pr ? 'review' : 'inspect'; }
+
+/* ---- the queue ---- */
+function coLoadQueue(force){
+  if (CO.loading) return;
+  if (!force && CO.jobs && Date.now() - CO.jobsAt < CO_QUEUE_STALE_MS) return;
+  CO.loading = true; CO.err = ''; CO.reason = '';
+  coRender();
+  apiCall('coQueue', [], { lane: 'board', timeout: 40000 }).then(function(r){
+    CO.loading = false;
+    r = r || {};
+    if (r.status === 200 && Array.isArray(r.body)){
+      CO.jobs = r.body; CO.jobsAt = Date.now(); CO.jobsSource = 'live';
+      try { localStorage.setItem(CO_QUEUE_KEY, JSON.stringify({ at: CO.jobsAt, jobs: CO.jobs })); } catch(e){}
+    } else {
+      CO.reason = r.reason || ('http-' + r.status);
+      CO.err = (r.body && r.body.error) || '';
+      coRestoreQueue();
+    }
+    coRender();
+    if (CO.jobId && !CO.job) coLoadJob(CO.jobId);
+  }).catch(function(e){
+    CO.loading = false; CO.reason = e && e.message === 'NO_CLOSEOUT' ? 'not-yours' : 'unreachable'; CO.err = (e && e.message) || '';
+    if (/^NO_CLOSEOUT/.test(CO.err)) CO.reason = 'not-yours';
+    coRestoreQueue();
+    failed('close out', e, true);
+    coRender();
+  });
+}
+function coRestoreQueue(){
+  if (CO.jobs) return;
+  try { var c = JSON.parse(localStorage.getItem(CO_QUEUE_KEY) || 'null'); if (c && Array.isArray(c.jobs)){ CO.jobs = c.jobs; CO.jobsAt = c.at || 0; CO.jobsSource = 'copy'; } } catch(e){}
+}
+function coLoadJob(jobId){
+  CO.jobLoading = true; CO.jobErr = '';
+  coRender();
+  apiCall('coJob', [jobId], { lane: 'board', timeout: 40000 }).then(function(r){
+    CO.jobLoading = false;
+    r = r || {};
+    if (r.status === 200 && r.body && r.body.id){
+      CO.job = r.body;
+      try { localStorage.setItem('dbtc_co_job_' + jobId, JSON.stringify(CO.job)); } catch(e){}
+      // The punch to-dos arrive in English; Spanish on screen means asking once.
+      if (S.lang === 'es') coTranslateTasks(CO.job);
+    } else {
+      CO.jobErr = (r.body && r.body.error) || r.reason || ('http-' + r.status);
+      coRestoreJob(jobId);
+    }
+    coRender();
+  }).catch(function(e){ CO.jobLoading = false; CO.jobErr = (e && e.message) || 'failed'; coRestoreJob(jobId); failed('close out · job', e, true); coRender(); });
+}
+function coRestoreJob(jobId){
+  if (CO.job && CO.job.id === jobId) return;
+  try { var j = JSON.parse(localStorage.getItem('dbtc_co_job_' + jobId) || 'null'); if (j && j.id === jobId) CO.job = j; } catch(e){}
+}
+function coOpenJob(jobId){
+  CO.jobId = jobId; CO.job = null; CO.screen = 'job'; CO.receipt = null;
+  coRestoreJob(jobId);
+  coLoadJob(jobId);
+  coGo('job');
+}
+function coGo(screen){
+  CO.screen = screen;
+  var sc = $('vCo').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
+  if (dlRec.want && dlRec.taId === 'coNote') dlRecStop();
+  coRender();
+}
+function coBack(){
+  var s = CO.screen;
+  if (s === 'job' || s === 'queue'){ CO.screen = 'queue'; CO.jobId = null; CO.job = null; coLoadQueue(false); }
+  else if (s === 'report'){ CO.reportIdx = null; CO.screen = CO.reportFrom || 'job'; }
+  else if (s === 'repair'){ CO.screen = 'repairs'; CO.taskId = null; }
+  else CO.screen = 'job';
+  coGo(CO.screen);
+}
+
+/* ---- translation, for what JobTread wrote in English ---- */
+function coTranslateTasks(job){
+  var texts = [];
+  (job.punchTasks || []).forEach(function(t){ [coTaskName(t), t.description].forEach(function(x){ if (x && !CO.trans[x] && !CO.transBusy[x]) texts.push(x); }); });
+  texts = texts.filter(function(x, i, a){ return a.indexOf(x) === i; }).slice(0, 40);
+  if (!texts.length) return;
+  texts.forEach(function(x){ CO.transBusy[x] = 1; });
+  apiCall('coTranslate', [texts, 'es'], { lane: 'reads', timeout: 40000 }).then(function(r){
+    texts.forEach(function(x){ delete CO.transBusy[x]; });
+    if (r && r.status === 200 && r.body && Array.isArray(r.body.translations)) texts.forEach(function(x, i){ CO.trans[x] = r.body.translations[i] || x; });
+    else texts.forEach(function(x){ CO.trans[x] = x; });   // not configured: English is the honest answer
+    coRender();
+  }).catch(function(){ texts.forEach(function(x){ delete CO.transBusy[x]; CO.trans[x] = x; }); coRender(); });
+}
+function es(text){ return (S.lang === 'es' && CO.trans[text]) || text || ''; }
+/* The punch to-do's name without CheckOut's "REPORT:" marker — stripped
+   BEFORE translating, or the marker comes back in Spanish. */
+function coTaskName(t){ return String((t && t.name) || '').replace(/^REPORT:\s*/i, ''); }
+/* The office reads English. A note typed or dictated in Spanish is turned
+   into one when the box is left; the crew sees both and sends both. */
+function coEnglishFor(v, idx){
+  var r = v.reports[idx]; if (!r || !r.note.trim()) return;
+  var src = r.note.trim();
+  if (r.noteSrc === src && r.noteEn) return;
+  if (!/[áéíóúñ¿¡]/i.test(src) && !/\b(el|la|los|las|de|del|está|esta|con|sin|por|para|que|muy|tiene|hay|falta|roto|rota)\b/i.test(src)){ r.noteEn = src; r.noteSrc = src; coPersist(); coRender(); return; }
+  r.noteSrc = src; r.noteEnBusy = true; coPersist(); coRender();
+  apiCall('coTranslate', [[src], 'en'], { lane: 'reads', timeout: 40000 }).then(function(res){
+    r.noteEnBusy = false;
+    r.noteEn = (res && res.status === 200 && res.body && res.body.translations && res.body.translations[0]) || src;
+    coPersist(); coRender();
+  }).catch(function(){ r.noteEnBusy = false; r.noteEn = src; coPersist(); coRender(); });
+}
+
+/* ---- photos: the phone's own camera, downscaled, kept in IndexedDB ---- */
+function coTakePhoto(target){ CO.photoFor = target; var f = $('coFile'); f.value = ''; f.click(); }
+function coShrink(file){
+  return new Promise(function(res, rej){
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function(){
+      var s = Math.min(1, CO_PHOTO_MAX / Math.max(img.width, img.height));
+      var c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(function(blob){ if (!blob) rej(new Error('Could not read the photo')); else res(blob); }, 'image/jpeg', CO_PHOTO_Q);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error('Could not read the photo')); };
+    img.src = url;
+  });
+}
+function coPhotoTaken(file){
+  var target = CO.photoFor; CO.photoFor = null;
+  if (!target || !file) return;
+  var id = uid();
+  coShrink(file).then(function(blob){
+    return makeThumb(blob).then(function(thumb){
+      return coPhotoPut({ id: id, blob: blob, mime: 'image/jpeg', at: Date.now() }).then(function(){ return thumb; });
+    });
+  }).then(function(thumb){
+    var v = coVisit(target.jobId), rec = { id: id, thumb: thumb, at: Date.now() };
+    if (target.kind === 'report'){ var r = v.reports[target.idx]; if (r){ r.photos = r.photos || []; r.photos.push(rec); } }
+    else if (target.kind === 'visit') v.photos.push(rec);
+    else if (target.kind === 'before') v.before[target.taskId] = rec;
+    else if (target.kind === 'after') v.after[target.taskId] = rec;
+    coPersist(); coRender();
+  }).catch(function(e){ failed('close out · photo', e); });
+}
+function coRemovePhoto(target, id){
+  var v = coVisit(target.jobId);
+  if (target.kind === 'report'){ var r = v.reports[target.idx]; if (r) r.photos = (r.photos || []).filter(function(p){ return p.id !== id; }); }
+  else if (target.kind === 'visit') v.photos = v.photos.filter(function(p){ return p.id !== id; });
+  else if (target.kind === 'before') delete v.before[target.taskId];
+  else if (target.kind === 'after') delete v.after[target.taskId];
+  coPhotoDel(id); coPersist(); coRender();
+}
+function coPhotoPut(rec){ return idb().then(function(db){ return new Promise(function(res, rej){ var t = db.transaction('cophotos', 'readwrite'); t.objectStore('cophotos').put(rec); t.oncomplete = res; t.onerror = function(){ rej(t.error); }; }); }); }
+function coPhotoGet(id){ return idb().then(function(db){ return new Promise(function(res){ var r = db.transaction('cophotos').objectStore('cophotos').get(id); r.onsuccess = function(){ res(r.result || null); }; r.onerror = function(){ res(null); }; }); }).catch(function(){ return null; }); }
+function coPhotoDel(id){ return idb().then(function(db){ db.transaction('cophotos', 'readwrite').objectStore('cophotos').delete(id); }).catch(function(){}); }
+
+/* ---- the outbox: ordered, idempotent, local-first ---- */
+function coObAll(){
+  return idb().then(function(db){
+    return new Promise(function(res){
+      var out = [], c = db.transaction('co').objectStore('co').openCursor();
+      c.onsuccess = function(e){ var cur = e.target.result; if (cur){ out.push(cur.value); cur.continue(); } else res(out.sort(function(a, b){ return (a.seq || 0) - (b.seq || 0); })); };
+      c.onerror = function(){ res([]); };
+    });
+  }).catch(function(){ return []; });
+}
+function coObPut(item){ return idb().then(function(db){ return new Promise(function(res, rej){ var t = db.transaction('co', 'readwrite'); t.objectStore('co').put(item); t.oncomplete = res; t.onerror = function(){ rej(t.error); }; }); }); }
+function coObDel(id){ return idb().then(function(db){ return new Promise(function(res){ var t = db.transaction('co', 'readwrite'); t.objectStore('co').delete(id); t.oncomplete = res; t.onerror = res; }); }).catch(function(){}); }
+var coSeq = Number(localStorage.getItem('dbtc_co_seq') || 0);
+function coNextSeq(){ coSeq++; try { localStorage.setItem('dbtc_co_seq', String(coSeq)); } catch(e){} return coSeq; }
+function coEnqueue(items){
+  return items.reduce(function(chain, it){ it.seq = coNextSeq(); it.at = it.at || Date.now(); it.status = 'queued'; it.tries = 0; it.err = ''; return chain.then(function(){ return coObPut(it); }); }, Promise.resolve())
+    .then(coRefreshOutbox).then(coPump);
+}
+function coRefreshOutbox(){ return coObAll().then(function(items){ CO.outbox = items; }); }
+function coDiscard(id){ coObDel(id).then(coRefreshOutbox).then(coRender); }
+function coRetryNow(id){ coObAll().then(function(items){ var it = items.filter(function(x){ return x.id === id; })[0]; if (!it) return; it.status = 'queued'; it.tries = 0; it.err = ''; return coObPut(it); }).then(coRefreshOutbox).then(function(){ CO.pumpFails = 0; coPump(); }); }
+/* One item through Code.gs. The answer decides what happens to it:
+   200 → gone; 409 → the thing it belongs to is not there yet, keep and go on;
+   another 4xx → the server will say the same again, keep it as rejected with
+   the reason; anything else (0, 5xx, a bounce) → the server's trouble, try
+   again later. */
+function coSendItem(it){
+  var call;
+  if (it.kind === 'report') call = apiCall('coReport', [it.jobId, it.payload, it.id], { timeout: 60000 });
+  else if (it.kind === 'close') call = apiCall('coClose', [it.jobId, it.payload, it.id], { timeout: 60000 });
+  else if (it.kind === 'complete') call = apiCall('coComplete', [it.taskId, it.jobId, it.payload.note || '', it.id], { timeout: 60000 });
+  else if (it.kind === 'photo'){
+    call = coPhotoGet(it.photoId).then(function(rec){
+      if (!rec || !rec.blob) return { status: 410, body: { error: 'photo is gone from this phone' } };
+      return blobToBase64(rec.blob).then(function(b64){
+        var p = {}; for (var k in it.payload) p[k] = it.payload[k];
+        p.imageBase64 = 'data:' + (rec.mime || 'image/jpeg') + ';base64,' + b64;
+        return apiCall('coPhoto', [it.jobId, p, it.id], { timeout: 90000 });
+      });
+    });
+  } else call = Promise.resolve({ status: 400, body: { error: 'unknown item' } });
+  return call.then(function(r){
+    r = r || {};
+    if (r.status === 200) return { done: true, body: r.body };
+    if (r.status === 409) return { done: false, hold: true, err: (r.body && r.body.error) || 'waiting on an earlier item' };
+    if (r.status === 401) return { done: false, stop: true, err: 'the server rejected the app’s key — ask the office' };
+    if (r.status >= 400 && r.status < 500) return { done: false, reject: true, err: (r.body && r.body.error) || ('refused (' + r.status + ')') };
+    return { done: false, stop: true, err: r.reason === 'not-configured' ? co('notConfigured') : ((r.body && r.body.error) || r.reason || 'no answer') };
+  }, function(e){
+    if (e && e.auth) return { done: false, stop: true, err: 'signed out' };
+    if (/^NO_CLOSEOUT/.test(String(e && e.message))) return { done: false, reject: true, err: co('notYours') };
+    return { done: false, stop: true, err: (e && e.message) || 'no answer' };
+  });
+}
+function coPump(){
+  if (CO.pumping || !S.online || !S.me) return;
+  CO.pumping = true;
+  clearTimeout(CO.pumpTimer);
+  var stopped = false, landed = [];
+  coObAll().then(function(items){
+    CO.outbox = items;
+    return items.reduce(function(chain, it){
+      return chain.then(function(){
+        if (stopped || it.status === 'rejected') return;
+        return coSendItem(it).then(function(res){
+          if (res.done){ landed.push(it); return coObDel(it.id).then(function(){ coLanded(it, res.body); }); }
+          it.tries = (it.tries || 0) + 1; it.err = res.err || '';
+          if (res.reject) it.status = 'rejected';
+          else if (res.hold) it.status = 'held';
+          else { it.status = 'queued'; stopped = true; }
+          return coObPut(it);
+        });
+      });
+    }, Promise.resolve());
+  }).catch(function(e){ failed('close out · send', e, true); stopped = true; }).then(function(){
+    CO.pumping = false;
+    return coRefreshOutbox();
+  }).then(function(){
+    var waiting = CO.outbox.filter(function(it){ return it.status !== 'rejected'; });
+    if (landed.length){ CO.pumpFails = 0; if (CO.jobId) coLoadJob(CO.jobId); coLoadQueue(true); }
+    if (waiting.length && (stopped || waiting.some(function(it){ return it.status === 'held'; }))){
+      var ms = CO_RETRY_MS[Math.min(CO.pumpFails++, CO_RETRY_MS.length - 1)];
+      CO.pumpTimer = setTimeout(coPump, ms);
+    }
+    coRender(); render();
+  });
+}
+/* What a landed item changes on the phone's copy. */
+function coLanded(it, body){
+  var v = coStore.visits[it.jobId]; if (!v) return;
+  if (it.kind === 'report'){ v.reports.forEach(function(r){ if (r.ref === it.id){ r.sentAt = Date.now(); r.taskId = body && body.taskId; } }); }
+  if (it.kind === 'close'){ v.sentAt = Date.now(); v.answers = { inspection: {}, cleanup: {} }; v.notes = { inspection: '', cleanup: '' }; v.reports = v.reports.filter(function(r){ return !r.sentAt; }); v.photos = []; CO.receipt = { jobId: it.jobId, at: v.sentAt, flipped: body && body.flipped }; }
+  if (it.kind === 'complete'){ v.doneTasks[it.taskId] = Date.now(); delete v.before[it.taskId]; delete v.after[it.taskId]; delete v.repairNote[it.taskId]; }
+  if (it.kind === 'photo' && it.photoId) coPhotoDel(it.photoId);
+  coPersist();
+}
+function coOutboxFor(jobId){ return CO.outbox.filter(function(it){ return !jobId || it.jobId === jobId; }); }
+function coRetryPending(){ coRefreshOutbox().then(function(){ if (CO.outbox.length) coPump(); }); }
+
+/* ---- the send: reports, their photos, the visit's photos, then the close ---- */
+function coSendVisit(jobId){
+  var v = coVisit(jobId), items = [], ref = 'co' + uid();
+  v.reports.forEach(function(r, i){
+    if (r.sentAt || r.queued) return;
+    r.queued = true;
+    items.push({ id: r.ref, kind: 'report', jobId: jobId, label: co('problems') + ' · ' + (r.locationWords || r.itemN || ''),
+                 payload: { itemKey: r.itemKey || undefined, location: r.locationWords || (r.itemN ? (co('fixK') + ' ' + r.itemN) : '—'),
+                            englishNote: (r.noteEn || r.note || '').trim(), heardText: (r.noteEn && r.noteEn !== r.note) ? r.note : undefined,
+                            fixedOnSite: !!r.fixed, reportedBy: S.me && S.me.name } });
+    (r.photos || []).forEach(function(p, pi){
+      items.push({ id: r.ref + '.p' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('photo') + ' · ' + (r.itemN || ''),
+                   payload: { label: 'REPORT', reportRef: r.ref, itemKey: r.itemKey || undefined, location: r.locationWords || undefined } });
+    });
+  });
+  v.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('visitPhotos'), payload: { label: 'INSPECTION' } }); });
+  var findings = v.reports.filter(function(r){ return r.itemKey; }).map(function(r){ return { itemKey: r.itemKey, fixedOnSite: !!r.fixed, location: r.locationWords || '', note: (r.noteEn || r.note || '').trim(), photos: (r.photos || []).length }; });
+  var problems = v.reports.filter(function(r){ return !r.fixed; }).length;
+  items.push({ id: ref, kind: 'close', jobId: jobId, label: co('inspection') + ' + ' + co('cleanup'),
+               payload: { answers: { inspection: v.answers.inspection, cleanup: v.answers.cleanup }, notes: { inspection: v.notes.inspection || undefined, cleanup: v.notes.cleanup || undefined }, findings: findings, problemsReported: problems } });
+  v.sending = true; coPersist();
+  coEnqueue(items).then(function(){ coGo('send'); });
+}
+function coFinishRepair(jobId, taskId){
+  var v = coVisit(jobId), items = [], ref = 'cr' + uid();
+  if (v.before[taskId]) items.push({ id: ref + '.b', kind: 'photo', jobId: jobId, photoId: v.before[taskId].id, label: co('before'), payload: { label: 'BEFORE', taskId: taskId } });
+  if (v.after[taskId]) items.push({ id: ref + '.a', kind: 'photo', jobId: jobId, photoId: v.after[taskId].id, label: co('after'), payload: { label: 'AFTER', taskId: taskId } });
+  items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, label: co('repairDone'), payload: { note: (v.repairNote[taskId] || '').trim() } });
+  v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; coPersist();
+  coEnqueue(items).then(function(){ toast(co('repairDone')); coGo('repairs'); });
+}
+
+/* ---- the screens ---- */
+function coBadge(j){
+  var k = coKindOf(j);
+  if (k === 'repairs') return '<span class="badge warn">' + esc(co('repairs')) + (j.openPunchCount ? ' · ' + j.openPunchCount : '') + '</span>';
+  if (k === 'review') return '<span class="badge">' + esc(co('pmReview')) + '</span>';
+  return '<span class="badge nav">' + esc(S.lang === 'es' ? 'Inspección final' : 'Final inspection') + '</span>';
+}
+function coQueueCard(j){
+  var v = coStore.visits[j.id], k = coKindOf(j), today = v && !v.sentAt && (coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup')) > 0;
+  var who = j.mine ? '<span class="badge go">' + esc(co('forYou')) + '</span>' : (k === 'inspect' && !j.mine && isOpsAccount() ? '<span class="badge">' + esc(co('nobodyYet')) + '</span>' : '');
+  var h = '<div class="jcard' + (today ? ' today' : '') + '">';
+  h += '<div class="jwhen"><span class="l">' + coBadge(j) + who + '</span>' + (j.number ? '<span class="n">JT #' + esc(j.number) + '</span>' : '') + '</div>';
+  h += '<button class="jmain" data-cojob="' + esc(j.id) + '"><span class="h-addr">' + esc(coJobLabel(j)) + '</span>' +
+       '<span class="sub">' + esc(coSub(j)) + (k === 'review' ? ' · ' + esc(co('waitingPm')) : '') + '</span>' +
+       (j.projectManager ? '<span class="jwith">PM · ' + esc(String(j.projectManager).split(/\s+/)[0]) + (j.salesRep ? ' · Rep · ' + esc(String(j.salesRep).split(/\s+/)[0]) : '') + '</span>' : '') + '</button>';
+  if (k !== 'review'){
+    var act;
+    if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + (j.openPunchCount || '') + ' ' + esc(co('repairs').toLowerCase()) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
+    else { var done = v ? coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup') : 0;
+      act = '<button class="jact ok" data-cojob="' + esc(j.id) + '"><span class="a1">' + esc(done ? co('cont') : co('start')) + '</span><span class="a2">' + esc(done ? co2('cont') : co2('start')) + ' · ' + done + ' ' + esc(co('of')) + ' ' + (CO_INSPECT.length + CO_CLEAN.length) + '</span></button>'; }
+    h += '<div class="jrow">' + navCellHtml(j.address).replace('Directions', esc(co('directions'))) + act + '</div>';
+  }
+  return h + '</div>';
+}
+function coQueueHtml(){
+  var h = '';
+  if (CO.reason === 'not-yours') return '<div class="jempty">' + esc(co('notYours')) + '</div>';
+  if (CO.reason === 'not-configured') return '<div class="jempty">' + esc(co('notConfigured')) + '</div>';
+  if (!CO.jobs && CO.loading) return '<div class="jempty">' + esc(co('checkingJt')) + '</div>';
+  var jobs = (CO.jobs || []).filter(function(j){ return CO.filter === 'all' || j.mine; });
+  if (!jobs.length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && (CO.jobs || []).length ? co('nothingForYou') : co('noJobs')) + (CO.err && !(CO.jobs || []).length ? '<br><span style="color:var(--ckamber)">' + esc(CO.err) + '</span>' : '') + '</div>';
+  else h += jobs.map(coQueueCard).join('');
+  h += '<div class="foot" style="margin-top:18px">' + esc(co('queueNote')) + '<br>' + esc(co('queueNote2')) + '</div>';
+  h += coOutboxLine(null);
+  return h;
+}
+function coOutboxLine(jobId){
+  var items = coOutboxFor(jobId); if (!items.length) return '';
+  var bad = items.filter(function(it){ return it.status === 'rejected'; }).length;
+  return '<button class="foot" data-cooutbox="1" style="width:100%;min-height:44px;color:' + (bad ? 'var(--rec)' : 'var(--ckamber)') + '">' + esc(co('queued')) + ' (' + (items.length - bad) + ')' +
+         (bad ? ' · ' + bad + ' ' + esc(bad === 1 ? co('rejected') : co('rejectedN')) : '') + ' · ' + esc(co('tapToSee')) + '</button>';
+}
+function coOutboxHtml(){
+  var items = coOutboxFor(null);
+  if (!items.length) return '<div class="jempty">—</div>';
+  return '<div class="jcard" style="margin-top:4px">' + items.map(function(it){
+    var st = it.status === 'rejected' ? '<span class="st bad">' + esc(co('rejected')) + '</span>' : it.status === 'held' ? '<span class="st wait">409</span>' : '<span class="st">' + esc(co('queued')) + '</span>';
+    var job = coJobById(it.jobId);
+    return '<div class="obrow">' + st + '<span class="ob-t">' + esc((job ? job.number + ' · ' : '') + (it.label || it.kind)) + (it.err ? '<br><span style="font-size:12.5px">' + esc(it.err) + '</span>' : '') + '</span>' +
+           (it.status === 'rejected' ? '<button data-codiscard="' + esc(it.id) + '">' + esc(co('discard')) + '</button><button data-coretry="' + esc(it.id) + '">' + esc(co('retry')) + '</button>' : '') + '</div>';
+  }).join('') + '</div><div class="foot">' + esc(co('offline')) + '</div>';
+}
+function coTile(key, es, en, cnt, cls){
+  return '<button class="jtile" data-coscreen="' + key + '"><span class="bi"><span class="es">' + esc(es) + '</span><span class="en">' + esc(en) + '</span></span>' +
+         '<span class="cnt tabular' + (cls ? ' ' + cls : '') + '">' + esc(cnt) + '</span>' + CK_CHEV + '</button>';
+}
+function coJobHtml(){
+  var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), h = '';
+  if (!j) return '<div class="jempty">' + esc(CO.jobLoading ? co('loading') : (CO.jobErr || co('loading'))) + '</div>';
+  var k = coKindOf(j), ins = coCount(v, CO_INSPECT, 'inspection'), cln = coCount(v, CO_CLEAN, 'cleanup');
+  if (j.address) h += '<div class="jcard" style="margin-top:0"><a class="jnav" style="border-top:0" href="' + esc('https://maps.google.com/?q=' + encodeURIComponent(j.address)) + '" target="_blank" rel="noopener">' + ico('nav', 22) + esc(co('directions')) + ' · ' + esc(j.address) + '</a></div>';
+  if (CO.receipt && CO.receipt.jobId === j.id){
+    h += '<div class="hero"><span class="sl"><span class="dot"></span>' + esc(co('sent')) + ' · ' + esc(clockLabel(CO.receipt.at)) + '</span><span class="ss">' + esc(co('sentSub')) + '</span></div>';
+  } else if (v.sentAt && !v.sending && !(ins + cln + v.reports.length + v.photos.length)){
+    h += '<div class="rvcard" style="margin-top:0"><div class="rvstory"><span class="rk">' + esc(co('sent')) + ' · ' + esc(clockLabel(v.sentAt)) + '</span><span class="rt">' + esc(co('sentSub')) + '</span></div></div>';
+  }
+  var pending = coOutboxFor(j.id);
+  if (pending.length) h += coOutboxLine(j.id);
+  if (k !== 'repairs' || isOpsAccount() || ins + cln > 0){
+    h += '<div class="jcard">' +
+      coTile('inspect', co('inspection'), co2('inspection') + ' · ' + CO_INSPECT.length + ' ' + co('points'), ins + ' ' + co('of') + ' ' + CO_INSPECT.length, ins === CO_INSPECT.length ? 'all' : ins ? 'warn' : '') +
+      coTile('cleanup', co('cleanup'), co2('cleanup') + ' · ' + CO_CLEAN.length + ' ' + co('points'), cln + ' ' + co('of') + ' ' + CO_CLEAN.length, cln === CO_CLEAN.length ? 'all' : cln ? 'warn' : '') +
+      coTile('problems', co('problems'), co2('problems') + ' · ' + co('optional') + ' · ' + co('withPhoto'), v.reports.length ? String(v.reports.length) : '—', v.reports.length ? 'warn' : '') +
+      coTile('photos', co('visitPhotos'), co2('visitPhotos') + ' · ' + co('visitPhotosSub'), v.photos.length ? String(v.photos.length) : '—', '') + '</div>';
+  }
+  var tasks = j.punchTasks || [];
+  if (tasks.length || k === 'repairs'){
+    var open = tasks.filter(function(t){ return !(t.progress >= 1) && !v.doneTasks[t.id]; }).length;
+    h += '<div class="jcard">' + coTile('repairs', co('repairs'), co2('repairs') + (j.openPunchTotal != null ? ' · ' + (tasks.length - open) + ' ' + co('of') + ' ' + tasks.length + ' ' + co('ready') : ''), open ? String(open) : (tasks.length ? '✓' : '—'), open ? 'warn' : 'all') + '</div>';
+  }
+  if (j.soldScope && j.soldScope.length) h += coScopeHtml(j);
+  if (k !== 'repairs' || ins + cln > 0){
+    var miss = coMissing(v), can = !miss.length && !v.sending;
+    h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coReview"' + (can ? '' : ' disabled') + '>' + esc(co('review')) + '</button>';
+    h += '<div class="foot">' + (miss.length ? esc(co('missing') + ': ' + miss.join(' · ')) : esc(co('checkSendSub'))) + '</div>';
+  }
+  return h;
+}
+function coScopeHtml(j){
+  var sc = CO.scope[j.id], h = '<div class="coscope"><button class="jtile" data-coscope="1"><span class="bi"><span class="es">' + esc(co('soldScope')) + '</span><span class="en">' + esc(co('soldScopeSub')) + '</span></span>' +
+    '<span class="cnt">' + (j.soldScope.length) + '</span>' + CK_CHEV + '</button>';
+  if (sc && sc.open){
+    h += '<div class="rvstory">';
+    if (sc.loading) h += '<span class="rt">' + esc(co('loading')) + '</span>';
+    else if (sc.text) h += '<span class="rt">' + esc(sc.text) + '</span>';
+    h += j.soldScope.map(function(d){ return '<span class="rk" style="margin-top:8px">' + esc(d.name + (d.number ? ' #' + d.number : '')) + '</span>' + d.lines.slice(0, 12).map(function(l){ return '<span class="rt" style="font-size:14px">' + esc(l.name) + (l.quantity ? ' · ' + l.quantity + ' ' + (l.unit || '') : '') + '</span>'; }).join(''); }).join('');
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+function coScopeToggle(j){
+  var sc = CO.scope[j.id] = CO.scope[j.id] || { open: false, loading: false, text: '' };
+  sc.open = !sc.open;
+  if (sc.open && !sc.text && !sc.loading && !sc.asked){
+    sc.loading = true; sc.asked = true;
+    apiCall('coScope', [j.id], { lane: 'reads', timeout: 40000 }).then(function(r){ sc.loading = false; if (r && r.status === 200 && r.body) sc.summary = r.body; sc.text = (sc.summary && (S.lang === 'es' ? sc.summary.es : sc.summary.en)) || ''; coRender(); })
+      .catch(function(){ sc.loading = false; coRender(); });
+  } else if (sc.summary) sc.text = S.lang === 'es' ? sc.summary.es : sc.summary.en;
+  coRender();
+}
+function coListHtml(which){
+  var v = coVisit(CO.jobId), items = which === 'inspection' ? CO_INSPECT : CO_CLEAN, a = v.answers[which] || {}, h = '<div class="ckphase open" style="margin-top:0">';
+  items.forEach(function(it, i){
+    var cur = a[it.key] || '';
+    h += '<div class="ckq' + (i ? '' : ' first') + '"><span class="n">' + esc(it.n) + '</span><div class="bi"><span class="es">' + esc(coLabel(it)) + '</span><span class="en">' + esc(coLabel2(it)) + '</span></div></div>';
+    h += '<div class="ans" data-key="' + esc(it.key) + '" data-which="' + which + '">' +
+         '<button class="ok' + (cur === CO_ANS.OK ? ' on' : '') + '" data-ans="OK">' + esc(co('ok')) + '<span class="s">' + esc(co2('ok')) + '</span></button>' +
+         '<button class="na' + (cur === CO_ANS.NA ? ' on' : '') + '" data-ans="NA">N/A<span class="s">' + esc(co('naSub')) + '</span></button>' +
+         '<button class="fix' + (cur === CO_ANS.FIX ? ' on' : '') + '" data-ans="FIX">' + esc(co('fix')) + '<span class="s">' + esc(co('fixSub')) + '</span></button></div>';
+    if (cur === CO_ANS.FIX){
+      var rep = v.reports.filter(function(r){ return r.itemKey === it.key && r.saved; })[0];
+      h += '<button class="nudge" style="min-height:60px" data-coreport="' + esc(it.key) + '"><span style="flex:1;min-width:0"><span class="nk">' + esc(co('fixK')) + ' ' + esc(it.n) + '</span><span class="nt">' +
+           (rep ? esc(co('reportSaved')) + ' · ' + (rep.photos || []).length + ' ' + esc(co('photo').toLowerCase()) + ' ›' : esc(co('fixNudge'))) + '</span></span></button>';
+    }
+  });
+  h += '</div>';
+  var nk = which === 'inspection' ? 'inspection' : 'cleanup';
+  h += '<div class="story has" style="margin-top:14px"><textarea id="coListNote" data-notes="' + nk + '" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.notes[nk] || '') + '</textarea></div>';
+  h += '<button class="btn btn-nav" id="coNext" style="margin-top:16px">' + esc(which === 'inspection' ? co('next') + ': ' + co('cleanup') + ' ›' : co('next') + ': ' + co('review') + ' ›') + '</button>';
+  return h;
+}
+function coWhereChips(r){
+  return ['front', 'back', 'left', 'right'].map(function(k){ return '<button class="whychip' + (r.location === k ? ' on' : '') + '" data-cowhere="' + k + '">' + esc(co(k)) + '</button>'; }).join('');
+}
+function coReportHtml(){
+  var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r) return '';
+  var it = coItemByKey(r.itemKey), target = JSON.stringify({ kind: 'report', jobId: CO.jobId, idx: CO.reportIdx }), h = '';
+  h += '<div class="k" style="margin-top:6px">' + esc(co('takePhotos')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('takePhotos').toLowerCase()) + '</div>';
+  h += '<div class="photos">' + (r.photos || []).map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'><span class="tag">' + esc(clockLabel(p.at)) + '</span><span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+       '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc((r.photos || []).length ? co('anotherPhoto') : co('photo')) + '</button></div>';
+  h += '<div class="k" style="margin-top:22px">' + esc(co('where')) + ' · ' + esc(co2('where').toLowerCase()) + ' · ' + esc(co('optional')) + '</div>';
+  h += '<div class="whychips">' + coWhereChips(r) + '</div>';
+  h += '<input id="coWhereText" class="cknote-in" style="margin-top:8px" placeholder="' + esc(it ? coLabel(it) : co('where')) + '" maxlength="80" value="' + esc(r.locationText || '') + '">';
+  h += '<div class="k" style="margin-top:22px">' + esc(co('note')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('note').toLowerCase()) + '</div>';
+  h += '<div class="talkrow">' + recBtnHtml('coNote', 'coRec') + '<button class="talkbtn type" id="coType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
+  h += '<div class="story' + (r.note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coNote" placeholder="' + esc(co('note')) + '" rows="3">' + esc(r.note || '') + '</textarea></div>';
+  h += '<div class="reccap hidden" data-reccap="coNote"></div>';
+  if (r.note && r.note.trim()){
+    h += '<div class="rvcard" style="margin-top:10px"><div class="rvstory"><span class="rk">' + esc(co('englishNote')) + '</span><span class="rt">' + esc(r.noteEnBusy ? co('translating') : (r.noteEn || r.note)) + '</span></div></div>';
+  }
+  h += '<div class="ynrow" style="margin-top:16px"><button class="ynbtn' + (r.fixed ? ' on' : '') + '" data-cofixed="1"><span style="font:800 16px/1 var(--head)">' + esc(co('fixed').toUpperCase()) + '</span><span class="ys">' + esc(co('fixedSub')) + '</span></button>' +
+       '<button class="ynbtn' + (!r.fixed ? ' on' : '') + '" data-cofixed="0"><span style="font:800 16px/1 var(--head)">' + esc(co('notFixed').toUpperCase()) + '</span><span class="ys">' + esc(co('notFixedSub')) + '</span></button></div>';
+  var can = (r.photos || []).length > 0 && !!(r.note || '').trim();
+  h += '<button class="ctaBig' + (can ? '' : ' off') + '" id="coSaveReport" style="margin-top:18px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co('sendReport')) + '</button>';
+  h += '<div class="foot">' + (can ? esc(co('pmAssigns')) : esc(co('missing')) + ': ' + [(r.photos || []).length ? '' : co('photo').toLowerCase(), (r.note || '').trim() ? '' : co('note').toLowerCase()].filter(Boolean).join(' + ')) + '</div>';
+  if (r.saved) h += '<button class="btn btn-out" id="coDeleteReport" style="margin-top:12px;min-height:56px;font-size:14px">' + esc(co('discard')) + '</button>';
+  return h;
+}
+function coProblemsHtml(){
+  var v = coVisit(CO.jobId), h = '<div class="foot" style="text-align:left;margin-top:4px">' + esc(co('problemsHint')) + '</div>';
+  var saved = v.reports.map(function(r, i){ return { r: r, i: i }; }).filter(function(x){ return x.r.saved; });
+  if (saved.length){
+    h += '<div class="jcard">' + saved.map(function(x){ var r = x.r, it = coItemByKey(r.itemKey);
+      return '<button class="rep" data-coedit="' + x.i + '"><span class="dot">' + (r.sentAt ? CK_TICK_SM : '›') + '</span><span class="bi"><span class="es">' + esc(it ? (it.n + ' · ' + coLabel(it)) : (r.locationWords || co('problems'))) + '</span><span class="en">' + esc((r.noteEn || r.note || '').slice(0, 90)) + (r.fixed ? ' · ' + esc(co('fixed')) : '') + ' · ' + (r.photos || []).length + ' ' + esc(co('photo').toLowerCase()) + '</span></span></button>'; }).join('') + '</div>';
+  }
+  h += '<button class="btn btn-nav" id="coNewReport" style="margin-top:14px">' + esc(co('newReport')) + '</button>';
+  return h;
+}
+function coPhotosHtml(){
+  var v = coVisit(CO.jobId), target = JSON.stringify({ kind: 'visit', jobId: CO.jobId });
+  return '<div class="foot" style="text-align:left;margin-top:4px">' + esc(co('photosHint')) + '</div><div class="photos">' +
+    v.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'><span class="tag">' + esc(clockLabel(p.at)) + '</span><span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+    '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(v.photos.length ? co('anotherPhoto') : co('photo')) + '</button></div>';
+}
+function coSendHtml(){
+  var v = coVisit(CO.jobId), j = CO.job || coJobById(CO.jobId), items = coOutboxFor(CO.jobId), h = '';
+  var ins = coCount(v, CO_INSPECT, 'inspection'), cln = coCount(v, CO_CLEAN, 'cleanup'), fixes = coFixes(v).length;
+  var done = CO.receipt && CO.receipt.jobId === CO.jobId;
+  if (done){
+    h += '<div class="hero" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('sent')) + '</span><span class="st">' + esc(clockLabel(CO.receipt.at)) + '</span><span class="ss">' + esc(CO.receipt.flipped ? (S.lang === 'es' ? 'El trabajo pasó a ' : 'The job moved to ') + CO.receipt.flipped : co('sentSub')) + '</span></div>';
+    // A refused item beside a landed close is still the crew's to see:
+    // the close went, the report it was about did not.
+    if (items.length) h += coOutboxHtml();
+    h += '<button class="btn btn-nav" id="coBackQueue" style="margin-top:18px">' + esc(co('tab')) + ' ›</button>';
+    return h;
+  }
+  if (v.sending || items.length){
+    var bad = items.filter(function(it){ return it.status === 'rejected'; });
+    h += '<div class="hero' + (bad.length ? ' warn' : '') + '" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(bad.length ? co('rejected') : co('sending')) + '</span><span class="st">' + items.length + ' ' + esc(co('queued').toLowerCase()) + '</span><span class="ss">' + esc(co('offline')) + '</span></div>';
+    h += coOutboxHtml();
+    return h;
+  }
+  h += '<div class="hero" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('allDone')) + '</span><span class="st">' + esc(co('checkSend')) + '</span><span class="ss">' + esc(co('checkSendSub')) + '</span></div>';
+  h += '<div class="rvcard"><div class="rvrow"><span class="rk">' + esc(co('inspection')) + '</span><span class="rv" style="color:var(--acc)">' + (ins - coFixes(v).filter(function(i){ return i.n.charAt(0) !== 'C'; }).length) + ' ' + esc(co('ok').toLowerCase()) + (fixes ? ' · ' + fixes + ' ' + esc(co('fix').toLowerCase()) : '') + '</span></div>' +
+       '<div class="rvrow"><span class="rk">' + esc(co('cleanup')) + '</span><span class="rv" style="color:var(--acc)">' + cln + ' ' + esc(co('of')) + ' ' + CO_CLEAN.length + '</span></div>' +
+       '<div class="rvrow"><span class="rk">' + esc(co('problems')) + '</span><span class="rv">' + v.reports.filter(function(r){ return r.saved; }).length + ' ' + esc(co('reportedN')) + '</span></div>' +
+       '<div class="rvrow"><span class="rk">' + esc(co('visitPhotos')) + '</span><span class="rv">' + v.photos.length + '</span></div>' +
+       '<div class="rvstory"><span class="rk">' + esc(co('whatNext')) + ' · ' + esc(co('whatNextSub')) + '</span><span class="rt">' + esc(v.reports.some(function(r){ return r.saved && !r.fixed; }) ? co('toPunch') : co('toPmReview')) + '</span></div></div>';
+  h += '<button class="btn btn-go sendbig" id="coSend">' + esc(co('finishSend')) + '</button>';
+  h += '<div class="foot">' + esc(co('offline')) + '</div>';
+  return h;
+}
+function coRepairsHtml(){
+  var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId);
+  if (!j) return '<div class="jempty">' + esc(co('loading')) + '</div>';
+  var tasks = (j.punchTasks || []).map(function(t){ return { t: t, done: t.progress >= 1 || !!v.doneTasks[t.id] }; });
+  var mine = tasks.filter(function(x){ return x.t.mine; });
+  var shown = CO.listFilter === 'mine' && mine.length ? mine : tasks;
+  var h = '';
+  if (!tasks.length) return '<div class="jempty">' + esc(co('noRepairs')) + '</div>';
+  if (CO.listFilter === 'mine' && !mine.length) h += '<div class="foot" style="text-align:left;margin:0 0 10px">' + esc(co('nothingForYou')) + '</div>';
+  h += '<div class="jcard" style="margin-top:0">' + shown.map(function(x){
+    var t = x.t, name = es(coTaskName(t)), pend = v.doneTasks[t.id] === 'queued';
+    return '<button class="rep' + (x.done ? ' done' : '') + '" data-corepair="' + esc(t.id) + '"' + (x.done && !pend ? ' disabled' : '') + '><span class="dot">' + (x.done ? CK_TICK_SM : '›') + '</span><span class="bi"><span class="es">' + esc(name) + '</span>' +
+           (t.description && !x.done ? '<span class="en">' + esc(es(t.description).slice(0, 120)) + '</span>' : '') +
+           (x.done ? '<span class="en">' + esc(pend ? co('queued') : co('ready')) + '</span>' : t.mine ? '<span class="chips" style="margin-top:6px"><span class="chip" style="background:var(--total);color:var(--acc)">' + esc(co('forYou')) + '</span></span>' : (t.assigneeNames || []).length ? '<span class="en">' + esc(co('assignedTo') + ' ' + t.assigneeNames.join(', ')) + '</span>' : '') +
+           '</span></button>';
+  }).join('') + '</div>';
+  h += '<div class="foot" style="margin-top:14px">' + esc(co('beforeAfter')) + '<br>' + esc(co('lastCloses')) + '</div>';
+  return h;
+}
+function coRepairHtml(){
+  var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0];
+  if (!t) return '<div class="jempty">' + esc(co('loading')) + '</div>';
+  var tb = JSON.stringify({ kind: 'before', jobId: CO.jobId, taskId: t.id }), ta = JSON.stringify({ kind: 'after', jobId: CO.jobId, taskId: t.id }), b = v.before[t.id], a = v.after[t.id], h = '';
+  h += '<div class="rvcard" style="margin-top:4px"><div class="rvstory"><span class="rk">' + esc(co('whatToDo')) + ' · ' + esc(co('whatToDoSub')) + '</span><span class="rt">' + esc(es(t.description) || es(coTaskName(t))) + '</span>' +
+       (S.lang === 'es' && CO.trans[t.description || t.name] ? '<span class="small-note" style="font:400 13px/1.4 var(--sans);color:var(--mut)">' + esc(co('autoTranslated')) + '</span>' : '') + '</div>' +
+       (t.endDate ? '<div class="rvrow"><span class="rk">' + esc(co('assignedBy')) + '</span><span class="rv">' + esc(t.endDate) + '</span></div>' : '') + '</div>';
+  h += '<div class="photos" style="margin-top:14px">' +
+       (b ? '<button class="phbig" style="background-image:url(' + b.thumb + ')" data-corm="' + esc(b.id) + '" data-target=\'' + esc(tb) + '\'><span class="tag">' + esc(co('before')) + '</span></button>'
+          : '<button class="phbig empty" data-cophoto=\'' + esc(tb) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('before')) + '</span><span class="s">' + esc(co('beforeSub')) + '</span></button>') +
+       (a ? '<button class="phbig" style="background-image:url(' + a.thumb + ')" data-corm="' + esc(a.id) + '" data-target=\'' + esc(ta) + '\'><span class="tag">' + esc(co('after')) + '</span></button>'
+          : '<button class="phbig empty need" data-cophoto=\'' + esc(ta) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('after')) + '</span><span class="s">' + esc(co('afterSub')) + '</span></button>') + '</div>';
+  h += '<div class="story' + (v.repairNote[t.id] ? ' has' : '') + '" style="margin-top:14px"><textarea id="coRepairNote" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.repairNote[t.id] || '') + '</textarea></div>';
+  var can = !!a;
+  h += '<button class="ctaBig" id="coDone" style="margin-top:18px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co('done')) + '</button>';
+  h += '<div class="foot">' + esc(can ? co('pmChecks') : co('doneSub')) + '</div>';
+  return h;
+}
+
+/* ---- drawing the one view ---- */
+var CO_HEADS = { job: 'inspection', inspect: 'inspection', cleanup: 'cleanup', problems: 'problems', photos: 'visitPhotos', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
+function coRender(){
+  if (S.tab !== 'co') return;
+  var sc = CO.screen, j = CO.job || coJobById(CO.jobId), queue = sc === 'queue';
+  $('coQueueHead').classList.toggle('hidden', !queue);
+  $('coHead').classList.toggle('hidden', queue);
+  $('coSeg').classList.toggle('hidden', !(queue || sc === 'repairs'));
+  $('coState').classList.add('hidden');
+  var bar = $('coBar'), barText = '';
+  if (!queue){
+    var kw = co(CO_HEADS[sc] || 'tab'), label = j ? coJobLabel(j) : '—';
+    if (sc === 'report'){ var r = coVisit(CO.jobId).reports[CO.reportIdx], it = r && coItemByKey(r.itemKey); kw = co('problems') + (it ? ' · ' + co('fixK').split(' ·')[1].trim() + ' ' + it.n : ''); label = it ? coLabel(it).split(/[,—]/)[0] : label; }
+    if (sc === 'repair'){ var t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0]; label = t ? es(coTaskName(t)) : label; }
+    $('coK').textContent = kw + (j && j.number ? ' · JT #' + j.number : '');
+    $('coTitle').textContent = label;
+  } else {
+    var n = (CO.jobs || []).filter(function(x){ return x.mine; }).length;
+    $('coQueueK').textContent = co('tab') + ' · ' + ((CO.jobs || []).length) + ' ' + co('jobsToday');
+    $('coQueueDate').textContent = S.lang === 'es' ? logDateWords(isoLocal()) : new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    $('coStamp').textContent = 'JT · ' + (CO.loading ? '…' : CO.jobsAt ? clockLabel(CO.jobsAt) : '—');
+    if (CO.jobsSource === 'copy') barText = co('lastCopy');
+    else if (S.assign && S.assign.source === 'board' && S.assign.inspector === false && appRole() === 'service') barText = co('noInspector');
+    $('coSeg').innerHTML = '<button class="dlchip' + (CO.filter === 'mine' ? ' on' : '') + '" data-cofilter="mine"><span class="st' + (CO.filter === 'mine' ? ' sent' : '') + '"></span>' + esc(co('mine')) + ' · ' + n + '</button>' +
+                           '<button class="dlchip' + (CO.filter === 'all' ? ' on' : '') + '" data-cofilter="all"><span class="st' + (CO.filter === 'all' ? ' sent' : '') + '"></span>' + esc(co('all')) + ' · ' + (CO.jobs || []).length + '</button>';
+  }
+  if (sc === 'repairs' && j){
+    var tasks = j.punchTasks || [], mine = tasks.filter(function(t){ return t.mine; }).length;
+    $('coSeg').innerHTML = '<button class="dlchip' + (CO.listFilter === 'mine' ? ' on' : '') + '" data-colist="mine"><span class="st' + (CO.listFilter === 'mine' ? ' sent' : '') + '"></span>' + esc(co('mineRepairs')) + ' · ' + mine + '</button>' +
+                           '<button class="dlchip' + (CO.listFilter === 'all' ? ' on' : '') + '" data-colist="all"><span class="st' + (CO.listFilter === 'all' ? ' sent' : '') + '"></span>' + esc(co('everyone')) + ' · ' + tasks.length + '</button>';
+  }
+  if (sc === 'inspect' || sc === 'cleanup'){
+    var v = coVisit(CO.jobId), items = sc === 'inspect' ? CO_INSPECT : CO_CLEAN, which = sc === 'inspect' ? 'inspection' : 'cleanup', cnt = coCount(v, items, which), fx = coFixes(v).filter(function(i){ return (i.n.charAt(0) === 'C') === (sc === 'cleanup'); }).length;
+    $('coState').classList.remove('hidden');
+    $('coState').innerHTML = '<span class="jck ' + (cnt === items.length && !fx ? 'green' : cnt ? 'amber' : 'none') + '"><span class="dot"></span>' + cnt + ' ' + esc(co('of')) + ' ' + items.length + (fx ? ' — ' + fx + ' ' + esc(fx === 1 ? co('toReport') : co('toReportN')) : '') + '</span>';
+  }
+  bar.classList.toggle('hidden', !barText);
+  bar.innerHTML = '<span>' + esc(barText) + '</span>';
+  var body = $('coBody'), html;
+  if (queue) html = coQueueHtml();
+  else if (sc === 'job') html = coJobHtml();
+  else if (sc === 'inspect') html = coListHtml('inspection');
+  else if (sc === 'cleanup') html = coListHtml('cleanup');
+  else if (sc === 'problems') html = coProblemsHtml();
+  else if (sc === 'photos') html = coPhotosHtml();
+  else if (sc === 'report') html = coReportHtml();
+  else if (sc === 'send') html = coSendHtml();
+  else if (sc === 'repairs') html = coRepairsHtml();
+  else if (sc === 'repair') html = coRepairHtml();
+  else if (sc === 'outbox') html = coOutboxHtml();
+  else html = '';
+  // Never rebuild under a finger typing — the note boxes commit on input.
+  var ae = document.activeElement;
+  if (ae && ae.tagName === 'TEXTAREA' && body.contains(ae) && body.__co === html) return;
+  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coWhereText') && body.contains(ae)){
+    // keep the field; repaint only what sits around it
+    var keep = ae.id, pos = ae.selectionStart, val = ae.value;
+    body.innerHTML = html; body.__co = html; coWire();
+    var again = $(keep); if (again){ again.value = val; try { again.focus(); again.setSelectionRange(pos, pos); } catch(e){} }
+    dlRecPaint();
+    return;
+  }
+  if (body.__co === html) return;
+  body.innerHTML = html; body.__co = html;
+  coWire();
+  dlRecPaint();
+  renderLang();
+}
+function coWire(){
+  var body = $('coBody');
+  var on = function(sel, fn){ [].forEach.call(body.querySelectorAll(sel), function(b){ b.onclick = function(ev){ fn(b, ev); }; }); };
+  on('[data-cojob]', function(b){ coOpenJob(b.getAttribute('data-cojob')); });
+  on('[data-coscreen]', function(b){ var s = b.getAttribute('data-coscreen'); if (s === 'repairs' && CO.job && S.lang === 'es') coTranslateTasks(CO.job); coGo(s); });
+  on('[data-coscope]', function(){ var j = CO.job || coJobById(CO.jobId); if (j) coScopeToggle(j); });
+  on('[data-cooutbox]', function(){ coGo('outbox'); });
+  on('[data-codiscard]', function(b){ coDiscard(b.getAttribute('data-codiscard')); });
+  on('[data-coretry]', function(b){ coRetryNow(b.getAttribute('data-coretry')); });
+  on('[data-corepair]', function(b){ CO.taskId = b.getAttribute('data-corepair'); coGo('repair'); });
+  on('[data-coedit]', function(b){ CO.reportIdx = Number(b.getAttribute('data-coedit')); CO.reportFrom = 'problems'; coGo('report'); });
+  on('[data-coreport]', function(b){ coStartReport(b.getAttribute('data-coreport'), CO.screen); });
+  on('[data-cophoto]', function(b){ coTakePhoto(JSON.parse(b.getAttribute('data-cophoto'))); });
+  on('[data-corm]', function(b){ coRemovePhoto(JSON.parse(b.getAttribute('data-target')), b.getAttribute('data-corm')); });
+  on('[data-cowhere]', function(b){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; var k = b.getAttribute('data-cowhere'); r.location = r.location === k ? '' : k; coLocationWords(r); coPersist(); coRender(); });
+  on('[data-cofixed]', function(b){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.fixed = b.getAttribute('data-cofixed') === '1'; coPersist(); coRender(); });
+  on('[data-rec]', function(b){ dlRecToggle(b.getAttribute('data-rec')); });
+  [].forEach.call(body.querySelectorAll('.ans button'), function(b){
+    b.onclick = function(){
+      var wrap = b.parentNode, key = wrap.getAttribute('data-key'), which = wrap.getAttribute('data-which'), v = coVisit(CO.jobId);
+      var val = CO_ANS[b.getAttribute('data-ans')];
+      v.answers[which] = v.answers[which] || {};
+      v.answers[which][key] = v.answers[which][key] === val ? '' : val;
+      if (!v.answers[which][key]) delete v.answers[which][key];
+      coPersist(); coRender();
+      if (val === CO_ANS.FIX && v.answers[which][key] === val) coStartReport(key, CO.screen);
+    };
+  });
+  var next = $('coNext'); if (next) next.onclick = function(){ coGo(CO.screen === 'inspect' ? 'cleanup' : 'job'); };
+  var rv = $('coReview'); if (rv) rv.onclick = function(){ if (!coMissing(coVisit(CO.jobId)).length) coGo('send'); };
+  var sd = $('coSend'); if (sd) sd.onclick = function(){ sd.disabled = true; coSendVisit(CO.jobId); };
+  var bq = $('coBackQueue'); if (bq) bq.onclick = function(){ CO.receipt = null; coBack(); };
+  var nr = $('coNewReport'); if (nr) nr.onclick = function(){ coStartReport('', 'problems'); };
+  var ty = $('coType'); if (ty) ty.onclick = function(){ var ta = $('coNote'); if (ta) ta.focus(); };
+  var note = $('coNote'); if (note){ note.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.note = note.value; coPersist(); autoGrow(note); var s = $('coSaveReport'); if (s){ var can = (r.photos || []).length > 0 && !!r.note.trim(); s.disabled = !can; } };
+    note.onblur = function(){ coEnglishFor(coVisit(CO.jobId), CO.reportIdx); coRender(); }; autoGrow(note); }
+  var wt = $('coWhereText'); if (wt) wt.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.locationText = wt.value; coLocationWords(r); coPersist(); };
+  var ln = $('coListNote'); if (ln) ln.oninput = function(){ var v = coVisit(CO.jobId); v.notes[ln.getAttribute('data-notes')] = ln.value; coPersist(); };
+  var rn = $('coRepairNote'); if (rn) rn.oninput = function(){ var v = coVisit(CO.jobId); v.repairNote[CO.taskId] = rn.value; coPersist(); };
+  var sv = $('coSaveReport'); if (sv) sv.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || !(r.photos || []).length || !r.note.trim()) return; r.saved = true; if (dlRec.want) dlRecStop(); coEnglishFor(v, CO.reportIdx); coPersist(); toast(co('reportSaved')); coBack(); };
+  var dr = $('coDeleteReport'); if (dr) dr.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || r.sentAt) return; (r.photos || []).forEach(function(p){ coPhotoDel(p.id); }); v.reports.splice(CO.reportIdx, 1); if (r.itemKey){ var w = r.itemKey.indexOf('22PdEQhB') === 0 ? 'cleanup' : 'inspection'; } coPersist(); coBack(); };
+  var dn = $('coDone'); if (dn) dn.onclick = function(){ var v = coVisit(CO.jobId); if (!v.after[CO.taskId]) return; dn.disabled = true; coFinishRepair(CO.jobId, CO.taskId); };
+  [].forEach.call($('coSeg').querySelectorAll('[data-cofilter]'), function(b){ b.onclick = function(){ CO.filter = b.getAttribute('data-cofilter'); coRender(); }; });
+  [].forEach.call($('coSeg').querySelectorAll('[data-colist]'), function(b){ b.onclick = function(){ CO.listFilter = b.getAttribute('data-colist'); coRender(); }; });
+}
+function coLocationWords(r){
+  var w = r.location ? CO_L10N.en[r.location] : '';
+  r.locationWords = [w, (r.locationText || '').trim()].filter(Boolean).join(' — ');
+}
+/* A report is one problem: from a line marked Falla (prefilled), or on its own. */
+function coStartReport(itemKey, from){
+  var v = coVisit(CO.jobId), idx = -1;
+  if (itemKey) v.reports.forEach(function(r, i){ if (r.itemKey === itemKey && !r.sentAt) idx = i; });
+  if (idx < 0){
+    var it = itemKey ? coItemByKey(itemKey) : null;
+    v.reports.push({ ref: 'r' + uid(), itemKey: itemKey || '', itemN: it ? it.n : '', location: '', locationText: '', locationWords: it ? it.en : '', note: '', noteEn: '', fixed: false, photos: [], saved: false, at: Date.now() });
+    idx = v.reports.length - 1;
+    coPersist();
+  }
+  CO.reportIdx = idx; CO.reportFrom = from || 'job';
+  coGo('report');
+}
+function coOnLang(){
+  // Spanish on screen asks once for the punch to-dos in Spanish.
+  if (S.lang === 'es' && CO.job) coTranslateTasks(CO.job);
+  for (var id in CO.scope){ var sc = CO.scope[id]; if (sc && sc.summary) sc.text = S.lang === 'es' ? sc.summary.es : sc.summary.en; }
+}
+
+/* =========================================================
+   PEOPLE — Operations assigns the roles (T2.0). One tap per
+   person; saved at once; the API refuses anyone but Operations.
+   ========================================================= */
+var PEOPLE = { list: null, loading: false, err: '', at: 0, busy: {} };
+function peopleLoad(force){
+  if (!isOpsAccount()) return;
+  if (PEOPLE.loading || (!force && PEOPLE.list && Date.now() - PEOPLE.at < 60000)) return;
+  PEOPLE.loading = true; PEOPLE.err = '';
+  renderPeople();
+  apiCall('getPeople', [], { lane: 'reads' }).then(function(r){ PEOPLE.loading = false; PEOPLE.list = (r && r.people) || []; PEOPLE.at = Date.now(); renderPeople(); })
+    .catch(function(e){ PEOPLE.loading = false; PEOPLE.err = (e && e.message) || 'failed'; failed('people', e, true); renderPeople(); });
+}
+function peopleSet(email, role){
+  if (!email || PEOPLE.busy[email]) return;
+  PEOPLE.busy[email] = 1; renderPeople();
+  apiCall('setRole', [email, role]).then(function(r){
+    delete PEOPLE.busy[email];
+    (PEOPLE.list || []).forEach(function(p){ if (p.email === email){ p.role = r.role; p.source = r.source; } });
+    toast((r.name || email) + ' · ' + roleWord(r.role));
+    renderPeople();
+  }).catch(function(e){ delete PEOPLE.busy[email]; failed('people · set role', e); renderPeople(); });
+}
+function personHtml(p){
+  var name = p.name || p.email, chips = ['crew', 'siteManager', 'service'].map(function(r){
+    return '<button class="whychip' + (p.role === r ? ' on' : '') + '" data-role="' + r + '" data-email="' + esc(p.email) + '"' + (p.ops || !p.email || PEOPLE.busy[p.email] ? ' disabled' : '') + '>' + esc(roleWord(r)) + '</button>';
+  }).join('');
+  var note = p.ops ? 'Set in the code — nothing here can hand it out.'
+           : p.pending ? 'Not signed in yet · the role is waiting for them'
+           : p.source === 'set' ? 'Set here' + (p.email === (S.me && S.me.email) ? '' : '')
+           : p.role === 'siteManager' ? 'From JobTread’s Site Manager role' : p.source === 'default' && p.role === 'service' ? 'Seeded · tap to change' : '';
+  return '<div class="pcard"><div class="pn"><span class="pname">' + esc(name) + '</span>' + (p.email === 'carl.bledsoe@deitemeyerbrothers.com' ? '<span class="badge warn">testing</span>' : p.ops ? '<span class="badge nav">ops</span>' : '') + '</div>' +
+         (p.email ? '<div class="pmail">' + esc(p.email) + (p.seen ? ' · ' + esc(p.seen) : '') + '</div>' : '') +
+         (p.ops ? '' : '<div class="whychips">' + chips + '</div>') + (note ? '<div class="pfoot">' + esc(note) + '</div>' : '') + '</div>';
+}
+function renderPeople(){
+  if (S.tab !== 'people') return;
+  $('peopleStamp').textContent = PEOPLE.loading ? '…' : PEOPLE.at ? 'Saved · ' + clockLabel(PEOPLE.at) : '—';
+  var h = '<div class="k" style="margin-top:4px">View the app as · only you can do this</div><div class="whychips" style="margin-top:8px">' +
+    ['crew', 'siteManager', 'service', 'ops'].map(function(r){ return '<button class="whychip' + ((S.viewAs || 'ops') === r ? ' on' : '') + '" data-viewas="' + (r === 'ops' ? '' : r) + '">' + esc(roleWord(r)) + '</button>'; }).join('') + '</div>' +
+    '<div class="foot" style="text-align:left;margin-top:8px">Switches what you see, not what you are. The bar at the top names the borrowed view and the way back.</div>';
+  if (!PEOPLE.list) h += '<div class="jempty">' + esc(PEOPLE.loading ? 'Loading…' : (PEOPLE.err || '—')) + '</div>';
+  else {
+    var groups = [['service', 'Service · clock + close out'], ['siteManager', 'Site managers · clock + my jobs + day log'], ['crew', 'Crew · clock + my jobs'], ['ops', 'Operations · every tab']];
+    groups.forEach(function(g){
+      var ps = PEOPLE.list.filter(function(p){ return p.role === g[0]; });
+      h += '<div class="k" style="margin-top:26px">' + esc(g[1]) + (ps.length > 3 ? ' · ' + ps.length : '') + '</div>';
+      h += ps.length ? ps.map(personHtml).join('') : '<div class="foot" style="text-align:left;margin-top:8px">Nobody yet.</div>';
+    });
+    h += '<div class="foot" style="margin-top:16px">A role changes the tabs a person gets. Who may tick a site checklist is still JobTread’s Site Manager role, and who gets the final inspection is still the board’s roster.' + (PEOPLE.err ? '<br><span style="color:var(--ckamber)">' + esc(PEOPLE.err) + '</span>' : '') + '</div>';
+  }
+  $('peopleBody').innerHTML = h;
+  [].forEach.call($('peopleBody').querySelectorAll('[data-role]'), function(b){ b.onclick = function(){ var p = (PEOPLE.list || []).filter(function(x){ return x.email === b.getAttribute('data-email'); })[0]; var r = b.getAttribute('data-role'); peopleSet(b.getAttribute('data-email'), p && p.role === r && p.source === 'set' ? '' : r); }; });
+  [].forEach.call($('peopleBody').querySelectorAll('[data-viewas]'), function(b){ b.onclick = function(){ setViewAs(b.getAttribute('data-viewas')); }; });
+}
+
 /* ---- wiring ---- */
 $('sunBtn').onclick = function(){ S.sun = !S.sun; savePrefs(); render(); };
-[].forEach.call(document.querySelectorAll('#langTog button'), function(b){
-  b.onclick = function(){ S.lang = b.getAttribute('data-lang') === 'es' ? 'es' : 'en'; savePrefs(); render(); };
+[].forEach.call(document.querySelectorAll('[data-lang]'), function(b){
+  b.onclick = function(){ S.lang = b.getAttribute('data-lang') === 'es' ? 'es' : 'en'; S.langSet = true; savePrefs(); coOnLang(); render(); };
 });
+$('coBack').onclick = coBack;
+$('coStamp').onclick = function(){ coLoadQueue(true); };
+$('coFile').onchange = function(){ var f = this.files && this.files[0]; coPhotoTaken(f); };
+$('peopleStamp').onclick = function(){ peopleLoad(true); };
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
 $('clockIn').onclick = function(){ if (S.job) openSheet('codes'); };
 // A progress shot: the camera, unlocked, During, tagged to the running code,
@@ -4502,7 +5605,7 @@ $('copyDiagBtn').onclick = function(){
   var lines = [
     'app      ' + APP_BUILD,
     'api      ' + ((S.me && S.me.build) || 'not reached'),
-    'user     ' + ((S.me && S.me.name) || '—') + ' / ' + ((S.me && S.me.role) || '—'),
+    'user     ' + ((S.me && S.me.name) || '—') + ' / ' + ((S.me && S.me.appRole) || '—') + (S.viewAs ? ' (viewing as ' + S.viewAs + ')' : '') + ' / JT ' + ((S.me && S.me.role) || '—'),
     'board    ' + (S.assign ? (S.assign.source + (S.assign.reason ? ' · ' + S.assign.reason : '') +
                    (S.assign.boardMs != null ? ' · ' + S.assign.boardMs + 'ms' : '')) : '—'),
     'push     ' + pushWords() + ' (state ' + pushState + ')',
@@ -4618,7 +5721,7 @@ if ('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', function(ev){
     var m = ev.data || {};
     if (m.kind === 'open-before-photo'){ S.capture = 'before'; S.returnToClock = true; setTab('cam'); }
-    else if (m.kind === 'open-tab' && /^(jobs|log|job)$/.test(m.tab)) setTab(m.tab);
+    else if (m.kind === 'open-tab' && /^(jobs|log|job|co|people)$/.test(m.tab)) setTab(m.tab);
   });
 }
 

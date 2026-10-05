@@ -1,5 +1,7 @@
 // ===========================================================
-// DB TIME CLOCK — crew clock-in for JobTread
+// DB CREW — the crew's one app, for JobTread: the time clock,
+// My jobs, the day log, the site checks, and Close Out
+// (was DB TIME CLOCK until T2.0, 2026-10-05)
 // Build T1.1 (2026-07-28) — standalone Apps Script web app
 // ===========================================================
 // Companion to DB Cam Mobile. Same Pave patterns, same grant
@@ -26,6 +28,12 @@
 //   ACCESS_FEED_KEY   the feed key, if it isn't already baked into the URL
 //   SAFETY_ALERT_TO   comma-separated addresses a safety alert is texted to — an
 //                     email, or a carrier's SMS gateway address (4195551234@vtext.com)
+//   CLOSEOUT_API_URL  the DB CheckOut server origin (https://closeout.deitemeyerbrothers.com):
+//                     Close Out is forwarded there for the service crew (see the
+//                     CLOSE OUT section at the end). Unset = the tab says so.
+//   CLOSEOUT_SECRET   the same value as that server's CREW_APP_SECRET env var
+//   ROLES_JSON / PEOPLE_JSON  written by the app itself (Operations' People tab);
+//                     never edit by hand, see the ROLES section
 //   FCM_PROJECT_ID / FCM_SERVICE_ACCOUNT / PUSH_ENABLED  (push, see below)
 //                     With push on, run installSchedulePushTrigger once as well:
 //                     the evening "Tomorrow: …" line and "Schedule changed".
@@ -43,7 +51,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T1.20 (2026-09-20)';
+var APP_BUILD = 'T2.0 (2026-10-05)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -53,9 +61,9 @@ function doGet() {
   var appUrl = '';
   try { appUrl = PropertiesService.getScriptProperties().getProperty('APP_URL') || ''; } catch (e) {}
   var body = appUrl
-    ? '<meta http-equiv="refresh" content="0;url=' + appUrl + '"><p style="font-family:sans-serif">Opening DB Time Clock… <a href="' + appUrl + '">tap here</a> if nothing happens.</p>'
-    : '<p style="font-family:sans-serif">DB Time Clock runs as an installed app. Set the APP_URL Script Property to enable this redirect.</p>';
-  return HtmlService.createHtmlOutput(body).setTitle('DB Time Clock');
+    ? '<meta http-equiv="refresh" content="0;url=' + appUrl + '"><p style="font-family:sans-serif">Opening DB Crew… <a href="' + appUrl + '">tap here</a> if nothing happens.</p>'
+    : '<p style="font-family:sans-serif">DB Crew runs as an installed app. Set the APP_URL Script Property to enable this redirect.</p>';
+  return HtmlService.createHtmlOutput(body).setTitle('DB Crew');
 }
 
 // ===========================================================
@@ -254,7 +262,7 @@ function assertAccess_(email) {
   if (!rec) return null;
   var gone = /^(left|inactive|terminated)/i.test(String(rec.status || ''));
   if (gone || String(rec.timeClock || '') === 'Off') {
-    throw new Error('NO_ACCESS: DB Time Clock access for ' + email +
+    throw new Error('NO_ACCESS: DB Crew access for ' + email +
       ' is turned off in DB Hub. Ask the office if that seems wrong.');
   }
   return rec;
@@ -347,7 +355,19 @@ function doPost(e) {
       tellPm: tellPm,
       sendSafetyAlert: sendSafetyAlert,
       registerPushToken: registerPushToken,
-      unregisterPushToken: unregisterPushToken
+      unregisterPushToken: unregisterPushToken,
+      // Roles (Operations only — enforced inside each)
+      getPeople: getPeople,
+      setRole: setRole,
+      // Close Out, forwarded to the DB CheckOut server (service and ops only)
+      coQueue: coQueue,
+      coJob: coJob,
+      coScope: coScope,
+      coReport: coReport,
+      coPhoto: coPhoto,
+      coClose: coClose,
+      coComplete: coComplete,
+      coTranslate: coTranslate
     };
     var PLAIN = {
       getJobOptions: getJobOptions,
@@ -531,6 +551,13 @@ function bootProfile_(m) {
     // App access panel unlocks it too.
     isForeman: (ax && String(ax.timeClock || '') === 'Manager') ||
       /foreman|super|manager|owner|admin/i.test(m.role || ''),
+    // The app role decides the tabs (see ROLES). `role` above is JobTread's
+    // own role name, kept for Diagnostics and the foreman test; `appRole` is
+    // ours: crew · siteManager · service · ops.
+    appRole: roleFor_(m).role,
+    appRoleSource: roleFor_(m).source,
+    ops: isOps_(m.email),
+    closeOut: closeoutConfigured_(),
     captureFolder: CAPTURE_FOLDER,
     writeEnabled: writeEnabled_(),
     build: APP_BUILD
@@ -1444,7 +1471,7 @@ function dailyLogTail_(me, log) {
     if (lost) L.push(lost + ' photo' + (lost === 1 ? '' : 's') + ' did not upload and ' + (lost === 1 ? 'is' : 'are') + ' gone from the phone — to be taken again');
     L.push('');
   }
-  L.push('— sent from DB Time Clock');
+  L.push('— sent from DB Crew');
   return L;
 }
 
@@ -1905,6 +1932,7 @@ function getStart(me, jobId) {
   // Same profile getBoot returns, built the same way — so a DB Hub 'Manager'
   // grant still unlocks the crew block on the path the app actually boots by.
   var boot = bootProfile_(me);
+  seenPerson_(me);   // the People tab lists everyone who has signed in; never fails a boot
   // Boot's JobTread questions go out together: the open entry (the clock —
   // boot is wrong without it), today's entries, and the last job, which only
   // matters when nothing is open but costs less asked alongside than after.
@@ -2705,7 +2733,244 @@ function testPushToMe() {
   var me = memberFor_(email);
   var token = pushTokenFor_(me.userId);
   if (!token) return 'No device registered for ' + email + ' — open the app on your phone, clock in, and allow notifications.';
-  var res = sendPush_(token, 'DB Time Clock test',
+  var res = sendPush_(token, 'DB Crew test',
     'If you can read this on your lock screen, push is working.', { kind: 'test' });
   return res.ok ? 'Sent.' : res.error;
+}
+
+
+// ===========================================================
+// ROLES — who gets which tabs (Carl, 5 Oct 2026)
+//
+//   crew          Clock · My jobs                      everyone, the default
+//   siteManager   Clock · My jobs · Day log            Tyler, Kenton, Chris Blue
+//   service       Clock · Close Out                    Alberto, Yahir (+ Carl's
+//                                                      work account, to test it)
+//   ops           every tab, plus People               operations@, set HERE
+//
+// The role decides what the phone DRAWS and which Close Out calls this API
+// will forward. It decides nothing about JobTread: who may tick a site
+// checklist is still JobTread's Site Manager role (the board enforces it on
+// every save), and who gets the final inspection is still the board's roster.
+// Two lists in two places on purpose — a tab can grant neither.
+//
+// Where it lives: ROLES_JSON, a Script Property the Operations account writes
+// from the People tab — { "<email>": { "role": "service", "by": "<email>",
+// "at": "<iso>" } }. Nothing in it can make anyone ops: Operations is this
+// one list in the code, so no tap on any screen can hand it out, including
+// to Operations. Until Operations says otherwise a person is what the seeds
+// below and their JobTread role make them, so the day this ships nobody has
+// to be set by hand — and a stored answer always wins over a default, which
+// is what lets Operations move somebody off a seed.
+// ===========================================================
+var OPS_EMAILS = ['operations@deitemeyerbrothers.com'];   // the board's opsEmailsInCode, same account
+var APP_ROLES = ['crew', 'siteManager', 'service'];
+// Seeded by JobTread MEMBERSHIP id, which this script already resolves from
+// the signed-in email — the two service crew are DB CheckOut's PUNCH_CREW.
+var ROLE_SEEDS_BY_MEMBERSHIP = {
+  '22PdPUpWzpHy': 'service',   // Alberto Gonzalez
+  '22PdPTwMdkzj': 'service'    // Yahir Gonzalez
+};
+var ROLE_SEEDS_BY_EMAIL = {
+  'carl.bledsoe@deitemeyerbrothers.com': 'service'   // tests what Alberto and Yahir see (Carl, 5 Oct 2026)
+};
+var ROLES_PROP = 'ROLES_JSON', PEOPLE_PROP = 'PEOPLE_JSON';
+var PEOPLE_MAX_CHARS = 8500;   // a Script Property holds 9KB; the oldest-seen go first past this
+
+function isOps_(email) { return OPS_EMAILS.indexOf(String(email || '').toLowerCase().trim()) !== -1; }
+
+function propJson_(key) {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty(key) || '{}') || {}; } catch (e) { return {}; }
+}
+
+// What a person is until Operations says otherwise.
+function defaultRole_(m) {
+  var seed = ROLE_SEEDS_BY_MEMBERSHIP[String(m.membershipId || '')] || ROLE_SEEDS_BY_EMAIL[String(m.email || '').toLowerCase()];
+  if (seed) return seed;
+  // JobTread's own Site Manager role is what lets a person tick the site
+  // checks at all (the board's rule), so it is also the honest default for
+  // who gets the Day log tab.
+  if (/site\s*manager/i.test(String(m.role || ''))) return 'siteManager';
+  return 'crew';
+}
+
+// { role, source } — source says where the answer came from, for the People tab.
+function roleFor_(m) {
+  var email = String(m.email || '').toLowerCase();
+  if (isOps_(email)) return { role: 'ops', source: 'code' };
+  var set = propJson_(ROLES_PROP)[email];
+  if (set && APP_ROLES.indexOf(set.role) !== -1) return { role: set.role, source: 'set' };
+  return { role: defaultRole_(m), source: 'default' };
+}
+
+function assertOps_(me) {
+  if (!isOps_(me && me.email)) throw new Error('NOT_OPS: Only the Operations account can do this.');
+}
+
+// Everyone who has signed in, so the People tab has a list to work from.
+// Written at most once a day per person, and never allowed to fail a boot.
+function seenPerson_(m) {
+  try {
+    var email = String(m.email || '').toLowerCase();
+    if (!email) return;
+    var people = propJson_(PEOPLE_PROP), cur = people[email] || {}, today = isoDay_(new Date());
+    if (cur.seen === today && cur.name === m.name && cur.membershipId === m.membershipId && cur.jtRole === m.role) return;
+    people[email] = { name: m.name || '', membershipId: m.membershipId || '', jtRole: m.role || '', seen: today };
+    savePeople_(people);
+  } catch (e) { /* the list is a convenience; the clock is not */ }
+}
+function savePeople_(people) {
+  var s = JSON.stringify(people);
+  while (s.length > PEOPLE_MAX_CHARS) {
+    var oldest = null;
+    for (var k in people) if (!oldest || String(people[k].seen || '') < String(people[oldest].seen || '')) oldest = k;
+    if (!oldest) break;
+    delete people[oldest];
+    s = JSON.stringify(people);
+  }
+  PropertiesService.getScriptProperties().setProperty(PEOPLE_PROP, s);
+}
+
+// The People tab's list: everyone seen, everyone with a stored role, and the
+// seeds — each with the role in force and where it came from.
+function getPeople(me) {
+  assertOps_(me);
+  var people = propJson_(PEOPLE_PROP), set = propJson_(ROLES_PROP), out = [], seen = {};
+  function add(email, rec) {
+    email = String(email || '').toLowerCase();
+    if (!email || seen[email]) return;
+    seen[email] = 1;
+    rec = rec || {};
+    var m = { email: email, name: rec.name || '', membershipId: rec.membershipId || '', role: rec.jtRole || '' };
+    var r = roleFor_(m);
+    out.push({ email: email, name: rec.name || '', membershipId: rec.membershipId || '', jtRole: rec.jtRole || '',
+               role: r.role, source: r.source, seen: rec.seen || '', ops: isOps_(email) });
+  }
+  for (var e in people) add(e, people[e]);
+  for (var e2 in set) add(e2, people[e2]);
+  for (var e3 in ROLE_SEEDS_BY_EMAIL) add(e3, people[e3]);
+  OPS_EMAILS.forEach(function (o) { add(o, people[o]); });
+  // The two membership seeds are listed by name even before they first sign
+  // in, so Operations can see them on day one; their email fills in on boot.
+  var byMembership = {};
+  out.forEach(function (p) { if (p.membershipId) byMembership[p.membershipId] = 1; });
+  var SEED_NAMES = { '22PdPUpWzpHy': 'Alberto Gonzalez', '22PdPTwMdkzj': 'Yahir Gonzalez' };
+  for (var mid in ROLE_SEEDS_BY_MEMBERSHIP) {
+    if (byMembership[mid]) continue;
+    out.push({ email: '', name: SEED_NAMES[mid] || mid, membershipId: mid, jtRole: '', role: ROLE_SEEDS_BY_MEMBERSHIP[mid],
+               source: 'default', seen: '', ops: false, pending: true });
+  }
+  var rank = { ops: 0, service: 1, siteManager: 2, crew: 3 };
+  out.sort(function (a, b) { return (rank[a.role] - rank[b.role]) || String(a.name || a.email).localeCompare(String(b.name || b.email)); });
+  return { people: out, roles: APP_ROLES, ops: OPS_EMAILS, build: APP_BUILD };
+}
+
+// Set, or clear ('' puts the default back), one person's role. Operations only.
+function setRole(me, email, role) {
+  assertOps_(me);
+  email = String(email || '').toLowerCase().trim();
+  role = String(role || '').trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('That is not an email address.');
+  if (isOps_(email)) throw new Error('Operations is set in the code, not here.');
+  if (role && APP_ROLES.indexOf(role) === -1) throw new Error('Unknown role: ' + role);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(5000);
+  try {
+    var set = propJson_(ROLES_PROP);
+    if (role) set[email] = { role: role, by: String(me.email || ''), at: new Date().toISOString() };
+    else delete set[email];
+    PropertiesService.getScriptProperties().setProperty(ROLES_PROP, JSON.stringify(set));
+  } finally { lock.releaseLock(); }
+  // The signed-in person's cached profile is rebuilt on their next boot
+  // (memberFor_ caches JobTread facts only; the role is read fresh each time).
+  var people = propJson_(PEOPLE_PROP), rec = people[email] || {};
+  var r = roleFor_({ email: email, membershipId: rec.membershipId || '', role: rec.jtRole || '' });
+  return { email: email, name: rec.name || '', role: r.role, source: r.source };
+}
+
+// ===========================================================
+// CLOSE OUT — the final inspection, cleanup, problem reports and punch
+// repairs, forwarded to the DB CheckOut server (bledsoecw/DB-CheckOut).
+//
+// That server keeps its brains — which task completing moves a job to Punch
+// List or PM Review, the punch to-dos and their photos, the re-send guard on
+// X-Client-Ref, the Spanish/English note — and this script is only the door:
+// the phone asks here with its own session, and this forwards with the
+// shared secret plus WHO is asking, which the server has agreed to trust the
+// way the board trusts this same deployment on /api/crew/*. The person is
+// gated here by role first: a crew member's phone cannot reach a Close Out
+// route at all, whatever it sends.
+//
+// Script Properties: CLOSEOUT_API_URL (the server's origin), CLOSEOUT_SECRET
+// (= that server's CREW_APP_SECRET). Not gated on WRITE_ENABLED: nothing here
+// is payroll, and the server has its own say.
+// ===========================================================
+var CLOSEOUT_REF = /^[A-Za-z0-9._-]{1,64}$/;   // the server's own CLIENT_REF
+var CLOSEOUT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+function closeoutConfig_() {
+  var url = '', secret = '';
+  try {
+    var p = PropertiesService.getScriptProperties();
+    url = String(p.getProperty('CLOSEOUT_API_URL') || '').replace(/\/+$/, '');
+    secret = String(p.getProperty('CLOSEOUT_SECRET') || '');
+  } catch (e) { /* unconfigured reads as empty */ }
+  return { url: url, secret: secret };
+}
+function closeoutConfigured_() { var c = closeoutConfig_(); return !!(c.url && c.secret); }
+function closeOutAllowed_(me) { var r = roleFor_(me).role; return r === 'service' || r === 'ops'; }
+
+// One call through. Answers { status, body, ms, reason } and never throws for
+// the server's trouble — the phone keeps the item and says why.
+function coFetch_(me, method, path, body, ref) {
+  if (!closeOutAllowed_(me)) throw new Error('NO_CLOSEOUT: Close Out is for the service crew — ask the office.');
+  var cfg = closeoutConfig_();
+  if (!cfg.url || !cfg.secret) return { status: 0, reason: 'not-configured', body: null, ms: 0 };
+  var headers = {
+    Authorization: 'Bearer ' + cfg.secret,
+    'X-Acting-Email': String(me.email || ''),
+    'X-Acting-Name': String(me.name || '')
+  };
+  if (ref && CLOSEOUT_REF.test(String(ref))) headers['X-Client-Ref'] = String(ref);
+  var opts = { method: method, headers: headers, muteHttpExceptions: true, followRedirects: false };
+  if (body != null) { opts.contentType = 'application/json'; opts.payload = JSON.stringify(body); }
+  var t0 = Date.now(), resp;
+  try { resp = UrlFetchApp.fetch(cfg.url + path, opts); }
+  catch (e) { return { status: 0, reason: 'unreachable', body: { error: String(e && e.message || e) }, ms: Date.now() - t0 }; }
+  var code = resp.getResponseCode(), text = String(resp.getContentText() || ''), parsed = null;
+  try { parsed = JSON.parse(text); } catch (e) { parsed = { error: text.slice(0, 200) }; }
+  var reason = code === 200 ? '' : (code === 307 || code === 302) ? 'signin-bounce' : 'http-' + code;
+  return { status: code, reason: reason, body: parsed, ms: Date.now() - t0 };
+}
+function coId_(v, what) {
+  v = String(v || '').trim();
+  if (!CLOSEOUT_ID.test(v)) throw new Error('Missing ' + what + '.');
+  return v;
+}
+
+function coQueue(me) { return coFetch_(me, 'get', '/queue', null); }
+function coJob(me, jobId) { return coFetch_(me, 'get', '/jobs/' + coId_(jobId, 'job id'), null); }
+function coScope(me, jobId) { return coFetch_(me, 'get', '/jobs/' + coId_(jobId, 'job id') + '/scope-summary', null); }
+function coReport(me, jobId, report, ref) {
+  if (!report || typeof report !== 'object') throw new Error('Missing report.');
+  return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/reports', report, ref);
+}
+// { label, imageBase64 (data URI), taskId?, reportRef?, itemKey?, location? }
+function coPhoto(me, jobId, photo, ref) {
+  if (!photo || typeof photo !== 'object' || !photo.imageBase64) throw new Error('Missing photo.');
+  return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/photos', photo, ref);
+}
+function coClose(me, jobId, visit, ref) {
+  if (!visit || typeof visit !== 'object') throw new Error('Missing visit.');
+  return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/close-inspection', visit, ref);
+}
+function coComplete(me, taskId, jobId, note, ref) {
+  var body = { note: String(note || '').slice(0, 2000) };
+  if (jobId) body.jobId = coId_(jobId, 'job id');
+  return coFetch_(me, 'post', '/tasks/' + coId_(taskId, 'task id') + '/complete', body, ref);
+}
+// to: 'es' (JobTread text for the crew) or 'en' (the crew's note for the office)
+function coTranslate(me, texts, to) {
+  if (!Array.isArray(texts) || !texts.length) throw new Error('Nothing to translate.');
+  return coFetch_(me, 'post', '/translate', { texts: texts.slice(0, 100).map(function (t) { return String(t || '').slice(0, 4000); }), to: to === 'en' ? 'en' : 'es' }, null);
 }

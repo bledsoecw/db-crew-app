@@ -199,10 +199,51 @@
     { id: 'e2', startedAt: new Date(t0 + 42 * 60000).toISOString(), endedAt: new Date(t0 + 180 * 60000).toISOString(), minutes: 138, job: JOB, code: code('ci9') }
   ];
 
+  // ---- Close Out fixtures: DB CheckOut's demo jobs, in its own shapes ----
+  var CO_LANDED = {}, CO_DONE = {};
+  var CO_JOBS = [
+    { id: 'co-hartman', number: '26-0418', name: '260418 Hartman_Roof', status: 'Final Inspection', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
+      projectManager: 'Neal Deitemeyer', salesRep: 'Austin Leeth', address: '1427 Prairie View Dr, Lima, OH 45801, USA', openPunchCount: 0, mine: true, openPunchTotal: 0,
+      punchTasks: [], soldScope: [{ id: 'd1', name: 'Estimate', number: 4, issueDate: '2026-07-02', price: 18450, jtUrl: 'https://app.jobtread.com', lines: [
+        { name: 'OC Duration Shingles — Onyx Black', quantity: 32, unit: 'Square', description: null }, { name: 'High Temp Pipe Boot', quantity: 3, unit: 'Each', description: null }] }] },
+    { id: 'co-okafor', number: '26-0415', name: '260415 Okafor_Roof', status: 'Punch List', jobType: 'Roofing', projectTypes: ['R-Repairs/Service'], isService: true,
+      projectManager: 'Dave Elick', salesRep: 'Sam Black', address: '88 Cedar Falls Ct, Van Wert, OH 45891, USA', openPunchCount: 2, mine: true, openPunchTotal: 2,
+      punchTasks: [
+        { id: 'pt1', name: 'REPORT: Reseal the pipe boot', description: 'Rear slope pipe boot is cracked, water getting in. Replace the boot, seal and check the shingles around it.', progress: 0, endDate: '2026-10-07', assignees: [{ membershipId: 'm1', name: 'Alberto Gonzalez', email: 'alberto@deitemeyerbrothers.com' }], assigneeNames: ['Alberto Gonzalez', 'Yahir Gonzalez'], mine: true },
+        { id: 'pt2', name: 'REPORT: Reconnect the downspout', description: 'NE corner downspout came loose from the elbow.', progress: 0, endDate: null, assignees: [], assigneeNames: ['Alberto Gonzalez'], mine: true },
+        { id: 'pt3', name: 'REPORT: Exposed nails sealed', description: 'Four exposed nails on the ridge, sealed.', progress: 1, endDate: null, assignees: [], assigneeNames: ['Yahir Gonzalez'], mine: false }
+      ], soldScope: [] },
+    { id: 'co-reyes', number: '26-0421', name: '260421 Reyes_Roof', status: 'Final Inspection', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
+      projectManager: 'Kyle Akerman', salesRep: 'Austin Leeth', address: '301 Walnut St, Delphos, OH 45833, USA', openPunchCount: 0, mine: false, openPunchTotal: 0, punchTasks: [], soldScope: [] },
+    { id: 'co-bell', number: '26-0388', name: '260388 Bell_Roof', status: 'PM Review', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
+      projectManager: 'Kyle Akerman', salesRep: null, address: '9 Sycamore Ln, Ohio City, OH 45874, USA', openPunchCount: 0, mine: false, openPunchTotal: 0, punchTasks: [], soldScope: [] }
+  ];
+  var PEOPLE = [
+    { email: 'operations@deitemeyerbrothers.com', name: 'Operations', membershipId: 'm0', jtRole: 'Admin', role: 'ops', source: 'code', seen: isoAdd(0), ops: true },
+    { email: 'alberto@deitemeyerbrothers.com', name: 'Alberto Gonzalez', membershipId: '22PdPUpWzpHy', jtRole: 'Crew', role: 'service', source: 'default', seen: isoAdd(0), ops: false },
+    { email: '', name: 'Yahir Gonzalez', membershipId: '22PdPTwMdkzj', jtRole: '', role: 'service', source: 'default', seen: '', ops: false, pending: true },
+    { email: 'carl.bledsoe@deitemeyerbrothers.com', name: 'Carl Bledsoe', membershipId: 'm4', jtRole: 'Admin', role: 'service', source: 'default', seen: isoAdd(-1), ops: false },
+    { email: 'tylermohr94@gmail.com', name: 'Tyler Mohr', membershipId: 'm3', jtRole: 'Site Manager', role: 'siteManager', source: 'default', seen: isoAdd(0), ops: false },
+    { email: 'kentonmccomas@gmail.com', name: 'Kenton McComas', membershipId: 'm5', jtRole: 'Site Manager', role: 'siteManager', source: 'default', seen: isoAdd(-2), ops: false },
+    { email: 'zac@deitemeyerbrothers.com', name: 'Zac Deitemeyer', membershipId: 'm6', jtRole: 'Crew', role: 'crew', source: 'default', seen: isoAdd(0), ops: false },
+    { email: 'brian@deitemeyerbrothers.com', name: 'Brian Bowers', membershipId: 'm7', jtRole: 'Crew', role: 'crew', source: 'default', seen: isoAdd(-3), ops: false }
+  ];
+
   var HANDLERS = {
     getBoot: function () {
-      return { email: 'tyler.b@deitemeyerbrothers.com', name: 'Tyler B.', userId: 'u1', membershipId: 'm1',
-               role: window.__MOCK_FOREMAN ? 'Foreman' : 'Crew', isForeman: !!window.__MOCK_FOREMAN,
+      // __MOCK_ROLE: the app role the API would answer — crew · siteManager ·
+      // service · ops. The default is a site manager, which is what every
+      // test and screenshot before T2.0 assumed (Tyler has the Day log).
+      var appRole = window.__MOCK_ROLE || 'siteManager';
+      var who = appRole === 'service' ? { email: 'alberto@deitemeyerbrothers.com', name: 'Alberto Gonzalez' }
+              : appRole === 'ops' ? { email: 'operations@deitemeyerbrothers.com', name: 'Operations' }
+              : { email: 'tyler.b@deitemeyerbrothers.com', name: 'Tyler B.' };
+      return { email: who.email, name: who.name, userId: 'u1', membershipId: 'm1',
+               // The JobTread role: a site manager's, unless the test says the
+               // board will answer 403 (ckOnProfile clears a remembered refusal
+               // for a JT Site Manager, so that case has to read Crew).
+               role: window.__MOCK_FOREMAN ? 'Foreman' : (appRole === 'siteManager' && !window.__MOCK_NOTMANAGER ? 'Site Manager' : 'Crew'), isForeman: !!window.__MOCK_FOREMAN,
+               appRole: appRole, appRoleSource: appRole === 'ops' ? 'code' : 'default', ops: appRole === 'ops', closeOut: !window.__MOCK_CO_UNSET,
                writeEnabled: !window.__MOCK_READONLY, build: 'mock' };
     },
     getStart: function (jobId) {
@@ -395,7 +436,75 @@
     registerPushToken: function (token, platform) { ST.pushToken = { token: token, platform: platform }; return { ok: true }; },
     unregisterPushToken: function () { ST.pushToken = null; return { ok: true }; },
     markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
-    exchangeSession: function () { return { token: 'h.' + payload + '.s', exp: 4102444800 }; }
+    exchangeSession: function () { return { token: 'h.' + payload + '.s', exp: 4102444800 }; },
+
+    // ---- Close Out (T2.0): Code.gs forwards to the DB CheckOut server and
+    // hands its answer back as { status, body, reason }. The fixtures are
+    // CheckOut's own demo shapes. Every call is recorded in window.__CO.
+    //   __MOCK_CO_UNSET     CLOSEOUT_API_URL not set
+    //   __MOCK_CO_DOWN      the server unreachable
+    //   __MOCK_CO_PHOTO409  the first REPORT photo answers 409 once (its report not landed yet)
+    //   __MOCK_CO_REJECT    a report answers 400
+    coQueue: function () {
+      window.__CO = window.__CO || [];
+      if (window.__MOCK_CO_UNSET) return { status: 0, reason: 'not-configured', body: null };
+      if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: { error: 'DNS' } };
+      return { status: 200, body: CO_JOBS.map(function (j) { var c = JSON.parse(JSON.stringify(j)); delete c.punchTasks; delete c.soldScope; delete c.openPunchTotal; return c; }) };
+    },
+    coJob: function (jobId) {
+      var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
+      if (!j) return { status: 404, reason: 'http-404', body: { error: 'Job not found' } };
+      var out = JSON.parse(JSON.stringify(j));
+      out.punchTasks.forEach(function (t) { if (CO_DONE[t.id]) t.progress = 1; });
+      return { status: 200, body: out };
+    },
+    coScope: function () { return { status: 200, body: { en: 'A 32-square Duration roof in Onyx Black with three pipe boots and new gutters on the back.', es: 'Un techo Duration de 32 cuadros en Onyx Black con tres botas y canales nuevos atrás.' } }; },
+    coTranslate: function (texts, to) {
+      window.__CO.push({ fn: 'coTranslate', to: to, n: texts.length });
+      return { status: 200, body: { translations: texts.map(function (t) { return to === 'en' ? 'EN: ' + t : 'ES: ' + t; }) } };
+    },
+    coReport: function (jobId, report, ref) {
+      window.__CO.push({ fn: 'coReport', jobId: jobId, ref: ref, report: report });
+      if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      if (window.__MOCK_CO_REJECT) return { status: 400, reason: 'http-400', body: { error: 'location and englishNote are required' } };
+      CO_LANDED[ref] = 't_' + ref;
+      return { status: 200, body: { taskId: 't_' + ref, photosUploaded: 0 } };
+    },
+    coPhoto: function (jobId, photo, ref) {
+      var p = {}; for (var k in photo) p[k] = k === 'imageBase64' ? photo[k].slice(0, 30) + '…(' + photo[k].length + ')' : photo[k];
+      window.__CO.push({ fn: 'coPhoto', jobId: jobId, ref: ref, photo: p });
+      if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      if (photo.reportRef && !CO_LANDED[photo.reportRef]) return { status: 409, reason: 'http-409', body: { error: 'The report this photo belongs to has not reached JobTread yet' } };
+      if (window.__MOCK_CO_PHOTO409 && photo.label === 'REPORT') { window.__MOCK_CO_PHOTO409 = false; return { status: 409, reason: 'http-409', body: { error: 'not yet' } }; }
+      return { status: 200, body: { fileId: 'f_' + ref } };
+    },
+    coClose: function (jobId, visit, ref) {
+      window.__CO.push({ fn: 'coClose', jobId: jobId, ref: ref, visit: visit });
+      if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
+      var flipped = visit.problemsReported > 0 ? 'Punch List' : 'PM Review';
+      if (j) j.status = flipped;
+      return { status: 200, body: { completedTaskId: 'fi_' + jobId, flipped: flipped } };
+    },
+    coComplete: function (taskId, jobId, note, ref) {
+      window.__CO.push({ fn: 'coComplete', taskId: taskId, jobId: jobId, note: note, ref: ref });
+      if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      CO_DONE[taskId] = true;
+      return { status: 200, body: { ok: true, flipped: null } };
+    },
+    // ---- People (T2.0): Operations only, as Code.gs enforces ----
+    getPeople: function () {
+      if ((window.__MOCK_ROLE || 'siteManager') !== 'ops') throw new Error('NOT_OPS: Only the Operations account can do this.');
+      return { people: PEOPLE.map(function (p) { return JSON.parse(JSON.stringify(p)); }), roles: ['crew', 'siteManager', 'service'], ops: ['operations@deitemeyerbrothers.com'], build: 'mock' };
+    },
+    setRole: function (email, role) {
+      if ((window.__MOCK_ROLE || 'siteManager') !== 'ops') throw new Error('NOT_OPS: Only the Operations account can do this.');
+      window.__ROLES = window.__ROLES || [];
+      window.__ROLES.push({ email: email, role: role });
+      var p = PEOPLE.filter(function (x) { return x.email === email; })[0];
+      if (p) { p.role = role || (p.email === 'tylermohr94@gmail.com' ? 'siteManager' : 'crew'); p.source = role ? 'set' : 'default'; }
+      return { email: email, name: p ? p.name : '', role: p ? p.role : role, source: p ? p.source : 'set' };
+    }
   };
 
   var __CALLS = window.__CALLS = [];

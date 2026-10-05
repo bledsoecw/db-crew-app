@@ -1,4 +1,6 @@
-# DB Time Clock — installable PWA setup (one-time, ~15 min)
+# DB Crew — installable PWA setup (one-time, ~15 min)
+
+(The Firebase project and the Apps Script still carry the DB Time Clock name from before T2.0; nothing here depends on renaming them.)
 
 Same shape as DB Cam Mobile, so most of this will look familiar. The Apps
 Script project is the API and holds the JobTread grant key; the PWA is static
@@ -76,6 +78,9 @@ In Apps Script > Project Settings > **Script Properties**:
 | `DAILY_LOG_PING_FIELDS` | optional. A regular expression matched against the names of JobTread's daily-log fields; a filled one pings the PM and sales in the feed, like a problem. Default `safety|incident|delay`. |
 | `BOARD_API_URL` | for the My jobs tab — the Production Board origin, e.g. `https://ops.deitemeyerbrothers.com`. Leave unset and the tab falls back to recent jobs (see 4c). |
 | `CREW_APP_SECRET` | for the My jobs tab and the site checks — the shared secret the board checks. Same value on both sides. |
+| `CLOSEOUT_API_URL` | for the Close Out tab (T2.0) — the DB CheckOut server's origin, `https://closeout.deitemeyerbrothers.com`. Unset and the tab says it is not connected yet; the clock is untouched. |
+| `CLOSEOUT_SECRET` | the same value as that server's `CREW_APP_SECRET` env var on Vercel (`openssl rand -hex 24`, set it on both sides). The script forwards each Close Out call with it plus who is asking. |
+| `ROLES_JSON`, `PEOPLE_JSON` | written by the app itself from the Operations account's People tab. Never edit by hand; delete `ROLES_JSON` to put everyone back on the defaults. |
 | `EXTRA_ALLOWED_EMAILS` | optional — comma-separated Google addresses let through the sign-in beside the company domain, without a code change. The two site managers on Gmail are already in `SITE_MANAGER_EMAILS` in `Code.gs`; this is for the next one. It is an explicit list, never a domain. |
 | `FCM_PROJECT_ID` | for push — the Firebase project id (see 4b) |
 | `FCM_SERVICE_ACCOUNT` | for push — the service account JSON key, pasted whole |

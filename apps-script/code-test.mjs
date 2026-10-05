@@ -41,6 +41,7 @@ const sandbox = {
     // One round trip for several requests, the way Apps Script offers it.
     fetchAll: (reqs) => { trips++; return reqs.map(r => sandbox.UrlFetchApp.fetch(r.url, r)); } },
   ContentService: { createTextOutput: (txt) => ({ setMimeType() { return this; }, getContent: () => txt }), MimeType: { JSON: 'application/json' } },
+  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ScriptApp: { getProjectTriggers: () => [], deleteTrigger: () => {}, newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }) }) }) },
   console,
 };
@@ -937,6 +938,59 @@ fetchImpl = (url, opts) => ({ code: 200, body: '{"organization":{"files":{"nextP
 const have = sandbox.entryIdsWithBeforePhoto_('2026-09-16T00:00:00Z');
 const fq = paveOf(fetched[0].opts).organization.files.$.where.and[0];
 t('the nudge sweep greps for #START, and still for #BEFORE from older phones', [have, JSON.stringify(fq).includes('%#START%'), JSON.stringify(fq).includes('%#BEFORE%')], [{ te1: true, te2: true }, true, true]);
+
+// ---- roles (T2.0): who is what, and only Operations may change it ----
+props = {}; cacheStore = {};
+const OPS = { email:'operations@deitemeyerbrothers.com', name:'Operations', userId:'u0', membershipId:'m0', role:'Admin' };
+const ALBERTO = { email:'alberto@deitemeyerbrothers.com', name:'Alberto Gonzalez', userId:'u2', membershipId:'22PdPUpWzpHy', role:'Crew' };
+const TYLER = { email:'tylermohr94@gmail.com', name:'Tyler Mohr', userId:'u3', membershipId:'m3', role:'Site Manager' };
+const CARL = { email:'carl.bledsoe@deitemeyerbrothers.com', name:'Carl Bledsoe', userId:'u4', membershipId:'m4', role:'Admin' };
+t('ops is the one list in the code', sandbox.roleFor_(OPS), { role:'ops', source:'code' });
+t('Alberto is service off his membership id', sandbox.roleFor_(ALBERTO), { role:'service', source:'default' });
+t('a JobTread Site Manager gets the Day log by default', sandbox.roleFor_(TYLER), { role:'siteManager', source:'default' });
+t('Carl\'s work account tests the service view', sandbox.roleFor_(CARL), { role:'service', source:'default' });
+t('everyone else is crew', sandbox.roleFor_(ME), { role:'crew', source:'default' });
+t('a crew member cannot set roles', /^NOT_OPS/.test(refusedBy(() => sandbox.setRole(ME, 'alberto@deitemeyerbrothers.com', 'crew'))), true);
+t('nobody can be made ops from the app', /in the code/.test(refusedBy(() => sandbox.setRole(OPS, 'operations@deitemeyerbrothers.com', 'crew'))), true);
+t('an unknown role is refused', /Unknown role/.test(refusedBy(() => sandbox.setRole(OPS, 'x@deitemeyerbrothers.com', 'boss'))), true);
+r = sandbox.setRole(OPS, 'Alberto@deitemeyerbrothers.com', 'crew');
+t('Operations moves Alberto off the seed', [r.role, r.source, sandbox.roleFor_(ALBERTO)], ['crew', 'set', { role:'crew', source:'set' }]);
+r = sandbox.setRole(OPS, 'alberto@deitemeyerbrothers.com', '');
+t('clearing puts the default back', [r.source, sandbox.roleFor_(ALBERTO).role], ['default', 'service']);
+sandbox.seenPerson_(TYLER); sandbox.seenPerson_(ME);
+r = sandbox.getPeople(OPS);
+t('the People list: seen people, the seeds and ops, by role', r.people.map(p => p.name || p.email),
+  ['operations@deitemeyerbrothers.com', 'Alberto Gonzalez', 'carl.bledsoe@deitemeyerbrothers.com', 'Yahir Gonzalez', 'Tyler Mohr', 'Tyler B.']);
+t('a seed listed before its first sign-in is marked pending', r.people.filter(p => p.pending).map(p => p.name), ['Alberto Gonzalez', 'Yahir Gonzalez']);
+t('getPeople is Operations only', /^NOT_OPS/.test(refusedBy(() => sandbox.getPeople(TYLER))), true);
+t('the profile carries the app role beside JobTread\'s', [sandbox.bootProfile_(TYLER).appRole, sandbox.bootProfile_(TYLER).role, sandbox.bootProfile_(OPS).ops], ['siteManager', 'Site Manager', true]);
+
+// ---- close out (T2.0): the door to the CheckOut server ----
+props = {}; fetched = [];
+t('a crew member is refused before any call', /^NO_CLOSEOUT/.test(refusedBy(() => sandbox.coQueue(ME))), true);
+t('unconfigured -> says so, no fetch', [sandbox.coQueue(ALBERTO).reason, fetched.length], ['not-configured', 0]);
+props = { CLOSEOUT_API_URL: 'https://closeout.example.com/', CLOSEOUT_SECRET: 'co-secret' };
+fetchImpl = () => ({ code: 200, body: '[{"id":"j1"}]' });
+r = sandbox.coQueue(ALBERTO);
+t('queue -> forwarded with the secret and WHO is asking', [r.status, r.body, fetched[0].url, fetched[0].opts.headers.Authorization,
+   fetched[0].opts.headers['X-Acting-Email'], fetched[0].opts.headers['X-Acting-Name'], fetched[0].opts.followRedirects],
+  [200, [{ id:'j1' }], 'https://closeout.example.com/queue', 'Bearer co-secret', 'alberto@deitemeyerbrothers.com', 'Alberto Gonzalez', false]);
+fetched = [];
+r = sandbox.coReport(ALBERTO, 'j1', { location: 'Rear', englishNote: 'Cracked boot' }, 'ob_12.r1');
+t('a write carries the client ref and the body', [fetched[0].opts.method, fetched[0].opts.headers['X-Client-Ref'], JSON.parse(fetched[0].opts.payload).englishNote], ['post', 'ob_12.r1', 'Cracked boot']);
+fetched = [];
+sandbox.coReport(ALBERTO, 'j1', { location: 'Rear', englishNote: 'x' }, 'bad ref!');
+t('a malformed ref is dropped, not sent', 'X-Client-Ref' in fetched[0].opts.headers, false);
+t('a bad job id never reaches the server', /Missing job id/.test(refusedBy(() => sandbox.coJob(ALBERTO, '../etc'))), true);
+fetchImpl = () => ({ code: 409, body: '{"error":"not yet"}' });
+t('a 409 comes back as status and body, not a throw', [sandbox.coPhoto(ALBERTO, 'j1', { label:'REPORT', imageBase64:'data:image/jpeg;base64,xx' }, 'ob_1.p0').status, sandbox.coPhoto(ALBERTO, 'j1', { label:'REPORT', imageBase64:'data:image/jpeg;base64,xx' }).body.error], [409, 'not yet']);
+fetchImpl = () => { throw new Error('DNS'); };
+t('a dead server is a reason, never a throw', sandbox.coQueue(OPS).reason, 'unreachable');
+fetchImpl = () => ({ code: 307, body: '' });
+t('a sign-in bounce is named', sandbox.coQueue(OPS).reason, 'signin-bounce');
+fetchImpl = () => ({ code: 200, body: '{"translations":["Cracked boot"]}' }); fetched = [];
+r = sandbox.coTranslate(ALBERTO, ['la bota está rota'], 'en');
+t('translate -> direction rides the body', JSON.parse(fetched[0].opts.payload), { texts: ['la bota está rota'], to: 'en' });
 
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);
