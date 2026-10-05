@@ -965,6 +965,47 @@ t('a seed listed before its first sign-in is marked pending', r.people.filter(p 
 t('getPeople is Operations only', /^NOT_OPS/.test(refusedBy(() => sandbox.getPeople(TYLER))), true);
 t('the profile carries the app role beside JobTread\'s', [sandbox.bootProfile_(TYLER).appRole, sandbox.bootProfile_(TYLER).role, sandbox.bootProfile_(OPS).ops], ['siteManager', 'Site Manager', true]);
 
+// ---- roles from DB Hub (T2.2): the hub's Time Clock level names the role ----
+// The order is code > People tab > hub > defaults. The hub's Crew is an
+// answer (it beats a seed); blank and Manager say nothing about the role;
+// Off never gets as far as a role; a missing or stale feed demotes nobody.
+const hub = (people) => { props.ACCESS_FEED_URL = 'https://hub.example.com/exec'; props.ACCESS_FEED_KEY = 'k';
+  cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP];
+  fetchImpl = () => ({ code: 200, body: JSON.stringify({ people }) }); sandbox.refreshAccessFeed(); };
+delete props.ROLES_JSON;
+hub({ [ME.email]: { timeClock: 'Site Manager' } });
+t('hub Site Manager, nothing set -> siteManager (the Day log tab)', sandbox.roleFor_(ME), { role:'siteManager', source:'hub' });
+t('   ...and the boot profile says so', [sandbox.bootProfile_(ME).appRole, sandbox.bootProfile_(ME).appRoleSource, sandbox.bootProfile_(ME).isForeman], ['siteManager', 'hub', false]);
+hub({ [ME.email]: { timeClock: 'Service' } });
+t('hub Service -> service', sandbox.roleFor_(ME), { role:'service', source:'hub' });
+hub({ [ALBERTO.email]: { timeClock: 'Crew' } });
+t('hub Crew is an answer: it beats a seed', sandbox.roleFor_(ALBERTO), { role:'crew', source:'hub' });
+hub({ [TYLER.email]: { timeClock: 'Crew' } });
+t('hub Crew beats the JobTread Site Manager default', sandbox.roleFor_(TYLER), { role:'crew', source:'hub' });
+hub({ [ALBERTO.email]: { timeClock: '' } });
+t('hub blank keeps the seed', sandbox.roleFor_(ALBERTO), { role:'service', source:'default' });
+hub({ [ME.email]: { timeClock: 'Manager' } });
+t('hub Manager is the crew block, not a role', [sandbox.roleFor_(ME), sandbox.bootProfile_(ME).isForeman], [{ role:'crew', source:'default' }, true]);
+hub({ [ME.email]: { timeClock: 'Employee' } });
+t('an unknown level leaves the default', sandbox.roleFor_(ME), { role:'crew', source:'default' });
+hub({ [ME.email]: { timeClock: 'Site Manager' } });
+sandbox.setRole(OPS, ME.email, 'crew');
+t('a stored answer still wins over the hub', sandbox.roleFor_(ME), { role:'crew', source:'set' });
+r = sandbox.getPeople(OPS).people.filter(p => p.email === ME.email)[0];
+t('   ...and the People tab carries the hub level beside it', [r.source, r.hubLevel], ['set', 'Site Manager']);
+r = sandbox.setRole(OPS, ME.email, '');
+t('clearing it puts the hub level back', [r.role, r.source, r.hubLevel], ['siteManager', 'hub', 'Site Manager']);
+hub({ [ME.email]: { timeClock: 'Off' } });
+t('hub Off still blocks the app', /^NO_ACCESS/.test(refusedBy(() => sandbox.assertAccess_(ME.email))), true);
+t('   ...and names no role', sandbox.roleFor_(ME), { role:'crew', source:'default' });
+hub({ [OPS.email]: { timeClock: 'Crew' } });
+t('no hub level can touch ops', sandbox.roleFor_(OPS), { role:'ops', source:'code' });
+cacheStore = {}; props[sandbox.ACCESS_FEED_PROP] = JSON.stringify({ at: Date.now() - 2 * 24 * 3600 * 1000,
+  feed: { people: { [ME.email]: { timeClock: 'Site Manager' } } } });
+t('a stale feed sets nobody\'s role', sandbox.roleFor_(ME), { role:'crew', source:'default' });
+cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP]; delete props.ACCESS_FEED_URL; delete props.ACCESS_FEED_KEY;
+t('no feed -> the defaults, as before', sandbox.roleFor_(TYLER), { role:'siteManager', source:'default' });
+
 // ---- close out (T2.0): the door to the CheckOut server ----
 props = {}; fetched = [];
 t('a crew member is refused before any call', /^NO_CLOSEOUT/.test(refusedBy(() => sandbox.coQueue(ME))), true);

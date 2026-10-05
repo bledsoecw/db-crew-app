@@ -50,7 +50,7 @@ shows a navy "READ-ONLY BUILD" bar while it's off, so a test build can't be
 mistaken for the real thing. `WRITE_JOB_ALLOWLIST` narrows writes to specific
 jobs for a contained first test. See SETUP.md for the go-live sequence.
 
-### Who can open it, and what each person gets (roles, T2.0)
+### Who can open it, and what each person gets (roles, T2.0 · hub levels T2.2)
 
 The role decides the tabs. The API decides the role (`roleFor_` in
 `Code.gs`), the phone only draws it:
@@ -62,11 +62,23 @@ The role decides the tabs. The API decides the role (`roleFor_` in
 | Service | Clock · Close Out | Alberto and Yahir (seeded by membership id), and `carl.bledsoe@deitemeyerbrothers.com` to test their view |
 | Operations | all of those, plus **People** | `operations@deitemeyerbrothers.com` — `OPS_EMAILS` in `Code.gs`, nowhere else |
 
+Where the answer comes from, first one wins (T2.2):
+
+1. **The code** — Operations is `OPS_EMAILS`, nowhere else.
+2. **People** — a role Operations tapped on that tab (`ROLES_JSON`).
+3. **DB Hub** — the Time Clock level on the hub's App access panel, read off
+   the same feed that gates sign-in: `Crew`, `Site Manager` and `Service`
+   name the role. `Manager` is the crew block (the foreman view), not a role;
+   blank leaves the defaults; `Off` blocks the app before any role matters.
+   A feed that is missing or stale has no opinion and demotes nobody.
+4. **The defaults** — the seeds, then JobTread's own Site Manager role.
+
 **People** is where Operations assigns roles: one tap per person, saved at
 once to the `ROLES_JSON` Script Property, and the API refuses anyone but
-Operations (`getPeople`, `setRole`). A stored answer wins over the defaults;
-clearing it puts the default back. Nothing on that screen can make anyone
-Operations. The same screen carries **View the app as**, which lets the
+Operations (`getPeople`, `setRole`). A stored answer wins over the hub and
+the defaults; clearing it puts the hub's level (or the default) back, and
+when the hub and a stored answer disagree the card says so. Nothing on that
+screen, and nothing in the hub, can make anyone Operations. The same screen carries **View the app as**, which lets the
 Operations account borrow another role's view — the navy bar names the
 borrowed view and the way back, and it is remembered on that phone.
 

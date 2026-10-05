@@ -5587,7 +5587,7 @@ function peopleSet(email, role){
   PEOPLE.busy[email] = 1; renderPeople();
   apiCall('setRole', [email, role]).then(function(r){
     delete PEOPLE.busy[email];
-    (PEOPLE.list || []).forEach(function(p){ if (p.email === email){ p.role = r.role; p.source = r.source; } });
+    (PEOPLE.list || []).forEach(function(p){ if (p.email === email){ p.role = r.role; p.source = r.source; p.hubLevel = r.hubLevel || ''; } });
     toast((r.name || email) + ' · ' + roleWord(r.role));
     renderPeople();
   }).catch(function(e){ delete PEOPLE.busy[email]; failed('people · set role', e); renderPeople(); });
@@ -5596,9 +5596,15 @@ function personHtml(p){
   var name = p.name || p.email, chips = ['crew', 'siteManager', 'service'].map(function(r){
     return '<button class="whychip' + (p.role === r ? ' on' : '') + '" data-role="' + r + '" data-email="' + esc(p.email) + '"' + (p.ops || !p.email || PEOPLE.busy[p.email] ? ' disabled' : '') + '>' + esc(roleWord(r)) + '</button>';
   }).join('');
+  // Where the role came from: the code, this tab, DB Hub's App access panel
+  // (its Time Clock level), or the defaults. The API decides (roleFor_); this
+  // only says it — and says so when the hub and a tap here disagree, since
+  // the tap wins and the office may be expecting the hub to.
+  var hubRole = { 'Crew': 'crew', 'Site Manager': 'siteManager', 'Service': 'service' }[p.hubLevel || ''] || '';
   var note = p.ops ? 'Set in the code — nothing here can hand it out.'
            : p.pending ? 'Not signed in yet · the role is waiting for them'
-           : p.source === 'set' ? 'Set here' + (p.email === (S.me && S.me.email) ? '' : '')
+           : p.source === 'set' ? 'Set here' + (hubRole && hubRole !== p.role ? ' · DB Hub says ' + p.hubLevel + ' — tap ' + roleWord(p.role) + ' again to let the hub decide' : '')
+           : p.source === 'hub' ? 'From DB Hub · Time Clock: ' + p.hubLevel + ' · tap to override here'
            : p.role === 'siteManager' ? 'From JobTread’s Site Manager role' : p.source === 'default' && p.role === 'service' ? 'Seeded · tap to change' : '';
   return '<div class="pcard"><div class="pn"><span class="pname">' + esc(name) + '</span>' + (p.email === 'carl.bledsoe@deitemeyerbrothers.com' ? '<span class="badge warn">testing</span>' : p.ops ? '<span class="badge nav">ops</span>' : '') + '</div>' +
          (p.email ? '<div class="pmail">' + esc(p.email) + (p.seen ? ' · ' + esc(p.seen) : '') + '</div>' : '') +

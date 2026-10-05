@@ -51,7 +51,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.0 (2026-10-05)';
+var APP_BUILD = 'T2.2 (2026-10-05)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -146,9 +146,19 @@ function verifyIdToken_(idToken) {
 
 // ---- Hub-managed access (DB Hub's "App access" panel) ----
 // The hub publishes a token-gated JSON feed of who may use which company
-// app. Blank / no row = the default here (a JobTread membership is the
-// gate), 'Manager' also unlocks the crew block, 'Off' blocks the app.
-// The feed being unreachable never locks the crew out of the clock.
+// app. This app reads the `timeClock` level on a person's row:
+//   (blank) / no row   the defaults here: a JobTread membership is the gate,
+//                      the seeds and the JobTread role pick the app role
+//   Crew · Site Manager · Service
+//                      the app role (crew · siteManager · service) — unless
+//                      Operations set one on the People tab, which still
+//                      wins; see the ROLES section for the order
+//   Manager            the crew block (isForeman), as it always has; it says
+//                      nothing about the app role, so a Manager is still
+//                      whatever the seeds and their JobTread role make them
+//   Off                blocks the app (assertAccess_)
+// The feed being unreachable never locks the crew out of the clock, and a
+// missing or stale copy sets nobody's role either: no opinion, not a demotion.
 // ---- DB Hub's App access feed ------------------------------------------
 // The feed is read on EVERY request — doPost calls assertAccess_ before it
 // dispatches anything — so it must never be fetched on the request path.
@@ -540,6 +550,7 @@ function getBootFor_(email) {
 function bootProfile_(m) {
   var ax = null;
   try { ax = dbAccessRec_(m.email); } catch (eAx) {}
+  var r = roleFor_(m);
   return {
     email: m.email,
     name: m.name,
@@ -554,8 +565,8 @@ function bootProfile_(m) {
     // The app role decides the tabs (see ROLES). `role` above is JobTread's
     // own role name, kept for Diagnostics and the foreman test; `appRole` is
     // ours: crew · siteManager · service · ops.
-    appRole: roleFor_(m).role,
-    appRoleSource: roleFor_(m).source,
+    appRole: r.role,
+    appRoleSource: r.source,
     ops: isOps_(m.email),
     closeOut: closeoutConfigured_(),
     captureFolder: CAPTURE_FOLDER,
@@ -2754,17 +2765,38 @@ function testPushToMe() {
 // every save), and who gets the final inspection is still the board's roster.
 // Two lists in two places on purpose — a tab can grant neither.
 //
-// Where it lives: ROLES_JSON, a Script Property the Operations account writes
-// from the People tab — { "<email>": { "role": "service", "by": "<email>",
-// "at": "<iso>" } }. Nothing in it can make anyone ops: Operations is this
-// one list in the code, so no tap on any screen can hand it out, including
-// to Operations. Until Operations says otherwise a person is what the seeds
-// below and their JobTread role make them, so the day this ships nobody has
-// to be set by hand — and a stored answer always wins over a default, which
-// is what lets Operations move somebody off a seed.
+// Where it lives, in the order roleFor_ asks (first answer wins):
+//
+//   1. code     OPS_EMAILS below. Nothing else can make anyone ops: no tap on
+//               any screen and no hub level can hand it out, including to
+//               Operations.
+//   2. set      ROLES_JSON, a Script Property the Operations account writes
+//               from the People tab — { "<email>": { "role": "service",
+//               "by": "<email>", "at": "<iso>" } }.
+//   3. hub      DB Hub's App access panel, the Time Clock column of the feed
+//               this app already reads at the door (dbAccessRec_): Crew,
+//               Site Manager or Service name the role outright. Blank and
+//               Manager say nothing about the role (Manager is the crew
+//               block, see bootProfile_), Off never gets this far, and a
+//               feed that is missing or stale is no opinion — it can't demote.
+//   4. default  the seeds below, then JobTread's own Site Manager role.
+//
+// A stored answer still wins over the hub, for the same reason it wins over
+// a default: the People tab is the one place that says what THIS app does
+// with a person, and clearing it there is what puts the hub's (or the
+// default's) answer back. So the office can hand out roles from the hub
+// alongside every other app's access, nobody has to be set by hand the day
+// this ships, and when the two disagree the People tab says so beside the
+// name rather than silently picking one. The hub's 'Crew' is an explicit
+// answer, not a blank: it beats a seed, which is how the office moves one
+// of the seeded service crew back to the clock without opening this app.
 // ===========================================================
 var OPS_EMAILS = ['operations@deitemeyerbrothers.com'];   // the board's opsEmailsInCode, same account
 var APP_ROLES = ['crew', 'siteManager', 'service'];
+// DB Hub's Time Clock levels that name an app role (ACCESS_APPS_ `timeClock`
+// in db-Onboarding's Code.js). Anything else there — blank, Manager, Off —
+// leaves the role to the defaults.
+var HUB_ROLE_BY_LEVEL = { 'Crew': 'crew', 'Site Manager': 'siteManager', 'Service': 'service' };
 // Seeded by JobTread MEMBERSHIP id, which this script already resolves from
 // the signed-in email — the two service crew are DB CheckOut's PUNCH_CREW.
 var ROLE_SEEDS_BY_MEMBERSHIP = {
@@ -2794,12 +2826,29 @@ function defaultRole_(m) {
   return 'crew';
 }
 
-// { role, source } — source says where the answer came from, for the People tab.
+// The person's Time Clock level in DB Hub ('' when the feed has no row or
+// no opinion). Never throws: the role is read on every boot and the hub
+// must not be able to break one.
+function hubLevel_(email) {
+  var rec = null;
+  try { rec = dbAccessRec_(email); } catch (e) {}
+  return rec ? String(rec.timeClock || '').trim() : '';
+}
+// The app role a hub level names, or '' when it names none.
+function hubRole_(email) {
+  var lv = hubLevel_(email);
+  return Object.prototype.hasOwnProperty.call(HUB_ROLE_BY_LEVEL, lv) ? HUB_ROLE_BY_LEVEL[lv] : '';
+}
+
+// { role, source } — source says where the answer came from, for the People
+// tab: code · set · hub · default, in that order of precedence.
 function roleFor_(m) {
   var email = String(m.email || '').toLowerCase();
   if (isOps_(email)) return { role: 'ops', source: 'code' };
   var set = propJson_(ROLES_PROP)[email];
   if (set && APP_ROLES.indexOf(set.role) !== -1) return { role: set.role, source: 'set' };
+  var hub = hubRole_(email);
+  if (hub) return { role: hub, source: 'hub' };
   return { role: defaultRole_(m), source: 'default' };
 }
 
@@ -2843,8 +2892,10 @@ function getPeople(me) {
     rec = rec || {};
     var m = { email: email, name: rec.name || '', membershipId: rec.membershipId || '', role: rec.jtRole || '' };
     var r = roleFor_(m);
+    // hubLevel rides along so the tab can say when the hub and a stored
+    // answer disagree, instead of one of them silently losing.
     out.push({ email: email, name: rec.name || '', membershipId: rec.membershipId || '', jtRole: rec.jtRole || '',
-               role: r.role, source: r.source, seen: rec.seen || '', ops: isOps_(email) });
+               role: r.role, source: r.source, hubLevel: hubLevel_(email), seen: rec.seen || '', ops: isOps_(email) });
   }
   for (var e in people) add(e, people[e]);
   for (var e2 in set) add(e2, people[e2]);
@@ -2858,14 +2909,15 @@ function getPeople(me) {
   for (var mid in ROLE_SEEDS_BY_MEMBERSHIP) {
     if (byMembership[mid]) continue;
     out.push({ email: '', name: SEED_NAMES[mid] || mid, membershipId: mid, jtRole: '', role: ROLE_SEEDS_BY_MEMBERSHIP[mid],
-               source: 'default', seen: '', ops: false, pending: true });
+               source: 'default', hubLevel: '', seen: '', ops: false, pending: true });
   }
   var rank = { ops: 0, service: 1, siteManager: 2, crew: 3 };
   out.sort(function (a, b) { return (rank[a.role] - rank[b.role]) || String(a.name || a.email).localeCompare(String(b.name || b.email)); });
   return { people: out, roles: APP_ROLES, ops: OPS_EMAILS, build: APP_BUILD };
 }
 
-// Set, or clear ('' puts the default back), one person's role. Operations only.
+// Set, or clear ('' puts the hub's level or the default back), one person's
+// role. Operations only.
 function setRole(me, email, role) {
   assertOps_(me);
   email = String(email || '').toLowerCase().trim();
@@ -2885,7 +2937,7 @@ function setRole(me, email, role) {
   // (memberFor_ caches JobTread facts only; the role is read fresh each time).
   var people = propJson_(PEOPLE_PROP), rec = people[email] || {};
   var r = roleFor_({ email: email, membershipId: rec.membershipId || '', role: rec.jtRole || '' });
-  return { email: email, name: rec.name || '', role: r.role, source: r.source };
+  return { email: email, name: rec.name || '', role: r.role, source: r.source, hubLevel: hubLevel_(email) };
 }
 
 // ===========================================================
