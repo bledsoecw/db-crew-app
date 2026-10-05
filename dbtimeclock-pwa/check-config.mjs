@@ -47,7 +47,7 @@ const FROM_BACKUP = [
   '',
   'No copy? Take one from the running site — it still has the good values:',
   '',
-  '    curl.exe -s https://db-time-clock.web.app/config.js -o public\\config.js',
+  '    curl.exe -s https://db-crews.web.app/config.js -o public\\config.js',
 ];
 
 const FIRST_TIME = [
@@ -59,7 +59,7 @@ const FIRST_TIME = [
   '',
   'Already have a live site? Take the values straight off it instead:',
   '',
-  '    curl.exe -s https://db-time-clock.web.app/config.js -o public\\config.js',
+  '    curl.exe -s https://db-crews.web.app/config.js -o public\\config.js',
 ];
 
 const SHAPE = [

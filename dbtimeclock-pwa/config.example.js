@@ -15,7 +15,7 @@
  *    predeploy hook and stops that.
  *
  *  - Keep a copy somewhere outside the repo:
- *      curl.exe -s https://db-time-clock.web.app/config.js -o C:\dev\config-live-backup.js
+ *      curl.exe -s https://db-crews.web.app/config.js -o C:\dev\config-live-backup.js
  *
  * Where the values come from — full detail in SETUP.md:
  *   apiUrl    Apps Script > Deploy > Manage deployments > Web app URL

@@ -25,8 +25,12 @@ files on Firebase Hosting.
 ## 2. Firebase project
 
 1. console.firebase.google.com > Add project (e.g. `db-time-clock`), Analytics off.
-2. Note the project id; the app will live at `https://<project-id>.web.app`.
-3. Put that id in `.firebaserc` (it currently says `db-time-clock`).
+2. Note the project id and put it in `.firebaserc` (it says `db-time-clock`).
+3. The app lives on a Hosting SITE inside the project, named in `firebase.json`
+   (`"site": "db-crews"` → `https://db-crews.web.app`). A project's own
+   `<project-id>.web.app` site cannot be renamed, which is why DB Crew is a
+   second site in the DB Time Clock project rather than a new project: push
+   notifications belong to the project and keep working across the move.
 
 ## 3. OAuth client (sign-in)
 
@@ -41,8 +45,9 @@ files on Firebase Hosting.
    still rejects every address that is not on the company domain or on its
    explicit allow-list, so this does not open the app to anyone else.
 2. Credentials > Create Credentials > **OAuth client ID** > Web application.
-   Authorized JavaScript origins: `https://<project-id>.web.app` and
-   `https://<project-id>.firebaseapp.com`.
+   Authorized JavaScript origins: `https://db-crews.web.app` and
+   `https://db-crews.firebaseapp.com` (every site the app is served from —
+   Google refuses the sign-in button from an origin not on this list).
 3. Copy the Client ID (ends in `.apps.googleusercontent.com`).
 
 ## 4. Wire the pieces
@@ -71,7 +76,7 @@ In Apps Script > Project Settings > **Script Properties**:
 | `OAUTH_CLIENT_ID` | the client id from step 3 |
 | `SESSION_SECRET` | a long random string (`openssl rand -hex 32`). Signs the 30-day app session so the crew isn't re-prompted every hour. Rotating it invalidates every session immediately. |
 | `SESSION_TTL_DAYS` | optional, defaults to 30 |
-| `APP_URL` | optional, `https://<project-id>.web.app` — makes the bare `/exec` link redirect to the app |
+| `APP_URL` | optional, `https://db-crews.web.app` — makes the bare `/exec` link redirect to the app, and is where a tapped push notification opens |
 | `WRITE_ENABLED` | **leave unset until you are ready.** `true` lets the app post time entries, photos and notes to JobTread. |
 | `WRITE_JOB_ALLOWLIST` | optional, a comma-separated list of job ids. While set, writes are refused for any other job — useful for a contained first test. |
 | `SAFETY_ALERT_TO` | for the safety alert — comma-separated addresses the alert is texted to the second it is sent: an email address, or a carrier's SMS gateway address (`4195551234@vtext.com`). See "Safety alerts" under 4c. The JobTread comment assigned to the PM goes either way. |
@@ -103,7 +108,7 @@ that caused it, with a working app in between.
 So keep a copy somewhere outside the repo:
 
 ```
-curl.exe -s https://db-time-clock.web.app/config.js -o C:\dev\config-live-backup.js
+curl.exe -s https://db-crews.web.app/config.js -o C:\dev\config-live-backup.js
 ```
 
 The push keys (the `firebase` block and `vapidKey`) live in config.js too. A

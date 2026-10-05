@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "db-crews",
     "public": "public",
     "ignore": [
       "firebase.json",
