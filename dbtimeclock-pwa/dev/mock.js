@@ -498,15 +498,21 @@
     // ---- People (T2.0): Operations only, as Code.gs enforces ----
     getPeople: function () {
       if ((window.__MOCK_ROLE || 'siteManager') !== 'ops') throw new Error('NOT_OPS: Only the Operations account can do this.');
-      return { people: PEOPLE.map(function (p) { return JSON.parse(JSON.stringify(p)); }), roles: ['crew', 'siteManager', 'service'], ops: ['operations@deitemeyerbrothers.com'], build: 'mock' };
+      return { people: PEOPLE.map(function (p) { return JSON.parse(JSON.stringify(p)); }), roles: ['crew', 'siteManager', 'service'],
+               choices: ['crew', 'siteManager', 'service', 'manager', 'off'], ops: ['operations@deitemeyerbrothers.com'], hub: true, build: 'mock' };
     },
+    // T2.3: a choice is written through to DB Hub, which then owns it — the
+    // answer comes back source 'hub' with the hub level; the mock hub never
+    // refuses unless the test asks it to.
     setRole: function (email, role) {
       if ((window.__MOCK_ROLE || 'siteManager') !== 'ops') throw new Error('NOT_OPS: Only the Operations account can do this.');
+      if (window.__MOCK_HUB_DOWN) throw new Error('DB Hub could not be reached (mock). Nothing was changed.');
       window.__ROLES = window.__ROLES || [];
       window.__ROLES.push({ email: email, role: role });
+      var LEVEL = { crew: 'Crew', siteManager: 'Site Manager', service: 'Service', manager: 'Manager', off: 'Off' };
       var p = PEOPLE.filter(function (x) { return x.email === email; })[0];
-      if (p) { p.role = role || (p.email === 'tylermohr94@gmail.com' ? 'siteManager' : 'crew'); p.source = role ? 'set' : 'default'; }
-      return { email: email, name: p ? p.name : '', role: p ? p.role : role, source: p ? p.source : 'set' };
+      if (p) { p.role = role === 'manager' || role === 'off' ? 'crew' : role; p.source = 'hub'; p.hubLevel = LEVEL[role]; p.choice = role; }
+      return { email: email, name: p ? p.name : '', role: p ? p.role : role, source: 'hub', hubLevel: LEVEL[role], choice: role, level: LEVEL[role], onRoster: true };
     }
   };
 

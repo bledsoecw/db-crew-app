@@ -933,7 +933,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.1 (2026-10-05)';
+var APP_BUILD = 'T2.3 (2026-10-05)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -4730,7 +4730,7 @@ function bootStart(lastJob, attempt){
    back, so a reduced app is never mistaken for a reduced account.
    ========================================================= */
 var TABS_BY_ROLE = { crew: ['job', 'jobs'], siteManager: ['job', 'jobs', 'log'], service: ['job', 'co'], ops: ['job', 'jobs', 'log', 'co', 'people'] };
-var ROLE_WORDS = { crew: 'Crew', siteManager: 'Site manager', service: 'Service', ops: 'Operations' };
+var ROLE_WORDS = { crew: 'Crew', siteManager: 'Site manager', service: 'Service', ops: 'Operations', manager: 'Manager', off: 'Off' };
 function appRole(){ return (S.me && TABS_BY_ROLE[S.me.appRole]) ? S.me.appRole : 'crew'; }
 function isOpsAccount(){ return !!(S.me && S.me.ops); }
 /* The role in force on this phone: a borrowed one, for Operations only. */
@@ -5572,14 +5572,21 @@ function coOnLang(){
 /* =========================================================
    PEOPLE — Operations assigns the roles (T2.0). One tap per
    person; saved at once; the API refuses anyone but Operations.
+   T2.3: the level lives in DB Hub's App access panel, and a tap
+   here writes THROUGH to it — the API posts to the hub, the hub
+   writes its sheet, the app re-reads the feed — so the hub and
+   this tab always show the same record. Five choices, the hub's:
+   crew · siteManager · service · manager (crew + the crew block)
+   · off (blocked). The card says where the answer in force came
+   from: the hub, a fallback set here, or the defaults.
    ========================================================= */
-var PEOPLE = { list: null, loading: false, err: '', at: 0, busy: {} };
+var PEOPLE = { list: null, loading: false, err: '', at: 0, busy: {}, hub: false };
 function peopleLoad(force){
   if (!isOpsAccount()) return;
   if (PEOPLE.loading || (!force && PEOPLE.list && Date.now() - PEOPLE.at < 60000)) return;
   PEOPLE.loading = true; PEOPLE.err = '';
   renderPeople();
-  apiCall('getPeople', [], { lane: 'reads' }).then(function(r){ PEOPLE.loading = false; PEOPLE.list = (r && r.people) || []; PEOPLE.at = Date.now(); renderPeople(); })
+  apiCall('getPeople', [], { lane: 'reads' }).then(function(r){ PEOPLE.loading = false; PEOPLE.list = (r && r.people) || []; PEOPLE.hub = !!(r && r.hub); PEOPLE.at = Date.now(); renderPeople(); })
     .catch(function(e){ PEOPLE.loading = false; PEOPLE.err = (e && e.message) || 'failed'; failed('people', e, true); renderPeople(); });
 }
 function peopleSet(email, role){
@@ -5587,25 +5594,26 @@ function peopleSet(email, role){
   PEOPLE.busy[email] = 1; renderPeople();
   apiCall('setRole', [email, role]).then(function(r){
     delete PEOPLE.busy[email];
-    (PEOPLE.list || []).forEach(function(p){ if (p.email === email){ p.role = r.role; p.source = r.source; p.hubLevel = r.hubLevel || ''; } });
-    toast((r.name || email) + ' · ' + roleWord(r.role));
+    (PEOPLE.list || []).forEach(function(p){ if (p.email === email){ p.role = r.role; p.source = r.source; p.hubLevel = r.hubLevel || ''; p.choice = r.choice || p.choice; } });
+    toast((r.name || email) + ' · ' + roleWord(r.choice || r.role) + ' · saved in DB Hub');
     renderPeople();
   }).catch(function(e){ delete PEOPLE.busy[email]; failed('people · set role', e); renderPeople(); });
 }
+var SET_CHOICES = ['crew', 'siteManager', 'service', 'manager', 'off'];
 function personHtml(p){
-  var name = p.name || p.email, chips = ['crew', 'siteManager', 'service'].map(function(r){
-    return '<button class="whychip' + (p.role === r ? ' on' : '') + '" data-role="' + r + '" data-email="' + esc(p.email) + '"' + (p.ops || !p.email || PEOPLE.busy[p.email] ? ' disabled' : '') + '>' + esc(roleWord(r)) + '</button>';
+  var name = p.name || p.email, cur = p.choice || p.role, chips = SET_CHOICES.map(function(r){
+    return '<button class="whychip' + (cur === r ? ' on' : '') + '" data-role="' + r + '" data-email="' + esc(p.email) + '"' + (p.ops || !p.email || PEOPLE.busy[p.email] ? ' disabled' : '') + '>' + esc(roleWord(r)) + '</button>';
   }).join('');
-  // Where the role came from: the code, this tab, DB Hub's App access panel
-  // (its Time Clock level), or the defaults. The API decides (roleFor_); this
-  // only says it — and says so when the hub and a tap here disagree, since
-  // the tap wins and the office may be expecting the hub to.
-  var hubRole = { 'Crew': 'crew', 'Site Manager': 'siteManager', 'Service': 'service' }[p.hubLevel || ''] || '';
+  // Where the answer in force came from (the API decides, roleFor_; this only
+  // says it): DB Hub's App access panel — the store, which a tap here writes
+  // through to — a fallback set on this tab for someone the hub has no row
+  // for, or the defaults.
   var note = p.ops ? 'Set in the code — nothing here can hand it out.'
            : p.pending ? 'Not signed in yet · the role is waiting for them'
-           : p.source === 'set' ? 'Set here' + (hubRole && hubRole !== p.role ? ' · DB Hub says ' + p.hubLevel + ' — tap ' + roleWord(p.role) + ' again to let the hub decide' : '')
-           : p.source === 'hub' ? 'From DB Hub · Time Clock: ' + p.hubLevel + ' · tap to override here'
-           : p.role === 'siteManager' ? 'From JobTread’s Site Manager role' : p.source === 'default' && p.role === 'service' ? 'Seeded · tap to change' : '';
+           : p.source === 'hub' ? 'From DB Hub · ' + (p.hubLevel || roleWord(cur)) + (p.hubLevel === 'Off' ? ' — blocked' : p.hubLevel === 'Manager' ? ' — crew, plus the crew block' : '') + ' · a tap here changes it there too'
+           : p.source === 'set' ? 'Set here · the hub has no level for them' + (p.hubLevel ? '' : ' yet') + ' · a tap saves to DB Hub'
+           : p.role === 'siteManager' ? 'Default · from JobTread’s Site Manager role · a tap saves to DB Hub'
+           : p.role === 'service' ? 'Default · seeded · a tap saves to DB Hub' : 'Default · a tap saves to DB Hub';
   return '<div class="pcard"><div class="pn"><span class="pname">' + esc(name) + '</span>' + (p.email === 'carl.bledsoe@deitemeyerbrothers.com' ? '<span class="badge warn">testing</span>' : p.ops ? '<span class="badge nav">ops</span>' : '') + '</div>' +
          (p.email ? '<div class="pmail">' + esc(p.email) + (p.seen ? ' · ' + esc(p.seen) : '') + '</div>' : '') +
          (p.ops ? '' : '<div class="whychips">' + chips + '</div>') + (note ? '<div class="pfoot">' + esc(note) + '</div>' : '') + '</div>';
@@ -5624,10 +5632,10 @@ function renderPeople(){
       h += '<div class="k" style="margin-top:26px">' + esc(g[1]) + (ps.length > 3 ? ' · ' + ps.length : '') + '</div>';
       h += ps.length ? ps.map(personHtml).join('') : '<div class="foot" style="text-align:left;margin-top:8px">Nobody yet.</div>';
     });
-    h += '<div class="foot" style="margin-top:16px">A role changes the tabs a person gets. Who may tick a site checklist is still JobTread’s Site Manager role, and who gets the final inspection is still the board’s roster.' + (PEOPLE.err ? '<br><span style="color:var(--ckamber)">' + esc(PEOPLE.err) + '</span>' : '') + '</div>';
+    h += '<div class="foot" style="margin-top:16px">A role changes the tabs a person gets. ' + (PEOPLE.hub ? 'Saved in DB Hub’s App access panel — the same record either screen shows. ' : 'DB Hub is not wired up here, so roles can only be set in its App access panel. ') + 'Who may tick a site checklist is still JobTread’s Site Manager role, and who gets the final inspection is still the board’s roster.' + (PEOPLE.err ? '<br><span style="color:var(--ckamber)">' + esc(PEOPLE.err) + '</span>' : '') + '</div>';
   }
   $('peopleBody').innerHTML = h;
-  [].forEach.call($('peopleBody').querySelectorAll('[data-role]'), function(b){ b.onclick = function(){ var p = (PEOPLE.list || []).filter(function(x){ return x.email === b.getAttribute('data-email'); })[0]; var r = b.getAttribute('data-role'); peopleSet(b.getAttribute('data-email'), p && p.role === r && p.source === 'set' ? '' : r); }; });
+  [].forEach.call($('peopleBody').querySelectorAll('[data-role]'), function(b){ b.onclick = function(){ var p = (PEOPLE.list || []).filter(function(x){ return x.email === b.getAttribute('data-email'); })[0]; var r = b.getAttribute('data-role'); if (p && (p.choice || p.role) === r && p.source === 'hub') return; peopleSet(b.getAttribute('data-email'), r); }; });
   [].forEach.call($('peopleBody').querySelectorAll('[data-viewas]'), function(b){ b.onclick = function(){ setViewAs(b.getAttribute('data-viewas')); }; });
 }
 

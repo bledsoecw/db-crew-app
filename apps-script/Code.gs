@@ -3,6 +3,9 @@
 // My jobs, the day log, the site checks, and Close Out
 // (was DB TIME CLOCK until T2.0, 2026-10-05)
 // Build T1.1 (2026-07-28) — standalone Apps Script web app
+// T2.3 (2026-10-05): DB Hub's App access is the one store for a person's
+//   level; the People tab writes through to it (setRole POSTs to the hub)
+//   and the hub level now beats ROLES_JSON, which is only the fallback.
 // ===========================================================
 // Companion to DB Cam Mobile. Same Pave patterns, same grant
 // key, same auth model, same deployment story. This app is the
@@ -25,7 +28,9 @@
 //   ACCESS_FEED_URL   optional, DB Hub's App access feed (see below). With it set,
 //                     run installAccessFeedRefresh once: the feed is read from a
 //                     copy a trigger keeps warm, never fetched while a phone waits
-//   ACCESS_FEED_KEY   the feed key, if it isn't already baked into the URL
+//   ACCESS_FEED_KEY   the feed key, if it isn't already baked into the URL. The
+//                     People tab posts role changes back to the hub with the
+//                     same URL and key (see the ROLES section); nothing extra.
 //   SAFETY_ALERT_TO   comma-separated addresses a safety alert is texted to — an
 //                     email, or a carrier's SMS gateway address (4195551234@vtext.com)
 //   CLOSEOUT_API_URL  the DB CheckOut server origin (https://closeout.deitemeyerbrothers.com):
@@ -33,7 +38,9 @@
 //                     CLOSE OUT section at the end). Unset = the tab says so.
 //   CLOSEOUT_SECRET   the same value as that server's CREW_APP_SECRET env var
 //   ROLES_JSON / PEOPLE_JSON  written by the app itself (Operations' People tab);
-//                     never edit by hand, see the ROLES section
+//                     never edit by hand, see the ROLES section. Since T2.3 the
+//                     level lives in DB Hub and ROLES_JSON is only the fallback
+//                     for a person the hub has no row for
 //   FCM_PROJECT_ID / FCM_SERVICE_ACCOUNT / PUSH_ENABLED  (push, see below)
 //                     With push on, run installSchedulePushTrigger once as well:
 //                     the evening "Tomorrow: …" line and "Schedule changed".
@@ -51,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.2 (2026-10-05)';
+var APP_BUILD = 'T2.3 (2026-10-05)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -146,19 +153,26 @@ function verifyIdToken_(idToken) {
 
 // ---- Hub-managed access (DB Hub's "App access" panel) ----
 // The hub publishes a token-gated JSON feed of who may use which company
-// app. This app reads the `timeClock` level on a person's row:
-//   (blank) / no row   the defaults here: a JobTread membership is the gate,
-//                      the seeds and the JobTread role pick the app role
-//   Crew · Site Manager · Service
-//                      the app role (crew · siteManager · service) — unless
-//                      Operations set one on the People tab, which still
-//                      wins; see the ROLES section for the order
-//   Manager            the crew block (isForeman), as it always has; it says
-//                      nothing about the app role, so a Manager is still
-//                      whatever the seeds and their JobTread role make them
-//   Off                blocks the app (assertAccess_)
+// app. Its Access sheet is THE store for a person's DB Crew level: the
+// hub's panel writes it, and this app's People tab writes it too, through
+// the hub (setRole POSTs to the hub's doPost, the hub writes its sheet,
+// this app re-reads the feed) — one record, editable from either screen.
+// This app reads the `timeClock` level on a person's row; six values,
+// mapped 1:1 (HUB_ROLE_BY_LEVEL / HUB_LEVEL_BY_CHOICE in the ROLES section):
+//   (blank) / no row   the app's own defaults: a JobTread membership is the
+//                      gate, then ROLES_JSON if Operations ever set one, then
+//                      the seeds and the JobTread role (defaultRole_)
+//   Crew               role crew
+//   Site Manager       role siteManager (the Day log tab)
+//   Service            role service (Close Out)
+//   Manager            role crew PLUS the crew block (isForeman) — what
+//                      Manager has always meant here
+//   Off                blocks the app (assertAccess_), before any role
+// ops is never on the feed and never settable from either screen: it is
+// OPS_EMAILS in the code, full stop.
 // The feed being unreachable never locks the crew out of the clock, and a
-// missing or stale copy sets nobody's role either: no opinion, not a demotion.
+// missing or stale copy sets nobody's role either: no opinion, not a demotion
+// (accessFeedCopy_'s "no copy = no opinion" rule, below).
 // ---- DB Hub's App access feed ------------------------------------------
 // The feed is read on EVERY request — doPost calls assertAccess_ before it
 // dispatches anything — so it must never be fetched on the request path.
@@ -2765,38 +2779,55 @@ function testPushToMe() {
 // every save), and who gets the final inspection is still the board's roster.
 // Two lists in two places on purpose — a tab can grant neither.
 //
-// Where it lives, in the order roleFor_ asks (first answer wins):
+// THE STORE (T2.3): a person's level lives in DB Hub's App access panel —
+// the Time Clock column of its Access sheet, published on the feed this app
+// already reads at the door (dbAccessRec_). Six levels there, mapped 1:1:
+//
+//   hub level      People tab choice   what this app does
+//   (blank)        —                   its own defaults (see 3 and 4 below)
+//   Crew           crew                role crew
+//   Site Manager   siteManager         role siteManager
+//   Service        service             role service
+//   Manager        manager             role crew + the crew block (isForeman)
+//   Off            off                 the app is blocked (assertAccess_)
+//
+// The People tab is the second screen onto that ONE record, not a second
+// store: setRole POSTs the choice to the hub (its doPost on the feed
+// deployment, gated by the feed key), the hub writes its sheet the way its
+// own panel does, and this app refreshes its feed copy so the change shows
+// at once. A change in the hub's panel reaches here on the next feed refresh
+// (five minutes). If the hub refuses or cannot be reached, setRole throws
+// and changes nothing here.
+//
+// Where the answer comes from, in the order roleFor_ asks (first wins):
 //
 //   1. code     OPS_EMAILS below. Nothing else can make anyone ops: no tap on
 //               any screen and no hub level can hand it out, including to
-//               Operations.
-//   2. set      ROLES_JSON, a Script Property the Operations account writes
-//               from the People tab — { "<email>": { "role": "service",
-//               "by": "<email>", "at": "<iso>" } }.
-//   3. hub      DB Hub's App access panel, the Time Clock column of the feed
-//               this app already reads at the door (dbAccessRec_): Crew,
-//               Site Manager or Service name the role outright. Blank and
-//               Manager say nothing about the role (Manager is the crew
-//               block, see bootProfile_), Off never gets this far, and a
-//               feed that is missing or stale is no opinion — it can't demote.
+//               Operations. ops is never on the feed.
+//   2. hub      the level above, when the warm feed copy has a row for the
+//               person and it names one. A feed that is missing or stale is
+//               no opinion — it can never change a role or lock anyone out.
+//   3. set      ROLES_JSON — { "<email>": { "role", "by", "at" } } — which
+//               setRole still writes beside every hub write. It is only the
+//               FALLBACK now: for a person the hub has no row for (the hub
+//               stores a level for them but publishes only its roster), or
+//               for the minutes a feed copy is missing.
 //   4. default  the seeds below, then JobTread's own Site Manager role.
 //
-// A stored answer still wins over the hub, for the same reason it wins over
-// a default: the People tab is the one place that says what THIS app does
-// with a person, and clearing it there is what puts the hub's (or the
-// default's) answer back. So the office can hand out roles from the hub
-// alongside every other app's access, nobody has to be set by hand the day
-// this ships, and when the two disagree the People tab says so beside the
-// name rather than silently picking one. The hub's 'Crew' is an explicit
-// answer, not a blank: it beats a seed, which is how the office moves one
-// of the seeded service crew back to the clock without opening this app.
+// The hub's 'Crew' is an explicit answer, not a blank: it beats a seed, which
+// is how the office moves one of the seeded service crew back to the clock
+// from either screen.
 // ===========================================================
 var OPS_EMAILS = ['operations@deitemeyerbrothers.com'];   // the board's opsEmailsInCode, same account
 var APP_ROLES = ['crew', 'siteManager', 'service'];
 // DB Hub's Time Clock levels that name an app role (ACCESS_APPS_ `timeClock`
-// in db-Onboarding's Code.js). Anything else there — blank, Manager, Off —
-// leaves the role to the defaults.
-var HUB_ROLE_BY_LEVEL = { 'Crew': 'crew', 'Site Manager': 'siteManager', 'Service': 'service' };
+// in db-Onboarding's Code.js). Manager is crew plus the crew block (isForeman
+// reads the level itself, in bootProfile_). Blank leaves the role to the
+// fallbacks; Off never gets as far as a role.
+var HUB_ROLE_BY_LEVEL = { 'Crew': 'crew', 'Site Manager': 'siteManager', 'Service': 'service', 'Manager': 'crew' };
+// The People tab's five choices and the hub level each one writes.
+var HUB_LEVEL_BY_CHOICE = { crew: 'Crew', siteManager: 'Site Manager', service: 'Service', manager: 'Manager', off: 'Off' };
+var SET_CHOICES = ['crew', 'siteManager', 'service', 'manager', 'off'];
 // Seeded by JobTread MEMBERSHIP id, which this script already resolves from
 // the signed-in email — the two service crew are DB CheckOut's PUNCH_CREW.
 var ROLE_SEEDS_BY_MEMBERSHIP = {
@@ -2840,16 +2871,30 @@ function hubRole_(email) {
   return Object.prototype.hasOwnProperty.call(HUB_ROLE_BY_LEVEL, lv) ? HUB_ROLE_BY_LEVEL[lv] : '';
 }
 
+// The People tab choice a hub level reads as ('' when it names none).
+function hubChoice_(level) {
+  for (var c in HUB_LEVEL_BY_CHOICE) if (HUB_LEVEL_BY_CHOICE[c] === level) return c;
+  return '';
+}
+
 // { role, source } — source says where the answer came from, for the People
-// tab: code · set · hub · default, in that order of precedence.
+// tab: code · hub · set · default, in that order of precedence (T2.3: the
+// hub is the store, ROLES_JSON the fallback).
 function roleFor_(m) {
   var email = String(m.email || '').toLowerCase();
   if (isOps_(email)) return { role: 'ops', source: 'code' };
-  var set = propJson_(ROLES_PROP)[email];
-  if (set && APP_ROLES.indexOf(set.role) !== -1) return { role: set.role, source: 'set' };
   var hub = hubRole_(email);
   if (hub) return { role: hub, source: 'hub' };
+  var set = propJson_(ROLES_PROP)[email];
+  if (set && APP_ROLES.indexOf(set.role) !== -1) return { role: set.role, source: 'set' };
   return { role: defaultRole_(m), source: 'default' };
+}
+
+// What the People tab shows as the choice in force: the hub's level when it
+// has one, else the choice that matches the role in force.
+function choiceFor_(m, r) {
+  var hc = hubChoice_(hubLevel_(m.email));
+  return hc || (r.role === 'ops' ? '' : r.role);
 }
 
 function assertOps_(me) {
@@ -2895,7 +2940,8 @@ function getPeople(me) {
     // hubLevel rides along so the tab can say when the hub and a stored
     // answer disagree, instead of one of them silently losing.
     out.push({ email: email, name: rec.name || '', membershipId: rec.membershipId || '', jtRole: rec.jtRole || '',
-               role: r.role, source: r.source, hubLevel: hubLevel_(email), seen: rec.seen || '', ops: isOps_(email) });
+               role: r.role, source: r.source, hubLevel: hubLevel_(email), choice: choiceFor_(m, r),
+               seen: rec.seen || '', ops: isOps_(email) });
   }
   for (var e in people) add(e, people[e]);
   for (var e2 in set) add(e2, people[e2]);
@@ -2909,35 +2955,90 @@ function getPeople(me) {
   for (var mid in ROLE_SEEDS_BY_MEMBERSHIP) {
     if (byMembership[mid]) continue;
     out.push({ email: '', name: SEED_NAMES[mid] || mid, membershipId: mid, jtRole: '', role: ROLE_SEEDS_BY_MEMBERSHIP[mid],
-               source: 'default', hubLevel: '', seen: '', ops: false, pending: true });
+               source: 'default', hubLevel: '', choice: ROLE_SEEDS_BY_MEMBERSHIP[mid], seen: '', ops: false, pending: true });
   }
   var rank = { ops: 0, service: 1, siteManager: 2, crew: 3 };
   out.sort(function (a, b) { return (rank[a.role] - rank[b.role]) || String(a.name || a.email).localeCompare(String(b.name || b.email)); });
-  return { people: out, roles: APP_ROLES, ops: OPS_EMAILS, build: APP_BUILD };
+  return { people: out, roles: APP_ROLES, choices: SET_CHOICES, ops: OPS_EMAILS, hub: !!accessFeedUrl_(), build: APP_BUILD };
 }
 
-// Set, or clear ('' puts the hub's level or the default back), one person's
-// role. Operations only.
+// The hub's write-through: where setRole POSTs, and the key it sends. The
+// same ACCESS_FEED_URL / ACCESS_FEED_KEY the feed reader uses — a key baked
+// into the URL is lifted out of it, so nothing new goes in Script Properties.
+function accessFeedWrite_() {
+  var url = accessFeedUrl_();
+  if (!url) return null;
+  var m = /[?&]feed=([^&]*)/.exec(url);
+  var key = m ? decodeURIComponent(m[1]) : '';
+  return key ? { url: url.replace(/\?.*$/, ''), key: key } : null;
+}
+
+// Tell DB Hub to store one person's level. Throws, naming the hub, on any
+// failure — a refused key, an old deployment that has no doPost, a hub that
+// is down — and the caller then changes nothing here. The hub answers every
+// web-app POST with a 302 to script.googleusercontent.com, so redirects are
+// followed; the JSON is what lands.
+function hubSetLevel_(email, level, by) {
+  var w = accessFeedWrite_();
+  if (!w) throw new Error('DB Hub is not wired up here (ACCESS_FEED_URL / ACCESS_FEED_KEY), so roles can only be set in DB Hub\'s App access panel.');
+  var resp, code = 0, text = '';
+  try {
+    resp = UrlFetchApp.fetch(w.url, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ key: w.key, email: email, app: 'timeClock', value: level, by: by }),
+      muteHttpExceptions: true, followRedirects: true
+    });
+    code = resp.getResponseCode(); text = resp.getContentText() || '';
+  } catch (e) {
+    throw new Error('DB Hub could not be reached (' + ((e && e.message) || e) + '). Nothing was changed.');
+  }
+  if (code !== 200) throw new Error('DB Hub answered HTTP ' + code + '. Nothing was changed.');
+  var ans = null;
+  try { ans = JSON.parse(text); } catch (pe) {}
+  if (!ans || typeof ans !== 'object') {
+    throw new Error('DB Hub did not answer with JSON — its feed deployment may be pinned to a version without doPost (needs v1.29 or later). Nothing was changed.');
+  }
+  if (!ans.ok) throw new Error('DB Hub refused the change: ' + (ans.error || 'no reason given') + '. Nothing was changed.');
+  return ans;
+}
+
+// Set one person's level — one of the five People tab choices (SET_CHOICES).
+// Operations only. The hub is the store: this posts the choice there, then
+// refreshes this app's feed copy so the answer shows at once, and writes
+// ROLES_JSON as the fallback for a person the hub does not publish. If the
+// hub call fails, nothing here changes and the error names the hub.
 function setRole(me, email, role) {
   assertOps_(me);
   email = String(email || '').toLowerCase().trim();
   role = String(role || '').trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('That is not an email address.');
   if (isOps_(email)) throw new Error('Operations is set in the code, not here.');
-  if (role && APP_ROLES.indexOf(role) === -1) throw new Error('Unknown role: ' + role);
+  if (SET_CHOICES.indexOf(role) === -1) throw new Error('Unknown role: ' + role + ' (one of ' + SET_CHOICES.join(', ') + ').');
+  var level = HUB_LEVEL_BY_CHOICE[role];
+  var by = String(me.email || '');
+  var hubAns = hubSetLevel_(email, level, by);   // throws, changing nothing, on any failure
+  // The hub has it. Pull the feed now so the next boot — and the answer below
+  // — read the hub's copy rather than waiting up to five minutes for the trigger.
+  try { refreshAccessFeed(); } catch (eR) {}
+  // ROLES_JSON holds the fallback: the app role the choice means (manager is
+  // crew; the crew block is the hub's to say), or nothing for off — the hub
+  // is what blocks a person, and a missing feed has no opinion by design.
   var lock = LockService.getScriptLock();
   lock.waitLock(5000);
   try {
     var set = propJson_(ROLES_PROP);
-    if (role) set[email] = { role: role, by: String(me.email || ''), at: new Date().toISOString() };
+    var fallback = HUB_ROLE_BY_LEVEL[level] || '';
+    if (fallback) set[email] = { role: fallback, by: by, at: new Date().toISOString(), level: level };
     else delete set[email];
     PropertiesService.getScriptProperties().setProperty(ROLES_PROP, JSON.stringify(set));
   } finally { lock.releaseLock(); }
   // The signed-in person's cached profile is rebuilt on their next boot
   // (memberFor_ caches JobTread facts only; the role is read fresh each time).
   var people = propJson_(PEOPLE_PROP), rec = people[email] || {};
-  var r = roleFor_({ email: email, membershipId: rec.membershipId || '', role: rec.jtRole || '' });
-  return { email: email, name: rec.name || '', role: r.role, source: r.source, hubLevel: hubLevel_(email) };
+  var m = { email: email, membershipId: rec.membershipId || '', role: rec.jtRole || '' };
+  var r = roleFor_(m);
+  return { email: email, name: rec.name || '', role: r.role, source: r.source, hubLevel: hubLevel_(email),
+           choice: choiceFor_(m, r), level: String(hubAns.level || level), onRoster: hubAns.onRoster !== false };
 }
 
 // ===========================================================

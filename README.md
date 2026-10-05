@@ -50,7 +50,7 @@ shows a navy "READ-ONLY BUILD" bar while it's off, so a test build can't be
 mistaken for the real thing. `WRITE_JOB_ALLOWLIST` narrows writes to specific
 jobs for a contained first test. See SETUP.md for the go-live sequence.
 
-### Who can open it, and what each person gets (roles, T2.0 · hub levels T2.2)
+### Who can open it, and what each person gets (roles, T2.0 · hub levels T2.2 · one store T2.3)
 
 The role decides the tabs. The API decides the role (`roleFor_` in
 `Code.gs`), the phone only draws it:
@@ -62,25 +62,48 @@ The role decides the tabs. The API decides the role (`roleFor_` in
 | Service | Clock · Close Out | Alberto and Yahir (seeded by membership id), and `carl.bledsoe@deitemeyerbrothers.com` to test their view |
 | Operations | all of those, plus **People** | `operations@deitemeyerbrothers.com` — `OPS_EMAILS` in `Code.gs`, nowhere else |
 
-Where the answer comes from, first one wins (T2.2):
+**The store is DB Hub** (T2.3). A person's level is the DB Crew column of
+the hub's App access panel, published on the feed this app already reads at
+the door. Six levels there, mapped one to one:
 
-1. **The code** — Operations is `OPS_EMAILS`, nowhere else.
-2. **People** — a role Operations tapped on that tab (`ROLES_JSON`).
-3. **DB Hub** — the Time Clock level on the hub's App access panel, read off
-   the same feed that gates sign-in: `Crew`, `Site Manager` and `Service`
-   name the role. `Manager` is the crew block (the foreman view), not a role;
-   blank leaves the defaults; `Off` blocks the app before any role matters.
-   A feed that is missing or stale has no opinion and demotes nobody.
+| Hub level | People tab choice | What the app does |
+|---|---|---|
+| (blank) | — | the app's own defaults (the fallback below, then the seeds and JobTread's role) |
+| Crew | Crew | role crew |
+| Site Manager | Site manager | role siteManager |
+| Service | Service | role service |
+| Manager | Manager | role crew plus the crew block (the foreman view) |
+| Off | Off | the app is blocked before any role matters |
+
+Editing either screen updates that one record: the hub's panel writes its
+sheet directly; the People tab posts the choice to the hub (`setRole` →
+the hub's `doPost` on its feed deployment, gated by the feed key), the hub
+writes its sheet the way its panel does, and the app refreshes its feed copy
+so the change shows at once. A change made in the hub reaches the app on the
+next feed refresh (five minutes). If the hub refuses or cannot be reached,
+`setRole` throws, names the hub, and changes nothing.
+
+Where the answer comes from, first one wins:
+
+1. **The code** — Operations is `OPS_EMAILS`, nowhere else; never on the
+   feed, never settable from either screen.
+2. **DB Hub** — the level above, when the feed copy has a row for the person
+   and it names one. A feed that is missing or stale has no opinion: it never
+   changes a role and never locks anyone out.
+3. **People** (`ROLES_JSON`) — the fallback `setRole` still writes beside
+   every hub write, for a person the hub has no row for (the hub stores a
+   level for anyone, but publishes only its Employees roster) or for the
+   minutes a feed copy is missing.
 4. **The defaults** — the seeds, then JobTread's own Site Manager role.
 
-**People** is where Operations assigns roles: one tap per person, saved at
-once to the `ROLES_JSON` Script Property, and the API refuses anyone but
-Operations (`getPeople`, `setRole`). A stored answer wins over the hub and
-the defaults; clearing it puts the hub's level (or the default) back, and
-when the hub and a stored answer disagree the card says so. Nothing on that
-screen, and nothing in the hub, can make anyone Operations. The same screen carries **View the app as**, which lets the
-Operations account borrow another role's view — the navy bar names the
-borrowed view and the way back, and it is remembered on that phone.
+**People** is where Operations sets levels from the phone: five chips per
+person, saved to DB Hub at once, and the API refuses anyone but Operations
+(`getPeople`, `setRole`). The card says where the answer in force came from
+(the hub, a fallback set here, or the defaults). Nothing on that screen, and
+nothing in the hub, can make anyone Operations. The same screen carries
+**View the app as**, which lets the Operations account borrow another role's
+view — the navy bar names the borrowed view and the way back, and it is
+remembered on that phone.
 
 **Sign out** (T2.1) is the last button on the Diagnostics screen (tap the
 build line at the foot of the clock). Two taps — the first arms it and says
@@ -106,8 +129,8 @@ emails) — gets you to the sign-in; a JobTread membership on the org gets you
 in. Never "any Google account". Past
 that, DB Hub's **App access** panel has the final say if `ACCESS_FEED_URL` is
 set: `Off` or a status of left/inactive/terminated closes the app with a plain
-message, `Manager` also unlocks the foreman's crew block, and a blank row means
-the JobTread role decides as before.
+message, `Manager` is crew plus the foreman's crew block, and a blank row means
+the fallbacks and the JobTread role decide as before.
 
 The hub can only ever *change* the answer, never break it. No feed configured,
 a feed that 500s, a feed that times out — all read as "no opinion", and the

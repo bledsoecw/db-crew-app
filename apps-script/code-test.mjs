@@ -953,58 +953,120 @@ t('everyone else is crew', sandbox.roleFor_(ME), { role:'crew', source:'default'
 t('a crew member cannot set roles', /^NOT_OPS/.test(refusedBy(() => sandbox.setRole(ME, 'alberto@deitemeyerbrothers.com', 'crew'))), true);
 t('nobody can be made ops from the app', /in the code/.test(refusedBy(() => sandbox.setRole(OPS, 'operations@deitemeyerbrothers.com', 'crew'))), true);
 t('an unknown role is refused', /Unknown role/.test(refusedBy(() => sandbox.setRole(OPS, 'x@deitemeyerbrothers.com', 'boss'))), true);
-r = sandbox.setRole(OPS, 'Alberto@deitemeyerbrothers.com', 'crew');
-t('Operations moves Alberto off the seed', [r.role, r.source, sandbox.roleFor_(ALBERTO)], ['crew', 'set', { role:'crew', source:'set' }]);
-r = sandbox.setRole(OPS, 'alberto@deitemeyerbrothers.com', '');
-t('clearing puts the default back', [r.source, sandbox.roleFor_(ALBERTO).role], ['default', 'service']);
+t('clearing is not a choice any more (blank is the hub\'s to set)', /Unknown role/.test(refusedBy(() => sandbox.setRole(OPS, 'x@deitemeyerbrothers.com', ''))), true);
+t('no hub wired -> setRole says so and writes nothing', [/DB Hub is not wired up/.test(refusedBy(() => sandbox.setRole(OPS, ALBERTO.email, 'crew'))), props.ROLES_JSON], [true, undefined]);
 sandbox.seenPerson_(TYLER); sandbox.seenPerson_(ME);
 r = sandbox.getPeople(OPS);
 t('the People list: seen people, the seeds and ops, by role', r.people.map(p => p.name || p.email),
   ['operations@deitemeyerbrothers.com', 'Alberto Gonzalez', 'carl.bledsoe@deitemeyerbrothers.com', 'Yahir Gonzalez', 'Tyler Mohr', 'Tyler B.']);
 t('a seed listed before its first sign-in is marked pending', r.people.filter(p => p.pending).map(p => p.name), ['Alberto Gonzalez', 'Yahir Gonzalez']);
+t('the list carries the five choices and whether the hub is wired', [r.choices, r.hub], [['crew', 'siteManager', 'service', 'manager', 'off'], false]);
 t('getPeople is Operations only', /^NOT_OPS/.test(refusedBy(() => sandbox.getPeople(TYLER))), true);
 t('the profile carries the app role beside JobTread\'s', [sandbox.bootProfile_(TYLER).appRole, sandbox.bootProfile_(TYLER).role, sandbox.bootProfile_(OPS).ops], ['siteManager', 'Site Manager', true]);
 
-// ---- roles from DB Hub (T2.2): the hub's Time Clock level names the role ----
-// The order is code > People tab > hub > defaults. The hub's Crew is an
-// answer (it beats a seed); blank and Manager say nothing about the role;
-// Off never gets as far as a role; a missing or stale feed demotes nobody.
+// ---- roles from DB Hub (T2.2 · T2.3): the hub's level IS the role ----
+// The hub's Access sheet is the store. The order is code > hub > People tab
+// (ROLES_JSON, the fallback) > defaults. The hub's Crew is an answer (it
+// beats a seed and a stored fallback); blank leaves the fallbacks; Manager is
+// crew plus the crew block; Off never gets as far as a role; a missing or
+// stale feed demotes nobody and locks nobody out.
 const hub = (people) => { props.ACCESS_FEED_URL = 'https://hub.example.com/exec'; props.ACCESS_FEED_KEY = 'k';
   cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP];
   fetchImpl = () => ({ code: 200, body: JSON.stringify({ people }) }); sandbox.refreshAccessFeed(); };
 delete props.ROLES_JSON;
 hub({ [ME.email]: { timeClock: 'Site Manager' } });
-t('hub Site Manager, nothing set -> siteManager (the Day log tab)', sandbox.roleFor_(ME), { role:'siteManager', source:'hub' });
+t('hub Site Manager, empty ROLES_JSON -> siteManager (the Day log tab)', sandbox.roleFor_(ME), { role:'siteManager', source:'hub' });
 t('   ...and the boot profile says so', [sandbox.bootProfile_(ME).appRole, sandbox.bootProfile_(ME).appRoleSource, sandbox.bootProfile_(ME).isForeman], ['siteManager', 'hub', false]);
+props.ROLES_JSON = JSON.stringify({ [ME.email]: { role: 'crew', by: 'x', at: 'y' } });
 hub({ [ME.email]: { timeClock: 'Service' } });
-t('hub Service -> service', sandbox.roleFor_(ME), { role:'service', source:'hub' });
+t('hub Service beats ROLES_JSON crew', sandbox.roleFor_(ME), { role:'service', source:'hub' });
+hub({ [ME.email]: { timeClock: 'Manager' } });
+t('hub Manager -> role crew, and the crew block', [sandbox.roleFor_(ME), sandbox.bootProfile_(ME).isForeman], [{ role:'crew', source:'hub' }, true]);
+hub({ [ME.email]: { timeClock: 'Off' } });
+t('hub Off -> assertAccess_ throws NO_ACCESS', /^NO_ACCESS/.test(refusedBy(() => sandbox.assertAccess_(ME.email))), true);
+t('   ...and names no role (the fallback answers, but the door is shut first)', sandbox.roleFor_(ME), { role:'crew', source:'set' });
+delete props.ROLES_JSON;
 hub({ [ALBERTO.email]: { timeClock: 'Crew' } });
 t('hub Crew is an answer: it beats a seed', sandbox.roleFor_(ALBERTO), { role:'crew', source:'hub' });
 hub({ [TYLER.email]: { timeClock: 'Crew' } });
 t('hub Crew beats the JobTread Site Manager default', sandbox.roleFor_(TYLER), { role:'crew', source:'hub' });
 hub({ [ALBERTO.email]: { timeClock: '' } });
 t('hub blank keeps the seed', sandbox.roleFor_(ALBERTO), { role:'service', source:'default' });
-hub({ [ME.email]: { timeClock: 'Manager' } });
-t('hub Manager is the crew block, not a role', [sandbox.roleFor_(ME), sandbox.bootProfile_(ME).isForeman], [{ role:'crew', source:'default' }, true]);
+props.ROLES_JSON = JSON.stringify({ [ALBERTO.email]: { role: 'crew', by: 'x', at: 'y' } });
+t('hub blank -> ROLES_JSON is the fallback', sandbox.roleFor_(ALBERTO), { role:'crew', source:'set' });
+hub({});
+t('no hub row -> ROLES_JSON is the fallback', sandbox.roleFor_(ALBERTO), { role:'crew', source:'set' });
+delete props.ROLES_JSON;
 hub({ [ME.email]: { timeClock: 'Employee' } });
 t('an unknown level leaves the default', sandbox.roleFor_(ME), { role:'crew', source:'default' });
-hub({ [ME.email]: { timeClock: 'Site Manager' } });
-sandbox.setRole(OPS, ME.email, 'crew');
-t('a stored answer still wins over the hub', sandbox.roleFor_(ME), { role:'crew', source:'set' });
-r = sandbox.getPeople(OPS).people.filter(p => p.email === ME.email)[0];
-t('   ...and the People tab carries the hub level beside it', [r.source, r.hubLevel], ['set', 'Site Manager']);
-r = sandbox.setRole(OPS, ME.email, '');
-t('clearing it puts the hub level back', [r.role, r.source, r.hubLevel], ['siteManager', 'hub', 'Site Manager']);
-hub({ [ME.email]: { timeClock: 'Off' } });
-t('hub Off still blocks the app', /^NO_ACCESS/.test(refusedBy(() => sandbox.assertAccess_(ME.email))), true);
-t('   ...and names no role', sandbox.roleFor_(ME), { role:'crew', source:'default' });
 hub({ [OPS.email]: { timeClock: 'Crew' } });
 t('no hub level can touch ops', sandbox.roleFor_(OPS), { role:'ops', source:'code' });
 cacheStore = {}; props[sandbox.ACCESS_FEED_PROP] = JSON.stringify({ at: Date.now() - 2 * 24 * 3600 * 1000,
   feed: { people: { [ME.email]: { timeClock: 'Site Manager' } } } });
 t('a stale feed sets nobody\'s role', sandbox.roleFor_(ME), { role:'crew', source:'default' });
+props.ROLES_JSON = JSON.stringify({ [ME.email]: { role: 'service', by: 'x', at: 'y' } });
+t('   ...and the fallback answers meanwhile', sandbox.roleFor_(ME), { role:'service', source:'set' });
 cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP]; delete props.ACCESS_FEED_URL; delete props.ACCESS_FEED_KEY;
-t('no feed -> the defaults, as before', sandbox.roleFor_(TYLER), { role:'siteManager', source:'default' });
+t('no feed copy -> roleFor_ unchanged from today: the fallback, else the defaults',
+  [sandbox.roleFor_(ME), sandbox.roleFor_(TYLER), sandbox.roleFor_(ALBERTO)],
+  [{ role:'service', source:'set' }, { role:'siteManager', source:'default' }, { role:'service', source:'default' }]);
+delete props.ROLES_JSON;
+
+// ---- the People tab writes THROUGH to the hub (T2.3) ----
+// setRole POSTs the choice to the hub's doPost, follows the 302 every Apps
+// Script web app answers with, and only on { ok: true } refreshes the feed
+// copy and writes the ROLES_JSON fallback. Any failure throws, names the hub,
+// and changes nothing here.
+let hubSheet = {};
+const hubLive = () => { props.ACCESS_FEED_URL = 'https://hub.example.com/exec?feed=k'; delete props.ACCESS_FEED_KEY;
+  cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP]; fetched = [];
+  fetchImpl = (url, opts) => {
+    if (opts && opts.method === 'post') {
+      const b = JSON.parse(opts.payload);
+      if (b.key !== 'k') return { code: 200, body: '{"ok":false,"error":"bad key"}' };
+      if (b.app !== 'timeClock') return { code: 200, body: '{"ok":false,"error":"app cannot be written"}' };
+      hubSheet[b.email] = { timeClock: b.value, by: b.by };
+      return { code: 200, body: JSON.stringify({ ok: true, level: b.value, onRoster: true }) };
+    }
+    const people = {}; for (const e in hubSheet) people[e] = { timeClock: hubSheet[e].timeClock };
+    return { code: 200, body: JSON.stringify({ people }) };
+  }; };
+hubLive();
+r = sandbox.setRole(OPS, 'Alberto@deitemeyerbrothers.com', 'siteManager');
+const hubPost = fetched.filter(f => f.opts && f.opts.method === 'post')[0];
+t('setRole POSTs the hub level to the feed deployment, key in the body not the url', [hubPost.url, JSON.parse(hubPost.opts.payload)],
+  ['https://hub.example.com/exec', { key: 'k', email: 'alberto@deitemeyerbrothers.com', app: 'timeClock', value: 'Site Manager', by: OPS.email }]);
+t('   ...following redirects, as JSON', [hubPost.opts.followRedirects, hubPost.opts.contentType], [true, 'application/json']);
+t('   ...then refreshes the feed copy at once', fetched.filter(f => !(f.opts && f.opts.method === 'post')).length, 1);
+t('   ...and the answer is the hub\'s', [r.role, r.source, r.hubLevel, r.choice, r.level], ['siteManager', 'hub', 'Site Manager', 'siteManager', 'Site Manager']);
+t('   ...so the role is the hub\'s now', sandbox.roleFor_(ALBERTO), { role:'siteManager', source:'hub' });
+t('   ...with ROLES_JSON written as the fallback', JSON.parse(props.ROLES_JSON)[ALBERTO.email].role, 'siteManager');
+t('   ...and the hub log says DB Crew did it', hubSheet[ALBERTO.email].by, OPS.email);
+r = sandbox.setRole(OPS, ME.email, 'manager');
+t('manager -> hub Manager: role crew from the hub, the crew block, fallback crew', [r.role, r.source, r.hubLevel, r.choice, sandbox.bootProfile_(ME).isForeman, JSON.parse(props.ROLES_JSON)[ME.email].role],
+  ['crew', 'hub', 'Manager', 'manager', true, 'crew']);
+r = sandbox.setRole(OPS, ME.email, 'off');
+t('off -> hub Off: the door shuts, the fallback is dropped', [r.hubLevel, r.choice, /^NO_ACCESS/.test(refusedBy(() => sandbox.assertAccess_(ME.email))), ME.email in JSON.parse(props.ROLES_JSON)],
+  ['Off', 'off', true, false]);
+r = sandbox.setRole(OPS, ME.email, 'crew');
+t('crew -> hub Crew: back in', [r.role, r.source, sandbox.assertAccess_(ME.email) !== null, JSON.parse(props.ROLES_JSON)[ME.email].role], ['crew', 'hub', true, 'crew']);
+t('the People tab shows the choice in force and its source', sandbox.getPeople(OPS).people.filter(p => p.email === ALBERTO.email).map(p => [p.choice, p.source, p.hubLevel])[0], ['siteManager', 'hub', 'Site Manager']);
+t('   ...and that the hub is wired', sandbox.getPeople(OPS).hub, true);
+
+// A failing hub call leaves ROLES_JSON untouched — and the feed copy too.
+const rolesBefore = props.ROLES_JSON, copyBefore = props[sandbox.ACCESS_FEED_PROP];
+const failing = (impl, name, want) => {
+  fetched = []; fetchImpl = impl;
+  const msg = refusedBy(() => sandbox.setRole(OPS, ALBERTO.email, 'service'));
+  t(name, [want.test(msg), /DB Hub/.test(msg), props.ROLES_JSON === rolesBefore, props[sandbox.ACCESS_FEED_PROP] === copyBefore, fetched.filter(f => !(f.opts && f.opts.method === 'post')).length],
+    [true, true, true, true, 0]);
+};
+failing(() => ({ code: 200, body: '{"ok":false,"error":"bad key"}' }), 'hub refuses -> throws naming the hub, ROLES_JSON untouched, no refresh', /refused the change: bad key/);
+failing(() => ({ code: 500, body: 'boom' }), 'hub 500 -> throws, nothing changed', /HTTP 500/);
+failing(() => { throw new Error('dns'); }, 'hub unreachable -> throws, nothing changed', /could not be reached/);
+failing(() => ({ code: 200, body: '<html>sign in</html>' }), 'an old feed deployment (no doPost) -> throws, names the version', /without doPost/);
+t('   ...and the role in force did not move', sandbox.roleFor_(ALBERTO), { role:'siteManager', source:'hub' });
+delete props.ACCESS_FEED_URL; delete props.ACCESS_FEED_KEY; delete props.ROLES_JSON; cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP];
 
 // ---- close out (T2.0): the door to the CheckOut server ----
 props = {}; fetched = [];
