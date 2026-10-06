@@ -231,8 +231,18 @@ const allErrs = [];
   check('a service phone opens on Close Out', await page.evaluate(() => [S.tab, CO.screen, S.tabTouched]), ['co', 'queue', false]);
 
   // Off the clock: Start opens the job and asks for the code (nothing on this
-  // job's list reads like inspection work, so it is the sheet).
-  await tap(page, '[data-costart="co-hartman"]', 900);
+  // job's list reads like inspection work, so it is the sheet). The code list
+  // is slow here, on purpose: the curtain is up from the tap until the
+  // question is on screen (T2.5), so nothing else takes a finger meanwhile.
+  // (The queue's prefetch had already put this job's codes on the phone — the
+  // fast path; forget them so the slow path shows.)
+  await page.evaluate(() => { const m = codesCache(); delete m['co-hartman']; localStorage.setItem('dbtc_codes', JSON.stringify(m)); });
+  await page.evaluate(() => { const real = window.apiCall; window.__slowCodes = true; window.apiCall = (fn, args, co) => fn === 'getJobCodes' && window.__slowCodes ? new Promise((res) => setTimeout(() => res(real(fn, args, co)), 1200)) : real(fn, args, co); });
+  await tap(page, '[data-costart="co-hartman"]', 300);
+  check('Start: the curtain is up while the codes are fetched, and nothing else opens', await page.evaluate(() => [document.getElementById('wait').classList.contains('on'), document.getElementById('waitT').textContent, document.body.style.pointerEvents, S.sheet, CO.screen]), [true, 'Marcando entrada…', 'none', null, 'job']);
+  await page.waitForTimeout(1500);
+  check('…and down once the code question is on screen', await page.evaluate(() => [document.getElementById('wait').classList.contains('on'), document.body.style.pointerEvents, !!codesCached('co-hartman')]), [false, '', true]);
+  await page.evaluate(() => { window.__slowCodes = false; });
   check('Start opens the job and asks the code question', await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.sheet, S.job && S.job.id, S.coReturn]), ['co', 'job', 'co-hartman', 'codes', 'co-hartman', 'co-hartman']);
   await tap(page, '[data-code="ci2"]', 500);
   check('the code picked, the camera is locked to the start photo', await page.evaluate(() => [S.tab, S.clockGate, S.gateCode && S.gateCode.id]), ['cam', 'start', 'ci2']);
@@ -261,7 +271,7 @@ const allErrs = [];
   await tap(page, '[data-costart="co-reyes"]', 900);
   check('Start elsewhere while on the clock: the end photo first', await page.evaluate(() => [S.tab, S.clockGate, S.moving, S.pendingJob && S.pendingJob.id, S.coReturn, CO.jobId]), ['cam', 'end-switch', true, 'co-reyes', 'co-reyes', 'co-reyes']);
   await shoot(page); await until(page, () => S.sheet === 'codes');
-  check('…then the next job\'s code sheet, over its Close Out screen', await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.sheet, !!S.switching]), ['co', 'job', 'co-reyes', 'codes', true]);
+  check('…then the next job\'s code sheet, over its Close Out screen (from the phone\'s copy, prefetched with the queue)', await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.sheet, !!S.switching, !!codesCached('co-reyes')]), ['co', 'job', 'co-reyes', 'codes', true, true]);
   await tap(page, '[data-code="ci4"]', 500);
   check('…the start photo', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'start']);
   await shoot(page); await settle(page);

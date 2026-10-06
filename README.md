@@ -130,6 +130,28 @@ the clock is still running, one row on the send and receipt screens offers
 the Stop sheet's choices — a break, another code or job, out for the day.
 `dev/closeout-test.mjs` walks it.
 
+**Fast to the finger** (T2.5, Carl 6 Oct 2026: *"the app is laggy — people
+tap around while it loads and confuse it; it should react almost instantly,
+and if there is a pause the screen should grey out so they know it is working
+and can't tap anything else until it resolves or errors out"*). Three things
+changed. **The wait curtain**: `busy(true, 'Clocking in…')` greys the whole
+screen the instant a tap starts work the phone has to wait on, counts the
+seconds after two, blocks every other tap, and comes down in the same
+then/catch that ends the work — a clock-in, out or switch, a break, a Close
+Out Start fetching its codes, a move fetching the next job's. **The code
+list lives on the phone**: the last answer per job is kept for the shift
+(`dbtc_codes`, 12 hours, two dozen jobs), so a Start or a pick gets its codes
+at once and the API's answer lands behind it; Close Out prefetches the codes
+of the inspections that are yours as the queue loads, and the job's when it
+opens. **The search draws at once**: every keystroke shows what the phone
+already knows (recent jobs, the schedule, Close Out's queue, earlier answers)
+with a "Searching JobTread…" line until the API's answer is merged in; a late
+answer for an older term is dropped, and Enter picks the one row showing.
+Underneath, a read a finger is waiting on (`lane: 'now'`) goes out at once
+instead of queueing behind a cold open's extras — that queue was most of the
+"Start, then nothing for twenty seconds". `dev/clock-test.mjs` and
+`dev/closeout-test.mjs` walk it.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

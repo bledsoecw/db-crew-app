@@ -515,6 +515,15 @@ button[disabled]{cursor:default}
 #toast{position:absolute;left:16px;right:16px;bottom:calc(var(--tabh,96px) + 20px);z-index:90;display:none;justify-content:center;pointer-events:none}
 #toast span{background:var(--go);color:var(--goink);border-radius:5px;padding:14px 16px;font:600 11px/1.3 var(--mono);letter-spacing:.99px;text-transform:uppercase;text-align:center}
 #toast.err span{background:var(--rec);color:#fff}
+/* The wait curtain (T2.5): up the instant a tap starts work the phone has to
+   wait on, down when it resolves or fails. Nothing underneath takes a tap. */
+#wait{position:fixed;inset:0;z-index:150;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.58)}
+#wait.on{display:flex}
+#wait .wbox{display:flex;flex-direction:column;align-items:center;gap:14px;padding:26px 28px;border-radius:12px;background:var(--surf);border:1px solid var(--line);min-width:220px;max-width:86vw;text-align:center}
+#wait .wspin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--acc);animation:wspin .8s linear infinite}
+#wait .wt{font:700 15px/1.3 var(--sans);color:var(--fg)}
+#wait .ws{font:600 11px/1.3 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--fg);opacity:.62;min-height:14px}
+@keyframes wspin{to{transform:rotate(360deg)}}
 
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
 @keyframes flashOut{from{opacity:.95}to{opacity:0}}
@@ -909,6 +918,7 @@ button[disabled]{cursor:default}
   </div>
 
   <div id="toast"><span></span></div>
+  <div id="wait"><div class="wbox"><div class="wspin"></div><div class="wt" id="waitT">Working…</div><div class="ws" id="waitS"></div></div></div>
 </div>
 
 <!-- ============ SHEET ============ -->
@@ -933,7 +943,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.4 (2026-10-06)';
+var APP_BUILD = 'T2.5 (2026-10-06)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1132,8 +1142,11 @@ function apiCall(fn, args, co){
   var lane = co.lane || API_LANE[fn] || 'main';
   var queuedAt = Date.now(), t0 = 0;
   var run = function(){ t0 = Date.now(); apiBusy++; return apiAttempt(fn, args, 1, co); };
-  var p = (apiLanes[lane] || Promise.resolve()).then(run, run);
-  apiLanes[lane] = p.then(function(){}, function(){});
+  // 'now' (T2.5): a finger is waiting on this read and nothing it could
+  // overtake matters, so it goes out at once, beside whatever the lanes are
+  // doing — never behind a cold open's extras. Writes never ride it.
+  var p = lane === 'now' ? Promise.resolve().then(run) : (apiLanes[lane] || Promise.resolve()).then(run, run);
+  if (lane !== 'now') apiLanes[lane] = p.then(function(){}, function(){});
   return p.then(function(v){ apiBusy--; apiNote(fn, queuedAt, t0, true, null); return v; },
                 function(e){ apiBusy--; apiNote(fn, queuedAt, t0, false, e); throw e; });
 }
@@ -1173,6 +1186,7 @@ var S = {
   // hands back there, not to the clock), and whether a finger has picked
   // a tab this launch (the service crew lands on Close Out otherwise).
   coReturn:null, tabTouched:false,
+  codesLoading:null,   // T2.5: the job whose code list a tap is waiting on
   apiLog:[], errs:[], recent:[]
 };
 
@@ -1233,6 +1247,40 @@ function codeLabel(c){ return c ? ((c.number ? c.number + ' ' : '') + (c.name||'
 /* Lowercases the name but keeps the code number intact, for mid-sentence use:
    "04MA masonry labor". */
 function codeInline(c){ return c ? ((c.number ? c.number + ' ' : '') + String(c.name||'').toLowerCase()) : ''; }
+
+/* The code list, phone-side (T2.5). A clock-in used to wait on getJobCodes
+   every time — behind getExtras in the reads lane on a cold open, which is
+   the "Start, then nothing for twenty seconds" Carl hit. The list changes
+   when the office adds a budget line, not between taps, so the last answer
+   per job is kept on the phone for the shift: a tap gets it at once and the
+   API's answer replaces it behind. */
+var CODES_TTL_MS = 12 * 3600 * 1000, CODES_KEEP = 24;
+function codesCache(){ try { return JSON.parse(localStorage.getItem('dbtc_codes') || '{}') || {}; } catch(e){ return {}; } }
+function codesCached(jobId){ var e = codesCache()[jobId]; return (e && Date.now() - e.at < CODES_TTL_MS && Array.isArray(e.codes)) ? e.codes : null; }
+function codesRemember(jobId, codes){
+  if (!jobId || !Array.isArray(codes)) return;
+  var m = codesCache(); m[jobId] = { at: Date.now(), codes: codes };
+  Object.keys(m).sort(function(a, b){ return m[b].at - m[a].at; }).slice(CODES_KEEP).forEach(function(k){ delete m[k]; });
+  try { localStorage.setItem('dbtc_codes', JSON.stringify(m)); } catch(e){}
+}
+/* Resolves with the list: the phone's copy at once when it has one (the
+   API's answer still lands in S.codes behind it), else the API's — on its
+   own, ahead of every queued read. `quiet` is a prefetch: it rides the
+   reads lane and nobody is waiting. */
+function loadCodes(jobId, quiet){
+  var hit = codesCached(jobId);
+  if (!hit && !quiet) S.codesLoading = jobId;
+  var ask = apiCall('getJobCodes', [jobId], { lane: (hit || quiet) ? 'reads' : 'now' }).then(function(codes){
+    codes = codes || [];
+    codesRemember(jobId, codes);
+    var cur = S.pendingJob ? S.pendingJob.id : (S.job && S.job.id);
+    if (cur === jobId){ S.codes = codes; if (S.sheet === 'codes') openSheet('codes'); else render(); }
+    return codes;
+  }).then(function(c){ if (S.codesLoading === jobId) S.codesLoading = null; return c; },
+          function(e){ if (S.codesLoading === jobId) S.codesLoading = null; throw e; });
+  if (hit){ ask.catch(function(){}); return Promise.resolve(hit); }
+  return ask;
+}
 function sentenceCase(s){ s = String(s||''); return s.charAt(0).toUpperCase() + s.slice(1); }
 function openSeconds(){ return S.open ? Math.max(0, (Date.now() - new Date(S.open.startedAt).getTime())/1000) : 0; }
 
@@ -1908,8 +1956,11 @@ var extrasTries = 0;
 function loadExtras(){
   if (!S.me || S.extrasLoading) return Promise.resolve();
   S.extrasLoading = true;
-  return apiCall('getExtras', [(S.job && S.job.id) || null]).then(function(d){
-    S.codes = d.codes || [];
+  var forJob = (S.job && S.job.id) || null;
+  return apiCall('getExtras', [forJob]).then(function(d){
+    // The codes came for the job of the ask; a job picked meanwhile keeps its own.
+    if (!forJob || (S.job && S.job.id === forJob)) S.codes = d.codes || [];
+    if (forJob && d.codes && d.codes.length) codesRemember(forJob, d.codes);
     S.jobOptions = d.jobOptions || [];
     S.crew = d.crew || [];
     // JobTread's own daily-log fields: the questions on the Day log tab.
@@ -3067,7 +3118,7 @@ function openSheet(kind, promptKind){
 
 function codesHtml(){
   if (!S.codes.length) return '<div class="sheetpad"><div class="body">' +
-    (S.extrasLoading ? 'Loading this job&rsquo;s code list&hellip;'
+    ((S.extrasLoading || S.codesLoading) ? 'Loading this job&rsquo;s code list&hellip;'
       : 'No labor cost codes on this job. Ask the office to add a labor line to the budget.') +
     '</div></div>';
   var bySec = {};
@@ -3094,6 +3145,58 @@ function jobsHtml(){
       : 'Search for the job you are on.') + '</div>';
   html += '</div></div>';
   return html;
+}
+/* The job search (T2.5). Typing used to show nothing until the API answered —
+   long enough that a thumb hit Enter, the tick, the scrim, or tapped a row
+   that was about to move. Now every keystroke draws what the phone already
+   knows (recent jobs, the schedule, Close Out's queue, earlier answers) at
+   once, with a "Searching JobTread…" line while the API's answer is on its
+   way; that answer is merged in when it lands, and a late answer for an
+   older term is dropped. Enter picks the one row showing, else only puts
+   the keyboard away. */
+var SEARCH = { seq: 0, memo: {}, timer: null };
+function jobPool(){
+  var seen = {}, out = [];
+  var add = function(j){ if (j && j.id && !seen[j.id]){ seen[j.id] = 1; out.push(j); } };
+  S.jobOptions.forEach(add); S.candidates.forEach(add); assignedJobRows().forEach(add);
+  if (S.job) add(S.job);
+  (CO.jobs || []).forEach(function(j){ add(coClockJob(j)); });
+  Object.keys(SEARCH.memo).forEach(function(k){ SEARCH.memo[k].forEach(add); });
+  return out;
+}
+function jobMatches(term){
+  var words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return jobPool().filter(function(j){
+    var hay = [j.number, j.name, j.customer, j.address].join(' ').toLowerCase();
+    return words.every(function(w){ return hay.indexOf(w) !== -1; });
+  }).slice(0, 25);
+}
+/* settled: false while the API is still to answer, true when it has, 'failed' when it could not. */
+function jobSearchDraw(term, settled){
+  var box = $('jobResults'); if (!box || S.sheet !== 'jobs') return;
+  if (!term){ box.innerHTML = S.jobOptions.map(jobRowHtml).join('') || '<div class="body">Search for the job you are on.</div>'; wireSheet(); return; }
+  var local = jobMatches(term), server = SEARCH.memo[term] || null, seen = {}, rows = [];
+  (server || []).concat(local).forEach(function(j){ if (!seen[j.id]){ seen[j.id] = 1; rows.push(j); } });
+  var h = rows.map(jobRowHtml).join('');
+  if (!server && settled !== 'failed') h += '<div class="body" id="jobSearching" style="opacity:.75">' + (rows.length ? 'Searching JobTread for more…' : 'Searching JobTread…') + '</div>';
+  else if (!rows.length) h += '<div class="body">' + (settled === 'failed' ? 'Could not reach JobTread — nothing on this phone matches.' : 'No jobs match that.') + '</div>';
+  else if (settled === 'failed') h += '<div class="body" style="opacity:.75">JobTread did not answer — these are what this phone knows.</div>';
+  box.innerHTML = h;
+  wireSheet();
+}
+function jobSearchAsk(term){
+  if (SEARCH.memo[term]){ jobSearchDraw(term, true); return; }
+  var seq = ++SEARCH.seq;
+  apiCall('searchJobs', [term], { lane: 'now' }).then(function(list){
+    SEARCH.memo[term] = list || [];
+    S.candidates = list || [];
+    if (seq !== SEARCH.seq) return;   // an older term's answer
+    jobSearchDraw(term, true);
+  }).catch(function(e){
+    failed('searchJobs', e, true);
+    if (seq === SEARCH.seq) jobSearchDraw(term, 'failed');
+  });
 }
 function jobRowHtml(j){
   var on = S.job && S.job.id === j.id;
@@ -3128,18 +3231,18 @@ function wireSheet(){
   });
   var srch = $('jobSearch');
   if (srch){
-    var t = null;
     srch.oninput = function(){
-      clearTimeout(t);
+      clearTimeout(SEARCH.timer);
       var term = srch.value.trim();
-      t = setTimeout(function(){
-        if (!term){ $('jobResults').innerHTML = S.jobOptions.map(jobRowHtml).join(''); wireSheet(); return; }
-        apiCall('searchJobs', [term]).then(function(list){
-          S.candidates = list || [];
-          $('jobResults').innerHTML = S.candidates.length ? S.candidates.map(jobRowHtml).join('') : '<div class="body">No jobs match that.</div>';
-          wireSheet();
-        }).catch(function(e){ failed('searchJobs', e); });
-      }, 320);
+      jobSearchDraw(term, false);
+      if (!term) return;
+      SEARCH.timer = setTimeout(function(){ jobSearchAsk(term); }, 250);
+    };
+    srch.onkeydown = function(ev){
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      var rows = document.querySelectorAll('#jobResults .jobrow');
+      if (rows.length === 1) pickJob(rows[0].getAttribute('data-job')); else srch.blur();
     };
   }
   if ($('stopBreak')) $('stopBreak').onclick = function(){ closeSheet(); doBreak(); };
@@ -3156,7 +3259,7 @@ function wireSheet(){
    ========================================================= */
 function pickJob(jobId){
   var j = null;
-  S.jobOptions.concat(S.candidates).concat(assignedJobRows()).forEach(function(x){ if (x.id === jobId) j = x; });
+  jobPool().forEach(function(x){ if (x.id === jobId) j = x; });
   if (!j){ closeSheet(); render(); return; }
   pickJobObj(j, false);
 }
@@ -3179,12 +3282,12 @@ function pickJobObj(j, seeded){
   if (!seeded) S.jobPickedDay = isoLocal();
   savePrefs();
   render();
-  apiCall('getJobCodes', [j.id]).then(function(codes){ S.codes = codes || []; render(); })
+  loadCodes(j.id).then(function(codes){ S.codes = codes; render(); })
     .catch(function(e){ failed('getJobCodes', e); });
 }
 function cancelMove(){
   S.pendingJob = null; S.moving = false; S.switching = null;
-  if (S.job) apiCall('getJobCodes', [S.job.id]).then(function(codes){ S.codes = codes || []; render(); }).catch(function(){});
+  if (S.job) loadCodes(S.job.id).then(function(codes){ S.codes = codes; render(); }).catch(function(){});
   render();
 }
 /* Nothing on the clock and the board says where you are: one roof needs no
@@ -3219,7 +3322,40 @@ function pickCode(codeId){
   beginStart();
 }
 
-function busy(on){ document.body.style.pointerEvents = on ? 'none' : ''; }
+/* =========================================================
+   THE WAIT CURTAIN (T2.5, Carl 6 Oct 2026)
+   "If there is a pause the screen should grey out so the user knows it
+   is still working, and they are disabled from clicking anything else
+   until it resolves or errors out." busy(true, 'Clocking in…') puts it
+   up at once; busy(false) takes it down. Nested callers share it: it
+   stays until the last one is done. After two seconds it counts the wait
+   aloud, so a slow API reads as slow rather than dead. It never outlives
+   a call: every caller takes it down in the same then/catch that ends
+   the work, and the API's own 25-second ceiling errors a dead call out
+   from underneath it.
+   ========================================================= */
+var WAIT = { n: 0, t0: 0, timer: null };
+function busy(on, label){
+  var el = $('wait');
+  if (on){
+    if (!WAIT.n){ WAIT.t0 = Date.now(); if (el){ $('waitS').textContent = ''; el.classList.add('on'); } WAIT.timer = setInterval(waitTick, 500); }
+    WAIT.n++;
+    if (el && (label || WAIT.n === 1)) $('waitT').textContent = label || 'Working…';
+  } else {
+    WAIT.n = Math.max(0, WAIT.n - 1);
+    if (!WAIT.n){ if (el) el.classList.remove('on'); clearInterval(WAIT.timer); WAIT.timer = null; }
+  }
+  document.body.style.pointerEvents = WAIT.n ? 'none' : '';
+}
+function waitTick(){
+  var s = Math.round((Date.now() - WAIT.t0) / 1000), el = $('waitS');
+  if (el) el.textContent = s >= 2 ? 'Still working · ' + s + 's' : '';
+}
+/* The curtain for the life of one promise. */
+function waitFor(p, label){
+  busy(true, label);
+  return p.then(function(v){ busy(false); return v; }, function(e){ busy(false); throw e; });
+}
 
 /* The camera, locked. The shutter is what commits (see captured). */
 function beginStart(){
@@ -3262,7 +3398,7 @@ function clockFlowDone(){
 function commitStart(item, rec){
   var code = S.gateCode, sw = S.switching, target = S.pendingJob || S.job, prev = S.job;
   if (!code || !target){ S.clockGate = null; clockFlowDone(); return; }
-  busy(true);
+  busy(true, sw ? 'Switching…' : 'Clocking in…');
   withCoords(function(coords){
     var call = sw ? apiCall('switchCode', [target.id, code.id, coords, sw.endPhotoId, rec.id])
                   : apiCall('clockIn', [target.id, code.id, coords, rec.id]);
@@ -3305,7 +3441,7 @@ function commitOut(item, rec){
   S.photos.push(rec);
   savePrefs();
   enqueueUpload(item);
-  busy(true);
+  busy(true, 'Clocking out…');
   withCoords(function(coords){
     apiCall('clockOut', [coords, rec.id]).then(function(r){
       S.open = null; S.clockGate = null; S.onBreak = null;
@@ -3342,9 +3478,9 @@ function afterEndShot(item, rec){
   setTab(S.coReturn ? 'co' : 'job');
   if (S.pendingJob){
     var j = S.pendingJob;
-    apiCall('getJobCodes', [j.id]).then(function(codes){
+    waitFor(loadCodes(j.id), 'Getting the codes at ' + (j.customer || streetOf(j.address) || 'the next job') + '…').then(function(codes){
       if (!S.pendingJob || S.pendingJob.id !== j.id) return;
-      S.codes = codes || [];
+      S.codes = codes;
       openSheet('codes');
     }).catch(function(e){ cancelMove(); failed('getJobCodes', e); render(); });
     return;
@@ -3358,7 +3494,7 @@ function afterEndShot(item, rec){
 function doBreak(){
   var open = S.open;
   if (!open) return;
-  busy(true);
+  busy(true, 'Starting your break…');
   withCoords(function(coords){
     apiCall('startBreak', [coords]).then(function(r){
       S.onBreak = { jobId: S.job ? S.job.id : (open.job && open.job.id), code: open.code, at: Date.now(), sec: openSeconds(), date: isoLocal() };
@@ -3373,7 +3509,7 @@ function doBreak(){
 function doBackToWork(){
   var b = S.onBreak;
   if (!b || !b.code) return;
-  busy(true);
+  busy(true, 'Back on the clock…');
   withCoords(function(coords){
     apiCall('endBreak', [b.jobId, b.code.id, coords]).then(function(open){
       S.open = open; S.onBreak = null;
@@ -4946,6 +5082,7 @@ function coLoadQueue(force){
     if (r.status === 200 && Array.isArray(r.body)){
       CO.jobs = r.body; CO.jobsAt = Date.now(); CO.jobsSource = 'live';
       try { localStorage.setItem(CO_QUEUE_KEY, JSON.stringify({ at: CO.jobsAt, jobs: CO.jobs })); } catch(e){}
+      coPrefetchCodes();
     } else {
       CO.reason = r.reason || ('http-' + r.status);
       CO.err = (r.body && r.body.error) || '';
@@ -4987,8 +5124,16 @@ function coRestoreJob(jobId){
   if (CO.job && CO.job.id === jobId) return;
   try { var j = JSON.parse(localStorage.getItem('dbtc_co_job_' + jobId) || 'null'); if (j && j.id === jobId) CO.job = j; } catch(e){}
 }
+/* The codes of the inspections that are theirs, fetched behind the queue
+   (T2.5) so Start finds them on the phone. A handful of jobs; the reads lane. */
+function coPrefetchCodes(){
+  if (!canTab('job')) return;
+  (CO.jobs || []).filter(function(j){ return j.mine && coKindOf(j) === 'inspect' && !codesCached(j.id); }).slice(0, 6)
+    .forEach(function(j){ loadCodes(j.id, true).catch(function(){}); });
+}
 function coOpenJob(jobId){
   CO.jobId = jobId; CO.job = null; CO.screen = 'job'; CO.receipt = null;
+  if (!codesCached(jobId)) loadCodes(jobId, true).catch(function(){});
   coRestoreJob(jobId);
   coLoadJob(jobId);
   coGo('job');
@@ -5015,15 +5160,16 @@ function coStartJob(jobId){
   S.job = job; S.dlJobId = job.id; S.jobPickedDay = isoLocal();
   S.codes = []; S.pendingJob = null; S.moving = false;
   savePrefs();
-  toast(co('clockingIn'));
-  apiCall('getJobCodes', [job.id]).then(function(codes){
-    S.codes = codes || [];
+  // The curtain is up from the tap until the code question or the camera is
+  // on screen — nothing else takes a finger meanwhile (T2.5).
+  waitFor(loadCodes(job.id), co('clockingIn')).then(function(codes){
+    S.codes = codes;
     render();
     if (S.coReturn !== jobId) return;   // a tab was tapped meanwhile
     var c = coPreferredCode(S.codes);
     if (c){ S.gateCode = c; beginStart(); }
     else openSheet('codes');
-  }).catch(function(e){ failed('getJobCodes', e); if (S.coReturn === jobId) openSheet('codes'); });
+  }).catch(function(e){ S.coReturn = null; failed('getJobCodes', e); });
 }
 /* One code needs no asking: the only one on the job, or the only one that
    reads like inspection, service or punch work. Anything else is the sheet,
@@ -5728,7 +5874,12 @@ $('coStamp').onclick = function(){ coLoadQueue(true); };
 $('coFile').onchange = function(){ var f = this.files && this.files[0]; coPhotoTaken(f); };
 $('peopleStamp').onclick = function(){ peopleLoad(true); };
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
-$('clockIn').onclick = function(){ if (S.job) openSheet('codes'); };
+$('clockIn').onclick = function(){
+  if (!S.job) return;
+  openSheet('codes');
+  // An empty list is asked for on its own, ahead of the extras it used to wait on.
+  if (!S.codes.length) loadCodes(S.job.id).then(function(c){ S.codes = c; if (S.sheet === 'codes') openSheet('codes'); }).catch(function(){});
+};
 // A progress shot: the camera, unlocked, During, tagged to the running code,
 // and back to the clock after the shot.
 $('photoBtn').onclick = function(){ S.capture = 'during'; S.returnToClock = true; setTab('cam'); };

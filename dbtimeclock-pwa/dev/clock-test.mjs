@@ -214,6 +214,36 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await ctx.close();
 }
 
+// ---- T2.5: the wait curtain, the search that draws at once, the codes kept on the phone ----
+{
+  const { ctx, page, errs } = await boot();
+  // The curtain: up at once, counted, down when the work ends; nested callers share it.
+  check('busy(true) puts the curtain up and blocks taps', await page.evaluate(() => { busy(true, 'Clocking in…'); return [document.getElementById('wait').classList.contains('on'), document.getElementById('waitT').textContent, document.body.style.pointerEvents]; }), [true, 'Clocking in…', 'none']);
+  await page.waitForTimeout(2300);
+  check('…after two seconds it counts the wait aloud', /^Still working · \d+s$/.test(await page.evaluate(() => document.getElementById('waitS').textContent)), true);
+  check('…a second caller keeps it up; the last one takes it down', await page.evaluate(() => { busy(true); busy(false); const mid = document.getElementById('wait').classList.contains('on'); busy(false); return [mid, document.getElementById('wait').classList.contains('on'), document.body.style.pointerEvents]; }), [true, false, '']);
+
+  // The search: what the phone knows draws before JobTread answers.
+  await page.evaluate(() => { const real = window.apiCall; window.apiCall = (fn, args, co) => fn === 'searchJobs' ? new Promise((res) => setTimeout(() => res(real(fn, args, co)), 1500)) : real(fn, args, co); });
+  await tap(page, '#pickJobBtn', 400);
+  await page.locator('#jobSearch').fill('lucas');
+  await page.waitForTimeout(120);
+  check('typing draws the local match at once, and says JobTread is still being asked', await page.evaluate(() => [[...document.querySelectorAll('#jobResults .jobrow')].map((r) => r.getAttribute('data-job')), !!document.getElementById('jobSearching')]), [['j2'], true]);
+  await page.waitForTimeout(2200);
+  check('…JobTread\'s answer is merged in when it lands', await page.evaluate(() => [[...document.querySelectorAll('#jobResults .jobrow')].map((r) => r.getAttribute('data-job')), !!document.getElementById('jobSearching')]), [['j_2841', 'j2'], false]);
+  await page.locator('#jobSearch').fill('26-1045');
+  await page.waitForTimeout(120);
+  check('a number finds the job on the phone before the API answers', await page.evaluate(() => [...document.querySelectorAll('#jobResults .jobrow')].map((r) => r.getAttribute('data-job'))), ['j2']);
+  await page.locator('#jobSearch').press('Enter');
+  await page.waitForTimeout(400);
+  check('Enter picks the one row showing', await page.evaluate(() => [S.sheet, S.job && S.job.id]), [null, 'j2']);
+  // The codes for the picked job are kept on the phone for the shift.
+  await until(page, () => !!codesCached('j2'));
+  check('the code list is kept on the phone (the boot job\'s too, from the extras)', await page.evaluate(() => [codesCached('j2').length, Object.keys(codesCache()).sort()]), [10, ['j2', 'j_2841']]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 await browser.close();
 let failed = 0;
 for (const r of results) {
