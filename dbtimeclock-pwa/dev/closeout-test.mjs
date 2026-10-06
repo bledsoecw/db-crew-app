@@ -211,6 +211,70 @@ const allErrs = [];
   await ctx.close();
 }
 
+// ---- T2.4: a service phone lands on Close Out; Start clocks in; the send offers the clock ----
+{
+  const settle = async (page) => { await page.waitForFunction(() => S.clockGate == null && document.body.style.pointerEvents === '', null, { timeout: 10000 }); await page.waitForTimeout(300); };
+  const until = async (page, fn) => { await page.waitForFunction(fn, null, { timeout: 10000 }); await page.waitForTimeout(200); };
+  // The shutter, as captured() sees it.
+  const shoot = (page) => page.evaluate(() => new Promise((res) => {
+    const c = document.createElement('canvas'); c.width = 8; c.height = 8;
+    c.getContext('2d').fillRect(0, 0, 8, 8);
+    c.toBlob((b) => { captured(b, 'image/jpeg'); res(true); }, 'image/jpeg');
+  }));
+  const clockCalls = (page) => page.evaluate(() => (window.__CLOCK || []).map((c) => c.slice(0, 3)));
+
+  { const { ctx, page, errs } = await boot({ role: 'crew' });
+    check('a crew phone still opens on the clock', await page.evaluate(() => S.tab), 'job');
+    allErrs.push(...errs); await ctx.close(); }
+
+  const { ctx, page, errs } = await boot({ role: 'service' });
+  check('a service phone opens on Close Out', await page.evaluate(() => [S.tab, CO.screen, S.tabTouched]), ['co', 'queue', false]);
+
+  // Off the clock: Start opens the job and asks for the code (nothing on this
+  // job's list reads like inspection work, so it is the sheet).
+  await tap(page, '[data-costart="co-hartman"]', 900);
+  check('Start opens the job and asks the code question', await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.sheet, S.job && S.job.id, S.coReturn]), ['co', 'job', 'co-hartman', 'codes', 'co-hartman', 'co-hartman']);
+  await tap(page, '[data-code="ci2"]', 500);
+  check('the code picked, the camera is locked to the start photo', await page.evaluate(() => [S.tab, S.clockGate, S.gateCode && S.gateCode.id]), ['cam', 'start', 'ci2']);
+  await shoot(page); await settle(page);
+  check('the shutter clocks in on that job and hands back to its Close Out screen', [await clockCalls(page), await page.evaluate(() => [S.tab, CO.screen, CO.jobId, !!S.open, S.coReturn])], [[['clockIn', 'co-hartman', 'ci2']], ['co', 'job', 'co-hartman', true, null]]);
+
+  // Start again on the same job: already on the clock here, nothing opens.
+  await page.evaluate(() => { CO.screen = 'queue'; CO.jobId = null; CO.job = null; coRender(); });
+  await tap(page, '[data-costart="co-hartman"]', 600);
+  check('Start while on the clock here: the job opens, no second entry, no sheet', [await clockCalls(page), await page.evaluate(() => [CO.screen, CO.jobId, S.sheet, S.coReturn])], [[['clockIn', 'co-hartman', 'ci2']], ['job', 'co-hartman', null, null]]);
+
+  // The send, with the clock running: the row that offers the Stop sheet.
+  await page.evaluate(() => { const v = coVisit('co-hartman'); CO_INSPECT.forEach((i) => { v.answers.inspection[i.key] = 'OK'; }); CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = 'OK'; }); coPersist(); coGo('send'); });
+  await page.waitForTimeout(300);
+  check('before the send: the button, no clock row', await page.evaluate(() => [!!document.getElementById('coSend'), !!document.querySelector('[data-coclock]')]), [true, false]);
+  await tap(page, '#coSend', 2500);
+  check('after the send: the clock row names the running code', await page.evaluate(() => { const b = document.querySelector('[data-coclock]'); return [!!b, !!b && b.querySelector('.es').textContent.indexOf('01GR Crew Labor') !== -1, !!CO.receipt]; }), [true, true, true]);
+  await tap(page, '[data-coclock]', 400);
+  check('…and it is the Stop sheet: break, switch code or job, clock out', await page.evaluate(() => [S.sheet, document.getElementById('sheetTitle').textContent, !!document.getElementById('stopBreak'), !!document.getElementById('stopSwitch'), !!document.getElementById('stopOut')]), ['stop', 'Stop the clock', true, true, true]);
+  await page.evaluate(() => closeSheet());
+
+  // On the clock here, Start on ANOTHER inspection: the move, as the Clock
+  // tab does it — end photo, the next job's code over its Close Out screen,
+  // start photo — and back to that job.
+  await page.evaluate(() => { CO.screen = 'queue'; CO.jobId = null; CO.job = null; CO.filter = 'all'; coRender(); });
+  await tap(page, '[data-costart="co-reyes"]', 900);
+  check('Start elsewhere while on the clock: the end photo first', await page.evaluate(() => [S.tab, S.clockGate, S.moving, S.pendingJob && S.pendingJob.id, S.coReturn, CO.jobId]), ['cam', 'end-switch', true, 'co-reyes', 'co-reyes', 'co-reyes']);
+  await shoot(page); await until(page, () => S.sheet === 'codes');
+  check('…then the next job\'s code sheet, over its Close Out screen', await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.sheet, !!S.switching]), ['co', 'job', 'co-reyes', 'codes', true]);
+  await tap(page, '[data-code="ci4"]', 500);
+  check('…the start photo', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'start']);
+  await shoot(page); await settle(page);
+  check('…one switch call, and the clock and Close Out both on the new job', [await clockCalls(page), await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.job && S.job.id, S.open && S.open.code && S.open.code.id, S.coReturn, S.moving, S.pendingJob])], [[['clockIn', 'co-hartman', 'ci2'], ['switchCode', 'co-reyes', 'ci4']], ['co', 'job', 'co-reyes', 'co-reyes', 'ci4', null, false, null]]);
+
+  // A tab tapped by hand clears the hand-back, so a later clock-in from the
+  // Clock tab lands on the clock as it always did.
+  await tap(page, '.tab[data-tab="job"]', 400);
+  check('a tab tap is remembered and clears the hand-back', await page.evaluate(() => [S.tab, S.tabTouched, S.coReturn]), ['job', true, null]);
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
 await browser.close();
 const failed = results.filter((r) => !r.pass);
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.pass ? '' : `\n      got ${JSON.stringify(r.actual)}\n     want ${JSON.stringify(r.expected)}`));

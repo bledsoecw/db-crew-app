@@ -933,7 +933,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.3 (2026-10-05)';
+var APP_BUILD = 'T2.4 (2026-10-06)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1169,6 +1169,10 @@ var S = {
   pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
   viewAs:'', langSet:false,
+  // T2.4: the Close Out job a clock flow was started from (the camera
+  // hands back there, not to the clock), and whether a finger has picked
+  // a tab this launch (the service crew lands on Close Out otherwise).
+  coReturn:null, tabTouched:false,
   apiLog:[], errs:[], recent:[]
 };
 
@@ -3235,13 +3239,20 @@ function camBack(){
   S.clockGate = null;
   if (gate === 'start'){
     S.gateCode = null;
-    setTab('job');
+    setTab(S.coReturn ? 'co' : 'job');
     if (S.switching && S.pendingJob) openSheet('codes');
     else if (S.switching) openSheet('codes');
     else openSheet('codes');
     return;
   }
   if (S.moving && S.pendingJob) cancelMove();
+  clockFlowDone();
+}
+/* Where a clock flow lands when it is over: the Close Out job it was
+   started from (T2.4), else the clock. */
+function clockFlowDone(){
+  var back = S.coReturn; S.coReturn = null;
+  if (back && canTab('co')){ setTab('co'); coOpenJob(back); return; }
   setTab('job');
 }
 
@@ -3250,7 +3261,7 @@ function camBack(){
    queued only once the entry exists, stamped with its id. */
 function commitStart(item, rec){
   var code = S.gateCode, sw = S.switching, target = S.pendingJob || S.job, prev = S.job;
-  if (!code || !target){ S.clockGate = null; setTab('job'); return; }
+  if (!code || !target){ S.clockGate = null; clockFlowDone(); return; }
   busy(true);
   withCoords(function(coords){
     var call = sw ? apiCall('switchCode', [target.id, code.id, coords, sw.endPhotoId, rec.id])
@@ -3281,7 +3292,7 @@ function commitStart(item, rec){
       S.clockGate = null; S.gateCode = null;
       if (S.pendingJob) cancelMove();
       showErr(e);
-    }).then(function(){ busy(false); setTab('job'); });
+    }).then(function(){ busy(false); clockFlowDone(); });
   });
 }
 /* The end photo closes the entry: the clock-out. The photo is queued at
@@ -3326,7 +3337,9 @@ function afterEndShot(item, rec){
   S.clockGate = null;
   savePrefs();
   enqueueUpload(item);
-  setTab('job');
+  // Mid-move from a Close Out Start (T2.4): the code sheet opens over that
+  // job's screen, not over the clock.
+  setTab(S.coReturn ? 'co' : 'job');
   if (S.pendingJob){
     var j = S.pendingJob;
     apiCall('getJobCodes', [j.id]).then(function(codes){
@@ -4645,6 +4658,7 @@ function start(){
   // list, the job picker and the crew block follow in loadExtras().
   bootStart(lastJob, 0).then(function(){
     S.booted = true;
+    landHome();            // the service crew opens on Close Out (T2.4)
     seedTodayJob();        // from the schedule already on the phone, if any
     render();
     pump();
@@ -4690,6 +4704,7 @@ function bootStart(lastJob, attempt){
     if (attempt > 0){
       // The late start: what the first attempt would have set in motion.
       S.booted = true;
+      landHome();
       seedTodayJob();
       render();
       loadExtras();
@@ -4736,6 +4751,14 @@ function isOpsAccount(){ return !!(S.me && S.me.ops); }
 /* The role in force on this phone: a borrowed one, for Operations only. */
 function effRole(){ return (isOpsAccount() && S.viewAs && TABS_BY_ROLE[S.viewAs] && S.viewAs !== 'ops') ? S.viewAs : appRole(); }
 function roleTabs(){ return TABS_BY_ROLE[effRole()] || TABS_BY_ROLE.crew; }
+/* The first screen of a launch, once the API has said who this is (T2.4,
+   Carl 6 Oct 2026): the service crew's work is Close Out, so that is where
+   they land. A tab tapped before the answer came, or a push deep link
+   (handleShootParam runs after this), is left alone. */
+function landHome(){
+  if (S.tabTouched || S.tab !== 'job') return;
+  if (effRole() === 'service' && canTab('co')) setTab('co');
+}
 function canTab(t){ return roleTabs().indexOf(t) !== -1; }
 function roleWord(r){ return ROLE_WORDS[r] || 'Crew'; }
 function roleWords(){
@@ -4849,6 +4872,7 @@ var CO_L10N = {
         repairDone:'Reparación terminada', noteOpt:'Nota (opcional)', soldScope:'Trabajo vendido', soldScopeSub:'lo que se vendió, en pocas palabras', loading:'Cargando…',
         lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
         notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
+        onClockHere:'Ya estás en el reloj en este trabajo', onClock:'En el reloj', onClockSub:'cambiar de código o trabajo · salir', clockingIn:'Marcando entrada…',
         checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
   en: { tab:'Close Out', mine:'Assigned', all:'All', jobsToday:'today', queueNote:'Only jobs ready to inspect, or with repairs for you, show here.',
         queueNote2:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.', inspection:'Inspection', cleanup:'Cleanup', problems:'Problems', repairs:'Repairs',
@@ -4870,6 +4894,7 @@ var CO_L10N = {
         repairDone:'Repair finished', noteOpt:'Note (optional)', soldScope:'Sold scope', soldScopeSub:'what was sold, in a few words', loading:'Loading…',
         lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
         notYours:'Close Out is for the service crew.', noJobs:'Nothing ready to inspect today.', noInspector:'The board doesn’t send you inspections yet — ask the office (Operations → Divisions & PMs).',
+        onClockHere:'Already on the clock at this job', onClock:'On the clock', onClockSub:'switch code or job · clock out', clockingIn:'Clocking in…',
         checkingJt:'Asking JobTread…', problemsHint:'Report a problem with a photo. Something you fixed on the spot counts too.', newReport:'Report another problem', photosHint:'Photos of the job’s condition. They go up with the send.' }
 };
 function co(k){ return (CO_L10N[S.lang] || CO_L10N.en)[k] || CO_L10N.en[k] || k; }
@@ -4967,6 +4992,55 @@ function coOpenJob(jobId){
   coRestoreJob(jobId);
   coLoadJob(jobId);
   coGo('job');
+}
+/* Start / Continue on a queue card (T2.4, Carl 6 Oct 2026): the job opens
+   AND the clock goes to it. The service crew's hours used to be a second
+   chore on the Clock tab; now the inspection they are starting is where
+   their time lands. Already on the clock here: nothing more to do. On the
+   clock somewhere else: the move, exactly as the Clock tab does it (end
+   photo there, this job's code, start photo here). Off the clock: this
+   job's codes, then the start photo. Either way the camera hands back to
+   this job's Close Out screen (clockFlowDone), and a refused clock-in — a
+   read-only build, no signal, no labor code on the job — leaves the
+   inspection open all the same: the checks never wait on the clock. */
+function coClockJob(j){ return { id: j.id, name: j.name, number: j.number, customer: coCustomer(j), address: j.address }; }
+function coStartJob(jobId){
+  var j = coJobById(jobId);
+  coOpenJob(jobId);
+  if (!j) return;
+  if (S.open && S.job && S.job.id === jobId){ toast(co('onClockHere')); return; }
+  S.coReturn = jobId;
+  var job = coClockJob(j);
+  if (S.open){ pickJobObj(job, false); return; }
+  S.job = job; S.dlJobId = job.id; S.jobPickedDay = isoLocal();
+  S.codes = []; S.pendingJob = null; S.moving = false;
+  savePrefs();
+  toast(co('clockingIn'));
+  apiCall('getJobCodes', [job.id]).then(function(codes){
+    S.codes = codes || [];
+    render();
+    if (S.coReturn !== jobId) return;   // a tab was tapped meanwhile
+    var c = coPreferredCode(S.codes);
+    if (c){ S.gateCode = c; beginStart(); }
+    else openSheet('codes');
+  }).catch(function(e){ failed('getJobCodes', e); if (S.coReturn === jobId) openSheet('codes'); });
+}
+/* One code needs no asking: the only one on the job, or the only one that
+   reads like inspection, service or punch work. Anything else is the sheet,
+   the same question the Clock tab asks. */
+function coPreferredCode(codes){
+  if (codes.length === 1) return codes[0];
+  var m = codes.filter(function(c){ return /inspect|service|punch|warrant|close.?out/i.test((c.name || '') + ' ' + (c.codeName || '')); });
+  return m.length === 1 ? m[0] : null;
+}
+/* After the send (T2.4): the clock is still running on this job and the
+   next thing is somewhere else. One row offers what the Clock tab's Stop
+   sheet offers — a break, another code or job, out for the day. */
+function coClockCardHtml(){
+  if (!S.open) return '';
+  var where = S.job ? (S.job.customer || streetOf(S.job.address) || S.job.number || '') : '';
+  return '<div class="jcard"><button class="jtile" data-coclock="1"><span class="bi"><span class="es">' + esc(co('onClock') + ' · ' + codeLabel(S.open.code)) + (where ? ' · ' + esc(where) : '') + '</span><span class="en">' + esc(co('onClockSub')) + '</span></span>' +
+         '<span class="cnt tabular">' + esc(hmClock(openSeconds())) + '</span>' + CK_CHEV + '</button></div>';
 }
 function coGo(screen){
   CO.screen = screen;
@@ -5212,7 +5286,8 @@ function coQueueCard(j){
     var act;
     if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + (j.openPunchCount || '') + ' ' + esc(co('repairs').toLowerCase()) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
     else { var done = v ? coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup') : 0;
-      act = '<button class="jact ok" data-cojob="' + esc(j.id) + '"><span class="a1">' + esc(done ? co('cont') : co('start')) + '</span><span class="a2">' + esc(done ? co2('cont') : co2('start')) + ' · ' + done + ' ' + esc(co('of')) + ' ' + (CO_INSPECT.length + CO_CLEAN.length) + '</span></button>'; }
+      // Start / Continue also puts the clock on this job (coStartJob, T2.4).
+      act = '<button class="jact ok" data-costart="' + esc(j.id) + '"><span class="a1">' + esc(done ? co('cont') : co('start')) + '</span><span class="a2">' + esc(done ? co2('cont') : co2('start')) + ' · ' + done + ' ' + esc(co('of')) + ' ' + (CO_INSPECT.length + CO_CLEAN.length) + '</span></button>'; }
     h += '<div class="jrow">' + navCellHtml(j.address).replace('Directions', esc(co('directions'))) + act + '</div>';
   }
   return h + '</div>';
@@ -5376,6 +5451,7 @@ function coSendHtml(){
     // A refused item beside a landed close is still the crew's to see:
     // the close went, the report it was about did not.
     if (items.length) h += coOutboxHtml();
+    h += coClockCardHtml();
     h += '<button class="btn btn-nav" id="coBackQueue" style="margin-top:18px">' + esc(co('tab')) + ' ›</button>';
     return h;
   }
@@ -5383,6 +5459,7 @@ function coSendHtml(){
     var bad = items.filter(function(it){ return it.status === 'rejected'; });
     h += '<div class="hero' + (bad.length ? ' warn' : '') + '" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(bad.length ? co('rejected') : co('sending')) + '</span><span class="st">' + items.length + ' ' + esc(co('queued').toLowerCase()) + '</span><span class="ss">' + esc(co('offline')) + '</span></div>';
     h += coOutboxHtml();
+    h += coClockCardHtml();
     return h;
   }
   h += '<div class="hero" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('allDone')) + '</span><span class="st">' + esc(co('checkSend')) + '</span><span class="ss">' + esc(co('checkSendSub')) + '</span></div>';
@@ -5505,6 +5582,8 @@ function coWire(){
   var body = $('coBody');
   var on = function(sel, fn){ [].forEach.call(body.querySelectorAll(sel), function(b){ b.onclick = function(ev){ fn(b, ev); }; }); };
   on('[data-cojob]', function(b){ coOpenJob(b.getAttribute('data-cojob')); });
+  on('[data-costart]', function(b){ coStartJob(b.getAttribute('data-costart')); });
+  on('[data-coclock]', function(){ if (S.open) openSheet('stop'); });
   on('[data-coscreen]', function(b){ var s = b.getAttribute('data-coscreen'); if (s === 'repairs' && CO.job && S.lang === 'es') coTranslateTasks(CO.job); coGo(s); });
   on('[data-coscope]', function(){ var j = CO.job || coJobById(CO.jobId); if (j) coScopeToggle(j); });
   on('[data-cooutbox]', function(){ coGo('outbox'); });
@@ -5663,6 +5742,9 @@ $('ckBack').onclick = function(){ setTab('jobs'); };
 // chosen) puts the current job's codes back; the clock keeps running.
 function backOutOfSheet(){
   if (S.sheet === 'codes' && (S.moving || S.switching)) cancelMove();
+  // Backing out of the code question ends a Close Out Start too (T2.4):
+  // the next clock-in, from wherever, lands where it always did.
+  if (S.sheet === 'codes') S.coReturn = null;
   closeSheet(); render();
 }
 $('sheetClose').onclick = backOutOfSheet;
@@ -5732,7 +5814,7 @@ $('pushBtn').onclick = function(){
 $('updateBtn').onclick = forceUpdate;
 $('signOutBtn').onclick = signOut;
 [].forEach.call(document.querySelectorAll('.tab'), function(b){
-  b.onclick = function(){ setTab(b.getAttribute('data-tab')); };
+  b.onclick = function(){ S.tabTouched = true; S.coReturn = null; setTab(b.getAttribute('data-tab')); };
 });
 [].forEach.call(document.querySelectorAll('.tagbtn'), function(b){
   b.onclick = function(){ if (S.clockGate) return; S.capture = b.getAttribute('data-tag'); renderCam(); };

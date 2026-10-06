@@ -115,6 +115,21 @@ or a close-out item is still waiting to send: those queues belong to the
 person signed in and would go with them. Hours already on the clock live in
 JobTread and are untouched. `dev/signout-test.mjs` walks it.
 
+**The service crew's day** (T2.4, Carl 6 Oct 2026). A Service phone opens on
+Close Out, not the clock — that tab is their work, and the clock follows it.
+**Start** (or Continue) on a queue card puts the clock on that job as well as
+opening it: off the clock, the job's labor code is picked (the only one on
+the job, or the only one that reads like inspection, service or punch work;
+otherwise the same code sheet the Clock tab asks with) and the start photo
+opens the entry; on the clock elsewhere, it is the Clock tab's move — end
+photo there, code and start photo here. The camera hands back to that job's
+Close Out screen, never to the clock, and a refused clock-in (a read-only
+build, no labor code on the job, no signal) leaves the inspection open all
+the same: the checks never wait on the clock. After **Finish & send**, while
+the clock is still running, one row on the send and receipt screens offers
+the Stop sheet's choices — a break, another code or job, out for the day.
+`dev/closeout-test.mjs` walks it.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

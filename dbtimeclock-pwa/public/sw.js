@@ -2,7 +2,7 @@
    Navigation: network-first (a fresh build wins), cache fallback so the app
    still opens with no signal. Same-origin assets: cache-first. Cross-origin
    (the Apps Script API, JobTread's CDN, FCM): never touched. */
-var CACHE = 'dbtc-t2-3';
+var CACHE = 'dbtc-t2-4';
 var SHELL = ['./', './index.html', './config.js', './manifest.json',
              './app-icon-180.png', './app-icon-192.png', './app-icon-512.png', './app-icon-maskable.png',
              './fonts/archivo-700.woff2', './fonts/archivo-800.woff2',
