@@ -214,6 +214,11 @@ button[disabled]{cursor:default}
 .coderow .cmeta{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--lab);flex:none}
 .coderow.on .cmeta{color:var(--acc)}
 .sheetpad{padding:18px 20px 0;display:flex;flex-direction:column;gap:16px}
+/* The job search box stays put (T2.6): pinned to the top of the sheet while
+   the results scroll underneath it, and the sheet keeps one height while it
+   is open so the box never jumps as results come and go. */
+#sheet.tall{height:86%}
+.sheetstick{position:sticky;top:0;z-index:2;background:var(--bg);padding:18px 20px 12px;flex:none}
 .promptbox{display:flex;align-items:center;gap:13px;padding:16px 15px;border-radius:6px;border:2px solid rgba(126,240,138,.5)}
 .promptbox.warn{border-color:var(--warn)}
 [data-theme="day"] .promptbox{border-color:#1e7a2f}
@@ -943,7 +948,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.5 (2026-10-06)';
+var APP_BUILD = 'T2.6 (2026-10-06)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -3106,6 +3111,7 @@ function openSheet(kind, promptKind){
             : kind==='unsign' ? 'Unsign'
             : '';
   $('sheetTitle').textContent = title;
+  $('sheet').classList.toggle('tall', kind === 'jobs');
   $('sheetBody').innerHTML = kind==='codes' ? codesHtml()
                             : kind==='jobs' ? jobsHtml()
                             : kind==='stop' ? stopHtml()
@@ -3138,8 +3144,8 @@ function codesHtml(){
 }
 
 function jobsHtml(){
-  var html = '<div class="sheetpad"><input id="jobSearch" placeholder="Search jobs by name, number or customer" autocomplete="off">';
-  html += '<div id="jobResults" style="display:flex;flex-direction:column;gap:12px">';
+  var html = '<div class="sheetstick"><input id="jobSearch" placeholder="Search jobs by name, number or customer" autocomplete="off"></div>';
+  html += '<div class="sheetpad" style="padding-top:0"><div id="jobResults" style="display:flex;flex-direction:column;gap:12px">';
   html += S.jobOptions.map(jobRowHtml).join('') ||
     '<div class="body">' + (S.extrasLoading ? 'Loading your recent jobs&hellip;'
       : 'Search for the job you are on.') + '</div>';

@@ -147,6 +147,9 @@ opens. **The search draws at once**: every keystroke shows what the phone
 already knows (recent jobs, the schedule, Close Out's queue, earlier answers)
 with a "Searching JobTread…" line until the API's answer is merged in; a late
 answer for an older term is dropped, and Enter picks the one row showing.
+The box itself stays put (T2.6): pinned to the top of the sheet while the
+results scroll under it, and the sheet holds one height while it is open, so
+typing never pushes the box off the screen.
 Underneath, a read a finger is waiting on (`lane: 'now'`) goes out at once
 instead of queueing behind a cold open's extras — that queue was most of the
 "Start, then nothing for twenty seconds". `dev/clock-test.mjs` and

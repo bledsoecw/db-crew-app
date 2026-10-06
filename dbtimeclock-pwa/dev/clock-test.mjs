@@ -231,6 +231,8 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   check('typing draws the local match at once, and says JobTread is still being asked', await page.evaluate(() => [[...document.querySelectorAll('#jobResults .jobrow')].map((r) => r.getAttribute('data-job')), !!document.getElementById('jobSearching')]), [['j2'], true]);
   await page.waitForTimeout(2200);
   check('…JobTread\'s answer is merged in when it lands', await page.evaluate(() => [[...document.querySelectorAll('#jobResults .jobrow')].map((r) => r.getAttribute('data-job')), !!document.getElementById('jobSearching')]), [['j_2841', 'j2'], false]);
+  // The box stays put while the list underneath it scrolls (T2.6).
+  check('the search box is pinned to the top of the sheet', await page.evaluate(() => { const b = document.getElementById('sheetBody'); b.scrollTop = 9999; const r = document.getElementById('jobSearch').getBoundingClientRect(), s = b.getBoundingClientRect(); return [document.getElementById('sheet').classList.contains('tall'), r.top >= s.top, r.bottom <= s.bottom]; }), [true, true, true]);
   await page.locator('#jobSearch').fill('26-1045');
   await page.waitForTimeout(120);
   check('a number finds the job on the phone before the API answers', await page.evaluate(() => [...document.querySelectorAll('#jobResults .jobrow')].map((r) => r.getAttribute('data-job'))), ['j2']);
