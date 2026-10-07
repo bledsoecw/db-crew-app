@@ -958,7 +958,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.8 (2026-10-07)';
+var APP_BUILD = 'T2.8.1 (2026-10-07)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1002,6 +1002,7 @@ function authStore(tok){
   AUTH.token = tok;
   try { AUTH.exp = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; } catch(e){ AUTH.exp = 0; }
   try { localStorage.setItem('dbtc_auth', JSON.stringify({ token:AUTH.token, exp:AUTH.exp })); } catch(e){}
+  try { if (S.started) renderVersion(); } catch(e){}
   var w = AUTH.waiters; AUTH.waiters = [];
   w.forEach(function(fn){ fn(); });
 }
@@ -1898,6 +1899,7 @@ function renderVersion(){
   $('verTbl').innerHTML =
     '<div class="trow"><span class="nm">App</span><span class="d tabular">' + esc(APP_BUILD) + '</span></div>' +
     '<div class="trow"><span class="nm">API</span><span class="d tabular">' + esc(api || 'not reached') + '</span></div>' +
+    '<div class="trow"><span class="nm">Session</span><span class="d tabular">' + esc(sessionWords()) + '</span></div>' +
     '<div class="trow"><span class="nm">Board</span><span class="d tabular">' + esc(board) + '</span></div>' +
     '<div class="trow"><span class="nm">Push</span><span class="d tabular">' + esc(pushWords()) + '</span></div>' +
     (a && a.boardMs != null

@@ -82,6 +82,7 @@ const allErrs = [];
   await page.evaluate(() => ensureSession(true));
   await page.waitForTimeout(600);
   check('the next try lands the 30-day session', await tokIss(page), 'dbtc-session');
+  check('Diagnostics shows the session on screen', /^app session · .+ · \d+ days left$/.test(await page.evaluate(() => { renderVersion(); return [...document.querySelectorAll('#verTbl .trow')].find((r) => r.querySelector('.nm').textContent === 'Session').querySelector('.d').textContent; })), true);
   allErrs.push(...errs);
   await ctx.close();
 }
