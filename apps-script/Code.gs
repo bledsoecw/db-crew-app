@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.3 (2026-10-05)';
+var APP_BUILD = 'T2.8 (2026-10-07)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -136,16 +136,32 @@ function verifyIdToken_(idToken) {
     Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, idToken)).slice(0, 40);
   var hit = cache.get(key);
   if (hit) return hit;
-  var resp = UrlFetchApp.fetch(
-    'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken),
-    { muteHttpExceptions: true });
+  // Google's own check can hiccup (a 5xx, a 429). That is not a bad token,
+  // and answering AUTH for it signed the phone out (T2.8): once more after a
+  // pause, then a plain error the phone retries, never AUTH.
+  var url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken);
+  var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  if (resp.getResponseCode() >= 429) {
+    Utilities.sleep(800);
+    resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  }
+  if (resp.getResponseCode() >= 429) {
+    var busy = new Error('Google did not answer the sign-in check (HTTP ' + resp.getResponseCode() + ') — try again.');
+    busy.why = 'google-check';
+    throw busy;
+  }
   if (resp.getResponseCode() !== 200) throw new Error('AUTH');
   var info = {};
   try { info = JSON.parse(resp.getContentText()); } catch (e) { throw new Error('AUTH'); }
   if (info.aud !== clientId) throw new Error('AUTH');
   if (String(info.email_verified) !== 'true') throw new Error('AUTH');
   var email = String(info.email || '').toLowerCase();
-  if (!emailAllowed_(email)) throw new Error('AUTH');
+  if (!emailAllowed_(email)) {
+    // The phone names the account Google used, so a personal Gmail picked by
+    // mistake reads as that, not as "session expired".
+    var no = new Error('AUTH'); no.why = 'not-allowed'; no.email = email;
+    throw no;
+  }
   var ttl = Math.max(60, Math.min(3600, (Number(info.exp) || 0) - Math.floor(Date.now() / 1000) - 30));
   cache.put(key, email, ttl);
   return email;
@@ -421,6 +437,8 @@ function doPost(e) {
     var msg = (err && err.message) || String(err);
     out = { ok: false, error: msg, auth: msg === 'AUTH', readOnly: msg.indexOf('READ_ONLY') === 0,
       noAccess: msg.indexOf('NO_ACCESS') === 0 };
+    if (err && err.why) out.authWhy = err.why;
+    if (err && err.email) out.email = err.email;
   }
   // Where the time went, on every reply — the sign-in check, the membership
   // lookup, the work itself and JobTread inside it — so a phone that waited

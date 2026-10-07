@@ -15,7 +15,7 @@
   });
 
   // A session token the app will accept: it only parses `exp` out of the payload.
-  var payload = btoa(JSON.stringify({ email: 'tyler.b@deitemeyerbrothers.com', exp: 4102444800 }))
+  var payload = btoa(JSON.stringify({ email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', exp: 4102444800 }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   // A phone that just signed out (T2.1) stays signed out across the reload the
   // sign-out ends on, so the gate can be seen; everything else boots signed in.
@@ -528,11 +528,27 @@
     ];
     return r;
   };
+  var __TOKENS = window.__TOKENS = [];
   var realFetch = window.fetch.bind(window);
   window.fetch = function (url, opts) {
     var u = String(url);
     if (u.indexOf('mock.local/exec') !== -1) {
       var body = JSON.parse((opts && opts.body) || '{}');
+      __TOKENS.push({ fn: body.fn, t: body.t });
+      // Sign-in (T2.8):
+      //   a token with BAD in it      refused as a personal account (authWhy not-allowed)
+      //   __MOCK_EXCHANGE_FAIL = N    the first N trades of a token answer like an overloaded /exec
+      //   a token with GOOGLE in it   Google's hour-long token: exchangeSession trades it
+      var authNo = function (extra) {
+        var t = JSON.stringify(Object.assign({ ok: false, error: 'AUTH', auth: true }, extra || {}));
+        return Promise.resolve({ ok: true, status: 200, text: function () { return Promise.resolve(t); } });
+      };
+      if (!body.t) return authNo();
+      if (/BAD/.test(body.t)) return authNo({ authWhy: 'not-allowed', email: 'yahir.personal@gmail.com' });
+      if (body.fn === 'exchangeSession' && Number(window.__MOCK_EXCHANGE_FAIL) > 0) {
+        window.__MOCK_EXCHANGE_FAIL--;
+        return Promise.resolve({ ok: false, status: 500, text: function () { return Promise.resolve('<html>busy</html>'); } });
+      }
       // __MOCK_STARTFAIL: the first N boot calls come back as a web page with a
       // 500, the way an overloaded /exec answers — transient, retried, then
       // failed, so the app's own boot retry has to carry it.

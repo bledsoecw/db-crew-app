@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="app-icon-180.png">
 <link rel="icon" type="image/png" href="app-icon-192.png">
 <script src="config.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script id="gisScript" src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="preload" as="font" type="font/woff2" href="fonts/archivo-800.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="fonts/barlow-400.woff2" crossorigin>
 <link rel="preload" as="font" type="font/woff2" href="fonts/plexmono-600.woff2" crossorigin>
@@ -85,6 +85,10 @@ button[disabled]{cursor:default}
 #gate .s{font:400 14px/1.55 var(--sans);color:var(--mut);max-width:300px}
 #gateBtnWrap{min-height:44px;display:flex;align-items:center;justify-content:center}
 #gateErr{font:400 13px/1.5 var(--sans);color:#f0a9a0;max-width:300px}
+#gateBusy{display:flex;align-items:center;gap:12px;font:600 15px/1.2 var(--sans);color:var(--fg);min-height:44px}
+#gateBusy .spin{width:22px;height:22px;border-radius:50%;border:3px solid var(--line2);border-top-color:var(--go);animation:gspin .8s linear infinite}
+@keyframes gspin{to{transform:rotate(360deg)}}
+#gateHint{font:400 12.5px/1.5 var(--sans);color:var(--lab);max-width:300px}
 
 /* ---------------- header ---------------- */
 #hdr,#hdrCo,#hdrPeople{padding:calc(var(--sat) + 3px) 8px 6px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
@@ -635,7 +639,9 @@ button[disabled]{cursor:default}
   <div class="t">DB Crew</div>
   <div class="s">Sign in with your Deitemeyer Brothers Google account. Your hours, your site checks and your close-outs post to JobTread under your name.</div>
   <div id="gateBtnWrap"></div>
+  <div id="gateBusy" class="hidden"><span class="spin"></span><span id="gateBusyT">Signing you in…</span></div>
   <div id="gateErr"></div>
+  <div id="gateHint">Google may send you to the Gmail app to confirm. Come back here after. If nothing happens, tap the button again — that is safe.</div>
 </div>
 
 <div id="app" class="hidden">
@@ -952,7 +958,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.7 (2026-10-07)';
+var APP_BUILD = 'T2.8 (2026-10-07)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1003,27 +1009,171 @@ function authClear(){
   AUTH.token=''; AUTH.exp=0;
   try { localStorage.removeItem('dbtc_auth'); } catch(e){}
 }
+/* What a token says about itself: Google's ID token (an hour) or the app's
+   own session (30 days, iss dbtc-session). Read only, never trusted — the
+   API checks the signature. */
+function jwtPayload(tok){
+  try { return JSON.parse(decodeURIComponent(escape(atob(String(tok).split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))))) || {}; } catch(e){ return {}; }
+}
+function authIsSession(){ return jwtPayload(AUTH.token).iss === 'dbtc-session'; }
+/* For Diagnostics: which token this phone holds and how long it has left. */
+function sessionWords(){
+  if (!AUTH.token) return 'none';
+  var left = AUTH.exp - Date.now() / 1000, p = jwtPayload(AUTH.token);
+  return (authIsSession() ? 'app session' : 'Google token (not traded yet)') + ' · ' + (p.email || '?') + ' · ' +
+         (left > 86400 ? Math.floor(left / 86400) + ' days left' : left > 0 ? Math.round(left / 60) + ' min left' : 'expired');
+}
+
+/* ---- signing in (T2.8, Carl 7 Oct 2026) ----
+   "Yahir couldn't get past the Google login; it kept logging him out." What
+   the field saw, and what each piece below is for:
+
+   - Google's popup sends the phone to the Gmail app to confirm, and the
+     answer can come back late, or twice when the button was tapped again.
+     Two answers used to start the app twice over — two boots, two of every
+     call — and an answer arriving after a failed try started an app with no
+     token. Now one sign-in runs at a time, the screen says "Signing you in…"
+     the moment Google answers, a second or late answer is dropped, and
+     tapping the button again is safe.
+   - The Google token lasts an hour; the app trades it for a 30-day session.
+     That trade was one try with the failure swallowed, so a weak signal at
+     sign-in left the phone on the hour-long token and the next open — or
+     the next tap an hour in — threw the crew member back to sign-in.
+     Now the app opens on the Google token at once and the trade runs beside
+     it, retried until it lands (ensureSession), and the session is renewed
+     once it is a week old, so a phone that is used stays signed in.
+   - The wrong Google account (a personal Gmail on the phone) was refused as
+     "Session expired — sign in again", and One Tap would quietly pick the
+     same account again: a loop. Now the screen names the account Google
+     used, and the next sign-in asks which account.
+   - Google's script itself not loading (no signal) left a blank gate; it is
+     fetched again, and the screen says so. */
+var SIGNIN = { busy: false, timer: null };
+function gateBusy(on, text){
+  SIGNIN.busy = !!on;
+  clearTimeout(SIGNIN.timer);
+  $('gateBusy').classList.toggle('hidden', !on);
+  $('gateBtnWrap').classList.toggle('hidden', !!on);
+  if (on){
+    $('gateBusyT').textContent = text || 'Signing you in…';
+    $('gateErr').textContent = '';
+    // Never strand anyone on a spinner: the button comes back if this hangs.
+    SIGNIN.timer = setTimeout(function(){ if (SIGNIN.busy && !$('gate').classList.contains('hidden')) { gateBusy(false); $('gateErr').textContent = 'Signing in is taking too long — check the signal and tap the button again.'; } }, 45000);
+  }
+}
 function authOnCredential(resp){
   if (!resp || !resp.credential) return;
+  var gateUp = !$('gate').classList.contains('hidden');
+  // A late or second answer from Google while this phone is already in (or
+  // already signing in) changes nothing.
+  if (SIGNIN.busy || (S.started && !gateUp)) return;
   try { localStorage.removeItem(PICK_ACCOUNT_KEY); } catch(e){}
   authStore(resp.credential);
-  // Trade the short-lived Google token for a long app session immediately.
-  apiCall('exchangeSession', []).then(function(s){ if (s && s.token) authStore(s.token); })
-    .catch(function(){})
-    .then(start);
+  if (S.started){
+    // Signed out mid-shift by the API and back in: a clean start on the new
+    // session. Nothing waiting to send is lost — it lives in IndexedDB.
+    gateBusy(true);
+    ensureSession(true).then(function(){ location.reload(); }, function(e){
+      // Refused again: the gate already says why, and stays. Anything else
+      // (no signal) restarts on the Google token, which ensureSession trades later.
+      if (!(e && e.auth)) location.reload();
+    });
+    return;
+  }
+  gateBusy(true);
+  start();
+  ensureSession(true).catch(function(){});
 }
+/* Trade whatever token this phone holds for a fresh 30-day app session,
+   when it is Google's hour-long one or a session over a week old. Quiet on
+   failure — the next open, return to the app or two minutes on tries again
+   — except that a refusal is the API's to report (apiAttempt's e.auth). */
+var SESSION_RENEW = { p: null, at: 0, timer: null };
+function ensureSession(force){
+  if (!AUTH.token) return Promise.resolve();
+  if (SESSION_RENEW.p) return SESSION_RENEW.p;
+  var daysLeft = (AUTH.exp - Date.now() / 1000) / 86400;
+  if (authIsSession() && daysLeft > 23) return Promise.resolve();
+  if (!force && Date.now() - SESSION_RENEW.at < 60000) return Promise.resolve();
+  SESSION_RENEW.at = Date.now();
+  clearTimeout(SESSION_RENEW.timer);
+  SESSION_RENEW.p = apiCall('exchangeSession', [], { lane: 'auth', timeout: 40000 }).then(function(s){
+    SESSION_RENEW.p = null;
+    if (s && s.token) authStore(s.token);
+  }, function(e){
+    SESSION_RENEW.p = null;
+    if (e && e.auth) throw e;
+    failed('session', e, true);
+    // Still on Google's hour: keep at it while the app is open.
+    if (!authIsSession()) SESSION_RENEW.timer = setTimeout(function(){ ensureSession(true).catch(function(){}); }, 120000);
+  });
+  return SESSION_RENEW.p;
+}
+var GIS = { inited: false, auto: null, waits: 0, polling: false };
 function authInitGis(){
-  if (!window.google || !google.accounts || !google.accounts.id) { setTimeout(authInitGis, 300); return; }
-  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: authOnCredential, auto_select: !pickingAccount() });
+  if (!window.google || !google.accounts || !google.accounts.id) {
+    if (GIS.polling) return;
+    GIS.polling = true;
+    (function wait(){
+      if (window.google && google.accounts && google.accounts.id){ GIS.polling = false; authInitGis(); return; }
+      GIS.waits++;
+      // Ten seconds without Google's script: say so, and fetch it again.
+      if (GIS.waits % 33 === 0){
+        if (!SIGNIN.busy) $('gateErr').textContent = 'Can’t reach Google — check the signal. Still trying…';
+        var old = $('gisScript'); if (old) old.parentNode.removeChild(old);
+        var sc = document.createElement('script'); sc.id = 'gisScript'; sc.async = true;
+        sc.src = 'https://accounts.google.com/gsi/client';
+        document.head.appendChild(sc);
+      }
+      setTimeout(wait, 300);
+    })();
+    return;
+  }
+  if (/^Can’t reach Google/.test($('gateErr').textContent)) $('gateErr').textContent = '';
+  var auto = !pickingAccount();
+  if (!GIS.inited || GIS.auto !== auto){
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: authOnCredential, auto_select: auto,
+      cancel_on_tap_outside: false, use_fedcm_for_prompt: true, use_fedcm_for_button: true });
+    GIS.inited = true; GIS.auto = auto;
+  }
   google.accounts.id.renderButton($('gateBtnWrap'), { theme:'filled_black', size:'large', text:'signin_with', shape:'rectangular' });
-  google.accounts.id.prompt();
+  if (!SIGNIN.busy) google.accounts.id.prompt();
 }
 function requireSignIn(msg){
   $('gate').classList.remove('hidden');
   $('app').classList.add('hidden');
-  if (msg) $('gateErr').textContent = msg;
+  gateBusy(false);
+  $('gateErr').textContent = msg || '';
   authInitGis();
 }
+/* The API said no to this token. Which words, and whether One Tap may pick
+   the same account again, depends on whose token it was. */
+function authRefused(j){
+  var p = jwtPayload(AUTH.token), email = String(p.email || (j && j.email) || '');
+  var wasGoogle = !!p.iss && p.iss !== 'dbtc-session';
+  authClear();
+  var msg = 'Session expired — sign in again.';
+  if ((j && j.authWhy === 'not-allowed') || (wasGoogle && !(j && j.authWhy))){
+    // Never let One Tap quietly pick the refused account again.
+    try { localStorage.setItem(PICK_ACCOUNT_KEY, '1'); } catch(e){}
+    try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch(e){}
+    msg = (email ? 'Google signed you in as ' + email + ', and DB Crew didn’t accept it. ' : 'DB Crew didn’t accept that Google account. ') +
+          'Pick your Deitemeyer Brothers account — or ask the office to add this one.';
+  } else if (j && j.authWhy === 'google-check'){
+    msg = 'Google didn’t answer the sign-in check — tap the button to try again.';
+  }
+  requireSignIn(msg);
+}
+// Back from Google (or the Gmail app) with the sign-in screen still up and
+// nothing under way: ask Google again. On Android this often finishes the
+// sign-in by itself; anywhere else it is a no-op.
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState !== 'visible') return;
+  if (!$('gate').classList.contains('hidden') && !SIGNIN.busy && window.google && google.accounts && google.accounts.id && GIS.inited){
+    try { google.accounts.id.prompt(); } catch(e){}
+  }
+  if (S.started && AUTH.token) ensureSession(false).catch(function(){});
+});
 
 /* ---- the API ---- */
 /* Reopening the app fires start(), pump() and refreshDay() at once, and
@@ -1067,10 +1217,11 @@ function apiAttempt(fn, args, attempt, co){
     }, ms);
   };
   arm(limit);
+  var sentTok = AUTH.token;
   var opts = {
     method:'POST',
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },  // avoids the CORS preflight Apps Script can't answer
-    body: JSON.stringify({ t: AUTH.token, fn: fn, args: args || [] })
+    body: JSON.stringify({ t: sentTok, fn: fn, args: args || [] })
   };
   if (ctl) opts.signal = ctl.signal;
 
@@ -1100,6 +1251,7 @@ function apiAttempt(fn, args, attempt, co){
     if (j && j.ok) return j.data;
     var err = new Error((j && j.error) || 'Request failed');
     err.auth = !!(j && j.auth);
+    err.authInfo = j;
     err.readOnly = !!(j && j.readOnly);
     err.noAccess = !!(j && j.noAccess);
     err.answered = true;   // the server gave a real reply; asking again changes nothing
@@ -1116,7 +1268,10 @@ function apiAttempt(fn, args, attempt, co){
       t.timedOut = true;
       throw t;
     }
-    if (e.auth) { authClear(); requireSignIn('Session expired — sign in again.'); }
+    // Only when the token that was refused is still this phone's: a refusal
+    // of an older token (the Google one, traded meanwhile) changes nothing.
+    if (e.auth && sentTok && sentTok === AUTH.token) authRefused(e.authInfo);
+    else if (e.auth && !sentTok && $('gate').classList.contains('hidden')) requireSignIn('Sign in to continue.');
     if (e.noAccess) {
       $('gate').classList.remove('hidden');
       $('app').classList.add('hidden');
@@ -1189,7 +1344,7 @@ var S = {
   checksTask:null, checksVisit:null, ckOpen:{}, ckNoteOpen:{}, checksRO:null, assignAgain:false,
   dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false, alertFor:null, logFields:null,
   pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
-  sun:true, writeEnabled:false, queued:0, online:navigator.onLine, lastErr:null,
+  sun:true, writeEnabled:null, started:false, meSeen:null, queued:0, online:navigator.onLine, lastErr:null,
   viewAs:'', langSet:false,
   // T2.4: the Close Out job a clock flow was started from (the camera
   // hands back there, not to the clock), and whether a finger has picked
@@ -1523,14 +1678,15 @@ function measureTabs(){
 
 function render(){
   applyTheme();
-  $('hdrW').textContent = S.me ? (S.me.name + ' · ' + roleWords()) : '';
+  $('hdrW').textContent = meNow() ? (meNow().name + ' · ' + roleWords()) : '';
   renderRoleChrome();
 
   var ob = $('offlineBar');
   ob.classList.toggle('hidden', S.online);
   ob.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l20 20M8.6 16.5a5 5 0 0 1 6.8 0M5 12.6a10 10 0 0 1 4.6-2.4M19.7 12.6a10 10 0 0 0-4.3-2.5"/><path d="M12 20h.01"/></svg><span>No signal · ' + (S.queued ? S.queued + (S.queued===1?' item':' items') + ' queued' : 'nothing waiting') + '</span>';
   var rb = $('roBar');
-  rb.classList.toggle('hidden', S.writeEnabled);
+  // Unknown until the API says (null): no bar, rather than a wrong one.
+  rb.classList.toggle('hidden', S.writeEnabled !== false);
   rb.innerHTML = '<span>Read-only build · hours are not posting yet</span>';
 
   renderJob();
@@ -4787,16 +4943,39 @@ function wireAlert(cur, date){
 /* =========================================================
    BOOT
    ========================================================= */
+/* Who this phone was, the last time the API said (T2.8): name, role and
+   whether writes are on, so a cold open draws the right tabs and the right
+   bar at once instead of a navy "Read-only" bar until getStart answers. Only
+   for the account the token names; S.me itself stays empty until the API
+   answers, because the boot guards read it as "booted". */
+var ME_KEY = 'dbtc_me';
+function meNow(){ return S.me || S.meSeen; }
+function meRemember(){
+  try { localStorage.setItem(ME_KEY, JSON.stringify({ email: String((S.me && S.me.email) || '').toLowerCase(), me: S.me, writeEnabled: S.writeEnabled })); } catch(e){}
+}
+function meRecall(){
+  try {
+    var c = JSON.parse(localStorage.getItem(ME_KEY) || 'null'), email = String(jwtPayload(AUTH.token).email || '').toLowerCase();
+    if (c && c.me && c.email && c.email === email){ S.meSeen = c.me; S.writeEnabled = c.writeEnabled === true ? true : c.writeEnabled === false ? false : null; }
+  } catch(e){}
+}
 function start(){
+  // Once per page. A second Google answer, or a sign-in after the API
+  // refused the old token, never starts a second copy of the app on top.
+  if (S.started) return;
+  S.started = true;
+  gateBusy(false);
   $('gate').classList.add('hidden');
   $('app').classList.remove('hidden');
   measureTabs();
+  meRecall();
   var lastJob = loadPrefs();
   loadLogFields();
   S.checksRO = ckLoadRO();
   restoreAssign();   // last known schedule on screen at once; refresh behind it
   applyTheme();
   setTab('job');
+  if (S.meSeen) landHome();   // the service crew is on Close Out before the API answers
 
   // Only what the clock screen cannot be drawn without: am I on the clock, on
   // what job, what have I logged today. Three Pave calls at most, so this
@@ -4839,6 +5018,9 @@ function bootStart(lastJob, attempt){
   return apiCall('getStart', [lastJob || null]).then(function(d){
     S.me = d.me;
     S.writeEnabled = !!d.writeEnabled;
+    meRemember();
+    // A session over a week old is renewed in the background (T2.8).
+    ensureSession(false).catch(function(){});
     S.open = d.open;
     S.job = d.job;
     S.entries = d.entries || [];
@@ -4892,8 +5074,8 @@ function bootStart(lastJob, attempt){
    ========================================================= */
 var TABS_BY_ROLE = { crew: ['job', 'jobs'], siteManager: ['job', 'jobs', 'log'], service: ['job', 'co'], ops: ['job', 'jobs', 'log', 'co', 'people'] };
 var ROLE_WORDS = { crew: 'Crew', siteManager: 'Site manager', service: 'Service', ops: 'Operations', manager: 'Manager', off: 'Off' };
-function appRole(){ return (S.me && TABS_BY_ROLE[S.me.appRole]) ? S.me.appRole : 'crew'; }
-function isOpsAccount(){ return !!(S.me && S.me.ops); }
+function appRole(){ var m = meNow(); return (m && TABS_BY_ROLE[m.appRole]) ? m.appRole : 'crew'; }
+function isOpsAccount(){ var m = meNow(); return !!(m && m.ops); }
 /* The role in force on this phone: a borrowed one, for Operations only. */
 function effRole(){ return (isOpsAccount() && S.viewAs && TABS_BY_ROLE[S.viewAs] && S.viewAs !== 'ops') ? S.viewAs : appRole(); }
 function roleTabs(){ return TABS_BY_ROLE[effRole()] || TABS_BY_ROLE.crew; }
@@ -4910,7 +5092,7 @@ function roleWord(r){ return ROLE_WORDS[r] || 'Crew'; }
 function roleWords(){
   var r = appRole(), w = roleWord(r);
   // The foreman's crew block is a JobTread fact beside the app role.
-  if (r === 'crew' && S.me && S.me.isForeman) w = 'Foreman';
+  if (r === 'crew' && meNow() && meNow().isForeman) w = 'Foreman';
   return w;
 }
 function setViewAs(role){
@@ -4927,7 +5109,7 @@ function viewBarHtml(){
 /* The same header as the Clock's, on the screens that have one of their own. */
 function hdrHtml(){
   return '<div class="hdrL"><img src="app-icon-192.png" alt="DB Crew"><div style="min-width:0"><div class="hdrT">DB Crew</div>' +
-         '<div class="hdrW">' + esc(S.me ? (S.me.name + ' · ' + roleWords()) : '') + '</div></div></div>' +
+         '<div class="hdrW">' + esc(meNow() ? (meNow().name + ' · ' + roleWords()) : '') + '</div></div></div>' +
          '<button class="sunbtn" aria-label="Toggle sun mode"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.6v2.4M12 20v2.4M1.6 12H4M20 12h2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg></button>';
 }
 function renderRoleChrome(){
@@ -5439,7 +5621,7 @@ function coQueueCard(j){
   // top where the number was.
   var street = streetOf(j.address), sub = [coSub(j), k === 'review' ? co('waitingPm') : ''].filter(Boolean).join(' · ');
   h += '<div class="jwhen"><span class="l">' + coBadge(j) + who + '</span>' + (j.salesRep ? '<span class="n">Rep · ' + esc(j.salesRep) + '</span>' : '') + '</div>';
-  h += '<button class="jmain" data-cojob="' + esc(j.id) + '"><span class="h-addr">' + esc(j.number ? 'JT #' + j.number : coJobLabel(j)) + '</span>' +
+  h += '<button class="jmain" data-cojob="' + esc(j.id) + '"><span class="h-addr">' + esc(j.number || coJobLabel(j)) + '</span>' +
        (street && j.number ? '<span class="sub">' + esc(street) + '</span>' : '') +
        (sub ? '<span class="jwith">' + esc(sub) + '</span>' : '') + '</button>';
   if (k !== 'review'){
@@ -5962,6 +6144,7 @@ $('copyDiagBtn').onclick = function(){
     'app      ' + APP_BUILD,
     'api      ' + ((S.me && S.me.build) || 'not reached'),
     'user     ' + ((S.me && S.me.name) || '—') + ' / ' + ((S.me && S.me.appRole) || '—') + (S.viewAs ? ' (viewing as ' + S.viewAs + ')' : '') + ' / JT ' + ((S.me && S.me.role) || '—'),
+    'session  ' + sessionWords(),
     'board    ' + (S.assign ? (S.assign.source + (S.assign.reason ? ' · ' + S.assign.reason : '') +
                    (S.assign.boardMs != null ? ' · ' + S.assign.boardMs + 'ms' : '')) : '—'),
     'push     ' + pushWords() + ' (state ' + pushState + ')',
@@ -6064,6 +6247,10 @@ if ('serviceWorker' in navigator){
   };
   var swReloadWhenIdle = function(){
     if (swReloading) return;
+    // Never under the sign-in screen (T2.8): coming back from Google or the
+    // Gmail app is exactly when the update check runs, and a reload there
+    // throws away a sign-in half done. The next open picks up the new build.
+    if (!$('gate').classList.contains('hidden')) return;
     if ((apiBusy > 0 || S.recStart) && swWaitedMs < 15000){ swWaitedMs += 1000; setTimeout(swReloadWhenIdle, 1000); return; }
     swReloading = true;
     location.reload();

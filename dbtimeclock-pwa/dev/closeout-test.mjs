@@ -101,7 +101,7 @@ const allErrs = [];
 {
   const { ctx, page, errs } = await boot({ role: 'service', photo409: true });
   await tap(page, '.tab[data-tab="co"]', 900);
-  check('the queue: my jobs first', await page.evaluate(() => [...document.querySelectorAll('#coBody .jcard .h-addr')].map((n) => n.textContent)), ['JT #26-0418', 'JT #26-0415']);
+  check('the queue: my jobs first', await page.evaluate(() => [...document.querySelectorAll('#coBody .jcard .h-addr')].map((n) => n.textContent)), ['26-0418', '26-0415']);
   // T2.7: the number large, the street, customer · city · type, and the rep where the number was.
   check('the card reads number, street, customer, rep', await page.evaluate(() => { const c = document.querySelector('#coBody .jcard'); return [c.querySelector('.sub').textContent, c.querySelector('.jwith').textContent, c.querySelector('.jwhen .n').textContent]; }),
     ['1427 Prairie View Dr', 'Hartman · Lima · roofing', 'Rep · Austin Leeth']);
@@ -111,7 +111,7 @@ const allErrs = [];
   check('Asignados / Todos switches back and forth', flips, [['all', 4], ['mine', 2], ['all', 4], ['mine', 2], ['all', 4], ['mine', 2]]);
   // T2.7: the search filters the list as you type, and keeps the keyboard.
   await page.locator('#coSearch').fill('cedar'); await page.waitForTimeout(200);
-  check('the search filters as you type', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jcard .h-addr')].map((n) => n.textContent), document.activeElement.id]), [['JT #26-0415'], 'coSearch']);
+  check('the search filters as you type', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jcard .h-addr')].map((n) => n.textContent), document.activeElement.id]), [['26-0415'], 'coSearch']);
   await page.locator('#coSearch').fill('walnut'); await page.waitForTimeout(200);
   check('a match only under Todos says so', await txt(page, '#coBody .jempty'), 'Nada asignado coincide. Toca Todos para buscar en el resto.');
   await tap(page, '[data-cofilter="all"]', 200);

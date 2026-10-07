@@ -163,6 +163,43 @@ word, anywhere in the number, name, customer or address; Enter opens the one
 job showing). And the Asignados / Todos chips answer through the row itself:
 they were redrawn on every paint and lost their handlers whenever the list
 below came out the same, so the toggle went dead after the first switch.
+The number shows bare, no "JT #" (T2.8).
+
+**Signing in that holds** (T2.8, Carl 7 Oct 2026: *"Yahir kept getting logged
+out; logging in is sketchy — Google sends you to the Gmail app, you come back
+and the app sits on the sign-in button; tapping it again makes it worse; then
+the read-only bar takes a while to go; close the app and it wants you to log in
+again"*). What was behind each, and what changed:
+
+- *Logged out on the next open.* The Google token lasts an hour; the app trades
+  it for a 30-day session (`exchangeSession`). That trade was one try with the
+  failure swallowed, so a weak signal at sign-in left the phone on the
+  hour-long token. Now the app opens on the Google token at once, the trade
+  runs beside it and is retried (every two minutes while open, and on every
+  return to the app) until it lands, and a session over a week old is renewed
+  in the background — a phone that is used stays signed in. Diagnostics has a
+  `session` line saying which token the phone holds and how long it has left.
+- *Tapping the button again made it worse.* Two answers from Google started
+  the app twice over. Now one sign-in runs at a time: "Signing you in…" shows
+  the moment Google answers, a second or late answer is dropped, and tapping
+  the button again is safe (the gate says so).
+- *Sitting on the button after the Gmail app.* The button asks Google through
+  FedCM where the phone supports it (Android Chrome: a native sheet, no
+  popup), a return to the app asks Google again, and the app no longer reloads
+  itself for a new build while the sign-in screen is up — that reload threw
+  away a sign-in half done.
+- *Couldn't get past the login at all.* A personal Gmail picked by mistake was
+  refused as "Session expired", and One Tap quietly picked it again: a loop.
+  Now the gate names the account Google used and the next sign-in asks which
+  account. On the API, a hiccup in Google's own token check (a 5xx) is retried
+  and reported as that, never as a bad token — it used to sign the phone out.
+  Google's script not loading (no signal) is fetched again, and said.
+- *The read-only bar.* It showed until the first answer. The app now remembers
+  who the phone was (name, role, writes on or off) and draws that at once; the
+  bar only shows when the API has said writes are off.
+
+`dev/signin-test.mjs` walks it with a fake Google. **The API change needs a
+redeploy** (`apps-script/README.md`); the phone's half works without it.
 
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
