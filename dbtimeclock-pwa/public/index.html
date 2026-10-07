@@ -251,7 +251,7 @@ button[disabled]{cursor:default}
 .jobrow.on .jd{color:var(--acc)}
 .jobrow .ja{font:800 20px/1.1 var(--head);letter-spacing:-.2px;text-transform:uppercase;color:var(--fg)}
 .jobrow .jm{font:400 14px/1.35 var(--sans);color:var(--mut)}
-#jobSearch{width:100%;border:1.5px solid var(--line);border-radius:8px;background:var(--surf);padding:13px 14px;font:400 16px var(--sans);color:var(--fg);outline:none;-webkit-appearance:none}
+#jobSearch,#coSearch{width:100%;border:1.5px solid var(--line);border-radius:8px;background:var(--surf);padding:13px 14px;font:400 16px var(--sans);color:var(--fg);outline:none;-webkit-appearance:none}
 
 /* ---------------- tabs, toast, notification ---------------- */
 /* ---------------- my jobs ----------------
@@ -876,6 +876,10 @@ button[disabled]{cursor:default}
     <div id="coBar" class="warnbar robar hidden"></div>
     <div id="coState" class="hidden" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 20px 12px;flex:none"></div>
     <div id="coSeg" class="seg hidden"></div>
+    <!-- The queue's search (T2.7): the Clock's job search box, filtering the
+         Close Out list as you type. Outside coBody so a repaint never takes
+         the keyboard away. -->
+    <div id="coSearchWrap" class="hidden" style="padding:0 20px 12px;flex:none"><input id="coSearch" type="search" autocomplete="off" enterkeyhint="search"></div>
     <div class="scroll" style="padding:0 20px 26px">
       <div id="coBody"></div>
     </div>
@@ -948,7 +952,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.6 (2026-10-06)';
+var APP_BUILD = 'T2.7 (2026-10-07)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -5015,7 +5019,7 @@ var CO_L10N = {
         lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
         notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
         onClockHere:'Ya estás en el reloj en este trabajo', onClock:'En el reloj', onClockSub:'cambiar de código o trabajo · salir', clockingIn:'Marcando entrada…',
-        checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
+        checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', searchPh:'Buscar trabajos por nombre, número o cliente', noMatch:'Ningún trabajo coincide.', noMatchMine:'Nada asignado coincide. Toca Todos para buscar en el resto.', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
   en: { tab:'Close Out', mine:'Assigned', all:'All', jobsToday:'today', queueNote:'Only jobs ready to inspect, or with repairs for you, show here.',
         queueNote2:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.', inspection:'Inspection', cleanup:'Cleanup', problems:'Problems', repairs:'Repairs',
         start:'Start', cont:'Continue', directions:'Directions', forYou:'For you', service:'Service', nobodyYet:'Nobody yet', pmReview:'PM Review', waitingPm:'waiting on the PM',
@@ -5037,7 +5041,7 @@ var CO_L10N = {
         lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
         notYours:'Close Out is for the service crew.', noJobs:'Nothing ready to inspect today.', noInspector:'The board doesn’t send you inspections yet — ask the office (Operations → Divisions & PMs).',
         onClockHere:'Already on the clock at this job', onClock:'On the clock', onClockSub:'switch code or job · clock out', clockingIn:'Clocking in…',
-        checkingJt:'Asking JobTread…', problemsHint:'Report a problem with a photo. Something you fixed on the spot counts too.', newReport:'Report another problem', photosHint:'Photos of the job’s condition. They go up with the send.' }
+        checkingJt:'Asking JobTread…', problemsHint:'Report a problem with a photo. Something you fixed on the spot counts too.', newReport:'Report another problem', searchPh:'Search jobs by name, number or customer', noMatch:'No jobs match that.', noMatchMine:'Nothing assigned matches. Tap All to search the rest.', photosHint:'Photos of the job’s condition. They go up with the send.' }
 };
 function co(k){ return (CO_L10N[S.lang] || CO_L10N.en)[k] || CO_L10N.en[k] || k; }
 function co2(k){ return (CO_L10N[S.lang === 'es' ? 'en' : 'es'])[k] || ''; }
@@ -5046,7 +5050,7 @@ function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
 var CO = { screen: 'queue', jobs: null, jobsAt: 0, jobsSource: '', loading: false, err: '', reason: '', filter: 'mine',
            jobId: null, job: null, jobLoading: false, jobErr: '', taskId: null, reportIdx: null, listFilter: 'mine',
-           scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null };
+           search: '', scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null };
 /* The phone's copy of every visit in progress, keyed by job. */
 var coStore = { visits: {} };
 try { coStore = JSON.parse(localStorage.getItem(CO_KEY) || '{"visits":{}}') || { visits: {} }; if (!coStore.visits) coStore.visits = {}; } catch(e){ coStore = { visits: {} }; }
@@ -5430,10 +5434,14 @@ function coQueueCard(j){
   var v = coStore.visits[j.id], k = coKindOf(j), today = v && !v.sentAt && (coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup')) > 0;
   var who = j.mine ? '<span class="badge go">' + esc(co('forYou')) + '</span>' : (k === 'inspect' && !j.mine && isOpsAccount() ? '<span class="badge">' + esc(co('nobodyYet')) + '</span>' : '');
   var h = '<div class="jcard' + (today ? ' today' : '') + '">';
-  h += '<div class="jwhen"><span class="l">' + coBadge(j) + who + '</span>' + (j.number ? '<span class="n">JT #' + esc(j.number) + '</span>' : '') + '</div>';
-  h += '<button class="jmain" data-cojob="' + esc(j.id) + '"><span class="h-addr">' + esc(coJobLabel(j)) + '</span>' +
-       '<span class="sub">' + esc(coSub(j)) + (k === 'review' ? ' · ' + esc(co('waitingPm')) : '') + '</span>' +
-       (j.projectManager ? '<span class="jwith">PM · ' + esc(String(j.projectManager).split(/\s+/)[0]) + (j.salesRep ? ' · Rep · ' + esc(String(j.salesRep).split(/\s+/)[0]) : '') + '</span>' : '') + '</button>';
+  // The card reads number first (T2.7, Carl 7 Oct 2026): the JobTread number
+  // large, the street under it, then customer · city · type; the rep sits up
+  // top where the number was.
+  var street = streetOf(j.address), sub = [coSub(j), k === 'review' ? co('waitingPm') : ''].filter(Boolean).join(' · ');
+  h += '<div class="jwhen"><span class="l">' + coBadge(j) + who + '</span>' + (j.salesRep ? '<span class="n">Rep · ' + esc(j.salesRep) + '</span>' : '') + '</div>';
+  h += '<button class="jmain" data-cojob="' + esc(j.id) + '"><span class="h-addr">' + esc(j.number ? 'JT #' + j.number : coJobLabel(j)) + '</span>' +
+       (street && j.number ? '<span class="sub">' + esc(street) + '</span>' : '') +
+       (sub ? '<span class="jwith">' + esc(sub) + '</span>' : '') + '</button>';
   if (k !== 'review'){
     var act;
     if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + (j.openPunchCount || '') + ' ' + esc(co('repairs').toLowerCase()) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
@@ -5449,12 +5457,24 @@ function coQueueHtml(){
   if (CO.reason === 'not-yours') return '<div class="jempty">' + esc(co('notYours')) + '</div>';
   if (CO.reason === 'not-configured') return '<div class="jempty">' + esc(co('notConfigured')) + '</div>';
   if (!CO.jobs && CO.loading) return '<div class="jempty">' + esc(co('checkingJt')) + '</div>';
-  var jobs = (CO.jobs || []).filter(function(j){ return CO.filter === 'all' || j.mine; });
-  if (!jobs.length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && (CO.jobs || []).length ? co('nothingForYou') : co('noJobs')) + (CO.err && !(CO.jobs || []).length ? '<br><span style="color:var(--ckamber)">' + esc(CO.err) + '</span>' : '') + '</div>';
+  var found = coSearchMatches(CO.jobs || [], CO.search), jobs = found.filter(function(j){ return CO.filter === 'all' || j.mine; });
+  if (!jobs.length && coSearchWords(CO.search).length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && found.length ? co('noMatchMine') : co('noMatch')) + '</div>';
+  else if (!jobs.length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && (CO.jobs || []).length ? co('nothingForYou') : co('noJobs')) + (CO.err && !(CO.jobs || []).length ? '<br><span style="color:var(--ckamber)">' + esc(CO.err) + '</span>' : '') + '</div>';
   else h += jobs.map(coQueueCard).join('');
   h += '<div class="foot" style="margin-top:18px">' + esc(co('queueNote')) + '<br>' + esc(co('queueNote2')) + '</div>';
   h += coOutboxLine(null);
   return h;
+}
+/* The search matches the way the Clock's does (jobMatches): every word
+   typed, anywhere in the number, the name, the customer or the address. */
+function coSearchWords(term){ return String(term || '').toLowerCase().split(/\s+/).filter(Boolean); }
+function coSearchMatches(jobs, term){
+  var words = coSearchWords(term);
+  if (!words.length) return jobs;
+  return jobs.filter(function(j){
+    var hay = [j.number, j.name, coCustomer(j), j.address].join(' ').toLowerCase();
+    return words.every(function(w){ return hay.indexOf(w) !== -1; });
+  });
 }
 function coOutboxLine(jobId){
   var items = coOutboxFor(jobId); if (!items.length) return '';
@@ -5670,6 +5690,8 @@ function coRender(){
   $('coQueueHead').classList.toggle('hidden', !queue);
   $('coHead').classList.toggle('hidden', queue);
   $('coSeg').classList.toggle('hidden', !(queue || sc === 'repairs'));
+  $('coSearchWrap').classList.toggle('hidden', !queue);
+  if ($('coSearch').placeholder !== co('searchPh')) $('coSearch').placeholder = co('searchPh');
   $('coState').classList.add('hidden');
   var bar = $('coBar'), barText = '';
   if (!queue){
@@ -5774,8 +5796,6 @@ function coWire(){
   var sv = $('coSaveReport'); if (sv) sv.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || !(r.photos || []).length || !r.note.trim()) return; r.saved = true; if (dlRec.want) dlRecStop(); coEnglishFor(v, CO.reportIdx); coPersist(); toast(co('reportSaved')); coBack(); };
   var dr = $('coDeleteReport'); if (dr) dr.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || r.sentAt) return; (r.photos || []).forEach(function(p){ coPhotoDel(p.id); }); v.reports.splice(CO.reportIdx, 1); if (r.itemKey){ var w = r.itemKey.indexOf('22PdEQhB') === 0 ? 'cleanup' : 'inspection'; } coPersist(); coBack(); };
   var dn = $('coDone'); if (dn) dn.onclick = function(){ var v = coVisit(CO.jobId); if (!v.after[CO.taskId]) return; dn.disabled = true; coFinishRepair(CO.jobId, CO.taskId); };
-  [].forEach.call($('coSeg').querySelectorAll('[data-cofilter]'), function(b){ b.onclick = function(){ CO.filter = b.getAttribute('data-cofilter'); coRender(); }; });
-  [].forEach.call($('coSeg').querySelectorAll('[data-colist]'), function(b){ b.onclick = function(){ CO.listFilter = b.getAttribute('data-colist'); coRender(); }; });
 }
 function coLocationWords(r){
   var w = r.location ? CO_L10N.en[r.location] : '';
@@ -5877,6 +5897,25 @@ $('sunBtn').onclick = function(){ S.sun = !S.sun; savePrefs(); render(); };
 });
 $('coBack').onclick = coBack;
 $('coStamp').onclick = function(){ coLoadQueue(true); };
+// Assigned / All (and Mine / Everyone on the repairs) answer through the row
+// itself: coRender redraws these chips on every paint, and handlers wired to
+// the chips were lost whenever the list below came out the same — the
+// toggle went dead after the first switch (T2.7).
+$('coSeg').onclick = function(ev){
+  var b = ev.target.closest && ev.target.closest('[data-cofilter],[data-colist]'); if (!b) return;
+  if (b.hasAttribute('data-cofilter')) CO.filter = b.getAttribute('data-cofilter');
+  else CO.listFilter = b.getAttribute('data-colist');
+  coRender();
+};
+$('coSearch').oninput = function(){ CO.search = this.value; coRender(); };
+// Enter opens the one job showing, else only puts the keyboard away (the Clock's rule).
+$('coSearch').onkeydown = function(ev){
+  if (ev.key !== 'Enter') return;
+  ev.preventDefault();
+  var rows = document.querySelectorAll('#coBody .jmain[data-cojob]');
+  this.blur();
+  if (rows.length === 1) coOpenJob(rows[0].getAttribute('data-cojob'));
+};
 $('coFile').onchange = function(){ var f = this.files && this.files[0]; coPhotoTaken(f); };
 $('peopleStamp').onclick = function(){ peopleLoad(true); };
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };

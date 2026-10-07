@@ -155,6 +155,15 @@ instead of queueing behind a cold open's extras — that queue was most of the
 "Start, then nothing for twenty seconds". `dev/clock-test.mjs` and
 `dev/closeout-test.mjs` walk it.
 
+**The Close Out queue** (T2.7, Carl 7 Oct 2026). The card reads number first:
+the JobTread number large, the street under it, then customer · city · type,
+and the sales rep (no PM) where the number used to sit. A search box under
+**Asignados / Todos** filters the list as you type, the Clock's way (every
+word, anywhere in the number, name, customer or address; Enter opens the one
+job showing). And the Asignados / Todos chips answer through the row itself:
+they were redrawn on every paint and lost their handlers whenever the list
+below came out the same, so the toggle went dead after the first switch.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

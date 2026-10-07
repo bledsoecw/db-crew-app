@@ -101,7 +101,22 @@ const allErrs = [];
 {
   const { ctx, page, errs } = await boot({ role: 'service', photo409: true });
   await tap(page, '.tab[data-tab="co"]', 900);
-  check('the queue: my jobs first', await page.evaluate(() => [...document.querySelectorAll('#coBody .jcard .n')].map((n) => n.textContent)), ['JT #26-0418', 'JT #26-0415']);
+  check('the queue: my jobs first', await page.evaluate(() => [...document.querySelectorAll('#coBody .jcard .h-addr')].map((n) => n.textContent)), ['JT #26-0418', 'JT #26-0415']);
+  // T2.7: the number large, the street, customer · city · type, and the rep where the number was.
+  check('the card reads number, street, customer, rep', await page.evaluate(() => { const c = document.querySelector('#coBody .jcard'); return [c.querySelector('.sub').textContent, c.querySelector('.jwith').textContent, c.querySelector('.jwhen .n').textContent]; }),
+    ['1427 Prairie View Dr', 'Hartman · Lima · roofing', 'Rep · Austin Leeth']);
+  // T2.7: Asignados / Todos keeps answering, however many times it is switched.
+  const flips = [];
+  for (const f of ['all', 'mine', 'all', 'mine', 'all', 'mine']) { await tap(page, `[data-cofilter="${f}"]`, 150); flips.push(await page.evaluate(() => [CO.filter, document.querySelectorAll('#coBody .jcard').length])); }
+  check('Asignados / Todos switches back and forth', flips, [['all', 4], ['mine', 2], ['all', 4], ['mine', 2], ['all', 4], ['mine', 2]]);
+  // T2.7: the search filters the list as you type, and keeps the keyboard.
+  await page.locator('#coSearch').fill('cedar'); await page.waitForTimeout(200);
+  check('the search filters as you type', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jcard .h-addr')].map((n) => n.textContent), document.activeElement.id]), [['JT #26-0415'], 'coSearch']);
+  await page.locator('#coSearch').fill('walnut'); await page.waitForTimeout(200);
+  check('a match only under Todos says so', await txt(page, '#coBody .jempty'), 'Nada asignado coincide. Toca Todos para buscar en el resto.');
+  await tap(page, '[data-cofilter="all"]', 200);
+  check('Todos shows it', await page.evaluate(() => document.querySelectorAll('#coBody .jcard').length), 1);
+  await page.locator('#coSearch').fill(''); await tap(page, '[data-cofilter="mine"]', 200);
   check('the badges say what each is', await page.evaluate(() => [...document.querySelectorAll('#coBody .jcard')].map((c) => c.querySelector('.badge').textContent)), ['Inspección final', 'Reparaciones · 2']);
   await tap(page, '[data-cojob="co-hartman"]', 800);
   check('the job home: four tiles and a disabled send', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jtile .es')].map((e) => e.textContent), document.getElementById('coReview').disabled]), [['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita', 'Trabajo vendido'], true]);
