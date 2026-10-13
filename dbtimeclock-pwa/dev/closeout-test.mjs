@@ -56,6 +56,35 @@ const addPhoto = async (page, sel) => {
   await chooser.setFiles({ name: 'shot.jpg', mimeType: 'image/jpeg', buffer: JPEG });
   await page.waitForTimeout(700);
 };
+
+// A real 1x1 JPEG carrying an EXIF block: DateTimeOriginal, and the zone tag
+// when given — what a phone camera writes and the gallery hands back (T2.9).
+function exifJpeg(when, zone) {
+  const entries = [[0x9003, when]].concat(zone ? [[0x9011, zone]] : []);
+  const exifIfdAt = 26, stringsAt = exifIfdAt + 2 + 12 * entries.length + 4;
+  const strs = entries.map(([, v]) => Buffer.from(v + '\0', 'ascii'));
+  const tiff = Buffer.alloc(stringsAt + strs.reduce((n, b) => n + b.length, 0));
+  tiff.write('II', 0, 'ascii'); tiff.writeUInt16LE(42, 2); tiff.writeUInt32LE(8, 4);
+  tiff.writeUInt16LE(1, 8); tiff.writeUInt16LE(0x8769, 10); tiff.writeUInt16LE(4, 12); tiff.writeUInt32LE(1, 14); tiff.writeUInt32LE(exifIfdAt, 18); tiff.writeUInt32LE(0, 22);
+  tiff.writeUInt16LE(entries.length, exifIfdAt);
+  let at = stringsAt;
+  entries.forEach(([tag], i) => {
+    const e = exifIfdAt + 2 + 12 * i;
+    tiff.writeUInt16LE(tag, e); tiff.writeUInt16LE(2, e + 2); tiff.writeUInt32LE(strs[i].length, e + 4); tiff.writeUInt32LE(at, e + 8);
+    strs[i].copy(tiff, at); at += strs[i].length;
+  });
+  tiff.writeUInt32LE(0, exifIfdAt + 2 + 12 * entries.length);
+  const body = Buffer.concat([Buffer.from('Exif\0\0', 'binary'), tiff]);
+  const head = Buffer.alloc(4); head.writeUInt16BE(0xFFE1, 0); head.writeUInt16BE(body.length + 2, 2);
+  return Buffer.concat([JPEG.subarray(0, 2), head, body, JPEG.subarray(2)]);
+}
+const pickFrom = async (page, sel, files) => {
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator(sel).first().click()]);
+  const multiple = chooser.isMultiple();
+  await chooser.setFiles(files.map((buffer, i) => ({ name: 'IMG_' + i + '.jpg', mimeType: 'image/jpeg', buffer })));
+  await page.waitForTimeout(900 + 500 * files.length);
+  return multiple;
+};
 const allErrs = [];
 
 // ---- the tabs each role gets, and the service crew opening in Spanish ----
@@ -281,6 +310,52 @@ const allErrs = [];
   await tap(page, '[data-cojob="co-reyes"]', 900);
   check('ops on a Final Inspection job: the four checklists and the send', await screen(), { waiting: false, tiles: ['inspect', 'cleanup', 'problems', 'photos'], send: true });
   check('…headed Inspection', await txt(page, '#coK'), 'Inspection · JT #26-0421');
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- T2.9: photos from the phone's own gallery ----
+{
+  const { ctx, page, errs } = await boot({ role: 'service' });
+  await tap(page, '.tab[data-tab="co"]', 900);
+  await page.evaluate(() => { S.lang = 'en'; CO.filter = 'all'; coRender(); }); await page.waitForTimeout(200);
+  // Visit photos: the camera and the gallery side by side, several at once.
+  await tap(page, '[data-cojob="co-hartman"]', 900);
+  await tap(page, '[data-coscreen="photos"]', 500);
+  check('visit photos: Photo and From my photos side by side', [await page.locator('#coBody [data-cophoto]').count(), await txt(page, '#coBody [data-cogallery]')], [1, 'From my photos']);
+  const many = await pickFrom(page, '#coBody [data-cogallery]', [exifJpeg('2026:10:12 14:10:05'), JPEG]);
+  const taken = await page.evaluate(() => new Date(2026, 9, 12, 14, 10, 5).toISOString());
+  check('…several at once, each read for when it was taken (or not)', [many, await page.evaluate(() => coVisit('co-hartman').photos.map((p) => [p.fromPhone, p.takenAt]))], [true, [[true, taken], [true, null]]]);
+  check('…the tiles say PHONE and the day, or No time', [await page.locator('#coBody .ph .src').allTextContents(), await page.locator('#coBody .ph .tag').allTextContents()],
+    [['Phone', 'Phone'], [await page.evaluate((iso) => phoneWhenShort(iso), taken), 'No time']]);
+  check('…and the server is told where they came from', await page.evaluate(() => coVisit('co-hartman').photos.map((p) => coPayload({ label: 'INSPECTION' }, p))),
+    [{ label: 'INSPECTION', source: 'phone', takenAt: taken }, { label: 'INSPECTION', source: 'phone' }]);
+  check('a zone in the photo is honoured', await page.evaluate(() => exifIso('2026:10:12 14:10:05', '-04:00')), '2026-10-12T18:10:05.000Z');
+  check('a camera with its clock unset is no time at all', await page.evaluate(() => [exifIso('0000:00:00 00:00:00', ''), exifIso('1970:01:01 00:00:00', ''), exifIso('', '')]), [null, null, null]);
+
+  // A repair: the AFTER photo from the phone must postdate the repair.
+  await page.evaluate(() => coGo('queue')); await page.waitForTimeout(300);
+  await tap(page, '[data-cojob="co-okafor"]', 900);
+  await tap(page, '[data-coscreen="repairs"]', 700);
+  await tap(page, '[data-corepair="pt1"]', 500);
+  check('one repair: From my photos under both empty slots', await page.locator('#coBody .phrow2 [data-cogallery]').count(), 2);
+  const one = await pickFrom(page, '#coBody .phrow2 [data-cogallery]:nth-child(2)', [exifJpeg('2026:09:20 10:00:00')]);
+  const afterNow = () => page.evaluate(() => [!!coVisit('co-okafor').after.pt1, document.getElementById('coDone').disabled, (document.getElementById('coPhotoNote') || {}).textContent || '']);
+  let a = await afterNow();
+  check('an after photo is one at a time', one, false);
+  check('…taken before the repair was asked for: refused, and it says why', [a[0], a[1], a[2].startsWith('That photo was taken before the repair was asked for (')], [false, true, true]);
+  await pickFrom(page, '#coBody .phrow2 [data-cogallery]:nth-child(2)', [JPEG]);
+  a = await afterNow();
+  check('…with no date on it: refused too', [a[0], a[1], a[2].startsWith('That photo has no date on it')], [false, true, true]);
+  await pickFrom(page, '#coBody .phrow2 [data-cogallery]:nth-child(2)', [exifJpeg('2026:10:12 14:10:05')]);
+  a = await afterNow();
+  check('…taken after: kept, Done unlocks, the note goes', [a[0], a[1], a[2]], [true, false, '']);
+  check('…and the tile says it came from the phone, and when', await txt(page, '#coBody .phbig .src'), 'Phone · ' + await page.evaluate((iso) => phoneWhenLong(iso), taken));
+  await pickFrom(page, '#coBody .phrow2 [data-cogallery]', [JPEG]);
+  check('a BEFORE photo with no date is fine — it shows the problem, not the fix', await page.evaluate(() => [!!coVisit('co-okafor').before.pt1, coVisit('co-okafor').before.pt1.takenAt]), [true, null]);
+  await tap(page, '#coDone', 2500);
+  const sent = (await calls(page)).filter((c) => c.fn === 'coPhoto').map((c) => [c.photo.label, c.photo.source, c.photo.takenAt || null]);
+  check('both go to the repair marked as from the phone, the after with its time', sent, [['BEFORE', 'phone', null], ['AFTER', 'phone', taken]]);
   allErrs.push(...errs);
   await ctx.close();
 }

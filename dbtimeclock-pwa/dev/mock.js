@@ -212,8 +212,8 @@
     { id: 'co-okafor', number: '26-0415', name: '260415 Okafor_Roof', status: 'Punch List', jobType: 'Roofing', projectTypes: ['R-Repairs/Service'], isService: true,
       projectManager: 'Dave Elick', salesRep: 'Sam Black', address: '88 Cedar Falls Ct, Van Wert, OH 45891, USA', openPunchCount: 2, mine: true, openPunchTotal: 2,
       punchTasks: [
-        { id: 'pt1', name: 'REPORT: Reseal the pipe boot', description: 'Rear slope pipe boot is cracked, water getting in. Replace the boot, seal and check the shingles around it.', progress: 0, endDate: '2026-10-07', assignees: [{ membershipId: 'm1', name: 'Alberto Gonzalez', email: 'alberto@deitemeyerbrothers.com' }], assigneeNames: ['Alberto Gonzalez', 'Yahir Gonzalez'], mine: true },
-        { id: 'pt2', name: 'REPORT: Reconnect the downspout', description: 'NE corner downspout came loose from the elbow.', progress: 0, endDate: null, assignees: [], assigneeNames: ['Alberto Gonzalez'], mine: true },
+        { id: 'pt1', name: 'REPORT: Reseal the pipe boot', description: 'Rear slope pipe boot is cracked, water getting in. Replace the boot, seal and check the shingles around it.', progress: 0, endDate: '2026-10-07', createdAt: '2026-10-01T12:00:00.000Z', assignees: [{ membershipId: 'm1', name: 'Alberto Gonzalez', email: 'alberto@deitemeyerbrothers.com' }], assigneeNames: ['Alberto Gonzalez', 'Yahir Gonzalez'], mine: true },
+        { id: 'pt2', name: 'REPORT: Reconnect the downspout', description: 'NE corner downspout came loose from the elbow.', progress: 0, endDate: null, createdAt: '2026-10-01T12:00:00.000Z', assignees: [], assigneeNames: ['Alberto Gonzalez'], mine: true },
         { id: 'pt3', name: 'REPORT: Exposed nails sealed', description: 'Four exposed nails on the ridge, sealed.', progress: 1, endDate: null, assignees: [], assigneeNames: ['Yahir Gonzalez'], mine: false }
       ], soldScope: [] },
     { id: 'co-reyes', number: '26-0421', name: '260421 Reyes_Roof', status: 'Final Inspection', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
@@ -382,12 +382,17 @@
       return { uploadRequestId: 'ur1', url: 'https://mock.local/put', method: 'PUT', headers: {} };
     },
     // The base64 path the app falls back to when the direct PUT is refused.
-    uploadCapture: function (jobId, b64, mime, name) {
+    uploadCapture: function (jobId, b64, mime, name, desc) {
       window.__VIAAPI = window.__VIAAPI || [];
       window.__VIAAPI.push({ jobId: jobId, bytes: b64.length, mime: mime, name: name });
+      (window.__FILES = window.__FILES || []).push({ name: name, desc: desc });
       return { ok: true, fileId: 'f' + (++ST.files) };
     },
-    finalizeCaptureUpload: function () { return { ok: true, fileId: 'f' + (++ST.files) }; },
+    // Every file that reaches JobTread, by either path, with its name and description.
+    finalizeCaptureUpload: function (jobId, reqId, name, desc) {
+      (window.__FILES = window.__FILES || []).push({ name: name, desc: desc });
+      return { ok: true, fileId: 'f' + (++ST.files) };
+    },
     // A note to the office; with the fourth argument it is assigned to the PM.
     postJobNote: function (jobId, message, author, assignPm) {
       window.__NOTES = window.__NOTES || [];

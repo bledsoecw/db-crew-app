@@ -183,6 +183,7 @@ button[disabled]{cursor:default}
 #camCtl{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:6px}
 .sqbtn{width:86px;height:86px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#fff;flex:none;position:relative;overflow:hidden;background-size:cover;background-position:center}
 .sqbtn .sl{font:600 9.5px/1 var(--mono);letter-spacing:.86px;text-transform:uppercase}
+.galbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:44px;margin:0 0 12px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;font:600 11px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
 #noSkip{width:86px;height:86px;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 6px;color:rgba(255,255,255,.55);font:600 9.5px/1.4 var(--mono);letter-spacing:.86px;text-transform:uppercase;flex:none}
 #shutter{width:104px;height:104px;border-radius:50%;border:4px solid rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;flex:none;padding:0}
 #shutterIn{width:82px;height:82px;border-radius:50%;background:#fff;transition:border-radius .18s}
@@ -593,6 +594,11 @@ button[disabled]{cursor:default}
 .photos{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
 .ph{width:92px;height:92px;border-radius:6px;background:var(--surf2) center/cover no-repeat;border:1px solid var(--line);position:relative;flex:none;padding:0}
 .ph .tag{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.65);padding:5px 6px;font:600 9.5px/1 var(--mono);letter-spacing:.86px;color:#fff;border-radius:2px}
+.ph .src,.phbig .src{position:absolute;left:6px;bottom:28px;background:var(--warn);color:var(--warnink);padding:4px 5px;font:700 9px/1 var(--mono);letter-spacing:.8px;text-transform:uppercase;border-radius:2px}
+.phbig .src{bottom:8px;left:8px;padding:5px 6px}
+.phrow2{display:flex;gap:10px;margin-top:8px}
+.phrow2>*{flex:1;min-width:0}
+.galsm{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:6px;background:var(--surf);border:1px dashed var(--line2);color:var(--fg);font:600 10px/1.2 var(--mono);letter-spacing:.8px;text-transform:uppercase;padding:0 8px}
 .ph .rm{position:absolute;right:4px;top:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;display:flex;align-items:center;justify-content:center}
 .ph.add{background:var(--surf);border:2px dashed var(--line2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg);font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
 .phbig{flex:1;min-width:0;height:150px;border-radius:8px;border:1px solid var(--line);background:var(--surf2) center/cover no-repeat;position:relative;padding:0}
@@ -757,6 +763,7 @@ button[disabled]{cursor:default}
         <button class="tagbtn" data-tag="during"><span class="tl">During</span><span class="tc tabular">00</span></button>
         <button class="tagbtn" data-tag="after"><span class="tl">End</span><span class="tc tabular">00</span></button>
       </div>
+      <button id="galBtn" class="galbtn"><span id="galIcon"></span><span id="galLbl">From my photos</span></button>
       <div id="camCtl">
         <button class="sqbtn" id="modeBtn">
           <span id="modeIcon"></span><span class="sl" id="modeLbl">Video</span>
@@ -770,6 +777,8 @@ button[disabled]{cursor:default}
       </div>
     </div>
     <input type="file" id="fileIn" accept="image/*" capture="environment" class="hidden">
+    <!-- No capture attribute: the phone offers its own photos (T2.9). -->
+    <input type="file" id="galleryIn" accept="image/*" multiple class="hidden">
   </div>
 
   <!-- ============ DAY LOG ============ -->
@@ -890,6 +899,7 @@ button[disabled]{cursor:default}
       <div id="coBody"></div>
     </div>
     <input type="file" id="coFile" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="coGallery" accept="image/*" class="hidden">
   </div>
 
   <!-- ============ PEOPLE (Operations only) ============ -->
@@ -958,7 +968,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.8.3 (2026-10-13)';
+var APP_BUILD = 'T2.9 (2026-10-13)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1856,6 +1866,9 @@ function renderCam(){
   }
   $('modeBtn').classList.toggle('hidden', !!gate);
   $('lastShot').classList.toggle('hidden', !!gate);
+  $('galBtn').classList.toggle('hidden', !!gate);
+  $('galIcon').innerHTML = ico('image', 20);
+  $('galLbl').textContent = S.lang === 'es' ? 'De mis fotos' : 'From my photos';
   $('camBack').classList.toggle('hidden', !gate);
   $('noSkip').classList.toggle('hidden', !gate);
   if (gate && S.mode !== 'photo') S.mode = 'photo';
@@ -2495,6 +2508,7 @@ var ICONS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
 };
 function ico(name, size, sw){
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (sw || 2.2) +
@@ -3782,7 +3796,10 @@ function toggleRecording(){
   renderCam();
 }
 
-function captured(blob, mime){
+function captured(blob, mime, meta){
+  // A photo from the phone's gallery can never be a START or END photo: that
+  // photo IS the punch, and a picked one could be yesterday's (T2.9).
+  if (meta && meta.fromPhone && S.clockGate) return;
   var tag = S.capture;
   var codeId = S.open && S.open.code ? S.open.code.id : null;
   var at = Date.now();
@@ -3793,9 +3810,11 @@ function captured(blob, mime){
   makeThumb(blob).then(function(thumb){
     var item = { id:id, blob:blob, mime:mime, tag:tag, at:at, jobId:job.id,
                  entryId: (S.open && S.open.id) || '', codeLabel: codeLabel(S.open && S.open.code) };
+    if (meta && meta.fromPhone){ item.fromPhone = true; item.takenAt = meta.takenAt || null; }
     // The record knows its job and its file name, so the day's log can find
     // it and attach it once JobTread has given it an id.
     var rec = { id:id, tag:tag, codeId:codeId, at:at, time:clockLabel(at), thumb:thumb, pending:true, jobId:job.id, name:fileName(item) };
+    if (item.fromPhone){ rec.fromPhone = true; rec.takenAt = item.takenAt; rec.time = (item.takenAt ? phoneWhenOffice(item.takenAt) : 'time unknown') + ' · from phone'; }
     // Locked to a gate: the shutter commits, and the photo is kept by the
     // commit, stamped with the entry it belongs to.
     if (S.clockGate === 'start'){ commitStart(item, rec); return; }
@@ -3811,8 +3830,27 @@ function captured(blob, mime){
     savePrefs();
     render();
     enqueueUpload(item);
-    settleAfterShot(tag);
+    // Several picked at once: hand back to the clock after the last, not the first.
+    if (!meta || meta.last !== false) settleAfterShot(tag);
   });
+}
+/* "From my photos" on the camera screen — never while it is locked to a
+   START or END photo, where the button is not drawn either. */
+function galleryPicked(files){
+  if (!files.length || S.clockGate) return;
+  if (!S.job){ toast('Pick a job first'); return; }
+  var n = 0;
+  return files.reduce(function(chain, file, i){
+    return chain.then(function(){
+      if (isHeic(file)){ toast(heicWords(), true); return; }
+      return photoTakenAt(file).then(function(takenAt){
+        return coShrink(file).then(function(blob){
+          n++;
+          captured(blob, 'image/jpeg', { fromPhone: true, takenAt: takenAt, last: i === files.length - 1 });
+        });
+      }).catch(function(e){ failed('photos · from the phone', e); });
+    });
+  }, Promise.resolve()).then(function(){ if (n > 1) toast(n + (S.lang === 'es' ? ' fotos agregadas' : ' photos added')); });
 }
 
 function settleAfterShot(tag){
@@ -3981,17 +4019,26 @@ function sendOne(item){
 var TAG_WORD = { before:'START', during:'DURING', after:'END' };
 function tagWord(tag){ return TAG_WORD[tag] || String(tag || '').toUpperCase(); }
 function fileDescription(item){
+  // A gallery photo leads with #PHONE and its tag as a bare word: the photo
+  // nudge sweep looks for "#START" to know a clock-in has its photo, and a
+  // picked photo must never be what satisfies it.
+  if (item.fromPhone) return '#PHONE ' + tagWord(item.tag) +
+         (item.entryId ? ' #TE:' + item.entryId : '') +
+         (item.codeLabel ? ' ' + item.codeLabel : '') +
+         ' · picked from the phone\'s photos, ' + (item.takenAt ? 'taken ' + phoneWhenOffice(item.takenAt) : 'time taken unknown');
   return '#' + tagWord(item.tag) +
          (item.entryId ? ' #TE:' + item.entryId : '') +
          (item.codeLabel ? ' ' + item.codeLabel : '');
 }
 
 function fileName(item){
-  var d = new Date(item.at);
+  // A phone photo is named by when it was taken; with no time in it, by when
+  // it was picked, and the description says the time is unknown.
+  var d = new Date(item.fromPhone && item.takenAt ? item.takenAt : item.at);
   var stamp = d.getFullYear() + pad2(d.getMonth()+1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
   var who = (S.me && S.me.name || '').split(/\s+/).map(function(w){ return w.charAt(0); }).join('').toUpperCase();
   var ext = /video/.test(item.mime) ? (/mp4/.test(item.mime) ? '.mp4' : '.webm') : '.jpg';
-  return stamp + '-' + tagWord(item.tag) + (who ? '-' + who : '') + ext;
+  return stamp + '-' + (item.fromPhone ? 'PHONE-' : '') + tagWord(item.tag) + (who ? '-' + who : '') + ext;
 }
 
 /* =========================================================
@@ -5198,7 +5245,7 @@ var CO_L10N = {
         retry:'Reintentar', mineRepairs:'Míos', everyone:'Todos', nothingForYou:'Nada para ti en este trabajo. Toca Todos para ver el resto.', noRepairs:'No hay reparaciones en este trabajo.',
         ready:'listas', readyOne:'lista', assignedTo:'Para', beforeAfter:'Foto de antes y después en cada reparación', lastCloses:'La última reparación cerrada manda el trabajo a PM Review.',
         whatToDo:'Qué hacer', whatToDoSub:'what to do', autoTranslated:'Traducción automática · toca EN arriba para el original', assignedBy:'Para el', before:'Foto de antes', beforeSub:'opcional',
-        after:'Foto de después', afterSub:'Obligatoria para terminar', done:'Terminado', doneSub:'Toma la foto de después para terminar', pmChecks:'El PM lo revisa y lo cierra en JobTread', doneLast:'Terminar y mandar al PM', doneLastSub:'Es la última reparación del trabajo. Al terminarla, el trabajo pasa al PM para revisar.', repairsSent:'Reparaciones listas', repairsSentSub:'Mandado al PM para revisar. No queda nada para el equipo en este trabajo.',
+        after:'Foto de después', afterSub:'Obligatoria para terminar', done:'Terminado', doneSub:'Toma la foto de después para terminar', pmChecks:'El PM lo revisa y lo cierra en JobTread', doneLast:'Terminar y mandar al PM', doneLastSub:'Es la última reparación del trabajo. Al terminarla, el trabajo pasa al PM para revisar.', fromPhone:'De mis fotos', phoneTag:'Teléfono', noTime:'Sin hora', afterNoTime:'Esa foto no tiene fecha, así que no muestra que la reparación se hizo. Toma la foto de después con la cámara.', afterTooOld:'Esa foto se tomó antes de que se pidiera la reparación ({when}), así que no muestra el arreglo. Escoge una más nueva o usa la cámara.', repairsSent:'Reparaciones listas', repairsSentSub:'Mandado al PM para revisar. No queda nada para el equipo en este trabajo.',
         repairDone:'Reparación terminada', noteOpt:'Nota (opcional)', soldScope:'Trabajo vendido', soldScopeSub:'lo que se vendió, en pocas palabras', loading:'Cargando…',
         lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
         notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
@@ -5220,7 +5267,7 @@ var CO_L10N = {
         retry:'Retry', mineRepairs:'Mine', everyone:'Everyone', nothingForYou:'Nothing here is yours. Tap Everyone to see the rest.', noRepairs:'No repairs on this job.',
         ready:'done', readyOne:'done', assignedTo:'For', beforeAfter:'Before & after photo on every repair', lastCloses:'The last repair closed moves the job to PM Review.',
         whatToDo:'What to do', whatToDoSub:'qué hacer', autoTranslated:'Machine translation · tap ES above for the Spanish', assignedBy:'Due', before:'Before photo', beforeSub:'optional',
-        after:'After photo', afterSub:'Required to finish', done:'Done', doneSub:'Take the after photo to finish', pmChecks:'The PM checks it and closes it in JobTread', doneLast:'Finish & send to PM', doneLastSub:'This is the last repair on the job. Finishing it sends the job to the PM for review.', repairsSent:'All repairs done', repairsSentSub:'Sent to the PM for review. Nothing left for the crew on this job.',
+        after:'After photo', afterSub:'Required to finish', done:'Done', doneSub:'Take the after photo to finish', pmChecks:'The PM checks it and closes it in JobTread', doneLast:'Finish & send to PM', doneLastSub:'This is the last repair on the job. Finishing it sends the job to the PM for review.', fromPhone:'From my photos', phoneTag:'Phone', noTime:'No time', afterNoTime:'That photo has no date on it, so it cannot show the repair was done. Take the after photo with the camera.', afterTooOld:'That photo was taken before the repair was asked for ({when}), so it cannot show the fix. Pick a newer one or use the camera.', repairsSent:'All repairs done', repairsSentSub:'Sent to the PM for review. Nothing left for the crew on this job.',
         repairDone:'Repair finished', noteOpt:'Note (optional)', soldScope:'Sold scope', soldScopeSub:'what was sold, in a few words', loading:'Loading…',
         lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
         notYours:'Close Out is for the service crew.', noJobs:'Nothing ready to inspect today.', noInspector:'The board doesn’t send you inspections yet — ask the office (Operations → Divisions & PMs).',
@@ -5234,7 +5281,7 @@ function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
 var CO = { screen: 'queue', jobs: null, jobsAt: 0, jobsSource: '', loading: false, err: '', reason: '', filter: 'mine',
            jobId: null, job: null, jobLoading: false, jobErr: '', taskId: null, reportIdx: null, listFilter: 'mine',
-           search: '', scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null, repairsSent: null };
+           search: '', scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null, repairsSent: null, photoNote: null };
 /* The phone's copy of every visit in progress, keyed by job. */
 var coStore = { visits: {} };
 try { coStore = JSON.parse(localStorage.getItem(CO_KEY) || '{"visits":{}}') || { visits: {} }; if (!coStore.visits) coStore.visits = {}; } catch(e){ coStore = { visits: {} }; }
@@ -5432,6 +5479,102 @@ function coEnglishFor(v, idx){
 
 /* ---- photos: the phone's own camera, downscaled, kept in IndexedDB ---- */
 function coTakePhoto(target){ CO.photoFor = target; var f = $('coFile'); f.value = ''; f.click(); }
+/* ---- photos picked from the phone's own gallery (T2.9, Carl 13 Oct 2026) ----
+   Yahir asked to send photos he took with the phone's own camera. Every photo
+   button but the clock's START and END photos now has a "From my photos"
+   twin; those two stay camera-only, because that photo IS the punch.
+   A picked photo carries the time it was TAKEN, read from the photo itself
+   (EXIF DateTimeOriginal) BEFORE the app shrinks it — the canvas the shrink
+   draws through throws that data away. No time in the photo (a screenshot, a
+   copy saved out of WhatsApp) is said as "time unknown", never guessed from
+   the file's date, which is when it was downloaded. Location is not read:
+   both phones strip it from a gallery pick often enough to be worthless. */
+function photoTakenAt(file){
+  if (!file || !file.slice) return Promise.resolve(null);
+  return new Promise(function(res){
+    var r = new FileReader();
+    r.onload = function(){ try { res(exifTakenAt(new DataView(r.result))); } catch(e){ res(null); } };
+    r.onerror = function(){ res(null); };
+    r.readAsArrayBuffer(file.slice(0, 262144));
+  });
+}
+/* JPEG only: walk the segments to APP1 "Exif", then the TIFF block in it. */
+function exifTakenAt(dv){
+  if (dv.byteLength < 4 || dv.getUint16(0) !== 0xFFD8) return null;
+  var off = 2;
+  while (off + 4 <= dv.byteLength){
+    var marker = dv.getUint16(off);
+    if ((marker & 0xFF00) !== 0xFF00) return null;
+    if (marker === 0xFFDA) return null;            // the image data: no EXIF before it
+    var len = dv.getUint16(off + 2);
+    if (marker === 0xFFE1 && off + 10 <= dv.byteLength && dv.getUint32(off + 4) === 0x45786966 && dv.getUint16(off + 8) === 0) return exifTiffTime(dv, off + 10);
+    off += 2 + len;
+  }
+  return null;
+}
+function exifTiffTime(dv, t){
+  var le = dv.getUint16(t) === 0x4949;
+  function u16(o){ return dv.getUint16(t + o, le); }
+  function u32(o){ return dv.getUint32(t + o, le); }
+  if (u16(2) !== 42) return null;
+  function ifd(o){
+    var n = u16(o), tags = {};
+    for (var i = 0; i < n && i < 400; i++){ var e = o + 2 + i * 12; if (t + e + 12 > dv.byteLength) break; tags[u16(e)] = { type: u16(e + 2), count: u32(e + 4), at: e + 8 }; }
+    return tags;
+  }
+  function ascii(tag){
+    if (!tag || tag.type !== 2 || tag.count > 64) return '';
+    var o = tag.count > 4 ? u32(tag.at) : tag.at, out = '';
+    for (var i = 0; i < tag.count - 1 && t + o + i < dv.byteLength; i++) out += String.fromCharCode(dv.getUint8(t + o + i));
+    return out;
+  }
+  var ifd0 = ifd(u32(4)), exif = ifd0[0x8769] ? ifd(u32(ifd0[0x8769].at)) : {};
+  // DateTimeOriginal, else DateTimeDigitized, else the file's DateTime; the
+  // zone tags (OffsetTimeOriginal / OffsetTime) only on newer phones.
+  return exifIso(ascii(exif[0x9003]) || ascii(exif[0x9004]) || ascii(ifd0[0x0132]), ascii(exif[0x9011]) || ascii(exif[0x9010]));
+}
+/* "2026:10:12 14:10:05" (+ "-04:00") -> ISO. With no zone it is the phone's
+   own clock, which is the crew's. Outside 2000..tomorrow is a camera with
+   its clock unset, not a time. */
+function exifIso(when, zone){
+  var m = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(when || '');
+  if (!m) return null;
+  var z = /^([+-])(\d{2}):(\d{2})$/.exec(zone || ''), ms;
+  if (z) ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) - (z[1] === '-' ? -1 : 1) * ((+z[2]) * 60 + (+z[3])) * 60000;
+  else ms = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  if (!isFinite(ms) || ms < Date.UTC(2000, 0, 1) || ms > Date.now() + 86400000) return null;
+  return new Date(ms).toISOString();
+}
+/* HEIC is the iPhone default and some Android cameras'. iOS hands a web page
+   a JPEG copy; Chrome on Android hands over the HEIC, which it cannot draw. */
+function isHeic(file){ return /heic|heif/i.test((file && (file.type || file.name)) || ''); }
+function heicWords(){ return S.lang === 'es' ? 'Esa foto está en un formato que la app no abre (HEIC). Cambia la cámara del teléfono a JPEG, o usa el botón de la cámara.' : 'That photo is in a format the app cannot open (HEIC). Set the phone camera to save JPEG, or use the camera button.'; }
+/* "2:10p" today, "Oct 12" / "12 oct" on another day — a 92px tile's worth. */
+function phoneWhenShort(iso){
+  var d = new Date(iso), now = new Date();
+  if (d.toDateString() === now.toDateString()) return clockLabel(d);
+  return d.toLocaleDateString(S.lang === 'es' ? 'es-US' : 'en-US', { month: 'short', day: 'numeric' });
+}
+function phoneWhenLong(iso){
+  var d = new Date(iso);
+  return d.toLocaleDateString(S.lang === 'es' ? 'es-US' : 'en-US', { month: 'short', day: 'numeric' }) + ' ' + clockLabel(d);
+}
+/* The same, in English, for what lands in JobTread (the office reads English). */
+function phoneWhenOffice(iso){
+  var d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + clockLabel(d);
+}
+/* The tags a Close Out tile wears: PHONE on top when it came from the gallery. */
+/* A before/after tile picked from the phone says so, and when it was taken. */
+function coBigSrc(p){ return p && p.fromPhone ? '<span class="src">' + esc(co('phoneTag') + ' · ' + (p.takenAt ? phoneWhenLong(p.takenAt) : co('noTime'))) + '</span>' : ''; }
+function photoTileTags(p){
+  if (!p.fromPhone) return '<span class="tag">' + esc(clockLabel(p.at)) + '</span>';
+  return '<span class="src">' + esc(co('phoneTag')) + '</span><span class="tag">' + esc(p.takenAt ? phoneWhenShort(p.takenAt) : co('noTime')) + '</span>';
+}
+/* What the Close Out server is told about where a photo came from. */
+function coOrigin(p){ return p && p.fromPhone ? { source: 'phone', takenAt: p.takenAt || undefined } : {}; }
+function coPayload(base, p){ var o = coOrigin(p); for (var k in o) if (o[k] !== undefined) base[k] = o[k]; return base; }
+
 function coShrink(file){
   return new Promise(function(res, rej){
     var img = new Image(), url = URL.createObjectURL(file);
@@ -5450,19 +5593,57 @@ function coShrink(file){
 function coPhotoTaken(file){
   var target = CO.photoFor; CO.photoFor = null;
   if (!target || !file) return;
+  coAddPhoto(target, file, null);
+}
+/* One photo onto its place in the visit. `origin` is { fromPhone, takenAt }
+   for a gallery pick, null for the camera. Returns when it is stored. */
+function coAddPhoto(target, file, origin){
   var id = uid();
-  coShrink(file).then(function(blob){
+  return coShrink(file).then(function(blob){
     return makeThumb(blob).then(function(thumb){
       return coPhotoPut({ id: id, blob: blob, mime: 'image/jpeg', at: Date.now() }).then(function(){ return thumb; });
     });
   }).then(function(thumb){
     var v = coVisit(target.jobId), rec = { id: id, thumb: thumb, at: Date.now() };
+    if (origin && origin.fromPhone){ rec.fromPhone = true; rec.takenAt = origin.takenAt || null; }
+    if (target.kind === 'after' && CO.photoNote && CO.photoNote.taskId === target.taskId) CO.photoNote = null;
     if (target.kind === 'report'){ var r = v.reports[target.idx]; if (r){ r.photos = r.photos || []; r.photos.push(rec); } }
     else if (target.kind === 'visit') v.photos.push(rec);
     else if (target.kind === 'before') v.before[target.taskId] = rec;
     else if (target.kind === 'after') v.after[target.taskId] = rec;
     coPersist(); coRender();
   }).catch(function(e){ failed('close out · photo', e); });
+}
+/* "From my photos": the phone's own picker, several at once where a list of
+   photos fits (a problem, the visit), one where only one belongs. */
+function coPickPhotos(target){
+  CO.photoFor = target;
+  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit'; g.value = ''; g.click();
+}
+/* An AFTER photo is the proof the repair was done (Carl, 13 Oct 2026): one
+   taken before the repair was asked for cannot show the fix, and one with no
+   date cannot show anything. The camera is always the way out. A server
+   older than the task's createdAt leaves only the no-date rule. */
+function coAfterRefusal(target, takenAt){
+  if (target.kind !== 'after') return '';
+  if (!takenAt) return co('afterNoTime');
+  var j = CO.job || coJobById(target.jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === target.taskId; })[0];
+  if (t && t.createdAt && Date.parse(takenAt) < Date.parse(t.createdAt)) return co('afterTooOld').replace('{when}', phoneWhenLong(t.createdAt));
+  return '';
+}
+function coGalleryPicked(files){
+  var target = CO.photoFor; CO.photoFor = null;
+  if (!target || !files || !files.length) return;
+  return files.reduce(function(chain, file){
+    return chain.then(function(){
+      if (isHeic(file)){ toast(heicWords(), true); return; }
+      return photoTakenAt(file).then(function(takenAt){
+        var no = coAfterRefusal(target, takenAt);
+        if (no){ CO.photoNote = { taskId: target.taskId, text: no }; toast(no, true); coRender(); return; }
+        return coAddPhoto(target, file, { fromPhone: true, takenAt: takenAt });
+      });
+    });
+  }, Promise.resolve());
 }
 function coRemovePhoto(target, id){
   var v = coVisit(target.jobId);
@@ -5591,10 +5772,10 @@ function coSendVisit(jobId){
                             fixedOnSite: !!r.fixed, reportedBy: S.me && S.me.name } });
     (r.photos || []).forEach(function(p, pi){
       items.push({ id: r.ref + '.p' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('photo') + ' · ' + (r.itemN || ''),
-                   payload: { label: 'REPORT', reportRef: r.ref, itemKey: r.itemKey || undefined, location: r.locationWords || undefined } });
+                   payload: coPayload({ label: 'REPORT', reportRef: r.ref, itemKey: r.itemKey || undefined, location: r.locationWords || undefined }, p) });
     });
   });
-  v.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('visitPhotos'), payload: { label: 'INSPECTION' } }); });
+  v.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('visitPhotos'), payload: coPayload({ label: 'INSPECTION' }, p) }); });
   var findings = v.reports.filter(function(r){ return r.itemKey; }).map(function(r){ return { itemKey: r.itemKey, fixedOnSite: !!r.fixed, location: r.locationWords || '', note: (r.noteEn || r.note || '').trim(), photos: (r.photos || []).length }; });
   var problems = v.reports.filter(function(r){ return !r.fixed; }).length;
   items.push({ id: ref, kind: 'close', jobId: jobId, label: co('inspection') + ' + ' + co('cleanup'),
@@ -5604,8 +5785,8 @@ function coSendVisit(jobId){
 }
 function coFinishRepair(jobId, taskId){
   var v = coVisit(jobId), items = [], ref = 'cr' + uid();
-  if (v.before[taskId]) items.push({ id: ref + '.b', kind: 'photo', jobId: jobId, photoId: v.before[taskId].id, label: co('before'), payload: { label: 'BEFORE', taskId: taskId } });
-  if (v.after[taskId]) items.push({ id: ref + '.a', kind: 'photo', jobId: jobId, photoId: v.after[taskId].id, label: co('after'), payload: { label: 'AFTER', taskId: taskId } });
+  if (v.before[taskId]) items.push({ id: ref + '.b', kind: 'photo', jobId: jobId, photoId: v.before[taskId].id, label: co('before'), payload: coPayload({ label: 'BEFORE', taskId: taskId }, v.before[taskId]) });
+  if (v.after[taskId]) items.push({ id: ref + '.a', kind: 'photo', jobId: jobId, photoId: v.after[taskId].id, label: co('after'), payload: coPayload({ label: 'AFTER', taskId: taskId }, v.after[taskId]) });
   items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, label: co('repairDone'), payload: { note: (v.repairNote[taskId] || '').trim() } });
   v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; coPersist();
   coEnqueue(items).then(function(){ toast(co('repairDone')); coGo('repairs'); });
@@ -5782,8 +5963,9 @@ function coReportHtml(){
   var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r) return '';
   var it = coItemByKey(r.itemKey), target = JSON.stringify({ kind: 'report', jobId: CO.jobId, idx: CO.reportIdx }), h = '';
   h += '<div class="k" style="margin-top:6px">' + esc(co('takePhotos')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('takePhotos').toLowerCase()) + '</div>';
-  h += '<div class="photos">' + (r.photos || []).map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'><span class="tag">' + esc(clockLabel(p.at)) + '</span><span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
-       '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc((r.photos || []).length ? co('anotherPhoto') : co('photo')) + '</button></div>';
+  h += '<div class="photos">' + (r.photos || []).map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+       '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc((r.photos || []).length ? co('anotherPhoto') : co('photo')) + '</button>' +
+       '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
   h += '<div class="k" style="margin-top:22px">' + esc(co('where')) + ' · ' + esc(co2('where').toLowerCase()) + ' · ' + esc(co('optional')) + '</div>';
   h += '<div class="whychips">' + coWhereChips(r) + '</div>';
   h += '<input id="coWhereText" class="cknote-in" style="margin-top:8px" placeholder="' + esc(it ? coLabel(it) : co('where')) + '" maxlength="80" value="' + esc(r.locationText || '') + '">';
@@ -5815,8 +5997,9 @@ function coProblemsHtml(){
 function coPhotosHtml(){
   var v = coVisit(CO.jobId), target = JSON.stringify({ kind: 'visit', jobId: CO.jobId });
   return '<div class="foot" style="text-align:left;margin-top:4px">' + esc(co('photosHint')) + '</div><div class="photos">' +
-    v.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'><span class="tag">' + esc(clockLabel(p.at)) + '</span><span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
-    '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(v.photos.length ? co('anotherPhoto') : co('photo')) + '</button></div>';
+    v.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+    '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(v.photos.length ? co('anotherPhoto') : co('photo')) + '</button>' +
+    '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
 }
 function coSendHtml(){
   var v = coVisit(CO.jobId), j = CO.job || coJobById(CO.jobId), items = coOutboxFor(CO.jobId), h = '';
@@ -5892,10 +6075,14 @@ function coRepairHtml(){
        (S.lang === 'es' && CO.trans[t.description || t.name] ? '<span class="small-note" style="font:400 13px/1.4 var(--sans);color:var(--mut)">' + esc(co('autoTranslated')) + '</span>' : '') + '</div>' +
        (t.endDate ? '<div class="rvrow"><span class="rk">' + esc(co('assignedBy')) + '</span><span class="rv">' + esc(t.endDate) + '</span></div>' : '') + '</div>';
   h += '<div class="photos" style="margin-top:14px">' +
-       (b ? '<button class="phbig" style="background-image:url(' + b.thumb + ')" data-corm="' + esc(b.id) + '" data-target=\'' + esc(tb) + '\'><span class="tag">' + esc(co('before')) + '</span></button>'
+       (b ? '<button class="phbig" style="background-image:url(' + b.thumb + ')" data-corm="' + esc(b.id) + '" data-target=\'' + esc(tb) + '\'><span class="tag">' + esc(co('before')) + '</span>' + coBigSrc(b) + '</button>'
           : '<button class="phbig empty" data-cophoto=\'' + esc(tb) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('before')) + '</span><span class="s">' + esc(co('beforeSub')) + '</span></button>') +
-       (a ? '<button class="phbig" style="background-image:url(' + a.thumb + ')" data-corm="' + esc(a.id) + '" data-target=\'' + esc(ta) + '\'><span class="tag">' + esc(co('after')) + '</span></button>'
+       (a ? '<button class="phbig" style="background-image:url(' + a.thumb + ')" data-corm="' + esc(a.id) + '" data-target=\'' + esc(ta) + '\'><span class="tag">' + esc(co('after')) + '</span>' + coBigSrc(a) + '</button>'
           : '<button class="phbig empty need" data-cophoto=\'' + esc(ta) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('after')) + '</span><span class="s">' + esc(co('afterSub')) + '</span></button>') + '</div>';
+  // From my photos, under whichever slot is still empty (T2.9).
+  if (!b || !a) h += '<div class="phrow2">' + (b ? '<span></span>' : '<button class="galsm" data-cogallery=\'' + esc(tb) + '\'>' + ico('image', 18) + esc(co('fromPhone')) + '</button>') +
+                      (a ? '<span></span>' : '<button class="galsm" data-cogallery=\'' + esc(ta) + '\'>' + ico('image', 18) + esc(co('fromPhone')) + '</button>') + '</div>';
+  if (CO.photoNote && CO.photoNote.taskId === t.id && !a) h += '<div class="foot" id="coPhotoNote" style="text-align:left;color:var(--ckamber);margin-top:10px">' + esc(CO.photoNote.text) + '</div>';
   h += '<div class="story' + (v.repairNote[t.id] ? ' has' : '') + '" style="margin-top:14px"><textarea id="coRepairNote" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.repairNote[t.id] || '') + '</textarea></div>';
   var can = !!a, last = coIsLastRepair(j, v, t.id);
   h += '<button class="ctaBig" id="coDone" style="margin-top:18px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co(last ? 'doneLast' : 'done')) + '</button>';
@@ -5991,6 +6178,7 @@ function coWire(){
   on('[data-coedit]', function(b){ CO.reportIdx = Number(b.getAttribute('data-coedit')); CO.reportFrom = 'problems'; coGo('report'); });
   on('[data-coreport]', function(b){ coStartReport(b.getAttribute('data-coreport'), CO.screen); });
   on('[data-cophoto]', function(b){ coTakePhoto(JSON.parse(b.getAttribute('data-cophoto'))); });
+  on('[data-cogallery]', function(b){ coPickPhotos(JSON.parse(b.getAttribute('data-cogallery'))); });
   on('[data-corm]', function(b){ coRemovePhoto(JSON.parse(b.getAttribute('data-target')), b.getAttribute('data-corm')); });
   on('[data-cowhere]', function(b){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; var k = b.getAttribute('data-cowhere'); r.location = r.location === k ? '' : k; coLocationWords(r); coPersist(); coRender(); });
   on('[data-cofixed]', function(b){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.fixed = b.getAttribute('data-cofixed') === '1'; coPersist(); coRender(); });
@@ -6141,6 +6329,7 @@ $('coSearch').onkeydown = function(ev){
   if (rows.length === 1) coOpenJob(rows[0].getAttribute('data-cojob'));
 };
 $('coFile').onchange = function(){ var f = this.files && this.files[0]; coPhotoTaken(f); };
+$('coGallery').onchange = function(){ var fs = [].slice.call(this.files || []); this.value = ''; coGalleryPicked(fs); };
 $('peopleStamp').onclick = function(){ peopleLoad(true); };
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
 $('clockIn').onclick = function(){
@@ -6173,6 +6362,8 @@ $('shutter').onclick = shoot;
 $('modeBtn').onclick = function(){ if (recorder) return; S.mode = S.mode==='photo'?'video':'photo'; renderCam(); };
 $('lastShot').onclick = function(){ setTab('log'); };
 $('camFallback').onclick = function(){ $('fileIn').click(); };
+$('galBtn').onclick = function(){ if (S.clockGate) return; if (!S.job){ toast('Pick a job first'); return; } var g = $('galleryIn'); g.value = ''; g.click(); };
+$('galleryIn').onchange = function(){ var fs = [].slice.call(this.files || []); this.value = ''; galleryPicked(fs); };
 $('fileIn').onchange = function(){
   var f = this.files && this.files[0];
   this.value = '';

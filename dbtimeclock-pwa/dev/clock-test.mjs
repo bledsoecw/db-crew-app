@@ -246,6 +246,43 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await ctx.close();
 }
 
+// ---- T2.9: From my photos on the camera — never on a START or END photo ----
+{
+  const JPEG = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==', 'base64');
+  const exifJpeg = (when) => {
+    const str = Buffer.from(when + '\0', 'ascii'), tiff = Buffer.alloc(44 + str.length);
+    tiff.write('II', 0, 'ascii'); tiff.writeUInt16LE(42, 2); tiff.writeUInt32LE(8, 4);
+    tiff.writeUInt16LE(1, 8); tiff.writeUInt16LE(0x8769, 10); tiff.writeUInt16LE(4, 12); tiff.writeUInt32LE(1, 14); tiff.writeUInt32LE(26, 18); tiff.writeUInt32LE(0, 22);
+    tiff.writeUInt16LE(1, 26); tiff.writeUInt16LE(0x9003, 28); tiff.writeUInt16LE(2, 30); tiff.writeUInt32LE(str.length, 32); tiff.writeUInt32LE(44, 36); tiff.writeUInt32LE(0, 40);
+    str.copy(tiff, 44);
+    const body = Buffer.concat([Buffer.from('Exif\0\0', 'binary'), tiff]), head = Buffer.alloc(4);
+    head.writeUInt16BE(0xFFE1, 0); head.writeUInt16BE(body.length + 2, 2);
+    return Buffer.concat([JPEG.subarray(0, 2), head, body, JPEG.subarray(2)]);
+  };
+  const { ctx, page, errs } = await boot();
+  await tap(page, '#clockIn', 300);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 600);
+  check('locked to the START photo: no From my photos', await page.locator('#galBtn').isVisible(), false);
+  check('…and a picked photo could not get through even if asked', await page.evaluate(() => { captured(new Blob(['x'], { type: 'image/jpeg' }), 'image/jpeg', { fromPhone: true }); return [S.clockGate, S.photos.length]; }), ['start', 0]);
+  await shoot(page);
+  await settle(page);
+  await tap(page, '#photoBtn', 500);
+  check('Take a photo: From my photos under the tags', [await page.locator('#galBtn').isVisible(), await txt(page, '#galBtn')], [true, 'From my photos']);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#galBtn').click()]);
+  check('…several at once', chooser.isMultiple(), true);
+  await chooser.setFiles([{ name: 'IMG_1.jpg', mimeType: 'image/jpeg', buffer: exifJpeg('2026:10:12 14:10:05') }, { name: 'IMG_2.jpg', mimeType: 'image/jpeg', buffer: JPEG }]);
+  await until(page, () => S.photos.length === 3);
+  await page.waitForTimeout(2200);
+  const ph = await page.evaluate(() => S.photos.slice(1).map((p) => [p.tag, p.fromPhone, p.name.replace(/-[A-Z]+\.jpg$/, '')]));
+  check('two photos on the running code, from the phone, named by when they were taken', [ph[0][0], ph[0][1], ph[0][2], ph[1][1], /^\d{8}-\d{6}-PHONE-DURING$/.test(ph[1][2])], ['during', true, '20261012-141005-PHONE-DURING', true, true]);
+  const files = await page.evaluate(() => (window.__FILES || []).map((f) => f.desc));
+  check('in JobTread they say so, and never look like a START photo', files.slice(1),
+    ['#PHONE DURING #TE:open1 04MA Masonry Labor · picked from the phone\'s photos, taken Oct 12, 2026 2:10p', '#PHONE DURING #TE:open1 04MA Masonry Labor · picked from the phone\'s photos, time taken unknown']);
+  check('…and back to the clock after the last one', await page.evaluate(() => S.tab), 'job');
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 await browser.close();
 let failed = 0;
 for (const r of results) {

@@ -239,6 +239,52 @@ not move, never claims to have gone. There is no second "send to PM" step on
 purpose: the to-dos closing is the fact, and a step the crew can forget would
 leave a finished job sitting at Punch List with nobody told.
 
+**Photos from the phone's own gallery** (T2.9, Carl 13 Oct 2026 — Yahir
+asked to send photos he took with the phone's own camera). Every photo button
+in the app now has a **From my photos** / **De mis fotos** twin — the Clock
+camera (Take a photo, the safety alert's photo), Close Out's problem reports,
+visit photos, and a repair's before and after photos — **except the clock's
+START and END photos**, which stay camera-only: that photo IS the punch, and
+the API refuses a clock-in or out without one, so a picked photo would let
+yesterday's picture clock someone in. The button is not drawn while the
+camera is locked to a gate, and `captured()` refuses a gallery photo there
+even if asked.
+
+- **The time it was taken comes from the photo itself** (EXIF
+  DateTimeOriginal, with the zone tag where the phone writes one), read
+  BEFORE the app shrinks it — the canvas the shrink draws through throws that
+  data away. `photoTakenAt` / `exifTakenAt` / `exifIso`, no library. A photo
+  with no time in it (a screenshot, a copy saved out of WhatsApp) says **No
+  time** / **Sin hora**; the file's own date is when it was downloaded, so it
+  is never used as a guess. Location is not read at all: both phones strip it
+  from a gallery pick often enough to be worthless.
+- **It says so everywhere it shows.** A Close Out tile wears an amber PHONE
+  badge and the day it was taken; a before/after tile says "Phone · Oct 12
+  2:10p". In JobTread a Clock photo is named `20261012-141005-PHONE-DURING-YG.jpg`
+  and described `#PHONE DURING #TE:… 04MA Masonry Labor · picked from the
+  phone's photos, taken Oct 12, 2026 2:10p`. The tag is a bare word after
+  `#PHONE` on purpose: the photo-nudge sweep looks for `#START` to know a
+  clock-in has its photo, and a picked photo must never be what satisfies it.
+  A Close Out photo goes to the CheckOut server with `source: "phone"` and
+  `takenAt`, which names and describes the file the same way (that server's
+  half, `bledsoecw/DB-CheckOut`, ships with this build; an older server
+  ignores the two fields and the photo still lands).
+- **An AFTER photo must postdate the repair** (Carl's rule). One taken before
+  the repair was asked for cannot show the fix, and one with no date cannot
+  show anything, so both are refused on the spot with the reason under the
+  tiles, and the camera is always the way out. The repair's created time
+  comes from the CheckOut server (`createdAt` on each punch task); against an
+  older server only the no-date rule applies. A BEFORE photo, a problem photo
+  and a visit photo take any picture, dated or not — they show a condition,
+  not a fix.
+- **Several at once** where a list of photos fits (a problem, the visit, the
+  Clock camera), one where only one belongs (before, after). HEIC, which
+  Chrome on Android cannot draw, is refused in words that say what to do.
+- `dev/closeout-test.mjs` and `dev/clock-test.mjs` pick real JPEGs carrying
+  EXIF through the phone's file chooser, check the badge, the payload, the
+  refusals, the JobTread name and description, and that the gated camera has
+  no gallery button.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
