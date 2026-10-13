@@ -201,6 +201,27 @@ again"*). What was behind each, and what changed:
 `dev/signin-test.mjs` walks it with a fake Google. **The API change needs a
 redeploy** (`apps-script/README.md`); the phone's half works without it.
 
+**A finished punch list is the PM's, and the screen says so** (T2.8.2, Carl
+13 Oct 2026, on 25-0001: the rep had inspected on site, so the board sent the
+job straight to Punch List; Carl finished the three repairs, the job moved to
+PM Review — *"but I never actually reviewed or sent it because the app is
+waiting on me to finish all the other checklists"*). Moving to PM Review was
+right: the server does it the moment the last punch to-do closes, and from
+there the PM reviews and the sales rep's final check-off closes the job. What
+was wrong was this screen. A PM Review job fell into the same branch as one
+waiting to be inspected, so it drew Inspection, Cleanup, Problems and Visit
+photos and a **Review & send** asking for all thirteen checks — on a job the
+crew had finished, with an inspection nobody owed. Now a PM Review job opens on
+**PM Review · waiting on the PM** and "Nothing left for the crew on this job",
+with the repairs (all ticked) below, and the header names it PM Review; a
+Punch List job's header reads Repairs. The checklists show only on a Final
+Inspection job, or on a visit this phone already started — that one keeps its
+send and the card says sending it moves nothing. Operations no longer sees the
+checklists on a Punch List job either: an inspection sent there moves nothing,
+and above the repairs it read as a step still owed. The mock's `coComplete`
+now flips the job like the server does, and `dev/closeout-test.mjs` walks the
+last repair into PM Review and Operations on each kind of job.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

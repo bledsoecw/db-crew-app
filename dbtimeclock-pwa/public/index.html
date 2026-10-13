@@ -958,7 +958,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.8.1 (2026-10-07)';
+var APP_BUILD = 'T2.8.2 (2026-10-13)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -5184,7 +5184,7 @@ var CO_STATUS = { fi: 'Final Inspection', pl: 'Punch List', pr: 'PM Review' };
 var CO_L10N = {
   es: { tab:'Close Out', mine:'Asignados', all:'Todos', jobsToday:'hoy', queueNote:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.',
         queueNote2:'Only jobs ready to inspect, or with repairs for you, show here.', inspection:'Inspección', cleanup:'Limpieza', problems:'Problemas', repairs:'Reparaciones',
-        start:'Empezar', cont:'Continuar', directions:'Cómo llegar', forYou:'Para ti', service:'Servicio', nobodyYet:'Nadie todavía', pmReview:'PM Review', waitingPm:'esperando al PM',
+        start:'Empezar', cont:'Continuar', directions:'Cómo llegar', forYou:'Para ti', service:'Servicio', nobodyYet:'Nadie todavía', pmReview:'PM Review', waitingPm:'esperando al PM', reviewSub:'No queda nada para el equipo en este trabajo. El PM lo revisa y luego el cierre final del vendedor lo termina.', reviewStarted:'Empezaste una inspección en este teléfono. Envíala para que quede en el registro; no cambia el estado.',
         points:'puntos', optional:'opcional', withPhoto:'con foto', visitPhotos:'Fotos de la visita', visitPhotosSub:'condición del trabajo', review:'Revisar y enviar',
         missing:'Falta', ok:'Bien', na:'N/A', naSub:'no aplica', fix:'Falla', fixSub:'Fix', fixNudge:'Reportar con foto y nota ›', fixK:'Falla · punto',
         of:'de', toReport:'falla por reportar', toReportN:'fallas por reportar', next:'Siguiente', takePhotos:'Tomar fotos', required:'obligatoria', anotherPhoto:'Otra foto', photo:'Foto',
@@ -5206,7 +5206,7 @@ var CO_L10N = {
         checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', searchPh:'Buscar trabajos por nombre, número o cliente', noMatch:'Ningún trabajo coincide.', noMatchMine:'Nada asignado coincide. Toca Todos para buscar en el resto.', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
   en: { tab:'Close Out', mine:'Assigned', all:'All', jobsToday:'today', queueNote:'Only jobs ready to inspect, or with repairs for you, show here.',
         queueNote2:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.', inspection:'Inspection', cleanup:'Cleanup', problems:'Problems', repairs:'Repairs',
-        start:'Start', cont:'Continue', directions:'Directions', forYou:'For you', service:'Service', nobodyYet:'Nobody yet', pmReview:'PM Review', waitingPm:'waiting on the PM',
+        start:'Start', cont:'Continue', directions:'Directions', forYou:'For you', service:'Service', nobodyYet:'Nobody yet', pmReview:'PM Review', waitingPm:'waiting on the PM', reviewSub:'Nothing left for the crew on this job. The PM reviews it, then the sales rep’s final check-off closes it.', reviewStarted:'An inspection was started on this phone. Send it to put it on the record — it does not move the job.',
         points:'items', optional:'optional', withPhoto:'with a photo', visitPhotos:'Visit photos', visitPhotosSub:'job condition', review:'Review & send',
         missing:'Missing', ok:'OK', na:'N/A', naSub:'not applicable', fix:'Fix', fixSub:'Falla', fixNudge:'Report it with a photo and a note ›', fixK:'Fix · item',
         of:'of', toReport:'fix to report', toReportN:'fixes to report', next:'Next', takePhotos:'Take photos', required:'required', anotherPhoto:'Another photo', photo:'Photo',
@@ -5687,12 +5687,27 @@ function coJobHtml(){
   if (j.address) h += '<div class="jcard" style="margin-top:0"><a class="jnav" style="border-top:0" href="' + esc('https://maps.google.com/?q=' + encodeURIComponent(j.address)) + '" target="_blank" rel="noopener">' + ico('nav', 22) + esc(co('directions')) + ' · ' + esc(j.address) + '</a></div>';
   if (CO.receipt && CO.receipt.jobId === j.id){
     h += '<div class="hero"><span class="sl"><span class="dot"></span>' + esc(co('sent')) + ' · ' + esc(clockLabel(CO.receipt.at)) + '</span><span class="ss">' + esc(co('sentSub')) + '</span></div>';
-  } else if (v.sentAt && !v.sending && !(ins + cln + v.reports.length + v.photos.length)){
+  } else if (k !== 'review' && v.sentAt && !v.sending && !(ins + cln + v.reports.length + v.photos.length)){
     h += '<div class="rvcard" style="margin-top:0"><div class="rvstory"><span class="rk">' + esc(co('sent')) + ' · ' + esc(clockLabel(v.sentAt)) + '</span><span class="rt">' + esc(co('sentSub')) + '</span></div></div>';
   }
   var pending = coOutboxFor(j.id);
   if (pending.length) h += coOutboxLine(j.id);
-  if (k !== 'repairs' || isOpsAccount() || ins + cln > 0){
+  // A job at PM Review is the PM's now (T2.8.2, Carl 13 Oct 2026). The last
+  // repair closing moves it there by itself, and on a job whose inspection
+  // the rep did on site the crew never had an inspection to send — yet this
+  // screen drew the four checklists and a Review & send asking for all
+  // thirteen checks, so a finished job read as one still waiting on the
+  // crew. Now it says whose turn it is, as the queue card already did, and
+  // the checklists come back only for a visit this phone has started.
+  // Operations no longer gets them on a Punch List job either: an
+  // inspection sent there moves nothing, and beside the repairs it read as
+  // a step still owed.
+  var started = ins + cln > 0;
+  if (k === 'review'){
+    h += '<div class="rvcard"><div class="rvstory"><span class="rk">' + esc(co('pmReview') + ' · ' + co('waitingPm')) + '</span><span class="rt" id="coReviewNote">' + esc(co('reviewSub')) + '</span>' +
+         (started ? '<span class="rt" style="margin-top:8px;color:var(--ckamber)">' + esc(co('reviewStarted')) + '</span>' : '') + '</div></div>';
+  }
+  if (k === 'inspect' || started){
     h += '<div class="jcard">' +
       coTile('inspect', co('inspection'), co2('inspection') + ' · ' + CO_INSPECT.length + ' ' + co('points'), ins + ' ' + co('of') + ' ' + CO_INSPECT.length, ins === CO_INSPECT.length ? 'all' : ins ? 'warn' : '') +
       coTile('cleanup', co('cleanup'), co2('cleanup') + ' · ' + CO_CLEAN.length + ' ' + co('points'), cln + ' ' + co('of') + ' ' + CO_CLEAN.length, cln === CO_CLEAN.length ? 'all' : cln ? 'warn' : '') +
@@ -5705,7 +5720,7 @@ function coJobHtml(){
     h += '<div class="jcard">' + coTile('repairs', co('repairs'), co2('repairs') + (j.openPunchTotal != null ? ' · ' + (tasks.length - open) + ' ' + co('of') + ' ' + tasks.length + ' ' + co('ready') : ''), open ? String(open) : (tasks.length ? '✓' : '—'), open ? 'warn' : 'all') + '</div>';
   }
   if (j.soldScope && j.soldScope.length) h += coScopeHtml(j);
-  if (k !== 'repairs' || ins + cln > 0){
+  if (k === 'inspect' || started){
     var miss = coMissing(v), can = !miss.length && !v.sending;
     h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coReview"' + (can ? '' : ' disabled') + '>' + esc(co('review')) + '</button>';
     h += '<div class="foot">' + (miss.length ? esc(co('missing') + ': ' + miss.join(' · ')) : esc(co('checkSendSub'))) + '</div>';
@@ -5880,6 +5895,9 @@ function coRender(){
   var bar = $('coBar'), barText = '';
   if (!queue){
     var kw = co(CO_HEADS[sc] || 'tab'), label = j ? coJobLabel(j) : '—';
+    // The job screen is named for what the job is waiting on, not always
+    // "Inspection" — a Punch List job is repairs, a PM Review job the PM's.
+    if (sc === 'job' && j){ var jk = coKindOf(j); if (jk === 'repairs') kw = co('repairs'); else if (jk === 'review') kw = co('pmReview'); }
     if (sc === 'report'){ var r = coVisit(CO.jobId).reports[CO.reportIdx], it = r && coItemByKey(r.itemKey); kw = co('problems') + (it ? ' · ' + co('fixK').split(' ·')[1].trim() + ' ' + it.n : ''); label = it ? coLabel(it).split(/[,—]/)[0] : label; }
     if (sc === 'repair'){ var t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0]; label = t ? es(coTaskName(t)) : label; }
     $('coK').textContent = kw + (j && j.number ? ' · JT #' + j.number : '');

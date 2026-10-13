@@ -493,7 +493,11 @@
       window.__CO.push({ fn: 'coComplete', taskId: taskId, jobId: jobId, note: note, ref: ref });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
       CO_DONE[taskId] = true;
-      return { status: 200, body: { ok: true, flipped: null } };
+      // The server's own rule (shouldFlipToPmReview): the last punch task
+      // closing moves a Punch List job to PM Review.
+      var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0], flipped = null;
+      if (j && j.status === 'Punch List' && j.punchTasks.length && j.punchTasks.every(function (t) { return t.progress >= 1 || CO_DONE[t.id]; })) { j.status = 'PM Review'; flipped = 'PM Review'; }
+      return { status: 200, body: { ok: true, flipped: flipped } };
     },
     // ---- People (T2.0): Operations only, as Code.gs enforces ----
     getPeople: function () {

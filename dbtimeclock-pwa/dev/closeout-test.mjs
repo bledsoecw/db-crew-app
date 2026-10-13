@@ -222,6 +222,54 @@ const allErrs = [];
   const done = (await calls(page)).filter((c) => c.fn === 'coPhoto' || c.fn === 'coComplete');
   check('the after photo goes on the task, then the completion with the note', done.map((c) => c.fn === 'coPhoto' ? [c.fn, c.photo.label, c.photo.taskId] : [c.fn, c.taskId, c.note]), [['coPhoto', 'AFTER', 'pt1'], ['coComplete', 'pt1', 'Bota nueva y sellada']]);
   check('back on the list, the repair reads done', await page.evaluate(() => [CO.screen, [...document.querySelectorAll('#coBody .rep')].filter((r) => r.classList.contains('done')).length]), ['repairs', 1]);
+  // T2.8.2: the LAST repair moves the job to PM Review by itself (the
+  // server's rule), and the job screen then says whose turn it is — no
+  // checklists, no Review & send asking for thirteen checks the crew never
+  // had to do (Carl, 25-0001, 13 Oct 2026).
+  await tap(page, '[data-corepair="pt2"]', 500);
+  await addPhoto(page, '.phbig.need');
+  await tap(page, '#coDone', 2500);
+  check('the last repair: the server flips the job to PM Review', (await calls(page)).filter((c) => c.fn === 'coComplete').map((c) => c.taskId), ['pt1', 'pt2']);
+  await page.evaluate(() => coGo('job')); await page.waitForTimeout(900);
+  const jobScreen = () => page.evaluate(() => ({
+    status: (CO.job || coJobById(CO.jobId) || {}).status,
+    waiting: !!document.getElementById('coReviewNote'),
+    tiles: [...document.querySelectorAll('#coBody [data-coscreen]')].map((b) => b.getAttribute('data-coscreen')),
+    send: !!document.getElementById('coReview'),
+  }));
+  check('…the job screen: waiting on the PM, the repairs only, no send', await jobScreen(), { status: 'PM Review', waiting: true, tiles: ['repairs'], send: false });
+  check('…and its header names the PM, not the inspection', await txt(page, '#coK'), 'PM Review · JT #26-0415');
+  check('…in the crew\'s words', [await txt(page, '#coBody .rvstory .rk'), await txt(page, '#coReviewNote')], ['PM Review · esperando al PM', 'No queda nada para el equipo en este trabajo. El PM lo revisa y luego el cierre final del vendedor lo termina.']);
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- T2.8.2: Operations sees no inspection on a Punch List or PM Review job ----
+{
+  const { ctx, page, errs } = await boot({ role: 'ops' });
+  await tap(page, '.tab[data-tab="co"]', 900);
+  await page.evaluate(() => { CO.filter = 'all'; coRender(); }); await page.waitForTimeout(200);
+  const screen = () => page.evaluate(() => ({
+    waiting: !!document.getElementById('coReviewNote'),
+    tiles: [...document.querySelectorAll('#coBody [data-coscreen]')].map((b) => b.getAttribute('data-coscreen')),
+    send: !!document.getElementById('coReview'),
+  }));
+  await tap(page, '[data-cojob="co-okafor"]', 900);
+  check('ops on a Punch List job: the repairs, no checklists', await screen(), { waiting: false, tiles: ['repairs'], send: false });
+  check('…headed Repairs', await txt(page, '#coK'), 'Repairs · JT #26-0415');
+  await page.evaluate(() => coGo('queue')); await page.waitForTimeout(300);
+  await tap(page, '[data-cojob="co-bell"]', 900);
+  check('ops on a PM Review job with no repairs: waiting on the PM, nothing to tap', await screen(), { waiting: true, tiles: [], send: false });
+  // A visit already started on this phone keeps its checklists and its send,
+  // and the card says why they are still there.
+  await page.evaluate(() => { var v = coVisit('co-bell'); v.answers.inspection[CO_INSPECT[0].key] = CO_ANS.OK; coPersist(); coRender(); }); await page.waitForTimeout(300);
+  check('…unless a visit was started here: the checklists and the send stay', await screen(), { waiting: true, tiles: ['inspect', 'cleanup', 'problems', 'photos'], send: true });
+  check('…and the card says it moves nothing', (await page.locator('#coBody .rvstory .rt').nth(1).textContent()).startsWith('An inspection was started on this phone'), true);
+  // Final Inspection is untouched: the checklists and the send are the job.
+  await page.evaluate(() => coGo('queue')); await page.waitForTimeout(300);
+  await tap(page, '[data-cojob="co-reyes"]', 900);
+  check('ops on a Final Inspection job: the four checklists and the send', await screen(), { waiting: false, tiles: ['inspect', 'cleanup', 'problems', 'photos'], send: true });
+  check('…headed Inspection', await txt(page, '#coK'), 'Inspection · JT #26-0421');
   allErrs.push(...errs);
   await ctx.close();
 }
