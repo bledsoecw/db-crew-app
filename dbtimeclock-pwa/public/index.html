@@ -958,7 +958,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.8.2 (2026-10-13)';
+var APP_BUILD = 'T2.8.3 (2026-10-13)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -5198,7 +5198,7 @@ var CO_L10N = {
         retry:'Reintentar', mineRepairs:'Míos', everyone:'Todos', nothingForYou:'Nada para ti en este trabajo. Toca Todos para ver el resto.', noRepairs:'No hay reparaciones en este trabajo.',
         ready:'listas', readyOne:'lista', assignedTo:'Para', beforeAfter:'Foto de antes y después en cada reparación', lastCloses:'La última reparación cerrada manda el trabajo a PM Review.',
         whatToDo:'Qué hacer', whatToDoSub:'what to do', autoTranslated:'Traducción automática · toca EN arriba para el original', assignedBy:'Para el', before:'Foto de antes', beforeSub:'opcional',
-        after:'Foto de después', afterSub:'Obligatoria para terminar', done:'Terminado', doneSub:'Toma la foto de después para terminar', pmChecks:'El PM lo revisa y lo cierra en JobTread',
+        after:'Foto de después', afterSub:'Obligatoria para terminar', done:'Terminado', doneSub:'Toma la foto de después para terminar', pmChecks:'El PM lo revisa y lo cierra en JobTread', doneLast:'Terminar y mandar al PM', doneLastSub:'Es la última reparación del trabajo. Al terminarla, el trabajo pasa al PM para revisar.', repairsSent:'Reparaciones listas', repairsSentSub:'Mandado al PM para revisar. No queda nada para el equipo en este trabajo.',
         repairDone:'Reparación terminada', noteOpt:'Nota (opcional)', soldScope:'Trabajo vendido', soldScopeSub:'lo que se vendió, en pocas palabras', loading:'Cargando…',
         lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
         notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
@@ -5220,7 +5220,7 @@ var CO_L10N = {
         retry:'Retry', mineRepairs:'Mine', everyone:'Everyone', nothingForYou:'Nothing here is yours. Tap Everyone to see the rest.', noRepairs:'No repairs on this job.',
         ready:'done', readyOne:'done', assignedTo:'For', beforeAfter:'Before & after photo on every repair', lastCloses:'The last repair closed moves the job to PM Review.',
         whatToDo:'What to do', whatToDoSub:'qué hacer', autoTranslated:'Machine translation · tap ES above for the Spanish', assignedBy:'Due', before:'Before photo', beforeSub:'optional',
-        after:'After photo', afterSub:'Required to finish', done:'Done', doneSub:'Take the after photo to finish', pmChecks:'The PM checks it and closes it in JobTread',
+        after:'After photo', afterSub:'Required to finish', done:'Done', doneSub:'Take the after photo to finish', pmChecks:'The PM checks it and closes it in JobTread', doneLast:'Finish & send to PM', doneLastSub:'This is the last repair on the job. Finishing it sends the job to the PM for review.', repairsSent:'All repairs done', repairsSentSub:'Sent to the PM for review. Nothing left for the crew on this job.',
         repairDone:'Repair finished', noteOpt:'Note (optional)', soldScope:'Sold scope', soldScopeSub:'what was sold, in a few words', loading:'Loading…',
         lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
         notYours:'Close Out is for the service crew.', noJobs:'Nothing ready to inspect today.', noInspector:'The board doesn’t send you inspections yet — ask the office (Operations → Divisions & PMs).',
@@ -5234,7 +5234,7 @@ function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
 var CO = { screen: 'queue', jobs: null, jobsAt: 0, jobsSource: '', loading: false, err: '', reason: '', filter: 'mine',
            jobId: null, job: null, jobLoading: false, jobErr: '', taskId: null, reportIdx: null, listFilter: 'mine',
-           search: '', scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null };
+           search: '', scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null, repairsSent: null };
 /* The phone's copy of every visit in progress, keyed by job. */
 var coStore = { visits: {} };
 try { coStore = JSON.parse(localStorage.getItem(CO_KEY) || '{"visits":{}}') || { visits: {} }; if (!coStore.visits) coStore.visits = {}; } catch(e){ coStore = { visits: {} }; }
@@ -5326,7 +5326,7 @@ function coPrefetchCodes(){
     .forEach(function(j){ loadCodes(j.id, true).catch(function(){}); });
 }
 function coOpenJob(jobId){
-  CO.jobId = jobId; CO.job = null; CO.screen = 'job'; CO.receipt = null;
+  CO.jobId = jobId; CO.job = null; CO.screen = 'job'; CO.receipt = null; CO.repairsSent = null;
   if (!codesCached(jobId)) loadCodes(jobId, true).catch(function(){});
   coRestoreJob(jobId);
   coLoadJob(jobId);
@@ -5568,7 +5568,11 @@ function coLanded(it, body){
   var v = coStore.visits[it.jobId]; if (!v) return;
   if (it.kind === 'report'){ v.reports.forEach(function(r){ if (r.ref === it.id){ r.sentAt = Date.now(); r.taskId = body && body.taskId; } }); }
   if (it.kind === 'close'){ v.sentAt = Date.now(); v.answers = { inspection: {}, cleanup: {} }; v.notes = { inspection: '', cleanup: '' }; v.reports = v.reports.filter(function(r){ return !r.sentAt; }); v.photos = []; CO.receipt = { jobId: it.jobId, at: v.sentAt, flipped: body && body.flipped }; }
-  if (it.kind === 'complete'){ v.doneTasks[it.taskId] = Date.now(); delete v.before[it.taskId]; delete v.after[it.taskId]; delete v.repairNote[it.taskId]; }
+  if (it.kind === 'complete'){ v.doneTasks[it.taskId] = Date.now(); delete v.before[it.taskId]; delete v.after[it.taskId]; delete v.repairNote[it.taskId];
+    // The server answers with the status it moved the job to. PM Review means
+    // that was the last open repair on the job: say so (T2.8.3), from the
+    // server's answer and never from the phone's guess.
+    if (body && body.flipped === CO_STATUS.pr) CO.repairsSent = { jobId: it.jobId, at: Date.now() }; }
   if (it.kind === 'photo' && it.photoId) coPhotoDel(it.photoId);
   coPersist();
 }
@@ -5703,7 +5707,8 @@ function coJobHtml(){
   // inspection sent there moves nothing, and beside the repairs it read as
   // a step still owed.
   var started = ins + cln > 0;
-  if (k === 'review'){
+  if (k === 'review' && CO.repairsSent && CO.repairsSent.jobId === j.id) h += coRepairsSentHtml(j.id);
+  else if (k === 'review'){
     h += '<div class="rvcard"><div class="rvstory"><span class="rk">' + esc(co('pmReview') + ' · ' + co('waitingPm')) + '</span><span class="rt" id="coReviewNote">' + esc(co('reviewSub')) + '</span>' +
          (started ? '<span class="rt" style="margin-top:8px;color:var(--ckamber)">' + esc(co('reviewStarted')) + '</span>' : '') + '</div></div>';
   }
@@ -5843,6 +5848,22 @@ function coSendHtml(){
   h += '<div class="foot">' + esc(co('offline')) + '</div>';
   return h;
 }
+/* "All repairs done · sent to the PM" (T2.8.3, Carl 13 Oct 2026): the last
+   repair used to land with the same toast as every other one, and nothing
+   said the job had just gone to the PM. */
+function coRepairsSentHtml(jobId){
+  var r = CO.repairsSent; if (!r || r.jobId !== jobId) return '';
+  return '<div class="hero" id="coRepairsSent" style="margin:4px 0 14px"><span class="sl"><span class="dot"></span>' + esc(co('repairsSent')) + '</span><span class="st">' + esc(clockLabel(r.at)) + '</span><span class="ss">' + esc(co('repairsSentSub')) + '</span></div>';
+}
+/* The open repair is the job's LAST one when every other punch to-do on the
+   job — anybody's, not just this phone's — is done or already queued to
+   send. Only a Punch List job moves on, so only there is it the last. */
+function coIsLastRepair(j, v, taskId){
+  if (!j || coKindOf(j) !== 'repairs') return false;
+  var tasks = j.punchTasks || [];
+  return tasks.some(function(t){ return t.id === taskId; }) &&
+    tasks.every(function(t){ return t.id === taskId || t.progress >= 1 || !!v.doneTasks[t.id]; });
+}
 function coRepairsHtml(){
   var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId);
   if (!j) return '<div class="jempty">' + esc(co('loading')) + '</div>';
@@ -5851,6 +5872,7 @@ function coRepairsHtml(){
   var shown = CO.listFilter === 'mine' && mine.length ? mine : tasks;
   var h = '';
   if (!tasks.length) return '<div class="jempty">' + esc(co('noRepairs')) + '</div>';
+  h += coRepairsSentHtml(j.id);
   if (CO.listFilter === 'mine' && !mine.length) h += '<div class="foot" style="text-align:left;margin:0 0 10px">' + esc(co('nothingForYou')) + '</div>';
   h += '<div class="jcard" style="margin-top:0">' + shown.map(function(x){
     var t = x.t, name = es(coTaskName(t)), pend = v.doneTasks[t.id] === 'queued';
@@ -5875,9 +5897,9 @@ function coRepairHtml(){
        (a ? '<button class="phbig" style="background-image:url(' + a.thumb + ')" data-corm="' + esc(a.id) + '" data-target=\'' + esc(ta) + '\'><span class="tag">' + esc(co('after')) + '</span></button>'
           : '<button class="phbig empty need" data-cophoto=\'' + esc(ta) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('after')) + '</span><span class="s">' + esc(co('afterSub')) + '</span></button>') + '</div>';
   h += '<div class="story' + (v.repairNote[t.id] ? ' has' : '') + '" style="margin-top:14px"><textarea id="coRepairNote" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.repairNote[t.id] || '') + '</textarea></div>';
-  var can = !!a;
-  h += '<button class="ctaBig" id="coDone" style="margin-top:18px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co('done')) + '</button>';
-  h += '<div class="foot">' + esc(can ? co('pmChecks') : co('doneSub')) + '</div>';
+  var can = !!a, last = coIsLastRepair(j, v, t.id);
+  h += '<button class="ctaBig" id="coDone" style="margin-top:18px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co(last ? 'doneLast' : 'done')) + '</button>';
+  h += '<div class="foot">' + esc(last ? co('doneLastSub') + (can ? '' : ' ' + co('doneSub') + '.') : can ? co('pmChecks') : co('doneSub')) + '</div>';
   return h;
 }
 

@@ -215,6 +215,7 @@ const allErrs = [];
   check('the to-dos were asked for in Spanish once', (await calls(page)).filter((c) => c.fn === 'coTranslate' && c.to === 'es').length, 1);
   await tap(page, '[data-corepair="pt1"]', 500);
   check('one repair: what to do, the after photo required, Terminado off', await page.evaluate(() => [document.querySelector('#coBody .rvstory .rt').textContent.slice(0, 12), document.querySelectorAll('.phbig.empty').length, document.getElementById('coDone').disabled]), ['ES: Rear slo', 2, true]);
+  check('…not the last open repair, so the button is plain Terminado', await txt(page, '#coDone'), 'Terminado');
   await addPhoto(page, '.phbig.need');
   check('the after photo unlocks Terminado', await page.evaluate(() => [document.querySelectorAll('.phbig.empty').length, document.getElementById('coDone').disabled]), [1, false]);
   await page.locator('#coRepairNote').fill('Bota nueva y sellada');
@@ -227,19 +228,29 @@ const allErrs = [];
   // checklists, no Review & send asking for thirteen checks the crew never
   // had to do (Carl, 25-0001, 13 Oct 2026).
   await tap(page, '[data-corepair="pt2"]', 500);
+  // T2.8.3: the last open repair on the job says what pressing it does.
+  check('the last open repair: the button says it sends the job to the PM', [await txt(page, '#coDone'), (await txt(page, '#coBody .foot')).startsWith('Es la última reparación del trabajo.')], ['Terminar y mandar al PM', true]);
   await addPhoto(page, '.phbig.need');
   await tap(page, '#coDone', 2500);
+  check('…and once the server moves the job, the list says so, with the time', await page.evaluate(() => [CO.screen, !!document.getElementById('coRepairsSent'), document.querySelector('#coRepairsSent .sl').textContent, document.querySelector('#coRepairsSent .ss').textContent]),
+    ['repairs', true, 'Reparaciones listas', 'Mandado al PM para revisar. No queda nada para el equipo en este trabajo.']);
   check('the last repair: the server flips the job to PM Review', (await calls(page)).filter((c) => c.fn === 'coComplete').map((c) => c.taskId), ['pt1', 'pt2']);
   await page.evaluate(() => coGo('job')); await page.waitForTimeout(900);
   const jobScreen = () => page.evaluate(() => ({
     status: (CO.job || coJobById(CO.jobId) || {}).status,
+    sent: !!document.getElementById('coRepairsSent'),
     waiting: !!document.getElementById('coReviewNote'),
     tiles: [...document.querySelectorAll('#coBody [data-coscreen]')].map((b) => b.getAttribute('data-coscreen')),
     send: !!document.getElementById('coReview'),
   }));
-  check('…the job screen: waiting on the PM, the repairs only, no send', await jobScreen(), { status: 'PM Review', waiting: true, tiles: ['repairs'], send: false });
+  check('…the job screen: sent to the PM, the repairs only, no send', await jobScreen(), { status: 'PM Review', sent: true, waiting: false, tiles: ['repairs'], send: false });
   check('…and its header names the PM, not the inspection', await txt(page, '#coK'), 'PM Review · JT #26-0415');
-  check('…in the crew\'s words', [await txt(page, '#coBody .rvstory .rk'), await txt(page, '#coReviewNote')], ['PM Review · esperando al PM', 'No queda nada para el equipo en este trabajo. El PM lo revisa y luego el cierre final del vendedor lo termina.']);
+  // Opened again later, the done screen has gone and the job reads as the PM's.
+  await page.evaluate(() => coGo('queue')); await page.waitForTimeout(300);
+  await page.evaluate(() => { CO.filter = 'all'; coRender(); }); await page.waitForTimeout(200);
+  await tap(page, '[data-cojob="co-okafor"]', 900);
+  check('opened again: waiting on the PM, in the crew\'s words', [await jobScreen(), await txt(page, '#coBody .rvstory .rk'), await txt(page, '#coReviewNote')],
+    [{ status: 'PM Review', sent: false, waiting: true, tiles: ['repairs'], send: false }, 'PM Review · esperando al PM', 'No queda nada para el equipo en este trabajo. El PM lo revisa y luego el cierre final del vendedor lo termina.']);
   allErrs.push(...errs);
   await ctx.close();
 }

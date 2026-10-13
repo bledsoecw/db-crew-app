@@ -222,6 +222,23 @@ and above the repairs it read as a step still owed. The mock's `coComplete`
 now flips the job like the server does, and `dev/closeout-test.mjs` walks the
 last repair into PM Review and Operations on each kind of job.
 
+**The last repair says what it does, and says when it has** (T2.8.3, Carl 13
+Oct 2026: *"is there any indication given to the user they are done in the
+app, or asked to review before sending for PM review?"* — there was not; the
+last repair landed with the same "Repair finished" toast as every other one).
+When the repair open on screen is the job's LAST open one — every other punch
+to-do on the job, anybody's, is done or already queued — its button reads
+**Finish & send to PM** / **Terminar y mandar al PM**, with "This is the last
+repair on the job. Finishing it sends the job to the PM for review" under it.
+Only a Punch List job moves on, so only there. And once it lands, the repairs
+list and the job screen open on **All repairs done · 6:38P · Sent to the PM
+for review. Nothing left for the crew on this job.** That card is built from
+the server's own answer (`flipped: "PM Review"` on the completion), never from
+the phone's guess, so a repair still waiting to send, or a job the server did
+not move, never claims to have gone. There is no second "send to PM" step on
+purpose: the to-dos closing is the fact, and a step the crew can forget would
+leave a finished job sitting at Punch List with nobody told.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
