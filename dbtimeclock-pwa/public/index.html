@@ -968,7 +968,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.9 (2026-10-13)';
+var APP_BUILD = 'T2.10 (2026-10-23)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -3269,7 +3269,7 @@ function setTab(t){
   var lit = t === 'checks' ? 'jobs' : t === 'cam' ? (S.alertFor ? 'log' : 'job') : t === 'diag' ? 'job' : t;
   // Leaving the camera by a tab drops a gate: a start photo not taken is no
   // entry, an end photo not taken is a clock still running.
-  if (t !== 'co' && dlRec.want && dlRec.taId === 'coNote') dlRecStop();
+  if (t !== 'co' && dlRec.want && /^co/.test(dlRec.taId || '')) dlRecStop();
   if (t !== 'cam' && S.clockGate){ S.clockGate = null; S.gateCode = null; if (S.moving && S.pendingJob) cancelMove(); }
   [].forEach.call(document.querySelectorAll('.tab'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab')===lit); });
   if (t === 'cam') startCamera(); else stopCamera();
@@ -5229,7 +5229,13 @@ var CO_STATUS = { fi: 'Final Inspection', pl: 'Punch List', pr: 'PM Review' };
 /* Every word on these screens, both languages. The first is what shows
    large; the other sits small beneath where the screen says both. */
 var CO_L10N = {
-  es: { tab:'Close Out', mine:'Asignados', all:'Todos', jobsToday:'hoy', queueNote:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.',
+  es: { tab:'Close Out', mine:'Asignados',
+        areas:'Áreas de trabajo', areaSub:'cada una se revisa y se aprueba por su cuenta', areaNotes:'notas y fotos', areaInspected:'Revisada', areaWithPm:'con el PM',
+        areaRepairsOpen:'reparaciones pendientes', areaRepairOpen:'reparación pendiente', areaBooked:'Agendada', areaNotBooked:'Sin agendar — el PM la agenda en el tablero', areaSent:'Enviada',
+        areaRoofList:'lista de revisión', areaPhotosK:'Fotos', areaNoteK:'Lo que viste', areaHint:'Fotos de cómo quedó, y una nota si hace falta. El PM lo revisa en el tablero.', reportOne:'Reportar un problema',
+        areaWhatNext:'Lo revisa el PM en el tablero. El tablero mueve el trabajo cuando todas las áreas estén listas.', areaWhatNextFix:'El PM ve los problemas y agenda la reparación. El tablero mueve el trabajo cuando todas las áreas estén listas.',
+        sentTo:'Enviado a {who}', movedTo:'El trabajo pasó a {s}', stillAt:'El trabajo sigue en {s}', doneLastAreaSub:'Es la última reparación en {the}. Al terminarla, se manda al PM para revisar.',
+        lastClosesAreas:'La última reparación de cada área la manda a su PM para revisar.', areaRepairsSent:'Reparaciones listas en {the}', nothingLeft:'No queda nada para el equipo en este trabajo.', areaBack:'Volver al trabajo', all:'Todos', jobsToday:'hoy', queueNote:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.',
         queueNote2:'Only jobs ready to inspect, or with repairs for you, show here.', inspection:'Inspección', cleanup:'Limpieza', problems:'Problemas', repairs:'Reparaciones',
         start:'Empezar', cont:'Continuar', directions:'Cómo llegar', forYou:'Para ti', service:'Servicio', nobodyYet:'Nadie todavía', pmReview:'PM Review', waitingPm:'esperando al PM', reviewSub:'No queda nada para el equipo en este trabajo. El PM lo revisa y luego el cierre final del vendedor lo termina.', reviewStarted:'Empezaste una inspección en este teléfono. Envíala para que quede en el registro; no cambia el estado.',
         points:'puntos', optional:'opcional', withPhoto:'con foto', visitPhotos:'Fotos de la visita', visitPhotosSub:'condición del trabajo', review:'Revisar y enviar',
@@ -5251,7 +5257,13 @@ var CO_L10N = {
         notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
         onClockHere:'Ya estás en el reloj en este trabajo', onClock:'En el reloj', onClockSub:'cambiar de código o trabajo · salir', clockingIn:'Marcando entrada…',
         checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', searchPh:'Buscar trabajos por nombre, número o cliente', noMatch:'Ningún trabajo coincide.', noMatchMine:'Nada asignado coincide. Toca Todos para buscar en el resto.', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
-  en: { tab:'Close Out', mine:'Assigned', all:'All', jobsToday:'today', queueNote:'Only jobs ready to inspect, or with repairs for you, show here.',
+  en: { tab:'Close Out', mine:'Assigned',
+        areas:'Work areas', areaSub:'each is inspected and approved on its own', areaNotes:'notes & photos', areaInspected:'Inspected', areaWithPm:'with the PM',
+        areaRepairsOpen:'repairs open', areaRepairOpen:'repair open', areaBooked:'Booked', areaNotBooked:'Not booked yet — the PM books it on the board', areaSent:'Sent',
+        areaRoofList:'checklist', areaPhotosK:'Photos', areaNoteK:'What you saw', areaHint:'Photos of how it was left, and a note if it needs one. The PM reviews it on the board.', reportOne:'Report a problem',
+        areaWhatNext:'The PM reviews it on the Production Board. The board moves the job when every work area is ready.', areaWhatNextFix:'The PM sees the problems and books the repair. The board moves the job when every work area is ready.',
+        sentTo:'Sent to {who}', movedTo:'The job moved to {s}', stillAt:'The job is still at {s}', doneLastAreaSub:'This is the last repair on {the}. Finishing it sends it to the PM for review.',
+        lastClosesAreas:'The last repair on each work area sends it to its PM for review.', areaRepairsSent:'Repairs on {the} done', nothingLeft:'Nothing left for the crew on this job.', areaBack:'Back to the job', all:'All', jobsToday:'today', queueNote:'Only jobs ready to inspect, or with repairs for you, show here.',
         queueNote2:'Solo aparecen trabajos listos para revisar, o con reparaciones para ti.', inspection:'Inspection', cleanup:'Cleanup', problems:'Problems', repairs:'Repairs',
         start:'Start', cont:'Continue', directions:'Directions', forYou:'For you', service:'Service', nobodyYet:'Nobody yet', pmReview:'PM Review', waitingPm:'waiting on the PM', reviewSub:'Nothing left for the crew on this job. The PM reviews it, then the sales rep’s final check-off closes it.', reviewStarted:'An inspection was started on this phone. Send it to put it on the record — it does not move the job.',
         points:'items', optional:'optional', withPhoto:'with a photo', visitPhotos:'Visit photos', visitPhotosSub:'job condition', review:'Review & send',
@@ -5281,7 +5293,8 @@ function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
 var CO = { screen: 'queue', jobs: null, jobsAt: 0, jobsSource: '', loading: false, err: '', reason: '', filter: 'mine',
            jobId: null, job: null, jobLoading: false, jobErr: '', taskId: null, reportIdx: null, listFilter: 'mine',
-           search: '', scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null, repairsSent: null, photoNote: null };
+           search: '', scope: {}, trans: {}, transBusy: {}, outbox: [], pumping: false, pumpTimer: null, pumpFails: 0, photoFor: null, receipt: null, repairsSent: null, photoNote: null,
+           jobAt: 0, areaKey: null, areaSending: null };
 /* The phone's copy of every visit in progress, keyed by job. */
 var coStore = { visits: {} };
 try { coStore = JSON.parse(localStorage.getItem(CO_KEY) || '{"visits":{}}') || { visits: {} }; if (!coStore.visits) coStore.visits = {}; } catch(e){ coStore = { visits: {} }; }
@@ -5309,7 +5322,87 @@ function coJobById(id){ return (CO.jobs || []).filter(function(j){ return j.id =
 function coJobLabel(j){ return j ? (streetOf(j.address) || jobTitle({ name: j.name }) || j.number || '—') : '—'; }
 function coCustomer(j){ var m = /^\d{6}\s+([^_]+)_/.exec(String(j && j.name || '')); return m ? m[1].trim() : ''; }
 function coSub(j){ return [coCustomer(j), cityOf(j.address), j.isService ? co('service').toLowerCase() : String(j.jobType || '').toLowerCase()].filter(Boolean).join(' · '); }
-function coKindOf(j){ return j.status === CO_STATUS.pl ? 'repairs' : j.status === CO_STATUS.pr ? 'review' : 'inspect'; }
+function coKindOf(j){
+  if (j.status === CO_STATUS.pl) return 'repairs';
+  if (j.status === CO_STATUS.pr) return 'review';
+  if (j.status === CO_STATUS.fi) return 'inspect';
+  // Outside the three stages a job is here for close-out work assigned to
+  // this person ahead of the rest of it (the board books a work area's
+  // inspection or repair while another area is still being built).
+  return j.openPunchCount > 0 ? 'repairs' : 'inspect';
+}
+
+/* ---- work areas (Carl, 23 Oct 2026) ----
+   A roofing job's roof, gutters and siding are inspected, repaired and
+   approved on their own, each reviewed by its own PM on the Production
+   Board. The server lists them on the job (`areas`); an older server, or a
+   job that is not roofing, sends none and every screen reads as before.
+   The template line's roof keeps the eight checks and the cleanup; the
+   gutters and the siding are notes and photos (Carl: "for now"). */
+var CO_AREA_ES = { shingle: ['Techo de tejas', 'el techo de tejas'], metal: ['Techo de metal', 'el techo de metal'], flat: ['Techo plano', 'el techo plano'], siding: ['Siding', 'el siding'], gutters: ['Canales', 'los canales'] };
+function coAreas(j){ return j && Array.isArray(j.areas) ? j.areas : []; }
+function coLineArea(j){ return coAreas(j).filter(function(a){ return a.line; })[0] || null; }
+function coAreaByKey(j, key){ return coAreas(j).filter(function(a){ return a.key === key; })[0] || null; }
+/* The areas are worth a list of their own once there is more than the one
+   roof, or the one area is not a roof. */
+function coMultiArea(j){ var a = coAreas(j); return a.length > 1 || a.some(function(x){ return x.form === 'notes'; }); }
+function coAreaName(a){ var e = CO_AREA_ES[a.key]; return S.lang === 'es' && e ? e[0] : (a.label || a.key); }
+function coAreaName2(a){ var e = CO_AREA_ES[a.key]; return S.lang === 'es' ? (a.label || a.key) : (e ? e[0] : ''); }
+function coAreaThe(a){ var e = CO_AREA_ES[a.key]; return S.lang === 'es' ? (e ? e[1] : a.label) : 'the ' + String(a.label || a.key).toLowerCase(); }
+function coAreaGet(v, key){ return (v.areas && v.areas[key]) || null; }
+function coAreaV(v, key){
+  v.areas = v.areas || {};
+  var a = v.areas[key] = v.areas[key] || { note: '', noteEn: '', photos: [], sentAt: 0 };
+  a.photos = a.photos || [];
+  return a;
+}
+function coAreaReports(v, key){ return v.reports.filter(function(r){ return r.saved && r.area === key; }); }
+function coRoofReports(v){ return v.reports.filter(function(r){ return r.saved && !r.area; }); }
+function coAreaBooked(a){ return !!(a.inspectionDate || (a.assigneeNames || []).length || a.mine); }
+/* Sent from this phone since the job was last read: the server's answer is
+   on its way, so the area is not offered again meanwhile. */
+function coSentSinceRead(at){ return !!at && at > (CO.jobAt || 0); }
+/* An area is the crew's to inspect once it is booked (a day or somebody on
+   it), or the whole job is at Final Inspection — which the board only does
+   once every area is booked. Never once it is inspected. */
+function coAreaIsOpen(j, v, a){
+  var av = coAreaGet(v, a.key);
+  if (a.inspected || coSentSinceRead(av && av.sentAt)) return false;
+  return j.status === CO_STATUS.fi || coAreaBooked(a);
+}
+function coAreaStarted(v, key){ var av = coAreaGet(v, key); return !!(av && (av.photos.length || (av.note || '').trim())) || coAreaReports(v, key).length > 0; }
+/* The roof checklist on a job with areas: the line's roof, booked or at
+   Final Inspection, not yet inspected. */
+function coRoofOpen(j, v){
+  var line = coLineArea(j);
+  if (!line || line.form !== 'roof' || line.inspected || coSentSinceRead(v.sentAt)) return false;
+  return j.status === CO_STATUS.fi || coAreaBooked(line);
+}
+function coDay(iso){
+  var d = new Date(String(iso).slice(0, 10) + 'T12:00:00');
+  return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString(S.lang === 'es' ? 'es-MX' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+function coAreaState(j, v, a){
+  var av = coAreaGet(v, a.key), names = (a.assigneeNames || []).map(function(n){ return String(n).split(' ')[0]; });
+  if (coSentSinceRead(av && av.sentAt) || (a.line && coSentSinceRead(v.sentAt))) return { t: co('areaSent') + ' ✓', c: 'var(--acc)' };
+  if (a.inspected) return a.openRepairs
+    ? { t: co('areaInspected') + ' · ' + a.openRepairs + ' ' + co(a.openRepairs === 1 ? 'areaRepairOpen' : 'areaRepairsOpen'), c: 'var(--ckamber)' }
+    : { t: co('areaInspected') + ' ✓ · ' + co('areaWithPm'), c: 'var(--acc)' };
+  if (coAreaBooked(a)) return { t: [co('areaBooked') + (a.inspectionDate ? ' ' + coDay(a.inspectionDate) : ''), names.join(', ')].filter(Boolean).join(' · '), c: '' };
+  return { t: co('areaNotBooked'), c: 'var(--mut)' };
+}
+function coAreasSummaryHtml(j, v){
+  return '<div class="k" style="margin-top:14px">' + esc(co('areas')) + ' · ' + esc(co('areaSub')) + '</div><div class="rvcard" id="coAreas" style="margin-top:6px">' + coAreas(j).map(function(a){
+    var st = coAreaState(j, v, a);
+    return '<div class="rvrow" data-coareastate="' + esc(a.key) + '"><span class="rk">' + esc(coAreaName(a)) + '</span><span class="rv" style="font-size:14px' + (st.c ? ';color:' + st.c : '') + '">' + esc(st.t) + '</span></div>';
+  }).join('') + '</div>';
+}
+function coAreaTile(j, v, a){
+  var av = coAreaGet(v, a.key), n = av ? av.photos.length : 0, pend = coOutboxFor(j.id).filter(function(it){ return it.area === a.key; }).length;
+  var sub = [coAreaName2(a), co('areaNotes'), a.inspectionDate ? coDay(a.inspectionDate) : ''].filter(Boolean).join(' · ');
+  return '<button class="jtile" data-coarea="' + esc(a.key) + '"><span class="bi"><span class="es">' + esc(coAreaName(a)) + '</span><span class="en">' + esc(sub) + '</span></span>' +
+         '<span class="cnt tabular' + (pend || n ? ' warn' : '') + '">' + esc(pend ? co('queued') : n ? n + ' ' + co('photo').toLowerCase() : co('start')) + '</span>' + CK_CHEV + '</button>';
+}
 
 /* ---- the queue ---- */
 function coLoadQueue(force){
@@ -5350,7 +5443,8 @@ function coLoadJob(jobId){
     CO.jobLoading = false;
     r = r || {};
     if (r.status === 200 && r.body && r.body.id){
-      CO.job = r.body;
+      r.body._at = Date.now();
+      CO.job = r.body; CO.jobAt = r.body._at;
       try { localStorage.setItem('dbtc_co_job_' + jobId, JSON.stringify(CO.job)); } catch(e){}
       // The punch to-dos arrive in English; Spanish on screen means asking once.
       if (S.lang === 'es') coTranslateTasks(CO.job);
@@ -5363,7 +5457,7 @@ function coLoadJob(jobId){
 }
 function coRestoreJob(jobId){
   if (CO.job && CO.job.id === jobId) return;
-  try { var j = JSON.parse(localStorage.getItem('dbtc_co_job_' + jobId) || 'null'); if (j && j.id === jobId) CO.job = j; } catch(e){}
+  try { var j = JSON.parse(localStorage.getItem('dbtc_co_job_' + jobId) || 'null'); if (j && j.id === jobId){ CO.job = j; CO.jobAt = j._at || 0; } } catch(e){}
 }
 /* The codes of the inspections that are theirs, fetched behind the queue
    (T2.5) so Start finds them on the phone. A handful of jobs; the reads lane. */
@@ -5432,7 +5526,7 @@ function coClockCardHtml(){
 function coGo(screen){
   CO.screen = screen;
   var sc = $('vCo').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
-  if (dlRec.want && dlRec.taId === 'coNote') dlRecStop();
+  if (dlRec.want && /^co/.test(dlRec.taId || '')) dlRecStop();
   coRender();
 }
 function coBack(){
@@ -5464,17 +5558,24 @@ function es(text){ return (S.lang === 'es' && CO.trans[text]) || text || ''; }
 function coTaskName(t){ return String((t && t.name) || '').replace(/^REPORT:\s*/i, ''); }
 /* The office reads English. A note typed or dictated in Spanish is turned
    into one when the box is left; the crew sees both and sends both. */
-function coEnglishFor(v, idx){
-  var r = v.reports[idx]; if (!r || !r.note.trim()) return;
+function coEnglishFor(v, idx){ return coToEnglish(v.reports[idx]); }
+/* A report's note, or a work area's (anything with note / noteEn). Answers
+   when the English is there, so a send can wait for it a moment. */
+var coEnAsk = typeof WeakMap === 'function' ? new WeakMap() : null;
+function coToEnglish(r){
+  if (!r || !(r.note || '').trim()) return Promise.resolve();
   var src = r.note.trim();
-  if (r.noteSrc === src && r.noteEn) return;
-  if (!/[áéíóúñ¿¡]/i.test(src) && !/\b(el|la|los|las|de|del|está|esta|con|sin|por|para|que|muy|tiene|hay|falta|roto|rota)\b/i.test(src)){ r.noteEn = src; r.noteSrc = src; coPersist(); coRender(); return; }
+  if (r.noteSrc === src && r.noteEn) return Promise.resolve();
+  if (r.noteSrc === src && r.noteEnBusy && coEnAsk && coEnAsk.get(r)) return coEnAsk.get(r);
+  if (!/[áéíóúñ¿¡]/i.test(src) && !/\b(el|la|los|las|de|del|está|esta|con|sin|por|para|que|muy|tiene|hay|falta|roto|rota)\b/i.test(src)){ r.noteEn = src; r.noteSrc = src; coPersist(); coRender(); return Promise.resolve(); }
   r.noteSrc = src; r.noteEnBusy = true; coPersist(); coRender();
-  apiCall('coTranslate', [[src], 'en'], { lane: 'reads', timeout: 40000 }).then(function(res){
+  var ask = apiCall('coTranslate', [[src], 'en'], { lane: 'reads', timeout: 40000 }).then(function(res){
     r.noteEnBusy = false;
     r.noteEn = (res && res.status === 200 && res.body && res.body.translations && res.body.translations[0]) || src;
     coPersist(); coRender();
   }).catch(function(){ r.noteEnBusy = false; r.noteEn = src; coPersist(); coRender(); });
+  if (coEnAsk) coEnAsk.set(r, ask);
+  return ask;
 }
 
 /* ---- photos: the phone's own camera, downscaled, kept in IndexedDB ---- */
@@ -5609,6 +5710,7 @@ function coAddPhoto(target, file, origin){
     if (target.kind === 'after' && CO.photoNote && CO.photoNote.taskId === target.taskId) CO.photoNote = null;
     if (target.kind === 'report'){ var r = v.reports[target.idx]; if (r){ r.photos = r.photos || []; r.photos.push(rec); } }
     else if (target.kind === 'visit') v.photos.push(rec);
+    else if (target.kind === 'area') coAreaV(v, target.area).photos.push(rec);
     else if (target.kind === 'before') v.before[target.taskId] = rec;
     else if (target.kind === 'after') v.after[target.taskId] = rec;
     coPersist(); coRender();
@@ -5618,7 +5720,7 @@ function coAddPhoto(target, file, origin){
    photos fits (a problem, the visit), one where only one belongs. */
 function coPickPhotos(target){
   CO.photoFor = target;
-  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit'; g.value = ''; g.click();
+  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit' || target.kind === 'area'; g.value = ''; g.click();
 }
 /* An AFTER photo is the proof the repair was done (Carl, 13 Oct 2026): one
    taken before the repair was asked for cannot show the fix, and one with no
@@ -5649,6 +5751,7 @@ function coRemovePhoto(target, id){
   var v = coVisit(target.jobId);
   if (target.kind === 'report'){ var r = v.reports[target.idx]; if (r) r.photos = (r.photos || []).filter(function(p){ return p.id !== id; }); }
   else if (target.kind === 'visit') v.photos = v.photos.filter(function(p){ return p.id !== id; });
+  else if (target.kind === 'area'){ var av = coAreaV(v, target.area); av.photos = av.photos.filter(function(p){ return p.id !== id; }); }
   else if (target.kind === 'before') delete v.before[target.taskId];
   else if (target.kind === 'after') delete v.after[target.taskId];
   coPhotoDel(id); coPersist(); coRender();
@@ -5687,6 +5790,7 @@ function coSendItem(it){
   var call;
   if (it.kind === 'report') call = apiCall('coReport', [it.jobId, it.payload, it.id], { timeout: 60000 });
   else if (it.kind === 'close') call = apiCall('coClose', [it.jobId, it.payload, it.id], { timeout: 60000 });
+  else if (it.kind === 'area') call = apiCall('coCloseArea', [it.jobId, it.payload, it.id], { timeout: 60000 });
   else if (it.kind === 'complete') call = apiCall('coComplete', [it.taskId, it.jobId, it.payload.note || '', it.id], { timeout: 60000 });
   else if (it.kind === 'photo'){
     call = coPhotoGet(it.photoId).then(function(rec){
@@ -5748,12 +5852,23 @@ function coPump(){
 function coLanded(it, body){
   var v = coStore.visits[it.jobId]; if (!v) return;
   if (it.kind === 'report'){ v.reports.forEach(function(r){ if (r.ref === it.id){ r.sentAt = Date.now(); r.taskId = body && body.taskId; } }); }
-  if (it.kind === 'close'){ v.sentAt = Date.now(); v.answers = { inspection: {}, cleanup: {} }; v.notes = { inspection: '', cleanup: '' }; v.reports = v.reports.filter(function(r){ return !r.sentAt; }); v.photos = []; CO.receipt = { jobId: it.jobId, at: v.sentAt, flipped: body && body.flipped }; }
+  // The receipt says who it went to and where the job is now, from the
+  // server's answer — the Production Board moves the Status, not the phone.
+  if (it.kind === 'close'){ v.sentAt = Date.now(); v.sending = false; v.answers = { inspection: {}, cleanup: {} }; v.notes = { inspection: '', cleanup: '' };
+    // A roof draft nobody saved goes with the visit; another area's work stays.
+    v.reports = v.reports.filter(function(r){ return !r.sentAt && (r.saved || r.area); }); v.photos = [];
+    CO.receipt = { jobId: it.jobId, at: v.sentAt, flipped: body && body.flipped, sentTo: body && body.sentTo, area: null }; }
+  if (it.kind === 'area'){ var av = coAreaV(v, it.area); av.sentAt = Date.now(); av.note = ''; av.noteEn = ''; av.noteSrc = ''; av.photos = [];
+    v.reports = v.reports.filter(function(r){ return !(r.area === it.area && (r.sentAt || !r.saved)); });
+    CO.receipt = { jobId: it.jobId, at: av.sentAt, flipped: body && body.flipped, sentTo: body && body.sentTo, area: it.area }; }
   if (it.kind === 'complete'){ v.doneTasks[it.taskId] = Date.now(); delete v.before[it.taskId]; delete v.after[it.taskId]; delete v.repairNote[it.taskId];
     // The server answers with the status it moved the job to. PM Review means
     // that was the last open repair on the job: say so (T2.8.3), from the
     // server's answer and never from the phone's guess.
-    if (body && body.flipped === CO_STATUS.pr) CO.repairsSent = { jobId: it.jobId, at: Date.now() }; }
+    if (body && body.flipped === CO_STATUS.pr) CO.repairsSent = { jobId: it.jobId, at: Date.now(), sentTo: body.sentTo || null, whole: true };
+    // On a job with work areas the last repair on ONE area sends that area to
+    // its PM while the others go on: the server names who it went to.
+    else if (body && body.sentTo) CO.repairsSent = { jobId: it.jobId, at: Date.now(), sentTo: body.sentTo, area: it.repairArea || null, whole: false }; }
   if (it.kind === 'photo' && it.photoId) coPhotoDel(it.photoId);
   coPersist();
 }
@@ -5761,33 +5876,62 @@ function coOutboxFor(jobId){ return CO.outbox.filter(function(it){ return !jobId
 function coRetryPending(){ coRefreshOutbox().then(function(){ if (CO.outbox.length) coPump(); }); }
 
 /* ---- the send: reports, their photos, the visit's photos, then the close ---- */
-function coSendVisit(jobId){
-  var v = coVisit(jobId), items = [], ref = 'co' + uid();
-  v.reports.forEach(function(r, i){
-    if (r.sentAt || r.queued) return;
+/* The saved reports `keep` picks, each followed by its photos. A draft
+   nobody saved never goes: it has no note, and the server would refuse it.
+   `area` tags every item so a work area's screen can follow its own send. */
+function coReportItems(v, jobId, keep, items, area){
+  v.reports.forEach(function(r){
+    if (!r.saved || r.sentAt || r.queued || !keep(r)) return;
     r.queued = true;
-    items.push({ id: r.ref, kind: 'report', jobId: jobId, label: co('problems') + ' · ' + (r.locationWords || r.itemN || ''),
-                 payload: { itemKey: r.itemKey || undefined, location: r.locationWords || (r.itemN ? (co('fixK') + ' ' + r.itemN) : '—'),
+    items.push({ id: r.ref, kind: 'report', jobId: jobId, area: area || undefined, label: co('problems') + ' · ' + (r.locationWords || r.itemN || ''),
+                 payload: { itemKey: r.itemKey || undefined, area: r.area || undefined, location: r.locationWords || (r.itemN ? (co('fixK') + ' ' + r.itemN) : (r.areaLabel || '—')),
                             englishNote: (r.noteEn || r.note || '').trim(), heardText: (r.noteEn && r.noteEn !== r.note) ? r.note : undefined,
                             fixedOnSite: !!r.fixed, reportedBy: S.me && S.me.name } });
     (r.photos || []).forEach(function(p, pi){
-      items.push({ id: r.ref + '.p' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('photo') + ' · ' + (r.itemN || ''),
-                   payload: coPayload({ label: 'REPORT', reportRef: r.ref, itemKey: r.itemKey || undefined, location: r.locationWords || undefined }, p) });
+      items.push({ id: r.ref + '.p' + pi, kind: 'photo', jobId: jobId, area: area || undefined, photoId: p.id, label: co('photo') + ' · ' + (r.itemN || r.areaLabel || ''),
+                   payload: coPayload({ label: 'REPORT', reportRef: r.ref, itemKey: r.itemKey || undefined, location: r.locationWords || undefined, area: r.area || undefined }, p) });
     });
   });
+}
+function coSendVisit(jobId){
+  var v = coVisit(jobId), items = [], ref = 'co' + uid(), roof = coRoofReports(v);
+  coReportItems(v, jobId, function(r){ return !r.area; }, items, null);
   v.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('visitPhotos'), payload: coPayload({ label: 'INSPECTION' }, p) }); });
-  var findings = v.reports.filter(function(r){ return r.itemKey; }).map(function(r){ return { itemKey: r.itemKey, fixedOnSite: !!r.fixed, location: r.locationWords || '', note: (r.noteEn || r.note || '').trim(), photos: (r.photos || []).length }; });
-  var problems = v.reports.filter(function(r){ return !r.fixed; }).length;
+  var findings = roof.filter(function(r){ return r.itemKey; }).map(function(r){ return { itemKey: r.itemKey, fixedOnSite: !!r.fixed, location: r.locationWords || '', note: (r.noteEn || r.note || '').trim(), photos: (r.photos || []).length }; });
+  var problems = roof.filter(function(r){ return !r.fixed; }).length;
   items.push({ id: ref, kind: 'close', jobId: jobId, label: co('inspection') + ' + ' + co('cleanup'),
                payload: { answers: { inspection: v.answers.inspection, cleanup: v.answers.cleanup }, notes: { inspection: v.notes.inspection || undefined, cleanup: v.notes.cleanup || undefined }, findings: findings, problemsReported: problems } });
   v.sending = true; coPersist();
   coEnqueue(items).then(function(){ coGo('send'); });
 }
+/* A work area's notes-and-photos inspection: its findings and their
+   photos, its photos, then the close — the same order as the roof's. The
+   note waits a few seconds for its English if it is still being turned
+   into some; no signal, it goes as written. */
+function coSendArea(jobId, key){
+  var v = coVisit(jobId), av = coAreaV(v, key), j = CO.job || coJobById(jobId), a = j && coAreaByKey(j, key);
+  var wait = S.online && (av.note || '').trim() && !(av.noteSrc === av.note.trim() && av.noteEn)
+    ? Promise.race([coToEnglish(av), new Promise(function(res){ setTimeout(res, 8000); })]) : Promise.resolve();
+  // Held while the English is fetched, so a repaint cannot offer the button twice.
+  CO.areaSending = key; coRender();
+  return wait.then(function(){
+    var items = [], ref = 'ca' + uid(), name = a ? coAreaName(a) : key;
+    coReportItems(v, jobId, function(r){ return r.area === key; }, items, key);
+    av.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, area: key, photoId: p.id, label: name + ' · ' + co('photo'), payload: coPayload({ label: 'INSPECTION', area: key }, p) }); });
+    var said = (av.note || '').trim(), en = (av.noteSrc === said && av.noteEn) ? av.noteEn.trim() : said;
+    var notes = en && said && en !== said ? en + '\n\n(' + said + ')' : en;
+    items.push({ id: ref, kind: 'area', jobId: jobId, area: key, label: name + ' · ' + co('inspection'),
+                 payload: { area: key, notes: notes || undefined, problemsReported: coAreaReports(v, key).filter(function(r){ return !r.fixed; }).length } });
+    coPersist();
+    return coEnqueue(items).then(function(){ CO.areaSending = null; coGo('area'); });
+  }).catch(function(e){ CO.areaSending = null; failed('close out · send', e); coRender(); });
+}
 function coFinishRepair(jobId, taskId){
   var v = coVisit(jobId), items = [], ref = 'cr' + uid();
   if (v.before[taskId]) items.push({ id: ref + '.b', kind: 'photo', jobId: jobId, photoId: v.before[taskId].id, label: co('before'), payload: coPayload({ label: 'BEFORE', taskId: taskId }, v.before[taskId]) });
   if (v.after[taskId]) items.push({ id: ref + '.a', kind: 'photo', jobId: jobId, photoId: v.after[taskId].id, label: co('after'), payload: coPayload({ label: 'AFTER', taskId: taskId }, v.after[taskId]) });
-  items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, label: co('repairDone'), payload: { note: (v.repairNote[taskId] || '').trim() } });
+  var j = CO.job || coJobById(jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === taskId; })[0];
+  items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, repairArea: (t && t.area) || undefined, label: co('repairDone'), payload: { note: (v.repairNote[taskId] || '').trim() } });
   v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; coPersist();
   coEnqueue(items).then(function(){ toast(co('repairDone')); coGo('repairs'); });
 }
@@ -5816,7 +5960,10 @@ function coQueueCard(j){
     if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + (j.openPunchCount || '') + ' ' + esc(co('repairs').toLowerCase()) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
     else { var done = v ? coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup') : 0;
       // Start / Continue also puts the clock on this job (coStartJob, T2.4).
-      act = '<button class="jact ok" data-costart="' + esc(j.id) + '"><span class="a1">' + esc(done ? co('cont') : co('start')) + '</span><span class="a2">' + esc(done ? co2('cont') : co2('start')) + ' · ' + done + ' ' + esc(co('of')) + ' ' + (CO_INSPECT.length + CO_CLEAN.length) + '</span></button>'; }
+      // "n of 13" counts the roof checklist; a job here for one work area's
+      // inspection ahead of the rest (still in production) says only Start.
+      var tally = j.status === CO_STATUS.fi ? ' · ' + done + ' ' + esc(co('of')) + ' ' + (CO_INSPECT.length + CO_CLEAN.length) : '';
+      act = '<button class="jact ok" data-costart="' + esc(j.id) + '"><span class="a1">' + esc(done ? co('cont') : co('start')) + '</span><span class="a2">' + esc(done ? co2('cont') : co2('start')) + tally + '</span></button>'; }
     h += '<div class="jrow">' + navCellHtml(j.address).replace('Directions', esc(co('directions'))) + act + '</div>';
   }
   return h + '</div>';
@@ -5870,9 +6017,14 @@ function coJobHtml(){
   if (!j) return '<div class="jempty">' + esc(CO.jobLoading ? co('loading') : (CO.jobErr || co('loading'))) + '</div>';
   var k = coKindOf(j), ins = coCount(v, CO_INSPECT, 'inspection'), cln = coCount(v, CO_CLEAN, 'cleanup');
   if (j.address) h += '<div class="jcard" style="margin-top:0"><a class="jnav" style="border-top:0" href="' + esc('https://maps.google.com/?q=' + encodeURIComponent(j.address)) + '" target="_blank" rel="noopener">' + ico('nav', 22) + esc(co('directions')) + ' · ' + esc(j.address) + '</a></div>';
+  var roofReps = coRoofReports(v), started = ins + cln > 0, areas = coAreas(j), multi = coMultiArea(j), line = coLineArea(j);
+  // With work areas the roof checklist is the line roof's, offered while it
+  // is booked and not yet inspected; a job without them reads as it always did.
+  var roofOpen = areas.length ? coRoofOpen(j, v) : k === 'inspect';
   if (CO.receipt && CO.receipt.jobId === j.id){
-    h += '<div class="hero"><span class="sl"><span class="dot"></span>' + esc(co('sent')) + ' · ' + esc(clockLabel(CO.receipt.at)) + '</span><span class="ss">' + esc(co('sentSub')) + '</span></div>';
-  } else if (k !== 'review' && v.sentAt && !v.sending && !(ins + cln + v.reports.length + v.photos.length)){
+    h += coReceiptHtml(CO.receipt, j);
+  } else if (roofOpen && v.sentAt && !v.sending && !(ins + cln + roofReps.length + v.photos.length)){
+    // "Anything below starts a new visit" is only true with the checklist below.
     h += '<div class="rvcard" style="margin-top:0"><div class="rvstory"><span class="rk">' + esc(co('sent')) + ' · ' + esc(clockLabel(v.sentAt)) + '</span><span class="rt">' + esc(co('sentSub')) + '</span></div></div>';
   }
   var pending = coOutboxFor(j.id);
@@ -5887,28 +6039,33 @@ function coJobHtml(){
   // Operations no longer gets them on a Punch List job either: an
   // inspection sent there moves nothing, and beside the repairs it read as
   // a step still owed.
-  var started = ins + cln > 0;
   if (k === 'review' && CO.repairsSent && CO.repairsSent.jobId === j.id) h += coRepairsSentHtml(j.id);
   else if (k === 'review'){
     h += '<div class="rvcard"><div class="rvstory"><span class="rk">' + esc(co('pmReview') + ' · ' + co('waitingPm')) + '</span><span class="rt" id="coReviewNote">' + esc(co('reviewSub')) + '</span>' +
          (started ? '<span class="rt" style="margin-top:8px;color:var(--ckamber)">' + esc(co('reviewStarted')) + '</span>' : '') + '</div></div>';
   }
-  if (k === 'inspect' || started){
-    h += '<div class="jcard">' +
+  if (multi) h += coAreasSummaryHtml(j, v);
+  if (roofOpen || started){
+    if (multi && line) h += '<div class="k" style="margin-top:14px">' + esc(coAreaName(line)) + ' · ' + esc(co('areaRoofList')) + '</div>';
+    h += '<div class="jcard"' + (multi && line ? ' style="margin-top:6px"' : '') + '>' +
       coTile('inspect', co('inspection'), co2('inspection') + ' · ' + CO_INSPECT.length + ' ' + co('points'), ins + ' ' + co('of') + ' ' + CO_INSPECT.length, ins === CO_INSPECT.length ? 'all' : ins ? 'warn' : '') +
       coTile('cleanup', co('cleanup'), co2('cleanup') + ' · ' + CO_CLEAN.length + ' ' + co('points'), cln + ' ' + co('of') + ' ' + CO_CLEAN.length, cln === CO_CLEAN.length ? 'all' : cln ? 'warn' : '') +
-      coTile('problems', co('problems'), co2('problems') + ' · ' + co('optional') + ' · ' + co('withPhoto'), v.reports.length ? String(v.reports.length) : '—', v.reports.length ? 'warn' : '') +
+      coTile('problems', co('problems'), co2('problems') + ' · ' + co('optional') + ' · ' + co('withPhoto'), roofReps.length ? String(roofReps.length) : '—', roofReps.length ? 'warn' : '') +
       coTile('photos', co('visitPhotos'), co2('visitPhotos') + ' · ' + co('visitPhotosSub'), v.photos.length ? String(v.photos.length) : '—', '') + '</div>';
   }
+  // The gutters and the siding: one tile each, while it is the crew's to
+  // inspect or this phone has started on it.
+  var notesAreas = areas.filter(function(a){ return a.form === 'notes' && (coAreaIsOpen(j, v, a) || coAreaStarted(v, a.key) || coOutboxFor(j.id).some(function(it){ return it.area === a.key; })); });
+  if (notesAreas.length) h += '<div class="jcard">' + notesAreas.map(function(a){ return coAreaTile(j, v, a); }).join('') + '</div>';
   var tasks = j.punchTasks || [];
   if (tasks.length || k === 'repairs'){
     var open = tasks.filter(function(t){ return !(t.progress >= 1) && !v.doneTasks[t.id]; }).length;
     h += '<div class="jcard">' + coTile('repairs', co('repairs'), co2('repairs') + (j.openPunchTotal != null ? ' · ' + (tasks.length - open) + ' ' + co('of') + ' ' + tasks.length + ' ' + co('ready') : ''), open ? String(open) : (tasks.length ? '✓' : '—'), open ? 'warn' : 'all') + '</div>';
   }
   if (j.soldScope && j.soldScope.length) h += coScopeHtml(j);
-  if (k === 'inspect' || started){
+  if (roofOpen || started){
     var miss = coMissing(v), can = !miss.length && !v.sending;
-    h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coReview"' + (can ? '' : ' disabled') + '>' + esc(co('review')) + '</button>';
+    h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coReview"' + (can ? '' : ' disabled') + '>' + esc(co('review') + (multi && line ? ' · ' + coAreaName(line) : '')) + '</button>';
     h += '<div class="foot">' + (miss.length ? esc(co('missing') + ': ' + miss.join(' · ')) : esc(co('checkSendSub'))) + '</div>';
   }
   return h;
@@ -5986,7 +6143,7 @@ function coReportHtml(){
 }
 function coProblemsHtml(){
   var v = coVisit(CO.jobId), h = '<div class="foot" style="text-align:left;margin-top:4px">' + esc(co('problemsHint')) + '</div>';
-  var saved = v.reports.map(function(r, i){ return { r: r, i: i }; }).filter(function(x){ return x.r.saved; });
+  var saved = v.reports.map(function(r, i){ return { r: r, i: i }; }).filter(function(x){ return x.r.saved && !x.r.area; });
   if (saved.length){
     h += '<div class="jcard">' + saved.map(function(x){ var r = x.r, it = coItemByKey(r.itemKey);
       return '<button class="rep" data-coedit="' + x.i + '"><span class="dot">' + (r.sentAt ? CK_TICK_SM : '›') + '</span><span class="bi"><span class="es">' + esc(it ? (it.n + ' · ' + coLabel(it)) : (r.locationWords || co('problems'))) + '</span><span class="en">' + esc((r.noteEn || r.note || '').slice(0, 90)) + (r.fixed ? ' · ' + esc(co('fixed')) : '') + ' · ' + (r.photos || []).length + ' ' + esc(co('photo').toLowerCase()) + '</span></span></button>'; }).join('') + '</div>';
@@ -6001,12 +6158,24 @@ function coPhotosHtml(){
     '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(v.photos.length ? co('anotherPhoto') : co('photo')) + '</button>' +
     '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
 }
+/* "Sent", with who the server tagged and where the Production Board put the
+   job — the phone never guesses either. A job with areas that did not move
+   says where it still is: another area is behind it. */
+function coReceiptHtml(rc, j){
+  var a = rc.area && j ? coAreaByKey(j, rc.area) : null, lines = [];
+  if (rc.sentTo) lines.push(co('sentTo').replace('{who}', rc.sentTo));
+  if (rc.flipped) lines.push(co('movedTo').replace('{s}', rc.flipped));
+  else if (j && j.status && coAreas(j).length) lines.push(co('stillAt').replace('{s}', j.status));
+  return '<div class="hero" id="coReceipt" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('sent') + (a ? ' · ' + coAreaName(a) : '')) + '</span><span class="st">' + esc(clockLabel(rc.at)) + '</span>' +
+         '<span class="ss">' + esc(lines.length ? lines.join(' · ') : co('sentSub')) + '</span></div>';
+}
 function coSendHtml(){
-  var v = coVisit(CO.jobId), j = CO.job || coJobById(CO.jobId), items = coOutboxFor(CO.jobId), h = '';
+  // A work area's own send is followed on its own screen.
+  var v = coVisit(CO.jobId), j = CO.job || coJobById(CO.jobId), items = coOutboxFor(CO.jobId).filter(function(it){ return !it.area; }), h = '';
   var ins = coCount(v, CO_INSPECT, 'inspection'), cln = coCount(v, CO_CLEAN, 'cleanup'), fixes = coFixes(v).length;
   var done = CO.receipt && CO.receipt.jobId === CO.jobId;
   if (done){
-    h += '<div class="hero" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('sent')) + '</span><span class="st">' + esc(clockLabel(CO.receipt.at)) + '</span><span class="ss">' + esc(CO.receipt.flipped ? (S.lang === 'es' ? 'El trabajo pasó a ' : 'The job moved to ') + CO.receipt.flipped : co('sentSub')) + '</span></div>';
+    h += coReceiptHtml(CO.receipt, j);
     // A refused item beside a landed close is still the crew's to see:
     // the close went, the report it was about did not.
     if (items.length) h += coOutboxHtml();
@@ -6024,28 +6193,44 @@ function coSendHtml(){
   h += '<div class="hero" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('allDone')) + '</span><span class="st">' + esc(co('checkSend')) + '</span><span class="ss">' + esc(co('checkSendSub')) + '</span></div>';
   h += '<div class="rvcard"><div class="rvrow"><span class="rk">' + esc(co('inspection')) + '</span><span class="rv" style="color:var(--acc)">' + (ins - coFixes(v).filter(function(i){ return i.n.charAt(0) !== 'C'; }).length) + ' ' + esc(co('ok').toLowerCase()) + (fixes ? ' · ' + fixes + ' ' + esc(co('fix').toLowerCase()) : '') + '</span></div>' +
        '<div class="rvrow"><span class="rk">' + esc(co('cleanup')) + '</span><span class="rv" style="color:var(--acc)">' + cln + ' ' + esc(co('of')) + ' ' + CO_CLEAN.length + '</span></div>' +
-       '<div class="rvrow"><span class="rk">' + esc(co('problems')) + '</span><span class="rv">' + v.reports.filter(function(r){ return r.saved; }).length + ' ' + esc(co('reportedN')) + '</span></div>' +
+       '<div class="rvrow"><span class="rk">' + esc(co('problems')) + '</span><span class="rv">' + coRoofReports(v).length + ' ' + esc(co('reportedN')) + '</span></div>' +
        '<div class="rvrow"><span class="rk">' + esc(co('visitPhotos')) + '</span><span class="rv">' + v.photos.length + '</span></div>' +
-       '<div class="rvstory"><span class="rk">' + esc(co('whatNext')) + ' · ' + esc(co('whatNextSub')) + '</span><span class="rt">' + esc(v.reports.some(function(r){ return r.saved && !r.fixed; }) ? co('toPunch') : co('toPmReview')) + '</span></div></div>';
+       '<div class="rvstory"><span class="rk">' + esc(co('whatNext')) + ' · ' + esc(co('whatNextSub')) + '</span><span class="rt">' + esc(coWhatNext(j, coRoofReports(v).some(function(r){ return !r.fixed; }))) + '</span></div></div>';
   h += '<button class="btn btn-go sendbig" id="coSend">' + esc(co('finishSend')) + '</button>';
   h += '<div class="foot">' + esc(co('offline')) + '</div>';
   return h;
 }
+/* After the send, where the job goes: on a job with work areas the board
+   moves it only when every area is ready, so the words do not promise a
+   Status. */
+function coWhatNext(j, problems){
+  if (coMultiArea(j)) return co(problems ? 'areaWhatNextFix' : 'areaWhatNext');
+  return co(problems ? 'toPunch' : 'toPmReview');
+}
 /* "All repairs done · sent to the PM" (T2.8.3, Carl 13 Oct 2026): the last
    repair used to land with the same toast as every other one, and nothing
-   said the job had just gone to the PM. */
+   said the job had just gone to the PM. On a job with work areas the last
+   repair on ONE area sends that area to its PM; the server names who. */
 function coRepairsSentHtml(jobId){
   var r = CO.repairsSent; if (!r || r.jobId !== jobId) return '';
-  return '<div class="hero" id="coRepairsSent" style="margin:4px 0 14px"><span class="sl"><span class="dot"></span>' + esc(co('repairsSent')) + '</span><span class="st">' + esc(clockLabel(r.at)) + '</span><span class="ss">' + esc(co('repairsSentSub')) + '</span></div>';
+  var j = CO.job || coJobById(jobId), a = r.area && j ? coAreaByKey(j, r.area) : null;
+  var head = r.whole ? co('repairsSent') : a ? co('areaRepairsSent').replace('{the}', coAreaThe(a)) : co('repairDone');
+  var to = r.sentTo ? co('sentTo').replace('{who}', r.sentTo) + '.' : '';
+  var sub = r.whole ? (to ? to + ' ' + co('nothingLeft') : co('repairsSentSub')) : to;
+  return '<div class="hero" id="coRepairsSent" style="margin:4px 0 14px"><span class="sl"><span class="dot"></span>' + esc(head) + '</span><span class="st">' + esc(clockLabel(r.at)) + '</span>' + (sub ? '<span class="ss">' + esc(sub) + '</span>' : '') + '</div>';
 }
 /* The open repair is the job's LAST one when every other punch to-do on the
    job — anybody's, not just this phone's — is done or already queued to
    send. Only a Punch List job moves on, so only there is it the last. */
 function coIsLastRepair(j, v, taskId){
-  if (!j || coKindOf(j) !== 'repairs') return false;
-  var tasks = j.punchTasks || [];
-  return tasks.some(function(t){ return t.id === taskId; }) &&
-    tasks.every(function(t){ return t.id === taskId || t.progress >= 1 || !!v.doneTasks[t.id]; });
+  if (!j) return false;
+  var tasks = j.punchTasks || [], t = tasks.filter(function(x){ return x.id === taskId; })[0];
+  if (!t) return false;
+  // On a job with work areas, the last on its own area sends that area to
+  // its PM whatever the rest of the job is doing (the server's afterRepair).
+  if (coMultiArea(j) && t.area) return tasks.every(function(x){ return x.id === taskId || x.area !== t.area || x.progress >= 1 || !!v.doneTasks[x.id]; });
+  if (coKindOf(j) !== 'repairs') return false;
+  return tasks.every(function(x){ return x.id === taskId || x.progress >= 1 || !!v.doneTasks[x.id]; });
 }
 function coRepairsHtml(){
   var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId);
@@ -6053,18 +6238,20 @@ function coRepairsHtml(){
   var tasks = (j.punchTasks || []).map(function(t){ return { t: t, done: t.progress >= 1 || !!v.doneTasks[t.id] }; });
   var mine = tasks.filter(function(x){ return x.t.mine; });
   var shown = CO.listFilter === 'mine' && mine.length ? mine : tasks;
-  var h = '';
+  var h = '', multi = coMultiArea(j);
   if (!tasks.length) return '<div class="jempty">' + esc(co('noRepairs')) + '</div>';
   h += coRepairsSentHtml(j.id);
   if (CO.listFilter === 'mine' && !mine.length) h += '<div class="foot" style="text-align:left;margin:0 0 10px">' + esc(co('nothingForYou')) + '</div>';
   h += '<div class="jcard" style="margin-top:0">' + shown.map(function(x){
-    var t = x.t, name = es(coTaskName(t)), pend = v.doneTasks[t.id] === 'queued';
+    var t = x.t, name = es(coTaskName(t)), pend = v.doneTasks[t.id] === 'queued', ta = multi && t.area ? coAreaByKey(j, t.area) : null;
+    // Which work area it is for, on a job with more than one.
+    var desc = [ta ? coAreaName(ta) : '', t.description ? es(t.description).slice(0, 120) : ''].filter(Boolean).join(' · ');
     return '<button class="rep' + (x.done ? ' done' : '') + '" data-corepair="' + esc(t.id) + '"' + (x.done && !pend ? ' disabled' : '') + '><span class="dot">' + (x.done ? CK_TICK_SM : '›') + '</span><span class="bi"><span class="es">' + esc(name) + '</span>' +
-           (t.description && !x.done ? '<span class="en">' + esc(es(t.description).slice(0, 120)) + '</span>' : '') +
+           (desc && !x.done ? '<span class="en">' + esc(desc) + '</span>' : '') +
            (x.done ? '<span class="en">' + esc(pend ? co('queued') : co('ready')) + '</span>' : t.mine ? '<span class="chips" style="margin-top:6px"><span class="chip" style="background:var(--total);color:var(--acc)">' + esc(co('forYou')) + '</span></span>' : (t.assigneeNames || []).length ? '<span class="en">' + esc(co('assignedTo') + ' ' + t.assigneeNames.join(', ')) + '</span>' : '') +
            '</span></button>';
   }).join('') + '</div>';
-  h += '<div class="foot" style="margin-top:14px">' + esc(co('beforeAfter')) + '<br>' + esc(co('lastCloses')) + '</div>';
+  h += '<div class="foot" style="margin-top:14px">' + esc(co('beforeAfter')) + '<br>' + esc(co(multi ? 'lastClosesAreas' : 'lastCloses')) + '</div>';
   return h;
 }
 function coRepairHtml(){
@@ -6084,14 +6271,61 @@ function coRepairHtml(){
                       (a ? '<span></span>' : '<button class="galsm" data-cogallery=\'' + esc(ta) + '\'>' + ico('image', 18) + esc(co('fromPhone')) + '</button>') + '</div>';
   if (CO.photoNote && CO.photoNote.taskId === t.id && !a) h += '<div class="foot" id="coPhotoNote" style="text-align:left;color:var(--ckamber);margin-top:10px">' + esc(CO.photoNote.text) + '</div>';
   h += '<div class="story' + (v.repairNote[t.id] ? ' has' : '') + '" style="margin-top:14px"><textarea id="coRepairNote" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.repairNote[t.id] || '') + '</textarea></div>';
-  var can = !!a, last = coIsLastRepair(j, v, t.id);
+  var can = !!a, last = coIsLastRepair(j, v, t.id), ta = coMultiArea(j) && t.area ? coAreaByKey(j, t.area) : null;
+  var lastSub = ta ? co('doneLastAreaSub').replace('{the}', coAreaThe(ta)) : co('doneLastSub');
   h += '<button class="ctaBig" id="coDone" style="margin-top:18px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co(last ? 'doneLast' : 'done')) + '</button>';
-  h += '<div class="foot">' + esc(last ? co('doneLastSub') + (can ? '' : ' ' + co('doneSub') + '.') : can ? co('pmChecks') : co('doneSub')) + '</div>';
+  h += '<div class="foot">' + esc(last ? lastSub + (can ? '' : ' ' + co('doneSub') + '.') : can ? co('pmChecks') : co('doneSub')) + '</div>';
+  return h;
+}
+
+/* A gutters or siding inspection: photos of how it was left (one at least),
+   a note if it needs one — dictated or typed, either language, sent in
+   English with what was said beside it — and its own problems. One send,
+   the same outbox as the roof's; the receipt names who it went to. */
+function coAreaHtml(){
+  var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), a = j && coAreaByKey(j, CO.areaKey);
+  if (!a) return '<div class="jempty">' + esc(CO.jobLoading ? co('loading') : (CO.jobErr || co('loading'))) + '</div>';
+  var av = coAreaV(v, a.key), items = coOutboxFor(j.id).filter(function(it){ return it.area === a.key; }), h = '';
+  if (CO.receipt && CO.receipt.jobId === j.id && CO.receipt.area === a.key){
+    h += coReceiptHtml(CO.receipt, j);
+    if (items.length) h += coOutboxHtml();
+    h += coClockCardHtml();
+    h += '<button class="btn btn-nav" id="coAreaBack" style="margin-top:18px">' + esc(co('areaBack')) + ' ›</button>';
+    return h;
+  }
+  if (items.length){
+    var bad = items.filter(function(it){ return it.status === 'rejected'; });
+    h += '<div class="hero' + (bad.length ? ' warn' : '') + '" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(bad.length ? co('rejected') : co('sending')) + '</span><span class="st">' + items.length + ' ' + esc(co('queued').toLowerCase()) + '</span><span class="ss">' + esc(co('offline')) + '</span></div>';
+    return h + coOutboxHtml() + coClockCardHtml();
+  }
+  var who = a.assigneeNames || [];
+  if (a.inspectionDate || who.length) h += '<div class="rvcard" style="margin-top:4px">' +
+    (a.inspectionDate ? '<div class="rvrow short"><span class="rk">' + esc(co('areaBooked')) + '</span><span class="rv">' + esc(coDay(a.inspectionDate)) + '</span></div>' : '') +
+    (who.length ? '<div class="rvrow short"><span class="rk">' + esc(co('assignedTo')) + '</span><span class="rv" style="font-size:14px">' + esc(who.join(', ')) + '</span></div>' : '') + '</div>';
+  h += '<div class="foot" style="text-align:left;margin-top:12px">' + esc(co('areaHint')) + '</div>';
+  var target = JSON.stringify({ kind: 'area', jobId: j.id, area: a.key });
+  h += '<div class="k" style="margin-top:14px">' + esc(co('areaPhotosK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('areaPhotosK').toLowerCase()) + '</div>';
+  h += '<div class="photos">' + av.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+       '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(av.photos.length ? co('anotherPhoto') : co('photo')) + '</button>' +
+       '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
+  h += '<div class="k" style="margin-top:22px">' + esc(co('areaNoteK')) + ' · ' + esc(co('optional')) + ' · ' + esc(co2('areaNoteK').toLowerCase()) + '</div>';
+  h += '<div class="talkrow">' + recBtnHtml('coAreaNote', 'coAreaRec') + '<button class="talkbtn type" id="coAreaType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
+  h += '<div class="story' + (av.note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coAreaNote" placeholder="' + esc(co('note')) + '" rows="3">' + esc(av.note || '') + '</textarea></div>';
+  h += '<div class="reccap hidden" data-reccap="coAreaNote"></div>';
+  if ((av.note || '').trim()) h += '<div class="rvcard" style="margin-top:10px"><div class="rvstory"><span class="rk">' + esc(co('englishNote')) + '</span><span class="rt">' + esc(av.noteEnBusy ? co('translating') : (av.noteEn || av.note)) + '</span></div></div>';
+  var reps = v.reports.map(function(r, i){ return { r: r, i: i }; }).filter(function(x){ return x.r.saved && x.r.area === a.key; });
+  h += '<div class="k" style="margin-top:22px">' + esc(co('problems')) + ' · ' + esc(co('optional')) + ' · ' + esc(co('withPhoto')) + '</div>';
+  if (reps.length) h += '<div class="jcard" style="margin-top:6px">' + reps.map(function(x){ var r = x.r;
+    return '<button class="rep" data-coedit="' + x.i + '" data-cofrom="area"><span class="dot">›</span><span class="bi"><span class="es">' + esc(r.locationWords || co('problems')) + '</span><span class="en">' + esc((r.noteEn || r.note || '').slice(0, 90)) + (r.fixed ? ' · ' + esc(co('fixed')) : '') + ' · ' + (r.photos || []).length + ' ' + esc(co('photo').toLowerCase()) + '</span></span></button>'; }).join('') + '</div>';
+  h += '<button class="btn btn-nav" id="coAreaReport" style="margin-top:10px">' + esc(reps.length ? co('newReport') : co('reportOne')) + '</button>';
+  var busy = CO.areaSending === a.key, can = av.photos.length > 0 && !busy;
+  h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coAreaSend" style="margin-top:22px"' + (can ? '' : ' disabled') + '>' + esc(busy ? co('sending') : co('finishSend')) + '</button>';
+  h += '<div class="foot">' + esc(can ? coWhatNext(j, reps.some(function(x){ return !x.r.fixed; })) : co('missing') + ': ' + co('photo').toLowerCase()) + '</div>';
   return h;
 }
 
 /* ---- drawing the one view ---- */
-var CO_HEADS = { job: 'inspection', inspect: 'inspection', cleanup: 'cleanup', problems: 'problems', photos: 'visitPhotos', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
+var CO_HEADS = { job: 'inspection', area: 'inspection', inspect: 'inspection', cleanup: 'cleanup', problems: 'problems', photos: 'visitPhotos', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
 function coRender(){
   if (S.tab !== 'co') return;
   var sc = CO.screen, j = CO.job || coJobById(CO.jobId), queue = sc === 'queue';
@@ -6107,7 +6341,8 @@ function coRender(){
     // The job screen is named for what the job is waiting on, not always
     // "Inspection" — a Punch List job is repairs, a PM Review job the PM's.
     if (sc === 'job' && j){ var jk = coKindOf(j); if (jk === 'repairs') kw = co('repairs'); else if (jk === 'review') kw = co('pmReview'); }
-    if (sc === 'report'){ var r = coVisit(CO.jobId).reports[CO.reportIdx], it = r && coItemByKey(r.itemKey); kw = co('problems') + (it ? ' · ' + co('fixK').split(' ·')[1].trim() + ' ' + it.n : ''); label = it ? coLabel(it).split(/[,—]/)[0] : label; }
+    if (sc === 'report'){ var r = coVisit(CO.jobId).reports[CO.reportIdx], it = r && coItemByKey(r.itemKey), ra = r && r.area && j ? coAreaByKey(j, r.area) : null; kw = co('problems') + (it ? ' · ' + co('fixK').split(' ·')[1].trim() + ' ' + it.n : ''); label = it ? coLabel(it).split(/[,—]/)[0] : ra ? coAreaName(ra) : label; }
+    if (sc === 'area'){ var aa = j && coAreaByKey(j, CO.areaKey); label = aa ? coAreaName(aa) : label; }
     if (sc === 'repair'){ var t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0]; label = t ? es(coTaskName(t)) : label; }
     $('coK').textContent = kw + (j && j.number ? ' · JT #' + j.number : '');
     $('coTitle').textContent = label;
@@ -6140,6 +6375,7 @@ function coRender(){
   else if (sc === 'cleanup') html = coListHtml('cleanup');
   else if (sc === 'problems') html = coProblemsHtml();
   else if (sc === 'photos') html = coPhotosHtml();
+  else if (sc === 'area') html = coAreaHtml();
   else if (sc === 'report') html = coReportHtml();
   else if (sc === 'send') html = coSendHtml();
   else if (sc === 'repairs') html = coRepairsHtml();
@@ -6149,7 +6385,7 @@ function coRender(){
   // Never rebuild under a finger typing — the note boxes commit on input.
   var ae = document.activeElement;
   if (ae && ae.tagName === 'TEXTAREA' && body.contains(ae) && body.__co === html) return;
-  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coWhereText') && body.contains(ae)){
+  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote') && body.contains(ae)){
     // keep the field; repaint only what sits around it
     var keep = ae.id, pos = ae.selectionStart, val = ae.value;
     body.innerHTML = html; body.__co = html; coWire();
@@ -6175,7 +6411,8 @@ function coWire(){
   on('[data-codiscard]', function(b){ coDiscard(b.getAttribute('data-codiscard')); });
   on('[data-coretry]', function(b){ coRetryNow(b.getAttribute('data-coretry')); });
   on('[data-corepair]', function(b){ CO.taskId = b.getAttribute('data-corepair'); coGo('repair'); });
-  on('[data-coedit]', function(b){ CO.reportIdx = Number(b.getAttribute('data-coedit')); CO.reportFrom = 'problems'; coGo('report'); });
+  on('[data-coedit]', function(b){ CO.reportIdx = Number(b.getAttribute('data-coedit')); CO.reportFrom = b.getAttribute('data-cofrom') || 'problems'; coGo('report'); });
+  on('[data-coarea]', function(b){ CO.areaKey = b.getAttribute('data-coarea'); coGo('area'); });
   on('[data-coreport]', function(b){ coStartReport(b.getAttribute('data-coreport'), CO.screen); });
   on('[data-cophoto]', function(b){ coTakePhoto(JSON.parse(b.getAttribute('data-cophoto'))); });
   on('[data-cogallery]', function(b){ coPickPhotos(JSON.parse(b.getAttribute('data-cogallery'))); });
@@ -6207,6 +6444,12 @@ function coWire(){
   var rn = $('coRepairNote'); if (rn) rn.oninput = function(){ var v = coVisit(CO.jobId); v.repairNote[CO.taskId] = rn.value; coPersist(); };
   var sv = $('coSaveReport'); if (sv) sv.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || !(r.photos || []).length || !r.note.trim()) return; r.saved = true; if (dlRec.want) dlRecStop(); coEnglishFor(v, CO.reportIdx); coPersist(); toast(co('reportSaved')); coBack(); };
   var dr = $('coDeleteReport'); if (dr) dr.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || r.sentAt) return; (r.photos || []).forEach(function(p){ coPhotoDel(p.id); }); v.reports.splice(CO.reportIdx, 1); if (r.itemKey){ var w = r.itemKey.indexOf('22PdEQhB') === 0 ? 'cleanup' : 'inspection'; } coPersist(); coBack(); };
+  var an = $('coAreaNote'); if (an){ an.oninput = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); av.note = an.value; coPersist(); autoGrow(an); };
+    an.onblur = function(){ coToEnglish(coAreaV(coVisit(CO.jobId), CO.areaKey)); coRender(); }; autoGrow(an); }
+  var aty = $('coAreaType'); if (aty) aty.onclick = function(){ var ta = $('coAreaNote'); if (ta) ta.focus(); };
+  var arp = $('coAreaReport'); if (arp) arp.onclick = function(){ coStartReport('', 'area', CO.areaKey); };
+  var asd = $('coAreaSend'); if (asd) asd.onclick = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); if (!av.photos.length || CO.areaSending) return; coSendArea(CO.jobId, CO.areaKey); };
+  var abk = $('coAreaBack'); if (abk) abk.onclick = function(){ CO.receipt = null; coGo('job'); };
   var dn = $('coDone'); if (dn) dn.onclick = function(){ var v = coVisit(CO.jobId); if (!v.after[CO.taskId]) return; dn.disabled = true; coFinishRepair(CO.jobId, CO.taskId); };
 }
 function coLocationWords(r){
@@ -6214,12 +6457,14 @@ function coLocationWords(r){
   r.locationWords = [w, (r.locationText || '').trim()].filter(Boolean).join(' — ');
 }
 /* A report is one problem: from a line marked Falla (prefilled), or on its own. */
-function coStartReport(itemKey, from){
+/* `area` files it against a work area (the gutters, the siding); none is the
+   roof checklist's, which the server reads as the template line's. */
+function coStartReport(itemKey, from, area){
   var v = coVisit(CO.jobId), idx = -1;
   if (itemKey) v.reports.forEach(function(r, i){ if (r.itemKey === itemKey && !r.sentAt) idx = i; });
   if (idx < 0){
-    var it = itemKey ? coItemByKey(itemKey) : null;
-    v.reports.push({ ref: 'r' + uid(), itemKey: itemKey || '', itemN: it ? it.n : '', location: '', locationText: '', locationWords: it ? it.en : '', note: '', noteEn: '', fixed: false, photos: [], saved: false, at: Date.now() });
+    var it = itemKey ? coItemByKey(itemKey) : null, j = CO.job || coJobById(CO.jobId), a = area && j ? coAreaByKey(j, area) : null;
+    v.reports.push({ ref: 'r' + uid(), itemKey: itemKey || '', itemN: it ? it.n : '', area: area || '', areaLabel: a ? a.label : '', location: '', locationText: '', locationWords: it ? it.en : '', note: '', noteEn: '', fixed: false, photos: [], saved: false, at: Date.now() });
     idx = v.reports.length - 1;
     coPersist();
   }

@@ -1095,5 +1095,14 @@ fetchImpl = () => ({ code: 200, body: '{"translations":["Cracked boot"]}' }); fe
 r = sandbox.coTranslate(ALBERTO, ['la bota está rota'], 'en');
 t('translate -> direction rides the body', JSON.parse(fetched[0].opts.payload), { texts: ['la bota está rota'], to: 'en' });
 
+// ---- close out (T2.10): a work area's notes-and-photos inspection ----
+fetchImpl = () => ({ code: 200, body: '{"completedTaskId":"t9","flipped":null,"sentTo":"Neal Deitemeyer"}' }); fetched = [];
+r = sandbox.coCloseArea(ALBERTO, 'j1', { area: 'gutters', notes: 'NE downspout loose', problemsReported: 1 }, 'ca_7');
+t('a work area closes through its own route, with its ref and body', [fetched[0].url, fetched[0].opts.method, fetched[0].opts.headers['X-Client-Ref'], JSON.parse(fetched[0].opts.payload), r.body.sentTo],
+  ['https://closeout.example.com/jobs/j1/close-area-inspection', 'post', 'ca_7', { area: 'gutters', notes: 'NE downspout loose', problemsReported: 1 }, 'Neal Deitemeyer']);
+fetched = [];
+t('no area named -> refused here, never sent', [/Missing work area/.test(refusedBy(() => sandbox.coCloseArea(ALBERTO, 'j1', { notes: 'x' }, 'ca_8'))), fetched.length], [true, 0]);
+t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() => sandbox.coCloseArea(ME, 'j1', { area: 'gutters' }, 'ca_9'))), true);
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

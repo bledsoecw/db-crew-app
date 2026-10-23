@@ -285,6 +285,62 @@ even if asked.
   refusals, the JobTread name and description, and that the gated camera has
   no gallery button.
 
+**Each work area on its own** (T2.10, Carl 23 Oct 2026 — *"I want all of
+this on the crew app. The checkout app is retired"*). A roofing job's roof,
+gutters and siding are now inspected, repaired and approved one at a time,
+each reviewed by its own PM on the Production Board (Dave the shingle roof,
+Neal the gutters, the job's PM the rest), and **the board moves the job's
+Status** — the area furthest behind decides, forward only, ending at *Sales
+Rep > Cust Final Contact*. The CheckOut SERVER stays up behind this tab and
+does the telling; its Expo app is what retired. What changed on the phone:
+
+- **The job screen lists the work areas** when there is more than the one
+  roof: each area with where it stands — *Booked Fri, Oct 23 · Alberto*,
+  *Inspected · 1 repair open*, *Inspected ✓ · with the PM*, *Not booked yet —
+  the PM books it on the board*. A plain shingle job reads exactly as before.
+- **The roof keeps its checklist**, offered while the roof is booked (a day
+  or somebody on it) or the job is at Final Inspection, and never once it is
+  inspected — the board, not Close Out, now moves the Status, so a job can sit
+  at Final Inspection for a moment after its roof went in, and the checklist
+  must not ask for it twice.
+- **The gutters and the siding are notes and photos** (Carl: *"for now"*):
+  their own tile opens one screen — at least one photo, a note dictated or
+  typed in either language and sent in English with what was said beside it,
+  and problems of their own. One send, the same outbox as the roof's: the
+  findings, their photos, the area's photos, then `coCloseArea` →
+  `POST /jobs/:id/close-area-inspection`. Offered once the area is booked or
+  the job is at Final Inspection; an area not booked yet is a fact on the
+  list, not a button.
+- **Every finding says which area it is about** (`area` on the report and on
+  its photos), so the repair lands on that area's punch list and the board
+  reads it as that area's. A report from the roof checklist carries none and
+  the server files it under the roof, as every build before this did.
+- **The receipt says who it went to and where the job is**, from the
+  server's answer, never the phone's guess: *Sent to Neal Deitemeyer · The job
+  moved to Punch List*, or *The job is still at Final Inspection* when another
+  area is behind it. Repairs carry their area too (`area` on each punch task),
+  so the last repair on the gutters reads *Finish & send to PM — this is the
+  last repair on the gutters* and lands as *Repairs on the gutters done · Sent
+  to Neal Deitemeyer*, while the roof goes on.
+- **Jobs outside the three stages.** The queue now lists close-out work
+  assigned to you whatever the job's Status (a gutters inspection booked while
+  the roof is still going on), so a job at Production reads as an inspection
+  or as repairs from what is assigned, and its Start button no longer counts
+  "0 of 13" roof checks.
+- Two things fixed on the way: a problem report nobody saved (a Falla tapped
+  and changed back) was sent with the visit and refused by the server, and a
+  roof send never cleared its own "sending" mark, so a second visit on the same
+  phone could not be sent. Neither happens now.
+- A job with no work areas — a service call, construction — is untouched,
+  and the server still moves those itself.
+
+**Needs, in this order:** the CheckOut server on its `claude/closeout-areas`
+branch (the area list, the area route and `sentTo`; an older server sends no
+areas and the phone reads as T2.9), then the Apps Script (`coCloseArea` is a
+new door — until it is deployed an area send waits in the outbox, nothing is
+lost), then `firebase deploy --only hosting`. `dev/closeout-test.mjs` walks it
+on a two-area job (`__MOCK_CO_AREAS`).
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

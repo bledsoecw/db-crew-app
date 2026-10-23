@@ -41,7 +41,7 @@ async function boot(flags = {}) {
     errs.push(m.text());
   });
   await page.addInitScript(`window.__MOCK_ROLE=${JSON.stringify(flags.role || 'siteManager')};window.__MOCK_CO_PHOTO409=${!!flags.photo409};
-    window.__MOCK_CO_REJECT=${!!flags.reject};window.__MOCK_CO_DOWN=${!!flags.down};window.__MOCK_CO_UNSET=${!!flags.unset};`);
+    window.__MOCK_CO_REJECT=${!!flags.reject};window.__MOCK_CO_DOWN=${!!flags.down};window.__MOCK_CO_UNSET=${!!flags.unset};window.__MOCK_CO_AREAS=${!!flags.areas};`);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1300);
@@ -430,6 +430,75 @@ const allErrs = [];
   // Clock tab lands on the clock as it always did.
   await tap(page, '.tab[data-tab="job"]', 400);
   check('a tab tap is remembered and clears the hand-back', await page.evaluate(() => [S.tab, S.tabTouched, S.coReturn]), ['job', true, null]);
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- work areas (Carl, 23 Oct 2026): a roof and its gutters, each on its own ----
+{
+  const { ctx, page, errs } = await boot({ role: 'service', areas: true });
+  await tap(page, '.tab[data-tab="co"]', 900);
+  // One roof on its own reads exactly as before: no list of areas, the four tiles.
+  await tap(page, '[data-cojob="co-hartman"]', 800);
+  check('one roof: no area list, the four tiles', await page.evaluate(() => [!!document.getElementById('coAreas'), [...document.querySelectorAll('#coBody .jcard .jtile .es')].map((e) => e.textContent)]),
+    [false, ['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita']]);
+  // A draft nobody saved never goes (it has no note, and the server would refuse it).
+  await page.evaluate(() => { const v = coVisit('co-hartman'); CO_INSPECT.forEach((i) => { v.answers.inspection[i.key] = 'OK'; }); CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = 'OK'; });
+    v.reports.push({ ref: 'rdraft', itemKey: '', itemN: '', area: '', location: '', locationText: '', locationWords: '', note: '', noteEn: '', fixed: false, photos: [], saved: false, at: Date.now() }); coPersist(); coGo('send'); });
+  await page.waitForTimeout(300);
+  await tap(page, '#coSend', 2500);
+  check('the roof send: no unsaved draft, just the close', (await calls(page)).map((c) => c.fn), ['coClose']);
+  check('the receipt names who it went to and where the board put the job', await txt(page, '#coReceipt .ss'), 'Enviado a Dave Elick · El trabajo pasó a PM Review');
+  await page.evaluate(() => { CO.receipt = null; CO.screen = 'queue'; CO.jobId = null; CO.job = null; coRender(); });
+  await page.waitForTimeout(300);
+
+  await tap(page, '[data-cojob="co-mason"]', 900);
+  const areaRows = () => page.evaluate(() => [...document.querySelectorAll('#coAreas .rvrow')].map((r) => [r.querySelector('.rk').textContent, r.querySelector('.rv').textContent]));
+  const masonRows = await areaRows();
+  check('two areas: the roof inspected with its repair, the gutters booked for Alberto', [masonRows[0], masonRows[1][0], /^Agendada .+ · Alberto$/.test(masonRows[1][1])],
+    [['Techo de tejas', 'Revisada · 1 reparación pendiente'], 'Canales', true]);
+  check('the roof is done: no checklist, no Review & send; the gutters and the repairs are the tiles', await page.evaluate(() => [!!document.querySelector('[data-coscreen="inspect"]'), !!document.getElementById('coReview'), [...document.querySelectorAll('#coBody .jtile .es')].map((e) => e.textContent)]),
+    [false, false, ['Canales', 'Reparaciones']]);
+  await tap(page, '[data-coarea="gutters"]', 500);
+  check('the gutters: notes and photos, named in the header, the send waits on a photo', await page.evaluate(() => [CO.screen, document.getElementById('coK').textContent, document.getElementById('coTitle').textContent, document.getElementById('coAreaSend').disabled]),
+    ['area', 'Inspección · JT #26-0502', 'Canales', true]);
+  await addPhoto(page, '#coBody [data-cophoto]');
+  check('a photo lands on the area and unlocks the send', await page.evaluate(() => [coVisit('co-mason').areas.gutters.photos.length, document.getElementById('coAreaSend').disabled]), [1, false]);
+  await page.locator('#coAreaNote').fill('El bajante del noreste está flojo');
+  await page.locator('#coAreaNote').blur();
+  await page.waitForTimeout(700);
+  check('the note gets its English for the office', await page.evaluate(() => coVisit('co-mason').areas.gutters.noteEn), 'EN: El bajante del noreste está flojo');
+  await tap(page, '#coAreaReport', 500);
+  check('a problem on the gutters is filed against them', await page.evaluate(() => { const r = coVisit('co-mason').reports[CO.reportIdx]; return [CO.screen, r.area, document.getElementById('coTitle').textContent]; }), ['report', 'gutters', 'Canales']);
+  await addPhoto(page, '#coBody [data-cophoto]');
+  await page.locator('#coNote').fill('Falta un tornillo en el codo');
+  await page.locator('#coNote').blur();
+  await page.waitForTimeout(600);
+  await tap(page, '#coSaveReport', 600);
+  check('saved: back on the gutters, the problem listed there and not on the roof', await page.evaluate(() => [CO.screen, document.querySelectorAll('#coBody [data-cofrom="area"]').length, coRoofReports(coVisit('co-mason')).length]), ['area', 1, 0]);
+  await tap(page, '#coAreaSend', 3000);
+  const ac = (await calls(page)).filter((c) => c.jobId === 'co-mason' && c.fn !== 'coTranslate');
+  check('the area send in order: the finding, its photo, the area photo, the close', ac.map((c) => c.fn + (c.photo ? ':' + c.photo.label : '')), ['coReport', 'coPhoto:REPORT', 'coPhoto:INSPECTION', 'coCloseArea']);
+  check('every item names the gutters', [ac[0].report.area, ac[1].photo.area, ac[2].photo.area, ac[3].body.area], ['gutters', 'gutters', 'gutters', 'gutters']);
+  check('the finding reads in English, located by its area', [ac[0].report.englishNote, ac[0].report.location], ['EN: Falta un tornillo en el codo', 'Gutters']);
+  check('the close carries the English note with what was said, and the problem count', [ac[3].body.notes, ac[3].body.problemsReported], ['EN: El bajante del noreste está flojo\n\n(El bajante del noreste está flojo)', 1]);
+  check('the receipt: the gutters went to Neal, the board moved the job', [await txt(page, '#coReceipt .sl'), await txt(page, '#coReceipt .ss')], ['Enviado a JobTread · Canales', 'Enviado a Neal Deitemeyer · El trabajo pasó a Punch List']);
+  check('the phone\'s copy of the gutters is cleared', await page.evaluate(() => { const v = coVisit('co-mason'); return [v.areas.gutters.photos.length, v.areas.gutters.note, v.reports.length]; }), [0, '', 0]);
+  await tap(page, '#coAreaBack', 900);
+  const after = await areaRows();
+  check('back on the job: the gutters read inspected, and are not offered again', [after[1], await page.evaluate(() => !!document.querySelector('[data-coarea="gutters"]'))], [['Canales', 'Revisada · 1 reparación pendiente'], false]);
+  // The last repair on ONE area sends that area to its PM; the job goes on.
+  await tap(page, '[data-coscreen="repairs"]', 700);
+  check('the repair says which area it is for', await txt(page, '#coBody .rep .en'), 'Techo de tejas · ES: Counter-flashing lifted on the left side of the chimney.');
+  await tap(page, '[data-corepair="pt9"]', 500);
+  check('the last repair on the roof says so, not that the job moves', [await txt(page, '#coDone'), /^Es la última reparación en el techo de tejas\./.test(await txt(page, '#coBody > .foot:last-child'))], ['Terminar y mandar al PM', true]);
+  await addPhoto(page, '.phbig.need');
+  await tap(page, '#coDone', 2500);
+  check('…finished: the roof\'s repairs went to Dave', [await txt(page, '#coRepairsSent .sl'), await txt(page, '#coRepairsSent .ss')], ['Reparaciones listas en el techo de tejas', 'Enviado a Dave Elick.']);
+  // A job still in production offers no roof checklist until the roof is booked.
+  check('a roof not yet booked, job in production: no checklist', await page.evaluate(() => [coKindOf({ status: 'Production', openPunchCount: 0 }),
+    coRoofOpen({ status: 'Production', areas: [{ key: 'shingle', line: true, form: 'roof', inspected: false, assigneeNames: [], inspectionDate: null }] }, coVisit('x-none')),
+    coRoofOpen({ status: 'Production', areas: [{ key: 'shingle', line: true, form: 'roof', inspected: false, assigneeNames: ['Yahir Gonzalez'], inspectionDate: null }] }, coVisit('x-none'))]), ['inspect', false, true]);
   allErrs.push(...errs);
   await ctx.close();
 }

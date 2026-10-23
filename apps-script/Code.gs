@@ -406,6 +406,7 @@ function doPost(e) {
       coReport: coReport,
       coPhoto: coPhoto,
       coClose: coClose,
+      coCloseArea: coCloseArea,
       coComplete: coComplete,
       coTranslate: coTranslate
     };
@@ -3063,8 +3064,10 @@ function setRole(me, email, role) {
 // CLOSE OUT — the final inspection, cleanup, problem reports and punch
 // repairs, forwarded to the DB CheckOut server (bledsoecw/DB-CheckOut).
 //
-// That server keeps its brains — which task completing moves a job to Punch
-// List or PM Review, the punch to-dos and their photos, the re-send guard on
+// That server keeps its brains — telling the Production Board what happened
+// (the board moves the job's Status from its work areas; a job with none,
+// like a service call, is still moved there), the summaries tagged to each
+// area's PM, the punch to-dos and their photos, the re-send guard on
 // X-Client-Ref, the Spanish/English note — and this script is only the door:
 // the phone asks here with its own session, and this forwards with the
 // shared secret plus WHO is asking, which the server has agreed to trust the
@@ -3134,6 +3137,13 @@ function coPhoto(me, jobId, photo, ref) {
 function coClose(me, jobId, visit, ref) {
   if (!visit || typeof visit !== 'object') throw new Error('Missing visit.');
   return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/close-inspection', visit, ref);
+}
+// A work area inspected with notes and photos — the gutters, the siding —
+// rather than the roof checklist: { area, notes?, problemsReported }. Sent
+// last, after that area's reports and photos, like coClose.
+function coCloseArea(me, jobId, body, ref) {
+  if (!body || typeof body !== 'object' || !body.area) throw new Error('Missing work area.');
+  return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/close-area-inspection', body, ref);
 }
 function coComplete(me, taskId, jobId, note, ref) {
   var body = { note: String(note || '').slice(0, 2000) };

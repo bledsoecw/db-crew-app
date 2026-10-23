@@ -221,6 +221,32 @@
     { id: 'co-bell', number: '26-0388', name: '260388 Bell_Roof', status: 'PM Review', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
       projectManager: 'Kyle Akerman', salesRep: null, address: '9 Sycamore Ln, Ohio City, OH 45874, USA', openPunchCount: 0, mine: false, openPunchTotal: 0, punchTasks: [], soldScope: [] }
   ];
+  // __MOCK_CO_AREAS: a server new enough to list each job's work areas
+  // (Carl, 23 Oct 2026). Hartman's one roof gets its area, and Mason has
+  // two: the roof inspected with one repair open, and the gutters booked
+  // for today, for Alberto — notes and photos, not the roof checklist.
+  var CO_REVIEWER = { shingle: 'Dave Elick', gutters: 'Neal Deitemeyer' };
+  if (window.__MOCK_CO_AREAS) {
+    CO_JOBS[0].areas = [{ key: 'shingle', label: 'Shingle roof', line: true, form: 'roof', inspectionTaskId: 'fi-hartman', inspectionDate: isoAdd(0), assigneeNames: ['Alberto Gonzalez', 'Yahir Gonzalez'], mine: true, inspected: false, openRepairs: 0 }];
+    CO_JOBS.push({ id: 'co-mason', number: '26-0502', name: '260502 Mason_Roof', status: 'Final Inspection', jobType: 'Roofing', projectTypes: ['R-Shingles', 'R-Gutters'], isService: false,
+      projectManager: 'Kyle Akerman', salesRep: 'Austin Leeth', address: '212 Elm St, Van Wert, OH 45891, USA', openPunchCount: 1, mine: true, openPunchTotal: 1,
+      punchTasks: [{ id: 'pt9', name: 'REPORT: Reseal the chimney flashing', description: 'Counter-flashing lifted on the left side of the chimney.', progress: 0, endDate: null, createdAt: '2026-10-20T12:00:00.000Z', assignees: [], assigneeNames: ['Alberto Gonzalez', 'Yahir Gonzalez'], mine: true, area: 'shingle' }],
+      areas: [
+        { key: 'shingle', label: 'Shingle roof', line: true, form: 'roof', inspectionTaskId: 'fi-mason', inspectionDate: isoAdd(-3), assigneeNames: ['Alberto Gonzalez', 'Yahir Gonzalez'], mine: true, inspected: true, openRepairs: 1 },
+        { key: 'gutters', label: 'Gutters', line: false, form: 'notes', inspectionTaskId: 'fig-mason', inspectionDate: isoAdd(0), assigneeNames: ['Alberto Gonzalez'], mine: true, inspected: false, openRepairs: 0 }
+      ], soldScope: [] });
+  }
+  // The Production Board's rule, as far as the phone can tell it from here:
+  // the area furthest behind decides, forward only.
+  function coBoardMove(j) {
+    if (!j || !j.areas || !j.areas.length) return null;
+    var order = ['Final Inspection', 'Punch List', 'PM Review'], to;
+    if (j.areas.some(function (a) { return !a.inspected; })) to = 'Final Inspection';
+    else if (j.areas.some(function (a) { return a.openRepairs > 0; })) to = 'Punch List';
+    else to = 'PM Review';
+    if (order.indexOf(to) > order.indexOf(j.status)) { j.status = to; return to; }
+    return null;
+  }
   var PEOPLE = [
     { email: 'operations@deitemeyerbrothers.com', name: 'Operations', membershipId: 'm0', jtRole: 'Admin', role: 'ops', source: 'code', seen: isoAdd(0), ops: true },
     { email: 'alberto@deitemeyerbrothers.com', name: 'Alberto Gonzalez', membershipId: '22PdPUpWzpHy', jtRole: 'Crew', role: 'service', source: 'default', seen: isoAdd(0), ops: false },
@@ -457,7 +483,7 @@
       window.__CO = window.__CO || [];
       if (window.__MOCK_CO_UNSET) return { status: 0, reason: 'not-configured', body: null };
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: { error: 'DNS' } };
-      return { status: 200, body: CO_JOBS.map(function (j) { var c = JSON.parse(JSON.stringify(j)); delete c.punchTasks; delete c.soldScope; delete c.openPunchTotal; return c; }) };
+      return { status: 200, body: CO_JOBS.map(function (j) { var c = JSON.parse(JSON.stringify(j)); delete c.punchTasks; delete c.soldScope; delete c.openPunchTotal; delete c.areas; return c; }) };
     },
     coJob: function (jobId) {
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
@@ -490,9 +516,24 @@
       window.__CO.push({ fn: 'coClose', jobId: jobId, ref: ref, visit: visit });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
+      var line = j && j.areas && j.areas.filter(function (a) { return a.line; })[0];
+      if (line) {
+        // With work areas the board moves the job, and the line roof's PM is told.
+        line.inspected = true; line.openRepairs += visit.problemsReported || 0;
+        return { status: 200, body: { completedTaskId: line.inspectionTaskId, flipped: coBoardMove(j), sentTo: CO_REVIEWER[line.key] || null } };
+      }
       var flipped = visit.problemsReported > 0 ? 'Punch List' : 'PM Review';
       if (j) j.status = flipped;
       return { status: 200, body: { completedTaskId: 'fi_' + jobId, flipped: flipped } };
+    },
+    coCloseArea: function (jobId, body, ref) {
+      window.__CO.push({ fn: 'coCloseArea', jobId: jobId, ref: ref, body: body });
+      if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
+      var a = j && (j.areas || []).filter(function (x) { return x.key === body.area; })[0];
+      if (!a) return { status: 400, reason: 'http-400', body: { error: 'area must be one of this job\'s work areas' } };
+      a.inspected = true; a.openRepairs += body.problemsReported || 0;
+      return { status: 200, body: { completedTaskId: a.inspectionTaskId, flipped: coBoardMove(j), sentTo: CO_REVIEWER[a.key] || null } };
     },
     coComplete: function (taskId, jobId, note, ref) {
       window.__CO.push({ fn: 'coComplete', taskId: taskId, jobId: jobId, note: note, ref: ref });
@@ -501,6 +542,12 @@
       // The server's own rule (shouldFlipToPmReview): the last punch task
       // closing moves a Punch List job to PM Review.
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0], flipped = null;
+      var t = j && j.punchTasks.filter(function (x) { return x.id === taskId; })[0], a = t && t.area && j.areas && j.areas.filter(function (x) { return x.key === t.area; })[0];
+      if (a) {
+        // The last repair on an area tells that area's PM; the board moves the job.
+        a.openRepairs = j.punchTasks.filter(function (x) { return x.area === a.key && x.progress < 1 && !CO_DONE[x.id]; }).length;
+        return { status: 200, body: { ok: true, flipped: coBoardMove(j), sentTo: a.openRepairs ? null : CO_REVIEWER[a.key] || null } };
+      }
       if (j && j.status === 'Punch List' && j.punchTasks.length && j.punchTasks.every(function (t) { return t.progress >= 1 || CO_DONE[t.id]; })) { j.status = 'PM Review'; flipped = 'PM Review'; }
       return { status: 200, body: { ok: true, flipped: flipped } };
     },
