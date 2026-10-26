@@ -491,6 +491,10 @@ button[disabled]{cursor:default}
 .whychip.on{background:var(--nav);border-color:var(--nav);color:#fff}
 .sendbig{margin-top:28px;min-height:88px;font-size:21px;letter-spacing:.84px;gap:12px}
 .sendbig.off{background:var(--surf2);color:var(--lab);pointer-events:none}
+/* Something stands between the crew and the send (T2.12): it looks off,
+   but a tap opens the list of what still needs them instead of doing
+   nothing — a grey button that answers nothing was the whole complaint. */
+.sendbig.blocked{background:var(--surf2);color:var(--lab)}
 .normalday{margin-top:12px;min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)}
 .rvcard{margin-top:12px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surf)}
 .rvrow{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border-bottom:1px solid var(--line)}
@@ -976,7 +980,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.11 (2026-10-26)';
+var APP_BUILD = 'T2.12 (2026-10-26)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -3293,6 +3297,7 @@ function openSheet(kind, promptKind){
             : kind==='stop' ? 'Stop the clock'
             : kind==='signoff' ? 'Sign off'
             : kind==='unsign' ? 'Unsign'
+            : kind==='coWhy' ? co('whyTitle')
             : '';
   $('sheetTitle').textContent = title;
   $('sheet').classList.toggle('tall', kind === 'jobs');
@@ -3301,6 +3306,7 @@ function openSheet(kind, promptKind){
                             : kind==='stop' ? stopHtml()
                             : kind==='signoff' ? signoffHtml()
                             : kind==='unsign' ? unsignHtml()
+                            : kind==='coWhy' ? coWhyHtml()
                             : '';
   $('scrim').classList.add('on');
   wireSheet();
@@ -3442,6 +3448,13 @@ function wireSheet(){
   if ($('skYes')) $('skYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, true); render(); };
   if ($('ukNo')) $('ukNo').onclick = function(){ closeSheet(); };
   if ($('ukYes')) $('ukYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, false); render(); };
+  // Close Out's "Before you send": each row goes where that thing is dealt with.
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-cowhy]'), function(b){
+    b.onclick = function(){ closeSheet(); coGo(b.getAttribute('data-cowhy')); };
+  });
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-cowhyreport]'), function(b){
+    b.onclick = function(){ closeSheet(); coStartReport(b.getAttribute('data-cowhyreport'), 'job'); };
+  });
 }
 
 /* =========================================================
@@ -5238,6 +5251,9 @@ var CO_STATUS = { fi: 'Final Inspection', pl: 'Punch List', pr: 'PM Review' };
    large; the other sits small beneath where the screen says both. */
 var CO_L10N = {
   es: { tab:'Close Out', mine:'Asignados',
+        whyTitle:'Antes de enviar', whyIntro:'Esto todavía necesita tu atención antes de revisar y enviar:', whyLeft:'faltan', whyAnswer:'Contesta cada punto: Bien, N/A o Falla',
+        whyFix:'Reportar la falla del punto', whyFixSub:'Cada Falla necesita su reporte, con foto y nota', whyGoing:'Tu último envío de este trabajo todavía está saliendo', whyGoingSub:'Ábrelo para ver cómo va',
+        whyRefused:'Tu último envío de este trabajo fue rechazado', whyRefusedSub:'Ábrelo para reintentar o quitarlo', whyPhotos:'Las fotos de la visita son opcionales — no detienen el envío.', whyTap:'Toca Revisar y enviar para ver qué falta',
         dayEarlier:'Antes · sigue abierto', dayToday:'Hoy', dayTomorrow:'Mañana', dayNone:'Sin día todavía', stripAria:'Tus días con trabajo agendado', stripJobs:'trabajos', stripJob:'trabajo',
         areas:'Áreas de trabajo', areaSub:'cada una se revisa y se aprueba por su cuenta', areaNotes:'notas y fotos', areaInspected:'Revisada', areaWithPm:'con el PM',
         areaRepairsOpen:'reparaciones pendientes', areaRepairOpen:'reparación pendiente', areaBooked:'Agendada', areaNotBooked:'Sin agendar — el PM la agenda en el tablero', areaSent:'Enviada',
@@ -5267,6 +5283,9 @@ var CO_L10N = {
         onClockHere:'Ya estás en el reloj en este trabajo', onClock:'En el reloj', onClockSub:'cambiar de código o trabajo · salir', clockingIn:'Marcando entrada…',
         checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', searchPh:'Buscar trabajos por nombre, número o cliente', noMatch:'Ningún trabajo coincide.', noMatchMine:'Nada asignado coincide. Toca Todos para buscar en el resto.', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
   en: { tab:'Close Out', mine:'Assigned',
+        whyTitle:'Before you send', whyIntro:'This still needs your attention before you can review and send:', whyLeft:'left', whyAnswer:'Answer every item: OK, N/A or Fix',
+        whyFix:'Report the problem on item', whyFixSub:'Every Fix needs its report, with a photo and a note', whyGoing:'Your last send for this job is still going out', whyGoingSub:'Open it to see where it is',
+        whyRefused:'Your last send for this job was refused', whyRefusedSub:'Open it to retry it or take it off', whyPhotos:'Visit photos are optional — they never hold up the send.', whyTap:'Tap Review & send to see what is left',
         dayEarlier:'Earlier · still open', dayToday:'Today', dayTomorrow:'Tomorrow', dayNone:'No day set yet', stripAria:'Your days with work booked', stripJobs:'jobs', stripJob:'job',
         areas:'Work areas', areaSub:'each is inspected and approved on its own', areaNotes:'notes & photos', areaInspected:'Inspected', areaWithPm:'with the PM',
         areaRepairsOpen:'repairs open', areaRepairOpen:'repair open', areaBooked:'Booked', areaNotBooked:'Not booked yet — the PM books it on the board', areaSent:'Sent',
@@ -5327,6 +5346,51 @@ function coMissing(v){
   var unreported = coFixes(v).filter(function(i){ return !v.reports.some(function(r){ return r.itemKey === i.key && r.saved; }); });
   if (unreported.length) m.push(co('fixK').split(' ·')[0].toLowerCase() + ' ' + unreported.map(function(i){ return i.n; }).join(', '));
   return m;
+}
+/* Everything standing between the crew and the roof's send, each with
+   where to go to deal with it (T2.12, Carl 26 Oct 2026: "the button is
+   greyed out … there is nothing to let me know"). The lists and their
+   reports are coMissing's; the other is a send of this job's still in the
+   outbox — on its way, or refused and waiting on the crew — because a
+   second send beside it would write the visit twice. */
+function coBlockers(jobId, v){
+  var out = [], close = (CO.outbox || []).filter(function(it){ return it.jobId === jobId && it.kind === 'close'; })[0];
+  if (close && close.status === 'rejected') out.push({ go: 'send', t: co('whyRefused'), s: close.err || co('whyRefusedSub') });
+  else if (close || v.sending) out.push({ go: 'send', t: co('whyGoing'), s: co('whyGoingSub') });
+  var ins = CO_INSPECT.length - coCount(v, CO_INSPECT, 'inspection'), cln = CO_CLEAN.length - coCount(v, CO_CLEAN, 'cleanup');
+  if (ins > 0) out.push({ go: 'inspect', t: co('inspection') + ' · ' + ins + ' ' + co('whyLeft'), s: co('whyAnswer') });
+  if (cln > 0) out.push({ go: 'cleanup', t: co('cleanup') + ' · ' + cln + ' ' + co('whyLeft'), s: co('whyAnswer') });
+  coFixes(v).filter(function(i){ return !v.reports.some(function(r){ return r.itemKey === i.key && r.saved; }); }).forEach(function(i){
+    out.push({ report: i.key, t: co('whyFix') + ' ' + i.n, s: coLabel(i) });
+  });
+  return out;
+}
+/* A visit is "sending" only while its close is in the outbox. The mark was
+   cleared on one road only — the close landing — so a close refused and
+   then taken off, or an outbox the phone lost (site data cleared, the app
+   reinstalled), left it set for good, and Review & send greyed out on that
+   job forever with nothing on screen saying why (Carl, 25-0001, 26 Oct
+   2026). Fifteen seconds of grace covers a send whose items are still
+   being written when the outbox is read. */
+function coHealSending(){
+  var changed = false, now = Date.now();
+  Object.keys(coStore.visits).forEach(function(id){
+    var v = coStore.visits[id];
+    if (!v || !v.sending) return;
+    if ((CO.outbox || []).some(function(it){ return it.jobId === id && it.kind === 'close'; })) return;
+    if (v.sendingAt && now - v.sendingAt < 15000) return;
+    v.sending = false; changed = true;
+  });
+  if (changed) coPersist();
+}
+function coWhyHtml(){
+  var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), list = j ? coBlockers(j.id, v) : [];
+  var h = '<div class="sheetpad"><div class="body" style="margin-bottom:12px">' + esc(co('whyIntro')) + '</div><div class="jcard" style="margin-top:0">';
+  h += list.map(function(b){
+    var at = b.report ? ' data-cowhyreport="' + esc(b.report) + '"' : ' data-cowhy="' + esc(b.go) + '"';
+    return '<button class="jtile"' + at + '><span class="bi"><span class="es">' + esc(b.t) + '</span><span class="en">' + esc(b.s) + '</span></span>' + CK_CHEV + '</button>';
+  }).join('');
+  return h + '</div><div class="foot" style="text-align:left;margin-top:12px">' + esc(co('whyPhotos')) + '</div></div>';
 }
 function coJobById(id){ return (CO.jobs || []).filter(function(j){ return j.id === id; })[0] || null; }
 function coJobLabel(j){ return j ? (streetOf(j.address) || jobTitle({ name: j.name }) || j.number || '—') : '—'; }
@@ -5788,7 +5852,7 @@ function coEnqueue(items){
   return items.reduce(function(chain, it){ it.seq = coNextSeq(); it.at = it.at || Date.now(); it.status = 'queued'; it.tries = 0; it.err = ''; return chain.then(function(){ return coObPut(it); }); }, Promise.resolve())
     .then(coRefreshOutbox).then(coPump);
 }
-function coRefreshOutbox(){ return coObAll().then(function(items){ CO.outbox = items; }); }
+function coRefreshOutbox(){ return coObAll().then(function(items){ CO.outbox = items; coHealSending(); }); }
 function coDiscard(id){ coObDel(id).then(coRefreshOutbox).then(coRender); }
 function coRetryNow(id){ coObAll().then(function(items){ var it = items.filter(function(x){ return x.id === id; })[0]; if (!it) return; it.status = 'queued'; it.tries = 0; it.err = ''; return coObPut(it); }).then(coRefreshOutbox).then(function(){ CO.pumpFails = 0; coPump(); }); }
 /* One item through Code.gs. The answer decides what happens to it:
@@ -5911,7 +5975,7 @@ function coSendVisit(jobId){
   var problems = roof.filter(function(r){ return !r.fixed; }).length;
   items.push({ id: ref, kind: 'close', jobId: jobId, label: co('inspection') + ' + ' + co('cleanup'),
                payload: { answers: { inspection: v.answers.inspection, cleanup: v.answers.cleanup }, notes: { inspection: v.notes.inspection || undefined, cleanup: v.notes.cleanup || undefined }, findings: findings, problemsReported: problems } });
-  v.sending = true; coPersist();
+  v.sending = true; v.sendingAt = Date.now(); coPersist();
   coEnqueue(items).then(function(){ coGo('send'); });
 }
 /* A work area's notes-and-photos inspection: its findings and their
@@ -6142,9 +6206,11 @@ function coJobHtml(){
   }
   if (j.soldScope && j.soldScope.length) h += coScopeHtml(j);
   if (roofOpen || started){
-    var miss = coMissing(v), can = !miss.length && !v.sending;
-    h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coReview"' + (can ? '' : ' disabled') + '>' + esc(co('review') + (multi && line ? ' · ' + coAreaName(line) : '')) + '</button>';
-    h += '<div class="foot">' + (miss.length ? esc(co('missing') + ': ' + miss.join(' · ')) : esc(co('checkSendSub'))) + '</div>';
+    // Never a dead grey button: blocked, it still answers — with the list of
+    // what is left (coWhyHtml) — and the line under it says so.
+    var miss = coMissing(v), blocked = coBlockers(j.id, v).length > 0;
+    h += '<button class="btn btn-go sendbig' + (blocked ? ' blocked' : '') + '" id="coReview" aria-describedby="coReviewFoot">' + esc(co('review') + (multi && line ? ' · ' + coAreaName(line) : '')) + '</button>';
+    h += '<div class="foot" id="coReviewFoot">' + (blocked ? esc((miss.length ? co('missing') + ': ' + miss.join(' · ') : co('whyGoing')) + ' — ' + co('whyTap')) : esc(co('checkSendSub'))) + '</div>';
   }
   return h;
 }
@@ -6519,7 +6585,10 @@ function coWire(){
     };
   });
   var next = $('coNext'); if (next) next.onclick = function(){ coGo(CO.screen === 'inspect' ? 'cleanup' : 'job'); };
-  var rv = $('coReview'); if (rv) rv.onclick = function(){ if (!coMissing(coVisit(CO.jobId)).length) coGo('send'); };
+  var rv = $('coReview'); if (rv) rv.onclick = function(){
+    var v = coVisit(CO.jobId);
+    if (coBlockers(CO.jobId, v).length) openSheet('coWhy'); else coGo('send');
+  };
   var sd = $('coSend'); if (sd) sd.onclick = function(){ sd.disabled = true; coSendVisit(CO.jobId); };
   var bq = $('coBackQueue'); if (bq) bq.onclick = function(){ CO.receipt = null; coBack(); };
   var nr = $('coNewReport'); if (nr) nr.onclick = function(){ coStartReport('', 'problems'); };

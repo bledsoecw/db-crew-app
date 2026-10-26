@@ -148,7 +148,8 @@ const allErrs = [];
   await page.locator('#coSearch').fill(''); await tap(page, '[data-cofilter="mine"]', 200);
   check('the badges say what each is', await page.evaluate(() => [...document.querySelectorAll('#coBody .jcard')].map((c) => c.querySelector('.badge').textContent)), ['Inspección final', 'Reparaciones · 2']);
   await tap(page, '[data-cojob="co-hartman"]', 800);
-  check('the job home: four tiles and a disabled send', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jtile .es')].map((e) => e.textContent), document.getElementById('coReview').disabled]), [['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita', 'Trabajo vendido'], true]);
+  // Blocked, not disabled (T2.12): a tap says what is left.
+  check('the job home: four tiles and a blocked send', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jtile .es')].map((e) => e.textContent), document.getElementById('coReview').classList.contains('blocked')]), [['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita', 'Trabajo vendido'], true]);
   await tap(page, '[data-coscreen="inspect"]', 500);
   check('eight lines, three answers each', await page.evaluate(() => [document.querySelectorAll('#coBody .ans').length, [...document.querySelectorAll('#coBody .ans')][0].querySelectorAll('button').length]), [8, 3]);
   for (let i = 0; i < 8; i++) if (i !== 3) await tap(page, `.ans[data-key="${['22PdEQfPnVqh','22PdEQfPnVqi','22PdEQfPnVqj','22PdEQfPnVqk','22PdEQfPnVqm','22PdEQfPnVqn','22PdEQfPnVqp','22PdEQfPnVqq'][i]}"] .ok`, 120);
@@ -560,6 +561,71 @@ const allErrs = [];
   void d5;
   allErrs.push(...s2.errs);
   await s2.ctx.close();
+}
+
+// ---- the send that answers (T2.12, Carl 26 Oct 2026): "the button is
+// greyed out … there is nothing to let me know", with every list done and
+// eight visit photos. A visit's "sending" mark was cleared only when its
+// close landed, so a close taken off the outbox (or an outbox the phone
+// lost) left Review & send dead on that job for good, with no words.
+{
+  const { ctx, page, errs } = await boot({ role: 'service' });
+  await tap(page, '#tabs [data-tab="co"]', 900);
+  await page.evaluate(() => coOpenJob('co-hartman'));
+  await page.waitForTimeout(900);
+  // Every item answered, and the stale mark a lost send leaves behind.
+  await page.evaluate(() => {
+    const v = coVisit('co-hartman');
+    CO_INSPECT.forEach((i) => { v.answers.inspection[i.key] = CO_ANS.OK; });
+    CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = CO_ANS.OK; });
+    v.sending = true; delete v.sendingAt; coPersist(); coRender();
+  });
+  check('a stale send mark: the button looks off but is no dead control', await page.evaluate(() => {
+    const b = document.getElementById('coReview');
+    return [b.classList.contains('blocked'), b.disabled, getComputedStyle(b).pointerEvents !== 'none', b.getBoundingClientRect().height >= 44];
+  }), [true, false, true, true]);
+  await tap(page, '#coReview', 500);
+  check('…a tap says why, in a popup', await page.evaluate(() => [S.sheet, document.getElementById('sheetTitle').textContent,
+    [...document.querySelectorAll('#sheetBody .jtile .es')].map((e) => e.textContent)]), ['coWhy', 'Antes de enviar', ['Tu último envío de este trabajo todavía está saliendo']]);
+  check('…and says the visit photos never hold it up', await txt(page, '#sheetBody .foot'), 'Las fotos de la visita son opcionales — no detienen el envío.');
+  await page.evaluate(() => closeSheet());
+  // The outbox read clears a mark with no close behind it.
+  await page.evaluate(() => coRefreshOutbox().then(coRender));
+  await page.waitForTimeout(400);
+  check('the outbox read heals it: nothing left, the button sends', await page.evaluate(() => [coVisit('co-hartman').sending, document.getElementById('coReview').classList.contains('blocked'), JSON.parse(localStorage.getItem(CO_KEY)).visits['co-hartman'].sending]), [false, false, false]);
+  await tap(page, '#coReview', 600);
+  check('…a tap goes straight to the review', await page.evaluate(() => CO.screen), 'send');
+  // A send just made is not healed away while its items are still being written.
+  await page.evaluate(() => { const v = coVisit('co-hartman'); v.sending = true; v.sendingAt = Date.now(); coHealSending(); });
+  check('a fresh send keeps its mark through the grace', await page.evaluate(() => coVisit('co-hartman').sending), true);
+  await page.evaluate(() => { const v = coVisit('co-hartman'); v.sending = false; coPersist(); coGo('job'); });
+  await page.waitForTimeout(400);
+
+  // Something genuinely left: each thing is a row that goes where it is fixed.
+  await page.evaluate(() => {
+    const v = coVisit('co-hartman');
+    delete v.answers.inspection[CO_INSPECT[0].key]; delete v.answers.inspection[CO_INSPECT[1].key];
+    v.answers.inspection[CO_INSPECT[2].key] = CO_ANS.FIX;
+    coPersist(); coRender();
+  });
+  // The job screen carries no ES/EN toggle; the language is the phone's.
+  await page.evaluate(() => { S.lang = 'en'; S.langSet = true; coOnLang(); render(); });
+  await page.waitForTimeout(400);
+  check('the line under the button says what is left and to tap', await txt(page, '#coReviewFoot'), `Missing: inspection (2) · fix ${await page.evaluate(() => CO_INSPECT[2].n)} — Tap Review & send to see what is left`);
+  await tap(page, '#coReview', 500);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('#sheetBody .jtile')].map((b) => [b.querySelector('.es').textContent, b.getAttribute('data-cowhy') || 'report:' + b.getAttribute('data-cowhyreport')]));
+  check('the popup lists each thing, in English now', rows, [['Inspection · 2 left', 'inspect'], [`Report the problem on item ${await page.evaluate(() => CO_INSPECT[2].n)}`, 'report:' + (await page.evaluate(() => CO_INSPECT[2].key))]]);
+  check('every row is a 44px target', await page.evaluate(() => [...document.querySelectorAll('#sheetBody .jtile')].every((b) => b.getBoundingClientRect().height >= 44)), true);
+  await tap(page, '#sheetBody [data-cowhy="inspect"]', 500);
+  check('a row closes the popup and opens that list', await page.evaluate(() => [S.sheet, CO.screen]), [null, 'inspect']);
+  await page.evaluate(() => coGo('job'));
+  await page.waitForTimeout(300);
+  await tap(page, '#coReview', 500);
+  await tap(page, '#sheetBody [data-cowhyreport]', 500);
+  check('the Fix row opens that item\'s report', await page.evaluate(() => [S.sheet, CO.screen, coVisit('co-hartman').reports[CO.reportIdx].itemKey === CO_INSPECT[2].key]), [null, 'report', true]);
+  check('no horizontal scroll at phone width', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  allErrs.push(...errs);
+  await ctx.close();
 }
 
 await browser.close();

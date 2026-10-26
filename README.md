@@ -370,6 +370,29 @@ and pixel for pixel; the day lives above them instead:
 CheckOut's answer through untouched. `dev/closeout-test.mjs` walks it
 (`__MOCK_CO_DAYS`).
 
+**Review & send says why it is waiting** (T2.12, Carl 26 Oct 2026 — every
+list done, eight visit photos, and the button grey with nothing on screen
+saying why). Two things, both on the roof's send:
+
+- **The real cause: a "sending" mark nothing cleared.** A visit is marked as
+  sending when its items go into the outbox, and the mark came off on one
+  road only — the close landing. A close refused and then taken off, or an
+  outbox the phone lost (site data cleared, the app reinstalled), left it set
+  on that job for good, so Review & send stayed grey on that job forever and
+  the line under it, with nothing missing, read as if all was well. Now a
+  visit counts as sending only while its close is actually in the outbox:
+  every outbox read heals a mark with nothing behind it (`coHealSending`),
+  with fifteen seconds' grace for a send whose items are still being written.
+- **A grey button answers now.** Blocked, it still looks off but a tap opens
+  *Before you send*: one row for each thing left — *Inspection · 2 left*,
+  *Report the problem on item 5*, *Your last send for this job is still going
+  out* or *…was refused* — each going straight to where it is dealt with,
+  and a line saying the visit photos are optional (they never hold it up).
+  The line under the button adds *Tap Review & send to see what is left*.
+
+**Needs:** `firebase deploy --only hosting` only. A phone that already has the
+stuck mark heals the first time it opens Close Out on the new build.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
