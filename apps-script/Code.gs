@@ -1928,6 +1928,7 @@ function shapeEntry_(t) {
     startedAt: t.startedAt,
     endedAt: t.endedAt || null,
     minutes: t.minutes || 0,
+    type: t.type || '',
     notes: t.notes || '',
     job: j.id ? {
       id: j.id, name: j.name || '', number: j.number || '',
@@ -2097,7 +2098,11 @@ function clockIn(me, jobId, costItemId, coords, startPhotoId) {
  *  on two clocks at once is a payroll problem. */
 function openEntry_(me, jobId, costItemId, coords) {
   var open = openEntryFor_(me.userId);
-  if (open) closeEntry_(open.id, coords);
+  // On a break the open entry is the block planned for after it, starting in
+  // the future: closing it would end it before it began. Starting work ends
+  // the break early, so it goes — what JobTread's own app does.
+  if (open && isFuture_(open.startedAt)) { deleteEntry_(open.id); forgetBreak_(me.userId); }
+  else if (open) closeEntry_(open.id, coords);
 
   var args = {
     organizationId: ORG,
@@ -2124,8 +2129,17 @@ function closeEntry_(entryId, coords) {
 }
 
 function clockOut(me, coords, endPhotoId) {
-  requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
   var open = openEntryFor_(me.userId);
+  // Out for the day from a break: the block before it closed when the break
+  // began, so there is nothing to photograph — the block planned for after
+  // it goes, as a clock-out from a break does in JobTread's own app.
+  if (open && isFuture_(open.startedAt)) {
+    assertWrite_(open.job && open.job.id);
+    deleteEntry_(open.id);
+    forgetBreak_(me.userId);
+    return { ok: true, closed: null, cancelled: open.id, entries: getMyDay(me) };
+  }
+  requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
   if (!open) return { ok: true, closed: null };
   assertWrite_(open.job && open.job.id);
   closeEntry_(open.id, coords);
@@ -2143,20 +2157,196 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId) {
   return openEntry_(me, jobId, costItemId, coords);   // closes what is running, then opens
 }
 
-// A break: the block closes with no photo. Back to work re-opens the same
-// code with no start photo (the block before it has one).
-function startBreak(me, coords) {
-  var open = openEntryFor_(me.userId);
-  if (!open) return { ok: true, closed: null, entries: getMyDay(me) };
-  assertWrite_(open.job && open.job.id);
-  closeEntry_(open.id, coords);
-  return { ok: true, closed: open.id, entries: getMyDay(me) };
+// ---- breaks, the way JobTread's own app takes them -------------------------
+// Break asks how long — 15, 30, 45 or 60 minutes — and makes ONE call:
+// updateTimeEntry with endNow: { breakDuration }. JobTread closes the running
+// block now and opens the next one on the same job and code, starting when
+// the break ends (floored to the minute, no start location). Measured live,
+// 26 Oct 2026: Carla Voltz's noon break ended her block at 17:00:03Z and
+// created one starting 17:30:00Z, 41ms apart — one request.
+//
+// So "on break" is an open entry whose start is still in the future. The
+// phone counts down to it; when it arrives the clock is running again by
+// itself, exactly as in JobTread. End break before then deletes the planned
+// block and opens one now, where they are standing; clocking out from a break
+// deletes it. Every one of those is an ordinary time-entry write, so the
+// job's activity shows created / updated / deleted just as it does for the
+// JobTread app.
+//
+// A break needs no photo either way: the block before it already has its
+// start photo, and the block after it is marked nudged so the before-photo
+// sweep does not chase a photo nobody owes.
+var BREAK_CHOICES = [15, 30, 45, 60];
+
+function isFuture_(iso) {
+  var t = Date.parse(iso || '');
+  return !isNaN(t) && t > Date.now();
 }
+
+function deleteEntry_(entryId) {
+  pave({ deleteTimeEntry: { '$': { id: entryId } } });
+}
+
+function startBreak(me, coords, minutes, lang) {
+  var open = openEntryFor_(me.userId);
+  // An older phone sends no length: the block closes and Back to work
+  // re-opens the code (the build before T2.13).
+  if (minutes == null || minutes === '') {
+    if (!open) return { ok: true, closed: null, entries: getMyDay(me) };
+    if (isFuture_(open.startedAt)) return { ok: true, closed: null, open: open, breakEnd: open.startedAt, entries: getMyDay(me) };
+    assertWrite_(open.job && open.job.id);
+    closeEntry_(open.id, coords);
+    return { ok: true, closed: open.id, entries: getMyDay(me) };
+  }
+  minutes = Number(minutes);
+  if (BREAK_CHOICES.indexOf(minutes) === -1) throw new Error('Pick a break of 15, 30, 45 or 60 minutes.');
+  if (!open) throw new Error('You are not on the clock, so there is no break to start.');
+  // Already on one (a second tap, or a break taken in the JobTread app).
+  if (isFuture_(open.startedAt)) return { ok: true, open: open, breakEnd: open.startedAt, minutes: null, entries: getMyDay(me) };
+  assertWrite_(open.job && open.job.id);
+
+  var args = { id: open.id, endNow: { breakDuration: minutes } };
+  var ec = coordArg_(coords);
+  if (ec) args.endCoordinates = ec;
+  pave({ updateTimeEntry: { '$': args } });
+
+  var next = openEntryFor_(me.userId);
+  if (!next || !isFuture_(next.startedAt)) {
+    // JobTread did not open the after-break block. Do what it does: the
+    // running block ends now (if it is somehow still open), and one starts
+    // when the break ends, on the same job and code, with no location.
+    if (next && next.id === open.id) closeEntry_(open.id, coords);
+    var at = new Date(Date.now() + minutes * 60000);
+    at.setSeconds(0, 0);
+    var cargs = {
+      organizationId: ORG, jobId: open.job.id, userId: me.userId,
+      costItemId: open.code && open.code.id, startedAt: at.toISOString(), type: open.type || ENTRY_TYPE
+    };
+    var d = pave({ createTimeEntry: { '$': cargs, createdTimeEntry: { id: {} } } });
+    if (!(((d.createTimeEntry || {}).createdTimeEntry) || {}).id) throw new Error('The break started but the clock after it could not be set: ' + JSON.stringify(d).slice(0, 200));
+    next = openEntryFor_(me.userId);
+  }
+  if (next) {
+    markNudged(next.id);
+    rememberBreak_(me, next, minutes, lang);
+  }
+  return { ok: true, closed: open.id, open: next, breakEnd: next ? next.startedAt : null, minutes: minutes, entries: getMyDay(me) };
+}
+
+// End break. Before the planned restart: that block goes and one starts now,
+// here — JobTread's End break. After it: the clock already restarted on its
+// own at the planned time, so there is nothing to write. No open entry at all
+// is a break taken on an older build, which closed the block: re-open the code.
 function endBreak(me, jobId, costItemId, coords) {
+  var open = openEntryFor_(me.userId);
+  forgetBreak_(me.userId);
+  if (open && isFuture_(open.startedAt)) {
+    assertWrite_(open.job && open.job.id);
+    var job = open.job ? open.job.id : jobId, code = open.code ? open.code.id : costItemId;
+    deleteEntry_(open.id);
+    var args = {
+      organizationId: ORG, jobId: job, userId: me.userId, costItemId: code,
+      startedAt: new Date().toISOString(), type: open.type || ENTRY_TYPE
+    };
+    var sc = coordArg_(coords);
+    if (sc) args.startCoordinates = sc;
+    var d = pave({ createTimeEntry: { '$': args, createdTimeEntry: { id: {} } } });
+    var id = (((d.createTimeEntry || {}).createdTimeEntry) || {}).id;
+    if (!id) throw new Error('createTimeEntry failed: ' + JSON.stringify(d).slice(0, 200));
+    markNudged(id);
+    return openEntryFor_(me.userId);
+  }
+  if (open) return open;
   if (!jobId) throw new Error('Missing job id.');
   if (!costItemId) throw new Error('Missing the code to go back to.');
   assertWrite_(jobId);
-  return openEntry_(me, jobId, costItemId, coords);
+  var back = openEntry_(me, jobId, costItemId, coords);
+  if (back) markNudged(back.id);
+  return back;
+}
+
+// ---- the two break reminders ---------------------------------------------
+// The phone cannot wake itself on a timer, so the reminders come from here:
+// one record per person on a break (brk_<userId>, written by startBreak and
+// cleared by End break or a clock-out), and a sweep every minute that pushes
+// "5 minutes left" and "break's over". Each person writes only their own
+// key, so two breaks starting together never race. Before sending, the sweep
+// asks JobTread whether the planned block is still there — a break ended in
+// the JobTread app, or by the office, says nothing.
+var BREAK_WARN_MIN = 5;
+
+function rememberBreak_(me, entry, minutes, lang) {
+  try {
+    PropertiesService.getScriptProperties().setProperty('brk_' + me.userId, JSON.stringify({
+      entryId: entry.id, until: Date.parse(entry.startedAt), minutes: minutes, name: me.name || '',
+      lang: lang === 'es' ? 'es' : 'en', warned: minutes <= BREAK_WARN_MIN
+    }));
+  } catch (e) {}
+}
+function forgetBreak_(userId) {
+  try { PropertiesService.getScriptProperties().deleteProperty('brk_' + userId); } catch (e) {}
+}
+
+/** TRIGGER ENTRY POINT. Install with installBreakReminderTrigger(). */
+function sweepBreakReminders() {
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties(), now = Date.now(), due = [];
+  for (var k in all) {
+    if (k.indexOf('brk_') !== 0) continue;
+    var b;
+    try { b = JSON.parse(all[k]); } catch (e) { props.deleteProperty(k); continue; }
+    if (!b || !b.entryId || !b.until || now > b.until + 2 * 3600000) { props.deleteProperty(k); continue; }
+    var left = b.until - now;
+    if (left <= 0) due.push({ key: k, userId: k.slice(4), b: b, end: true });
+    else if (!b.warned && left <= BREAK_WARN_MIN * 60000) due.push({ key: k, userId: k.slice(4), b: b, end: false });
+  }
+  if (!due.length) return { due: 0 };
+
+  // Is each planned block still there, and when does it start?
+  var ids = due.map(function (x) { return x.b.entryId; });
+  var d = pave({
+    organization: {
+      '$': { id: ORG },
+      timeEntries: { '$': { where: ['id', 'in', ids], size: 100 }, nodes: { id: {}, startedAt: {}, endedAt: {} } }
+    }
+  });
+  var live = {};
+  ((((d.organization || {}).timeEntries || {}).nodes) || []).forEach(function (t) { live[t.id] = t; });
+
+  var enabled = pushEnabled_(), sent = 0, gone = 0;
+  due.forEach(function (x) {
+    var t = live[x.b.entryId];
+    if (!t || t.endedAt) { props.deleteProperty(x.key); gone++; return; }
+    var until = Date.parse(t.startedAt), left = until - Date.now();
+    var at = Utilities.formatDate(new Date(until), Session.getScriptTimeZone(), 'h:mm a');
+    var end = left <= 0, es = x.b.lang === 'es', title, body;
+    if (end) {
+      title = es ? 'Se acab\u00f3 el descanso' : 'Break\u2019s over';
+      body = es ? 'El reloj volvi\u00f3 a correr a las ' + at + '. Toca Terminar descanso cuando regreses.'
+                : 'The clock started again at ' + at + '. Tap End break when you\u2019re back.';
+      props.deleteProperty(x.key);
+    } else {
+      if (left > BREAK_WARN_MIN * 60000) return;   // the office moved it later
+      var m = Math.max(1, Math.round(left / 60000));
+      title = es ? 'El descanso termina en ' + m + (m === 1 ? ' minuto' : ' minutos')
+                 : 'Break ends in ' + m + (m === 1 ? ' minute' : ' minutes');
+      body = es ? 'De vuelta en el reloj a las ' + at + '.' : 'Back on the clock at ' + at + '.';
+      x.b.warned = true;
+      x.b.until = until;
+      props.setProperty(x.key, JSON.stringify(x.b));
+    }
+    var token = enabled ? pushTokenFor_(x.userId) : null;
+    if (!token) return;
+    var res;
+    try { res = sendPush_(token, title, body, { kind: 'break', timeEntryId: x.b.entryId }, { tag: 'dbtc-break', ttl: '600' }); }
+    catch (e) { res = { ok: false, error: String(e && e.message || e) }; }
+    if (res.ok) sent++;
+    else {
+      if (res.stale) props.deleteProperty('pt_' + x.userId);
+      console.warn('break push failed for ' + (x.b.name || x.userId) + ': ' + res.error);
+    }
+  });
+  return { due: due.length, sent: sent, gone: gone };
 }
 
 // Foreman view: who is on the clock right now.
@@ -2741,6 +2931,18 @@ function installNudgeTrigger() {
   }
   ScriptApp.newTrigger('sweepBeforePhotoNudges').timeBased().everyMinutes(5).create();
   return 'Sweep installed — runs every 5 minutes.';
+}
+
+/** Run once from the Apps Script editor. Idempotent. The break reminders
+ *  need a minute's resolution; with nobody on a break a run is one read of
+ *  the Script Properties and nothing else. */
+function installBreakReminderTrigger() {
+  var existing = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < existing.length; i++) {
+    if (existing[i].getHandlerFunction() === 'sweepBreakReminders') ScriptApp.deleteTrigger(existing[i]);
+  }
+  ScriptApp.newTrigger('sweepBreakReminders').timeBased().everyMinutes(1).create();
+  return 'Break reminders installed — every minute. First run: ' + JSON.stringify(sweepBreakReminders());
 }
 
 /** Run once from the Apps Script editor. Idempotent. Refreshes the feed on

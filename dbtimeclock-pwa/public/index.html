@@ -151,6 +151,7 @@ button[disabled]{cursor:default}
 .crewrow{min-height:70px;display:flex;align-items:center;gap:13px;padding:0 15px;background:var(--surf);border:1px solid var(--line);border-radius:6px}
 .crewrow .cd{width:13px;height:13px;border-radius:50%;flex:none;background:var(--line2)}
 .crewrow.on .cd{background:var(--live)}
+.crewrow.brk .cd{background:var(--warn)}
 .crewrow .cn{font:700 16px/1 var(--head);letter-spacing:.16px;text-transform:uppercase}
 .crewrow .cs{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--lab);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .crewrow .ct{font:700 15px/1 var(--head);color:var(--mut);flex:none}
@@ -244,6 +245,12 @@ button[disabled]{cursor:default}
 .stoprow .ss{margin-top:5px;display:block;color:var(--lab)}
 .stoprow .ss.warn{color:var(--warn)}
 .stoprow .ss.sun{color:#ffd84d}
+/* T2.13: how long a break — four big tiles, the length in words a thumb can't miss */
+.brkgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.brkopt{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);color:var(--fg)}
+.brkopt .bt{font:800 36px/1 var(--head);letter-spacing:-.5px}
+.brkopt .bs{color:var(--lab)}
+#breakFoot{margin-top:2px}
 #outBand{background:var(--band);border:1px solid var(--bandline);border-radius:8px;padding:20px 18px;display:flex;flex-direction:column;gap:8px}
 #outBand .l{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:#7ba4dd}
 #outBand .v{font:800 52px/1 var(--head);letter-spacing:-1.56px;color:#fff}
@@ -715,6 +722,7 @@ button[disabled]{cursor:default}
           <div class="stack hidden" id="breakStack">
             <button class="btn btn-go" id="backBtn">Back to work</button>
             <button class="btn btn-out" id="breakOutBtn" style="min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)">Clock out for the day</button>
+            <div class="foot" id="breakFoot"></div>
           </div>
         </div>
 
@@ -980,7 +988,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.12 (2026-10-26)';
+var APP_BUILD = 'T2.13 (2026-10-26)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1361,7 +1369,7 @@ var S = {
   tab:'job', sheet:null, promptKind:null, returnToClock:false,
   // The photo gates: what the camera is locked to, the code a start photo is
   // for, the end photo a switch is carrying, and a break in progress.
-  clockGate:null, gateCode:null, switching:null, onBreak:null, dlNudge:false,
+  clockGate:null, gateCode:null, switching:null, onBreak:null, brk:null, dlNudge:false,
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
   checksTask:null, checksVisit:null, ckOpen:{}, ckNoteOpen:{}, checksRO:null, assignAgain:false,
@@ -1379,7 +1387,7 @@ var S = {
 
 function savePrefs(){
   try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, push:pushState, jobPickedDay:S.jobPickedDay,
-                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, viewAs:S.viewAs })); } catch(e){}
+                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs })); } catch(e){}
 }
 function loadPrefs(){
   try {
@@ -1391,6 +1399,7 @@ function loadPrefs(){
     S.jobPickedDay = String(p.jobPickedDay || '');
     // A break is today's or nothing: the phone must not open tomorrow "on break".
     if (p.onBreak && p.onBreak.date === isoLocal() && p.onBreak.code) S.onBreak = p.onBreak;
+    if (p.brk && p.brk.date === isoLocal() && p.brk.entryId) S.brk = p.brk;
     if (p.lang === 'es' || p.lang === 'en') S.lang = p.lang;
     S.langSet = !!p.langSet;
     S.viewAs = (p.viewAs === 'crew' || p.viewAs === 'siteManager' || p.viewAs === 'service') ? p.viewAs : '';
@@ -1470,6 +1479,23 @@ function loadCodes(jobId, quiet){
 }
 function sentenceCase(s){ s = String(s||''); return s.charAt(0).toUpperCase() + s.slice(1); }
 function openSeconds(){ return S.open ? Math.max(0, (Date.now() - new Date(S.open.startedAt).getTime())/1000) : 0; }
+/* T2.13: a break the way JobTread's own app takes one. The running block
+   closes and the next one is already in JobTread, starting when the break
+   ends — so "on break" is simply an open entry whose start is still ahead,
+   and a break taken in the JobTread app reads the same here. When that
+   start arrives the clock is running again by itself; S.brk remembers a
+   break THIS phone started, so the screen can say "break over" until End
+   break is tapped. */
+var BREAK_CHOICES = [15, 30, 45, 60];
+function onBreakNow(){ return !!(S.open && Date.parse(S.open.startedAt) > Date.now()); }
+function breakLeft(){ return S.open ? Math.max(0, (Date.parse(S.open.startedAt) - Date.now())/1000) : 0; }
+function breakOver(){ return !!(S.brk && S.open && S.open.id === S.brk.entryId && !onBreakNow()); }
+function countdown(sec){
+  sec = Math.max(0, Math.ceil(sec));
+  var h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return h ? h + ':' + pad2(m) + ':' + pad2(s) : m + ':' + pad2(s);
+}
+function breakWords(m){ return m === 60 ? '1:00' : '0:' + pad2(m); }
 
 /* =========================================================
    TOAST + NOTIFICATION
@@ -1753,9 +1779,10 @@ function renderJob(){
     : '';
   // While the clock runs the hours belong to this job, so "change" becomes a
   // move: the entry here closes and one opens at the next roof, in one call.
-  $('pickJobLbl').textContent = !j ? 'Pick a job' : S.open ? 'Move to another job' : 'Change job';
-  $('pickJobBtn').disabled = false;
-  $('pickJobBtn').style.opacity = 1;
+  var paused = onBreakNow();
+  $('pickJobLbl').textContent = paused ? 'End your break to change job' : !j ? 'Pick a job' : S.open ? 'Move to another job' : 'Change job';
+  $('pickJobBtn').disabled = paused;
+  $('pickJobBtn').style.opacity = paused ? .45 : 1;
 }
 
 /* Two roofs booked today and nothing on the clock: ask, once, on the screen
@@ -1782,7 +1809,12 @@ function renderClock(){
   // The server's open entry wins over a remembered break: a break that was
   // ended from another phone, or by the office, is over.
   if (S.open && S.onBreak){ S.onBreak = null; savePrefs(); }
-  var on = !!S.open, brk = !on && !!S.onBreak;
+  // A break this phone started is over once its block is gone — clocked
+  // out, switched, or ended in the JobTread app. Only once the server has
+  // answered: until then S.open is simply not known yet.
+  if (S.booted && S.brk && (!S.open || S.open.id !== S.brk.entryId)){ S.brk = null; savePrefs(); }
+  var paused = onBreakNow(), over = breakOver(), legacy = !S.open && !!S.onBreak;
+  var on = !!S.open && !paused && !over, brk = paused || over || legacy;
   $('onClock').classList.toggle('hidden', !on && !brk);
   $('clockIn').classList.toggle('hidden', on || brk);
   $('clockIn').disabled = !S.job;
@@ -1790,15 +1822,44 @@ function renderClock(){
   $('runStack').classList.toggle('hidden', !on);
   $('stopFoot').classList.toggle('hidden', !on);
   $('breakStack').classList.toggle('hidden', !brk);
-  $('band').classList.toggle('paused', brk);
-  if (brk){
-    // Paused: the block just closed, its time, and when the break began.
-    var b = S.onBreak;
-    $('elapsed').textContent = hms(b.sec || 0);
-    $('bandCodeN').textContent = (b.code && b.code.number) || '';
-    $('bandCodeName').textContent = (b.code && b.code.name) || '';
-    $('band').querySelector('.lbl').textContent = 'On break · ' + clockLabel(b.at);
-    $('bandSub').textContent = 'Back to work re-opens ' + ((b.code && b.code.number) || 'the code') + ' · no start photo';
+  $('band').classList.toggle('paused', paused || legacy);
+  $('backBtn').textContent = legacy ? 'Back to work' : 'End break';
+  $('breakFoot').classList.toggle('hidden', legacy);
+  if (paused){
+    // Counting down to the block JobTread already has waiting.
+    var b = S.brk && S.brk.entryId === S.open.id ? S.brk : null, c = S.open.code, num = (c && c.number) || 'the code';
+    $('elapsed').textContent = countdown(breakLeft());
+    $('bandCodeN').textContent = (c && c.number) || '';
+    $('bandCodeName').textContent = (c && c.name) || '';
+    $('band').querySelector('.lbl').textContent = 'On break · back at ' + clockLabel(S.open.startedAt);
+    $('bandSub').textContent = b
+      ? (b.minutes ? b.minutes + '-minute break' : 'Break') + ' · started ' + clockLabel(b.at) + ' · ' + hmClock(b.sec || 0) + ' on ' + num + ' saved'
+      : 'Break taken in JobTread · the clock starts again on ' + num + ' at ' + clockLabel(S.open.startedAt);
+    $('breakFoot').textContent = (pushState === 'on'
+      ? 'A reminder comes 5 minutes before it ends, and one when it does. '
+      : 'Notifications are off on this phone — keep the app open for the reminders. ') +
+      'The clock starts again by itself at ' + clockLabel(S.open.startedAt) + '. Back early? End break starts it now.';
+    return;
+  }
+  if (over){
+    // The planned start has come: JobTread put them back on the clock.
+    $('elapsed').textContent = hms(openSeconds());
+    $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
+    $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
+    $('band').querySelector('.lbl').textContent = 'Break over · clock on since ' + clockLabel(S.open.startedAt);
+    $('bandSub').textContent = 'The clock started again by itself when your break ended.';
+    $('breakFoot').textContent = 'Tap End break when you’re back. Clocking out from here takes an end photo — the clock is running.';
+    return;
+  }
+  if (legacy){
+    // A break started on the build before T2.13: the block just closed, its
+    // time, and when the break began.
+    var lb = S.onBreak;
+    $('elapsed').textContent = hms(lb.sec || 0);
+    $('bandCodeN').textContent = (lb.code && lb.code.number) || '';
+    $('bandCodeName').textContent = (lb.code && lb.code.name) || '';
+    $('band').querySelector('.lbl').textContent = 'On break · ' + clockLabel(lb.at);
+    $('bandSub').textContent = 'Back to work re-opens ' + ((lb.code && lb.code.number) || 'the code') + ' · no start photo';
     return;
   }
   if (!on) return;
@@ -1841,12 +1902,17 @@ function renderCrew(){
   var show = !!(S.me && S.me.isForeman);
   $('crewSect').classList.toggle('hidden', !show);
   if (!show) return;
-  $('crewK').innerHTML = 'Crew · <span style="color:var(--acc)">' + S.crew.length + ' on</span>';
+  // Somebody whose open entry starts later is on a break (T2.13): named as
+  // such, and not counted as on.
+  var brk = function(c){ return Date.parse(c.startedAt) > Date.now(); };
+  var nOn = S.crew.filter(function(c){ return !brk(c); }).length, nBrk = S.crew.length - nOn;
+  $('crewK').innerHTML = 'Crew · <span style="color:var(--acc)">' + nOn + ' on</span>' + (nBrk ? ' · ' + nBrk + ' on break' : '');
   $('crewList').innerHTML = S.crew.map(function(c){
-    return '<div class="crewrow on"><span class="cd"></span>' +
+    var b = brk(c);
+    return '<div class="crewrow ' + (b ? 'brk' : 'on') + '"><span class="cd"></span>' +
       '<span style="flex:1;min-width:0"><span class="cn" style="display:block">' + esc(c.name) + '</span>' +
-      '<span class="cs" style="display:block">' + esc(c.code || '—') + ' · ' + esc(c.job || '') + '</span></span>' +
-      '<span class="ct tabular">' + hm((c.minutes||0)*60) + '</span></div>';
+      '<span class="cs" style="display:block">' + esc(b ? 'On break · back ' + clockLabel(c.startedAt) : (c.code || '—')) + ' · ' + esc(c.job || '') + '</span></span>' +
+      '<span class="ct tabular">' + (b ? 'Break' : hm((c.minutes||0)*60)) + '</span></div>';
   }).join('') || '<div class="body">Nobody is on the clock right now.</div>';
 }
 
@@ -3295,6 +3361,7 @@ function openSheet(kind, promptKind){
   var title = kind==='codes' ? (S.pendingJob ? 'Code at ' + (S.pendingJob.customer || streetOf(S.pendingJob.address) || 'the next job') : S.open ? 'Switch code' : 'What are you doing?')
             : kind==='jobs' ? (S.open ? 'Move to which job?' : 'Pick a job')
             : kind==='stop' ? 'Stop the clock'
+            : kind==='break' ? 'How long a break?'
             : kind==='signoff' ? 'Sign off'
             : kind==='unsign' ? 'Unsign'
             : kind==='coWhy' ? co('whyTitle')
@@ -3304,6 +3371,7 @@ function openSheet(kind, promptKind){
   $('sheetBody').innerHTML = kind==='codes' ? codesHtml()
                             : kind==='jobs' ? jobsHtml()
                             : kind==='stop' ? stopHtml()
+                            : kind==='break' ? breakHtml()
                             : kind==='signoff' ? signoffHtml()
                             : kind==='unsign' ? unsignHtml()
                             : kind==='coWhy' ? coWhyHtml()
@@ -3408,13 +3476,26 @@ function stopHtml(){
   var code = S.open && S.open.code, num = (code && code.number) || 'this code';
   return '<div class="sheetpad" style="gap:12px">' +
     '<button class="stoprow" id="stopBreak"><span style="flex:1;min-width:0"><span class="st" style="display:block">Break</span>' +
-      '<span class="k9 ss">Back soon · no photo</span></span>' + ico('chev', 22) + '</button>' +
+      '<span class="k9 ss">15, 30, 45 or 60 min · no photo</span></span>' + ico('chev', 22) + '</button>' +
     '<button class="stoprow" id="stopSwitch"><span style="flex:1;min-width:0"><span class="st" style="display:block">Switch code or job</span>' +
       '<span class="k9 ss warn">End photo of ' + esc(num) + ' first</span></span>' + ico('camera', 22) + '</button>' +
     '<button class="stoprow out" id="stopOut"><span style="flex:1;min-width:0"><span class="st" style="display:block">Clock out for the day</span>' +
       '<span class="k9 ss sun">End photo, then today’s log</span></span>' + ico('camera', 22) + '</button>' +
     '<div class="fine" style="text-align:center;margin-top:4px">Your ' + esc(hmClock(code ? codeSecondsToday(code.id) : openSeconds())) + ' on ' + esc(num) +
       ' is already saved. Nothing here can lose time.</div>' +
+  '</div>';
+}
+/* How long a break (T2.13): JobTread's own four lengths. Each tile says when
+   the clock starts again — the same minute JobTread will use. */
+function breakHtml(){
+  var code = S.open && S.open.code, num = (code && code.number) || 'this code', now = Date.now();
+  return '<div class="sheetpad" style="gap:14px"><div class="brkgrid">' + BREAK_CHOICES.map(function(m){
+    var back = new Date(now + m * 60000); back.setSeconds(0, 0);
+    return '<button class="brkopt" data-brk="' + m + '"><span class="bt tabular">' + breakWords(m) + '</span>' +
+      '<span class="k9 bs">back ' + esc(clockLabel(back)) + '</span></button>';
+  }).join('') + '</div>' +
+  '<div class="fine" style="text-align:center">Your ' + esc(hmClock(code ? codeSecondsToday(code.id) : openSeconds())) + ' on ' + esc(num) +
+    ' is saved. The clock starts again by itself when the break ends — tap End break sooner if you’re back early.</div>' +
   '</div>';
 }
 
@@ -3441,7 +3522,10 @@ function wireSheet(){
       if (rows.length === 1) pickJob(rows[0].getAttribute('data-job')); else srch.blur();
     };
   }
-  if ($('stopBreak')) $('stopBreak').onclick = function(){ closeSheet(); doBreak(); };
+  if ($('stopBreak')) $('stopBreak').onclick = function(){ openSheet('break'); };
+  [].forEach.call(document.querySelectorAll('[data-brk]'), function(b){
+    b.onclick = function(){ closeSheet(); doBreak(Number(b.getAttribute('data-brk'))); };
+  });
   if ($('stopSwitch')) $('stopSwitch').onclick = function(){ closeSheet(); beginEnd('end-switch'); };
   if ($('stopOut')) $('stopOut').onclick = function(){ closeSheet(); beginEnd('end-out'); };
   if ($('skNo')) $('skNo').onclick = function(){ closeSheet(); };
@@ -3691,24 +3775,61 @@ function afterEndShot(item, rec){
   openSheet('codes');
 }
 
-/* A break closes the block with no photo; Back to work re-opens the same
-   code with no start photo. JobTread has no break entity, so a closed entry
-   and a new one is the honest write. */
-function doBreak(){
+/* A break (T2.13), as JobTread's own app takes one: one call closes the
+   running block and puts the next one in JobTread, starting when the break
+   ends. No photo either side — the block before it has its start photo, and
+   the block after it is the same code carrying on. An Apps Script older than
+   T2.13 only closes the block; that answer falls back to the old break
+   (S.onBreak, Back to work). */
+function doBreak(minutes){
   var open = S.open;
-  if (!open) return;
+  if (!open || onBreakNow() || BREAK_CHOICES.indexOf(minutes) === -1) return;
+  var sec = openSeconds(), code = open.code, num = (code && code.number) || 'the code';
   busy(true, 'Starting your break…');
   withCoords(function(coords){
-    apiCall('startBreak', [coords]).then(function(r){
-      S.onBreak = { jobId: S.job ? S.job.id : (open.job && open.job.id), code: open.code, at: Date.now(), sec: openSeconds(), date: isoLocal() };
-      S.open = null;
+    apiCall('startBreak', [coords, minutes, S.lang]).then(function(r){
       if (r && r.entries) S.entries = r.entries;
+      if (r && r.open && Date.parse(r.open.startedAt) > Date.now()){
+        S.open = r.open;
+        S.brk = { entryId: r.open.id, minutes: r.minutes || minutes, at: Date.now(), sec: sec, code: code, date: isoLocal() };
+        toast('On break · back at ' + clockLabel(r.open.startedAt) + ' · ' + hmClock(sec) + ' on ' + num + ' saved');
+      } else {
+        S.onBreak = { jobId: S.job ? S.job.id : (open.job && open.job.id), code: code, at: Date.now(), sec: sec, date: isoLocal() };
+        S.open = null;
+        toast('On break · ' + hmClock(sec) + ' on ' + num + ' saved');
+      }
       savePrefs();
-      toast('On break · ' + hmClock(S.onBreak.sec) + ' on ' + ((open.code && open.code.number) || 'the code') + ' saved');
       return refreshDay();
     }).catch(showErr).then(function(){ busy(false); render(); });
   });
 }
+/* End break. Still counting down: the waiting block goes and one starts
+   now, here (JobTread's End break). Already over: the clock restarted by
+   itself at the planned minute, so nothing is written — the call only
+   stops the "break's over" reminder going out after they are back. */
+function doEndBreak(){
+  if (breakOver()){
+    var since = S.open.startedAt, code = S.open.code;
+    S.brk = null; savePrefs();
+    apiCall('endBreak', [S.open.job && S.open.job.id, code && code.id, null]).catch(function(){});
+    toast('Back on · the clock restarted at ' + clockLabel(since));
+    render();
+    return;
+  }
+  if (!onBreakNow()){ doBackToWork(); return; }
+  var open = S.open;
+  busy(true, 'Ending your break…');
+  withCoords(function(coords){
+    apiCall('endBreak', [open.job && open.job.id, open.code && open.code.id, coords]).then(function(o){
+      S.open = o; S.brk = null;
+      savePrefs();
+      toast('Back on · ' + codeLabel((o && o.code) || open.code));
+      return refreshDay();
+    }).catch(showErr).then(function(){ busy(false); render(); });
+  });
+}
+/* The break before T2.13: the block closed, so Back to work re-opens the
+   same code with no start photo. */
 function doBackToWork(){
   var b = S.onBreak;
   if (!b || !b.code) return;
@@ -3722,14 +3843,51 @@ function doBackToWork(){
     }).catch(showErr).then(function(){ busy(false); render(); });
   });
 }
-/* Clocking out from a break: the block is already closed, so nothing is
-   written — the day just ends, and today's log is asked for. */
+/* Out for the day from a break. Counting down: the block waiting in
+   JobTread goes (nothing to photograph — the one before it closed when the
+   break began). Over: the clock is running again, so it is an ordinary
+   clock-out with its end photo. The old break: nothing to write at all. */
 function doBreakOut(){
+  if (breakOver()){ S.brk = null; savePrefs(); beginEnd('end-out'); return; }
+  if (onBreakNow()){
+    var job = S.job;
+    busy(true, 'Clocking out…');
+    withCoords(function(coords){
+      apiCall('clockOut', [coords, null]).then(function(r){
+        S.open = null; S.brk = null; S.onBreak = null;
+        if (r && r.entries) S.entries = r.entries;
+        savePrefs();
+        toast('Clocked out · the rest of your break is off the clock');
+        busy(false);
+        landAfterOut(job);
+        return refreshDay();
+      }).catch(function(e){ busy(false); showErr(e); }).then(function(){ render(); });
+    });
+    return;
+  }
   var b = S.onBreak;
   S.onBreak = null; savePrefs();
   landAfterOut(b && b.jobId ? { id: b.jobId } : S.job);
   render();
 }
+/* The two reminders, on the phone itself while the app is open. The push
+   from the server is what reaches a phone in a pocket; this is the same
+   moment for one in a hand. Each fires once per break. */
+function breakCues(){
+  var b = S.brk;
+  if (!b || !S.open || S.open.id !== b.entryId) return;
+  var left = breakLeft(), seen = document.visibilityState === 'visible';
+  if (!b.cue5 && left > 0 && left <= 300 && (b.minutes || 0) > 5){
+    b.cue5 = true; savePrefs();
+    if (seen){ toast('Break ends in ' + Math.max(1, Math.round(left/60)) + ' min · back at ' + clockLabel(S.open.startedAt)); buzz(); }
+  }
+  if (!b.cue0 && !onBreakNow()){
+    b.cue0 = true; savePrefs();
+    if (seen){ toast('Break’s over — the clock is running. Tap End break.'); buzz(); }
+    render();
+  }
+}
+function buzz(){ try { if (navigator.vibrate) navigator.vibrate([250, 120, 250]); } catch(e){} }
 
 function showErr(e, where){
   if (e && e.readOnly) toast('Read-only build — nothing was posted', true);
@@ -5281,6 +5439,7 @@ var CO_L10N = {
         lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
         notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
         onClockHere:'Ya estás en el reloj en este trabajo', onClock:'En el reloj', onClockSub:'cambiar de código o trabajo · salir', clockingIn:'Marcando entrada…',
+        onBreak:'En descanso · regresa', breakOver:'Se acabó el descanso', onBreakSub:'terminar el descanso en el reloj', breakFirst:'Termina tu descanso primero — en el reloj',
         checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', searchPh:'Buscar trabajos por nombre, número o cliente', noMatch:'Ningún trabajo coincide.', noMatchMine:'Nada asignado coincide. Toca Todos para buscar en el resto.', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
   en: { tab:'Close Out', mine:'Assigned',
         whyTitle:'Before you send', whyIntro:'This still needs your attention before you can review and send:', whyLeft:'left', whyAnswer:'Answer every item: OK, N/A or Fix',
@@ -5313,6 +5472,7 @@ var CO_L10N = {
         lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
         notYours:'Close Out is for the service crew.', noJobs:'Nothing ready to inspect today.', noInspector:'The board doesn’t send you inspections yet — ask the office (Operations → Divisions & PMs).',
         onClockHere:'Already on the clock at this job', onClock:'On the clock', onClockSub:'switch code or job · clock out', clockingIn:'Clocking in…',
+        onBreak:'On break · back', breakOver:'Break over', onBreakSub:'end it on the Clock tab', breakFirst:'End your break first — it’s on the Clock tab',
         checkingJt:'Asking JobTread…', problemsHint:'Report a problem with a photo. Something you fixed on the spot counts too.', newReport:'Report another problem', searchPh:'Search jobs by name, number or customer', noMatch:'No jobs match that.', noMatchMine:'Nothing assigned matches. Tap All to search the rest.', photosHint:'Photos of the job’s condition. They go up with the send.' }
 };
 function co(k){ return (CO_L10N[S.lang] || CO_L10N.en)[k] || CO_L10N.en[k] || k; }
@@ -5562,6 +5722,7 @@ function coStartJob(jobId){
   var j = coJobById(jobId);
   coOpenJob(jobId);
   if (!j) return;
+  if (onBreakNow()){ toast(co('breakFirst')); setTab('job'); return; }
   if (S.open && S.job && S.job.id === jobId){ toast(co('onClockHere')); return; }
   S.coReturn = jobId;
   var job = coClockJob(j);
@@ -5594,9 +5755,14 @@ function coPreferredCode(codes){
 function coClockCardHtml(){
   if (!S.open) return '';
   var where = S.job ? (S.job.customer || streetOf(S.job.address) || S.job.number || '') : '';
-  return '<div class="jcard"><button class="jtile" data-coclock="1"><span class="bi"><span class="es">' + esc(co('onClock') + ' · ' + codeLabel(S.open.code)) + (where ? ' · ' + esc(where) : '') + '</span><span class="en">' + esc(co('onClockSub')) + '</span></span>' +
-         '<span class="cnt tabular">' + esc(hmClock(openSeconds())) + '</span>' + CK_CHEV + '</button></div>';
+  // On a break (T2.13) the row says so and takes them to the clock, where
+  // End break is.
+  var brk = onBreakNow() || breakOver();
+  var line = brk ? (onBreakNow() ? co('onBreak') + ' ' + clockLabel(S.open.startedAt) : co('breakOver')) : co('onClock') + ' · ' + codeLabel(S.open.code);
+  return '<div class="jcard"><button class="jtile" data-coclock="1"><span class="bi"><span class="es">' + esc(line) + (where ? ' · ' + esc(where) : '') + '</span><span class="en">' + esc(co(brk ? 'onBreakSub' : 'onClockSub')) + '</span></span>' +
+         '<span class="cnt tabular">' + esc(coClockCount()) + '</span>' + CK_CHEV + '</button></div>';
 }
+function coClockCount(){ return onBreakNow() ? countdown(breakLeft()) : hmClock(openSeconds()); }
 function coGo(screen){
   CO.screen = screen;
   var sc = $('vCo').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
@@ -6557,7 +6723,7 @@ function coWire(){
   var on = function(sel, fn){ [].forEach.call(body.querySelectorAll(sel), function(b){ b.onclick = function(ev){ fn(b, ev); }; }); };
   on('[data-cojob]', function(b){ coOpenJob(b.getAttribute('data-cojob')); });
   on('[data-costart]', function(b){ coStartJob(b.getAttribute('data-costart')); });
-  on('[data-coclock]', function(){ if (S.open) openSheet('stop'); });
+  on('[data-coclock]', function(){ if (onBreakNow() || breakOver()) setTab('job'); else if (S.open) openSheet('stop'); });
   on('[data-coscreen]', function(b){ var s = b.getAttribute('data-coscreen'); if (s === 'repairs' && CO.job && S.lang === 'es') coTranslateTasks(CO.job); coGo(s); });
   on('[data-coscope]', function(){ var j = CO.job || coJobById(CO.jobId); if (j) coScopeToggle(j); });
   on('[data-cooutbox]', function(){ coGo('outbox'); });
@@ -6748,7 +6914,7 @@ $('clockIn').onclick = function(){
 // and back to the clock after the shot.
 $('photoBtn').onclick = function(){ S.capture = 'during'; S.returnToClock = true; setTab('cam'); };
 $('stopBtn').onclick = function(){ openSheet('stop'); };
-$('backBtn').onclick = doBackToWork;
+$('backBtn').onclick = doEndBreak;
 $('breakOutBtn').onclick = doBreakOut;
 $('camBack').onclick = camBack;
 $('boardStamp').onclick = function(){ S.assign = null; loadAssignments(); };
@@ -6858,8 +7024,9 @@ document.addEventListener('visibilitychange', function(){
 /* the second hand */
 setInterval(function(){
   if (!S.open) return;
-  $('elapsed').textContent = hms(openSeconds());
+  breakCues();
   if (S.tab === 'job') { renderClock(); renderDay(); }
+  else if (S.tab === 'co' && (onBreakNow() || S.brk)) { var cc = document.querySelector('[data-coclock] .cnt'); if (cc) cc.textContent = coClockCount(); }
 }, 1000);
 /* the day log's status ticks while a send is out, or waiting to go again */
 setInterval(function(){

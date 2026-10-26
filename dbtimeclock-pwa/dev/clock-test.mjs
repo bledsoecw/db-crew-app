@@ -17,9 +17,10 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || 
 const results = [];
 const check = (name, actual, expected) => results.push({ name, pass: JSON.stringify(actual) === JSON.stringify(expected), actual, expected });
 
-async function boot(init = '') {
+async function boot(init = '', opts = {}) {
   const ctx = await browser.newContext({ viewport: { width: 402, height: 874 }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
+  if (opts.clock) await page.clock.install();
   const errs = [];
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
   page.on('console', (m) => {
@@ -53,7 +54,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
 
 // ---- clock in: code, then the start photo; the shutter opens the entry ----
 {
-  const { ctx, page, errs } = await boot();
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
   check('the button says what comes next', await txt(page, '#clockIn .sm'), 'Code, then start photo');
   await tap(page, '#clockIn', 300);
   await tap(page, '.coderow:has-text("Masonry Labor")', 600);
@@ -91,23 +92,35 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   // the stop sheet
   await tap(page, '#stopBtn', 400);
   check('Stop the clock: three rows and the fine print', [await txt(page, '#sheetTitle'), await page.locator('.stoprow .st').allTextContents(), await page.locator('.stoprow .ss').allTextContents(), /^Your \d+:\d\d on 04MA is already saved\. Nothing here can lose time\.$/.test(await txt(page, '#sheetBody .fine'))],
-    ['Stop the clock', ['Break', 'Switch code or job', 'Clock out for the day'], ['Back soon · no photo', 'End photo of 04MA first', 'End photo, then today’s log'], true]);
+    ['Stop the clock', ['Break', 'Switch code or job', 'Clock out for the day'], ['15, 30, 45 or 60 min · no photo', 'End photo of 04MA first', 'End photo, then today’s log'], true]);
   await tap(page, '#sheetClose', 300);
 
-  // a break: no photo
+  // a break (T2.13): pick how long; JobTread's shape — the block ends, the
+  // next one waits in JobTread for when the break is over. No photo.
   await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopBreak', 200);
-  await until(page, () => !!S.onBreak && document.body.style.pointerEvents === '');
+  await tap(page, '#stopBreak', 300);
+  check('Break asks how long: JobTread\u2019s four lengths, each saying when the clock restarts',
+    [await txt(page, '#sheetTitle'), await page.locator('.brkopt .bt').allTextContents(), (await page.locator('.brkopt .bs').allTextContents()).every((t) => /^back \d+:\d\d[ap]$/.test(t)), /^Your \d+:\d\d on 04MA is saved\. The clock starts again by itself when the break ends/.test(await txt(page, '#sheetBody .fine'))],
+    ['How long a break?', ['0:15', '0:30', '0:45', '1:00'], true, true]);
+  const brkTile = await page.locator('.brkopt').first().boundingBox();
+  check('the tiles are big', brkTile.height >= 90, true);
+  await tap(page, '.brkopt[data-brk="30"]', 200);
+  await until(page, () => onBreakNow() && document.body.style.pointerEvents === '');
   s = await st(page);
-  check('Break closes the block with no photo', [s.open, s.brk, (await calls(page)).slice(-1)[0]], [null, true, ['startBreak']]);
-  check('the band pauses and says so', [/^On break · \d+:\d\d[ap]$/.test(await txt(page, '#band .lbl')), await cls(page, '#band'), await page.locator('#backBtn').isVisible(), await page.locator('#runStack').isVisible(), await page.locator('#clockIn').isVisible()], [true, 'paused', true, false, false]);
+  const brk = await page.evaluate(() => ({ left: breakLeft(), id: S.open.id, brk: S.brk && S.brk.minutes }));
+  check('one call; the clock now points at the block after the break', [(await calls(page)).slice(-1)[0], brk.id, brk.brk, brk.left > 29 * 60 - 2 && brk.left <= 30 * 60, s.brk], [['startBreak', 30, 'en'], 'open2', 30, true, false]);
+  check('the band counts down, paused, and says when the clock restarts',
+    [/^On break · back at \d+:\d\d[ap]$/.test(await txt(page, '#band .lbl')), /^(29:\d\d|30:00)$/.test(await txt(page, '#elapsed')), await cls(page, '#band'), await txt(page, '#backBtn'), await page.locator('#runStack').isVisible(), await page.locator('#clockIn').isVisible(), /^30-minute break · started \d+:\d\d[ap] · \d+:\d\d on 04MA saved$/.test(await txt(page, '#bandSub'))],
+    [true, true, 'paused', 'End break', false, false, true]);
+  check('…and the reminders, in words', /The clock starts again by itself at \d+:\d\d[ap]\. Back early\? End break starts it now\.$/.test(await txt(page, '#breakFoot')), true);
+  check('no job change in the middle of a break', [await txt(page, '#pickJobLbl'), await page.locator('#pickJobBtn').isDisabled()], ['End your break to change job', true]);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
-  check('the break survives a reload', [await page.evaluate(() => !!S.onBreak), await page.locator('#backBtn').isVisible()], [true, true]);
+  check('the break survives a reload — it is JobTread\u2019s open entry', [await page.evaluate(() => onBreakNow() && !!S.brk), await txt(page, '#backBtn'), /^30-minute break/.test(await txt(page, '#bandSub'))], [true, 'End break', true]);
   await tap(page, '#backBtn', 200);
-  await until(page, () => !!S.open && document.body.style.pointerEvents === '');
+  await until(page, () => !!S.open && !onBreakNow() && document.body.style.pointerEvents === '');
   s = await st(page);
-  check('Back to work re-opens the same code, no start photo', [s.code, s.brk, (await calls(page)).slice(-1)[0]], ['04MA', false, ['endBreak', 'j_2841', 'ci9']]);
+  check('End break early: the waiting block goes, one starts now on the same code', [s.code, s.open, (await calls(page)).slice(-1)[0], await page.evaluate(() => S.brk), await txt(page, '#band .lbl')], ['04MA', 'open3', ['endBreak', 'j_2841', 'ci9'], null, 'On the clock']);
 
   // a switch: the end photo, then the code, then the start photo — one call
   await tap(page, '#stopBtn', 300);
@@ -279,6 +292,79 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   check('in JobTread they say so, and never look like a START photo', files.slice(1),
     ['#PHONE DURING #TE:open1 04MA Masonry Labor · picked from the phone\'s photos, taken Oct 12, 2026 2:10p', '#PHONE DURING #TE:open1 04MA Masonry Labor · picked from the phone\'s photos, time taken unknown']);
   check('…and back to the clock after the last one', await page.evaluate(() => S.tab), 'job');
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- a break that runs its full length, on the phone's own clock ----------
+{
+  const { ctx, page, errs } = await boot('', { clock: true });
+  await tap(page, '#clockIn', 300);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 600);
+  await shoot(page);
+  await settle(page);
+  await tap(page, '#stopBtn', 300);
+  await tap(page, '#stopBreak', 300);
+  await tap(page, '.brkopt[data-brk="15"]', 200);
+  await until(page, () => onBreakNow() && document.body.style.pointerEvents === '');
+  const left = await page.evaluate(() => breakLeft());
+  await page.clock.fastForward(Math.round((left - 4 * 60 - 20) * 1000));
+  await page.waitForTimeout(1300);
+  check('5 minutes out: the phone says so once (the push comes from the server)',
+    [await page.evaluate(() => !!S.brk.cue5), /^Break ends in 4 min · back at \d+:\d\d[ap]$/.test(await txt(page, '#toast span')), /^4:\d\d$/.test(await txt(page, '#elapsed'))], [true, true, true]);
+  await page.clock.fastForward(5 * 60 * 1000);
+  await page.waitForTimeout(1300);
+  check('the break runs out: the clock is running again by itself, and the screen says so',
+    [await page.evaluate(() => [onBreakNow(), breakOver(), !!S.brk.cue0]), /^Break over · clock on since \d+:\d\d[ap]$/.test(await txt(page, '#band .lbl')), await cls(page, '#band'), await txt(page, '#backBtn'), /^0:00:\d\d$/.test(await txt(page, '#elapsed'))],
+    [[false, true, true], true, '', 'End break', true]);
+  const n = (await calls(page)).length;
+  await tap(page, '#backBtn', 300);
+  check('End break after it ran out writes nothing — it only stops the reminder',
+    [await page.evaluate(() => [S.brk, S.open.id]), (await calls(page)).slice(n), await txt(page, '#band .lbl')], [[null, 'open2'], [['endBreak', 'j_2841', 'ci9']], 'On the clock']);
+
+  // out for the day from a break: the waiting block goes, no photo
+  await tap(page, '#stopBtn', 300);
+  await tap(page, '#stopBreak', 300);
+  await tap(page, '.brkopt[data-brk="45"]', 200);
+  await until(page, () => onBreakNow() && document.body.style.pointerEvents === '');
+  check('the Clock out button on a break', await txt(page, '#breakOutBtn'), 'Clock out for the day');
+  await tap(page, '#breakOutBtn', 200);
+  await until(page, () => !S.open && document.body.style.pointerEvents === '');
+  check('Clock out from a break: no photo, the waiting block gone, today\u2019s log next',
+    [(await calls(page)).slice(-1)[0], await page.evaluate(() => [S.brk, S.tab])], [['clockOut', null], [null, 'log']]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- an Apps Script from before T2.13: the old break still works ----------
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_OLD_BREAK=true;');
+  await tap(page, '#clockIn', 300);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 600);
+  await shoot(page);
+  await settle(page);
+  await tap(page, '#stopBtn', 300);
+  await tap(page, '#stopBreak', 300);
+  await tap(page, '.brkopt[data-brk="30"]', 200);
+  await until(page, () => !!S.onBreak && document.body.style.pointerEvents === '');
+  let s = await st(page);
+  check('old server: the block closes, the old break', [s.open, s.brk, await txt(page, '#backBtn'), /^On break · \d+:\d\d[ap]$/.test(await txt(page, '#band .lbl'))], [null, true, 'Back to work', true]);
+  await tap(page, '#backBtn', 200);
+  await until(page, () => !!S.open && document.body.style.pointerEvents === '');
+  s = await st(page);
+  check('…and Back to work re-opens the code', [s.code, s.brk, (await calls(page)).slice(-1)[0]], ['04MA', false, ['endBreak', 'j_2841', 'ci9']]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- the foreman sees who is on a break ----------------------------------
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_FOREMAN=true;window.__MOCK_CREW_BREAK=true;');
+  await page.waitForFunction(() => S.crew && S.crew.length === 4, null, { timeout: 10000 });
+  await page.evaluate(() => render());
+  check('a break is named, and not counted as on',
+    [await txt(page, '#crewK'), await page.locator('.crewrow.brk').count(), /^On break · back \d+:\d\d[ap] · 26-0890/.test(await txt(page, '.crewrow.brk .cs')), await txt(page, '.crewrow.brk .ct')],
+    ['Crew · 3 on · 1 on break', 1, true, 'Break']);
   check('no page errors', errs, []);
   await ctx.close();
 }

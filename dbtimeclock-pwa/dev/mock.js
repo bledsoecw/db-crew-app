@@ -201,6 +201,18 @@
     { id: 'e1', startedAt: new Date(t0).toISOString(), endedAt: new Date(t0 + 42 * 60000).toISOString(), minutes: 42, job: JOB, code: code('ci4') },
     { id: 'e2', startedAt: new Date(t0 + 42 * 60000).toISOString(), endedAt: new Date(t0 + 180 * 60000).toISOString(), minutes: 138, job: JOB, code: code('ci9') }
   ];
+  // __MOCK_KEEP_CLOCK: the clock lives in JobTread, so a reload finds it
+  // where it was — since T2.13 a break is an open entry there, not
+  // something only the phone remembers.
+  if (window.__MOCK_KEEP_CLOCK) {
+    try {
+      var kept = JSON.parse(sessionStorage.getItem('mock_clock') || 'null');
+      if (kept) { ST.open = kept.open; ST.entries = kept.entries; ST.n = kept.n; }
+    } catch (e) {}
+    window.addEventListener('pagehide', function () {
+      try { sessionStorage.setItem('mock_clock', JSON.stringify({ open: ST.open, entries: ST.entries, n: ST.n })); } catch (e) {}
+    });
+  }
 
   // ---- Close Out fixtures: DB CheckOut's demo jobs, in its own shapes ----
   var CO_LANDED = {}, CO_DONE = {};
@@ -377,7 +389,10 @@
         { name: 'Tyler B.', minutes: 138, job: '26-0890 Webster_Foundation', code: '04MA Masonry Labor' },
         { name: 'Marcus D.', minutes: 138, job: '26-0890 Webster_Foundation', code: '04MA Masonry Labor' },
         { name: 'Jesse P.', minutes: 60, job: '26-0890 Webster_Foundation', code: '02ST-1 Final Clean' }
-      ];
+      ].concat(window.__MOCK_CREW_BREAK ? [
+        // On a break (T2.13): the open entry starts when the break ends.
+        { name: 'Luis R.', minutes: 0, startedAt: new Date(Date.now() + 20 * 60000).toISOString(), job: '26-0890 Webster_Foundation', code: '04MA Masonry Labor' }
+      ] : []);
     },
     // The clock, with the photo gates Code.gs enforces: no start photo, no
     // clock-in; no end photo, no clock-out; a switch carries both. A break
@@ -388,6 +403,7 @@
       return HANDLERS.__open(jobId, costItemId);
     },
     __open: function (jobId, costItemId) {
+      HANDLERS.__dropPlanned();
       if (ST.open) ST.open.endedAt = new Date().toISOString();
       ST.open = { id: 'open' + (++ST.n), startedAt: new Date().toISOString(), endedAt: null, minutes: 0, job: jobById(jobId) || JOB, code: code(costItemId) };
       ST.entries = [ST.open].concat(ST.entries);
@@ -401,20 +417,46 @@
     },
     clockOut: function (coords, endPhotoId) {
       (window.__CLOCK = window.__CLOCK || []).push(['clockOut', endPhotoId || null]);
+      // Out from a break: the planned block goes, no photo (T2.13).
+      if (HANDLERS.__dropPlanned()) return { ok: true, closed: null, entries: ST.entries };
       if (!endPhotoId) throw new Error('PHOTO_REQUIRED: An end photo is required to clock out.');
       if (ST.open) ST.open.endedAt = new Date().toISOString();
       ST.open = null;
       return { ok: true, entries: ST.entries };
     },
-    startBreak: function () {
-      (window.__CLOCK = window.__CLOCK || []).push(['startBreak']);
-      if (ST.open) ST.open.endedAt = new Date().toISOString();
-      ST.open = null;
-      return { ok: true, entries: ST.entries };
+    // A break the way JobTread takes one (T2.13): the running block ends and
+    // the next is waiting, starting when the break ends (floored to the
+    // minute). __MOCK_OLD_BREAK plays an Apps Script from before T2.13,
+    // which only closed the block.
+    startBreak: function (coords, minutes, lang) {
+      (window.__CLOCK = window.__CLOCK || []).push(['startBreak', minutes == null ? null : minutes, lang || null]);
+      if (window.__MOCK_OLD_BREAK || minutes == null) {
+        if (ST.open) ST.open.endedAt = new Date().toISOString();
+        ST.open = null;
+        return { ok: true, entries: ST.entries };
+      }
+      if ([15, 30, 45, 60].indexOf(Number(minutes)) === -1) throw new Error('Pick a break of 15, 30, 45 or 60 minutes.');
+      var was = ST.open;
+      if (!was) throw new Error('You are not on the clock, so there is no break to start.');
+      was.endedAt = new Date().toISOString();
+      var at = new Date(Date.now() + minutes * 60000); at.setSeconds(0, 0);
+      ST.open = { id: 'open' + (++ST.n), startedAt: at.toISOString(), endedAt: null, minutes: 0, job: was.job, code: was.code };
+      ST.entries = [ST.open].concat(ST.entries);
+      return { ok: true, closed: was.id, open: ST.open, breakEnd: ST.open.startedAt, minutes: minutes, entries: ST.entries };
     },
     endBreak: function (jobId, costItemId) {
       (window.__CLOCK = window.__CLOCK || []).push(['endBreak', jobId, costItemId]);
+      if (ST.open && Date.parse(ST.open.startedAt) <= Date.now()) return ST.open;   // the break already ran out
       return HANDLERS.__open(jobId, costItemId);
+    },
+    // The waiting block after a break goes (End break early, a clock-out,
+    // or work starting somewhere else). True when there was one.
+    __dropPlanned: function () {
+      if (!ST.open || Date.parse(ST.open.startedAt) <= Date.now()) return false;
+      var gone = ST.open.id;
+      ST.entries = ST.entries.filter(function (e) { return e.id !== gone; });
+      ST.open = null;
+      return true;
     },
     // A read-only build refuses the upload request the way Code.gs does.
     createCaptureUploadRequest: function () {

@@ -393,6 +393,13 @@ saying why). Two things, both on the roof's send:
 **Needs:** `firebase deploy --only hosting` only. A phone that already has the
 stuck mark heals the first time it opens Close Out on the new build.
 
+**Breaks, the JobTread way** (T2.13) — see *Break* under the clock below.
+**Needs:** the Apps Script deployed FIRST (`clasp push`, then a new version of
+the web app deployment), `installBreakReminderTrigger()` run once from the
+editor, then `firebase deploy --only hosting`. In the other order a phone on
+the new build asks for a 30-minute break and gets the old one (the block
+closes, Back to work), which is safe, just not the new thing.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
@@ -552,9 +559,52 @@ camera, unlocked, During, tagged to the running code, back to the clock after
 the shot — this is what the Capture tab became) and **Stop the clock**, which
 opens Break · Switch code or job · Clock out for the day.
 
-**Break** closes the block with no photo; the band pauses and says when the
-break began. **Back to work** re-opens the same code, no start photo. JobTread
-has no break entity, so a closed entry and a new one is the honest write.
+**Break** works the way JobTread's own app takes one (T2.13, Carl 26 Oct
+2026 — *"it should use the pause and select the break time 0:15, 0:30, 0:45,
+1:00 … should function just as the JobTread app works"*). It asks **how
+long** — 0:15 · 0:30 · 0:45 · 1:00, each tile saying when the clock restarts —
+and makes ONE call: `updateTimeEntry` with `endNow: { breakDuration }`.
+JobTread closes the running block now and puts the next one in, same job and
+code, starting when the break ends (floored to the minute, no location).
+Measured live the same day: Carla Voltz's noon break in the JobTread app ended
+her block at 17:00:03Z and created one starting 17:30:00Z, 41ms apart. If a
+JobTread ever answers without the second block, `startBreak` writes it
+itself, the same shape.
+
+- **On a break** is an open entry whose start is still ahead, so a break
+  taken in the JobTread app reads the same here, and a reload finds it.
+  The band pauses and counts DOWN to the restart (*On break · back at
+  12:30p*), says how long and what was saved (*30-minute break · started
+  12:00p · 2:31 on 04MA saved*), and the job can't be changed until it ends.
+- **The clock restarts by itself** at the planned minute, exactly as in
+  JobTread. The phone then reads *Break over · clock on since 12:30p*
+  until **End break** is tapped — which writes nothing, the hours already
+  run from 12:30. Coming back late is paid from the break's end, as
+  JobTread pays it.
+- **End break early** deletes the waiting block and opens one now, where
+  they are standing — what JobTread's End break does. Starting work on
+  another code or job during a break ends it the same way, on the server
+  whatever the phone sends.
+- **Clock out for the day from a break** deletes the waiting block, no photo
+  (the block before the break closed when it began). Once the break has run
+  out it is an ordinary clock-out with its end photo, because the clock is
+  running.
+- **Two reminders**: *Break ends in 5 minutes* and *Break's over — tap End
+  break when you're back*, in the phone's language. A phone in a pocket gets
+  them as pushes from `sweepBreakReminders` (below); a phone in a hand also
+  gets a toast and a buzz. A 15-minute break gets both; nothing is sent for
+  a break already ended.
+- **The activity log is JobTread's own**: every step above is an ordinary
+  time-entry write (updated, created, deleted), so the job's activity reads
+  the way it does for the JobTread app.
+- The block after a break needs no start photo, so `startBreak` and End
+  break mark it nudged and the before-photo sweep leaves it alone.
+- The foreman's crew list names a break (*On break · back 12:30p*) and does
+  not count it as on.
+
+An Apps Script older than T2.13 only closes the block; the phone falls back
+to the old break (**Back to work** re-opens the code) when that is the
+answer, and an older phone on the new script gets the old behaviour too.
 
 **Switching codes or jobs** is the END photo first — the camera locked to END,
 "you switch when you shoot" — then the code list (or the next job's), then
@@ -567,8 +617,8 @@ with "Today's log · not sent / Send it before you go?" at the top if today's
 log has not gone.
 
 **The API refuses** a clock-in, clock-out or switch that carries no photo id,
-so the gate cannot be skipped by asking it directly. A break is the one
-photo-less write, by design.
+so the gate cannot be skipped by asking it directly. A break, and a
+clock-out from one, are the photo-less writes, by design.
 
 **Sun mode is the default**, not the exception. Near-black ground with white
 type is the highest-contrast, lowest-glare combination on a phone at noon on a
@@ -638,6 +688,24 @@ keep them in step.
 **It costs two Pave calls per sweep no matter how big the crew is.** One for
 open entries, one for tagged photos, matched in memory. At a 5-minute cadence
 that sits well inside Apps Script's quota.
+
+**Break reminders** (T2.13) need a minute's resolution, so they have their
+own trigger:
+
+```
+every 1 min   Apps Script trigger -> sweepBreakReminders()
+              ├── Script Properties: brk_<userId>, one per person on a break
+              │   (written by startBreak, cleared by End break / clock-out)
+              ├── nothing due  ->  done (no Pave call at all)
+              └── due: one Pave call — is the waiting block still there?
+                  5 min left  ->  "Break ends in 5 minutes"
+                  start passed ->  "Break's over"  (record removed)
+```
+
+Each person writes only their own key, so two breaks starting together never
+race. A break ended in the JobTread app, or by the office, has no waiting
+block left and gets nothing. Install once with `installBreakReminderTrigger()`
+from the editor; tapping a break push opens the clock.
 
 One push per time entry, ever — a crew member who ignores it isn't pestered
 every five minutes, and the marker is deleted when the entry closes so Script

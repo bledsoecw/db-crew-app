@@ -2,7 +2,7 @@
    Navigation: network-first (a fresh build wins), cache fallback so the app
    still opens with no signal. Same-origin assets: cache-first. Cross-origin
    (the Apps Script API, JobTread's CDN, FCM): never touched. */
-var CACHE = 'dbtc-t2-10';
+var CACHE = 'dbtc-t2-13';
 var SHELL = ['./', './index.html', './config.js', './manifest.json',
              './app-icon-180.png', './app-icon-192.png', './app-icon-512.png', './app-icon-maskable.png',
              './fonts/archivo-700.woff2', './fonts/archivo-800.woff2',
@@ -65,18 +65,19 @@ self.addEventListener('push', function (e) {
 });
 
 /* Tapping the before-photo reminder opens the app straight onto the camera;
-   tapping a schedule line opens My jobs. */
+   tapping a schedule line opens My jobs; a break reminder opens the clock,
+   where End break is (T2.13). */
 self.addEventListener('notificationclick', function (e) {
   e.notification.close();
   var data = e.notification.data || {};
-  var schedule = data.kind === 'schedule';
+  var schedule = data.kind === 'schedule', brk = data.kind === 'break';
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
     for (var i = 0; i < list.length; i++) {
       if ('focus' in list[i]) {
-        list[i].postMessage(schedule ? { kind: 'open-tab', tab: 'jobs' } : { kind: 'open-before-photo', data: data });
+        list[i].postMessage(schedule ? { kind: 'open-tab', tab: 'jobs' } : brk ? { kind: 'open-tab', tab: 'job' } : { kind: 'open-before-photo', data: data });
         return list[i].focus();
       }
     }
-    if (clients.openWindow) return clients.openWindow(schedule ? './?tab=jobs' : './?shoot=before');
+    if (clients.openWindow) return clients.openWindow(schedule ? './?tab=jobs' : brk ? './?tab=job' : './?shoot=before');
   }));
 });
