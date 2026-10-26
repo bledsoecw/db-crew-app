@@ -341,6 +341,35 @@ new door — until it is deployed an area send waits in the outbox, nothing is
 lost), then `firebase deploy --only hosting`. `dev/closeout-test.mjs` walks it
 on a two-area job (`__MOCK_CO_AREAS`).
 
+**Close Out files your work under its days** (T2.11, Carl 26 Oct 2026 —
+*"I see the 25-0001 job listed under assigned, but no date … I do not know
+when this inspection is scheduled for"*, then *"adding more text to the cards
+is expanding the size of the cards"* and *"the crew may want to look at a
+calendar or scroll through days"*). The cards are unchanged, word for word
+and pixel for pixel; the day lives above them instead:
+
+- **A strip of the next fourteen days** under Assigned / All — the one My
+  jobs has, which the Service role never sees — with a dot for each of your
+  jobs booked that day. A tap brings that day's heading up (a two-day
+  booking is listed once, under its first day), switching to Assigned if All
+  was showing and clearing a search that would hide it. The strip stays on
+  All so switching the list never moves the search box under a thumb.
+- **The Assigned list is filed under day headings**: *Earlier · still open*
+  first and in amber (booked for a day that has gone, and still yours),
+  *Today*, *Tomorrow*, then each day ahead, and *No day set yet* last, so
+  nothing assigned ever drops off the list. All stays one list as before —
+  most of it is booked to nobody.
+- The days come from CheckOut's queue (`booked`: each of your jobs' booked
+  stretches, `{ start, end, kind }`, read off the same inspection and punch
+  tasks that already decide what is yours — no extra JobTread request). A
+  server older than that sends none, and the tab reads exactly as T2.10:
+  no strip, no headings.
+
+**Needs, in this order:** the CheckOut server on `claude/closeout-days`, then
+`firebase deploy --only hosting`. No Apps Script change — `coQueue` hands
+CheckOut's answer through untouched. `dev/closeout-test.mjs` walks it
+(`__MOCK_CO_DAYS`).
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

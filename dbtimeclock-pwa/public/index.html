@@ -423,8 +423,9 @@ button[disabled]{cursor:default}
 /* ---------------- week view ----------------
    Fourteen days as chips, a dot per booked visit; the cards below grouped
    under day headings. Nothing here is data the tab didn't already have. */
-#weekStrip{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 20px 10px;scrollbar-width:none;flex:none}
-#weekStrip::-webkit-scrollbar{display:none}
+#weekStrip,#coStrip{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 20px 10px;scrollbar-width:none;flex:none}
+#weekStrip::-webkit-scrollbar,#coStrip::-webkit-scrollbar{display:none}
+#coStrip.hidden{display:none}
 .wday{flex:none;width:52px;min-height:62px;border-radius:6px;border:1px solid var(--line);background:var(--surf);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--mut)}
 .wday .dn{font:600 9.5px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
 .wday .dd{font:800 17px/1 var(--head)}
@@ -435,6 +436,10 @@ button[disabled]{cursor:default}
 .wday.empty{opacity:.4}
 .dayhead{display:flex;align-items:baseline;gap:10px;margin:24px 0 -6px}
 .dayhead .dt{font:700 13px/1 var(--head);letter-spacing:.3px;text-transform:uppercase;color:var(--mut)}
+/* Close Out's Assigned list filed under its days (T2.11). The first heading
+   sits under the search box, not 24px below it. */
+#coBody > .dayhead:first-child{margin-top:2px}
+.dayhead.late .k{color:var(--ckamber)}
 .jwith{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--lab);margin-top:2px;display:block}
 .todaypick{display:flex;flex-direction:column;gap:10px;margin-top:14px}
 
@@ -891,6 +896,9 @@ button[disabled]{cursor:default}
     <div id="coBar" class="warnbar robar hidden"></div>
     <div id="coState" class="hidden" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 20px 12px;flex:none"></div>
     <div id="coSeg" class="seg hidden"></div>
+    <!-- The days you have close-out work booked (T2.11): the My jobs strip,
+         outside coBody so a repaint of the list never resets its scroll. -->
+    <div id="coStrip" class="hidden" role="group"></div>
     <!-- The queue's search (T2.7): the Clock's job search box, filtering the
          Close Out list as you type. Outside coBody so a repaint never takes
          the keyboard away. -->
@@ -968,7 +976,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.10 (2026-10-23)';
+var APP_BUILD = 'T2.11 (2026-10-26)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -5230,6 +5238,7 @@ var CO_STATUS = { fi: 'Final Inspection', pl: 'Punch List', pr: 'PM Review' };
    large; the other sits small beneath where the screen says both. */
 var CO_L10N = {
   es: { tab:'Close Out', mine:'Asignados',
+        dayEarlier:'Antes · sigue abierto', dayToday:'Hoy', dayTomorrow:'Mañana', dayNone:'Sin día todavía', stripAria:'Tus días con trabajo agendado', stripJobs:'trabajos', stripJob:'trabajo',
         areas:'Áreas de trabajo', areaSub:'cada una se revisa y se aprueba por su cuenta', areaNotes:'notas y fotos', areaInspected:'Revisada', areaWithPm:'con el PM',
         areaRepairsOpen:'reparaciones pendientes', areaRepairOpen:'reparación pendiente', areaBooked:'Agendada', areaNotBooked:'Sin agendar — el PM la agenda en el tablero', areaSent:'Enviada',
         areaRoofList:'lista de revisión', areaPhotosK:'Fotos', areaNoteK:'Lo que viste', areaHint:'Fotos de cómo quedó, y una nota si hace falta. El PM lo revisa en el tablero.', reportOne:'Reportar un problema',
@@ -5258,6 +5267,7 @@ var CO_L10N = {
         onClockHere:'Ya estás en el reloj en este trabajo', onClock:'En el reloj', onClockSub:'cambiar de código o trabajo · salir', clockingIn:'Marcando entrada…',
         checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', searchPh:'Buscar trabajos por nombre, número o cliente', noMatch:'Ningún trabajo coincide.', noMatchMine:'Nada asignado coincide. Toca Todos para buscar en el resto.', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
   en: { tab:'Close Out', mine:'Assigned',
+        dayEarlier:'Earlier · still open', dayToday:'Today', dayTomorrow:'Tomorrow', dayNone:'No day set yet', stripAria:'Your days with work booked', stripJobs:'jobs', stripJob:'job',
         areas:'Work areas', areaSub:'each is inspected and approved on its own', areaNotes:'notes & photos', areaInspected:'Inspected', areaWithPm:'with the PM',
         areaRepairsOpen:'repairs open', areaRepairOpen:'repair open', areaBooked:'Booked', areaNotBooked:'Not booked yet — the PM books it on the board', areaSent:'Sent',
         areaRoofList:'checklist', areaPhotosK:'Photos', areaNoteK:'What you saw', areaHint:'Photos of how it was left, and a note if it needs one. The PM reviews it on the board.', reportOne:'Report a problem',
@@ -5968,6 +5978,73 @@ function coQueueCard(j){
   }
   return h + '</div>';
 }
+/* ---- the days (T2.11, Carl 26 Oct 2026) ----
+   "I see the 25-0001 job listed under assigned, but no date … I do not know
+   when this inspection is scheduled for." Then, on the first answer: no more
+   words on the cards, and "the crew may want to look at a calendar or scroll
+   through days". So the days are a strip under Assigned / All — the one My
+   jobs has — and the Assigned list is filed under day headings; the card
+   itself is untouched. The server sends each of your jobs the days its
+   close-out work is booked for (`booked`, DB CheckOut's queue). A server
+   older than that sends none, and the list reads exactly as it did. */
+var CO_EARLIER = '0000-00-00';
+function coHasDays(){ return (CO.jobs || []).some(function(j){ return j.mine && Array.isArray(j.booked); }); }
+/* The day a job is filed under: the soonest booked work still to come, a
+   stay already under way being today's; CO_EARLIER when everything booked is
+   behind today and still open (it slipped, and it is still yours); '' when
+   nothing has a day. */
+function coJobDay(j, today){
+  var best = '';
+  (j.booked || []).forEach(function(d){
+    var end = d.end || d.start, k = d.start >= today ? d.start : end >= today ? today : CO_EARLIER;
+    if (!best || k < best) best = k;
+  });
+  return best;
+}
+function coBookedOn(j, iso){ return (j.booked || []).some(function(d){ return d.start <= iso && (d.end || d.start) >= iso; }); }
+function coDayHeadHtml(key, today){
+  var label, dt = '', late = false;
+  if (key === CO_EARLIER){ label = co('dayEarlier'); late = true; }
+  else if (!key) label = co('dayNone');
+  else if (key === today){ label = co('dayToday'); dt = logDateWords(key); }
+  else if (key === addDaysLocal(today, 1)){ label = co('dayTomorrow'); dt = logDateWords(key); }
+  else label = logDateWords(key);
+  return '<div class="dayhead' + (late ? ' late' : '') + '" id="co-day-' + esc(key || 'none') + '"><span class="k">' + esc(label) + '</span>' +
+         (dt ? '<span class="dt">' + esc(dt) + '</span>' : '') + '</div>';
+}
+/* Earlier first (it slipped), then today and the days ahead, then the work
+   nobody has given a day yet — so it is never off the list. */
+function coDayGroupsHtml(jobs){
+  var today = isoLocal(), groups = {}, order = [];
+  jobs.forEach(function(j){ var k = coJobDay(j, today); if (!groups[k]){ groups[k] = []; order.push(k); } groups[k].push(j); });
+  order.sort(function(a, b){ return a === b ? 0 : !a ? 1 : !b ? -1 : a < b ? -1 : 1; });
+  return order.map(function(k){ return coDayHeadHtml(k, today) + groups[k].map(coQueueCard).join(''); }).join('');
+}
+/* Fourteen days from today, a dot per job of yours booked that day. Tapping
+   one files the list under Assigned and scrolls to the heading that job sits
+   under — a stay over several days is listed once, under its first. */
+function coStripHtml(){
+  var today = isoLocal(), mine = (CO.jobs || []).filter(function(j){ return j.mine; }), html = '';
+  for (var i = 0; i < 14; i++){
+    var iso = addDaysLocal(today, i), on = mine.filter(function(j){ return coBookedOn(j, iso); });
+    var d = new Date(iso + 'T12:00:00'), dn = (S.lang === 'es' ? DOW_ES : DOW3)[d.getDay()];
+    var target = on.length ? coJobDay(on[0], today) : '';
+    html += '<button class="wday' + (i === 0 ? ' today' : '') + (on.length ? ' booked' : ' empty') + '"' +
+            (target ? ' data-coday="' + esc(target) + '"' : ' disabled') +
+            ' aria-label="' + esc(logDateWords(iso) + (on.length ? ' · ' + on.length + ' ' + co(on.length === 1 ? 'stripJob' : 'stripJobs') : '')) + '">' +
+            '<span class="dn">' + esc(dn) + '</span><span class="dd">' + d.getDate() + '</span>' +
+            '<span class="dots">' + on.slice(0, 3).map(function(){ return '<i></i>'; }).join('') + '</span></button>';
+  }
+  return html;
+}
+function coGoToDay(key){
+  var id = 'co-day-' + key;
+  if (CO.filter !== 'mine'){ CO.filter = 'mine'; coRender(); }
+  // A search that hides the day would make the tap do nothing.
+  if (!document.getElementById(id) && CO.search){ CO.search = ''; $('coSearch').value = ''; coRender(); }
+  var h = document.getElementById(id);
+  if (h) h.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
 function coQueueHtml(){
   var h = '';
   if (CO.reason === 'not-yours') return '<div class="jempty">' + esc(co('notYours')) + '</div>';
@@ -5976,6 +6053,7 @@ function coQueueHtml(){
   var found = coSearchMatches(CO.jobs || [], CO.search), jobs = found.filter(function(j){ return CO.filter === 'all' || j.mine; });
   if (!jobs.length && coSearchWords(CO.search).length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && found.length ? co('noMatchMine') : co('noMatch')) + '</div>';
   else if (!jobs.length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && (CO.jobs || []).length ? co('nothingForYou') : co('noJobs')) + (CO.err && !(CO.jobs || []).length ? '<br><span style="color:var(--ckamber)">' + esc(CO.err) + '</span>' : '') + '</div>';
+  else if (CO.filter === 'mine' && coHasDays()) h += coDayGroupsHtml(jobs);
   else h += jobs.map(coQueueCard).join('');
   h += '<div class="foot" style="margin-top:18px">' + esc(co('queueNote')) + '<br>' + esc(co('queueNote2')) + '</div>';
   h += coOutboxLine(null);
@@ -6333,6 +6411,15 @@ function coRender(){
   $('coHead').classList.toggle('hidden', queue);
   $('coSeg').classList.toggle('hidden', !(queue || sc === 'repairs'));
   $('coSearchWrap').classList.toggle('hidden', !queue);
+  // The strip stays on All too — "your days" — so switching the list never
+  // moves the search box under a thumb; a tap on a day goes to Assigned.
+  var strip = $('coStrip'), showStrip = queue && coHasDays();
+  strip.classList.toggle('hidden', !showStrip);
+  if (showStrip){
+    var sh = coStripHtml();
+    if (strip.__co !== sh){ strip.innerHTML = sh; strip.__co = sh; }
+    strip.setAttribute('aria-label', co('stripAria'));
+  }
   if ($('coSearch').placeholder !== co('searchPh')) $('coSearch').placeholder = co('searchPh');
   $('coState').classList.add('hidden');
   var bar = $('coBar'), barText = '';
@@ -6563,6 +6650,11 @@ $('coSeg').onclick = function(ev){
   if (b.hasAttribute('data-cofilter')) CO.filter = b.getAttribute('data-cofilter');
   else CO.listFilter = b.getAttribute('data-colist');
   coRender();
+};
+// The day strip answers through the row itself, for the reason coSeg does.
+$('coStrip').onclick = function(ev){
+  var b = ev.target.closest && ev.target.closest('[data-coday]'); if (!b) return;
+  coGoToDay(b.getAttribute('data-coday'));
 };
 $('coSearch').oninput = function(){ CO.search = this.value; coRender(); };
 // Enter opens the one job showing, else only puts the keyboard away (the Clock's rule).

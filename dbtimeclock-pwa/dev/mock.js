@@ -236,6 +236,20 @@
         { key: 'gutters', label: 'Gutters', line: false, form: 'notes', inspectionTaskId: 'fig-mason', inspectionDate: isoAdd(0), assigneeNames: ['Alberto Gonzalez'], mine: true, inspected: false, openRepairs: 0 }
       ], soldScope: [] });
   }
+  // __MOCK_CO_DAYS: a CheckOut server new enough to say which days each of
+  // your jobs is booked for (`booked`, T2.11). Hartman's inspection is today,
+  // Okafor's repair slipped from two days ago, a new job is booked in four
+  // days (a two-day stay), and one more is yours with no day yet.
+  if (window.__MOCK_CO_DAYS) {
+    CO_JOBS[0].booked = [{ start: isoAdd(0), end: isoAdd(0), kind: 'inspection' }];
+    CO_JOBS[1].booked = [{ start: isoAdd(-2), end: isoAdd(-2), kind: 'repair' }];
+    CO_JOBS.push({ id: 'co-diaz', number: '26-0533', name: '260533 Diaz_Roof', status: 'Final Inspection', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
+      projectManager: 'Kyle Akerman', salesRep: 'Sam Black', address: '40 Fox Run, Celina, OH 45822, USA', openPunchCount: 0, mine: true, openPunchTotal: 0,
+      booked: [{ start: isoAdd(4), end: isoAdd(5), kind: 'inspection' }], punchTasks: [], soldScope: [] });
+    CO_JOBS.push({ id: 'co-lane', number: '26-0540', name: '260540 Lane_Roof', status: 'Punch List', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
+      projectManager: 'Kyle Akerman', salesRep: 'Austin Leeth', address: '7 Mill St, Rockford, OH 45882, USA', openPunchCount: 1, mine: true, openPunchTotal: 1,
+      booked: [], punchTasks: [{ id: 'pt20', name: 'REPORT: Ridge vent nails', description: 'Two nails backing out on the ridge vent.', progress: 0, endDate: null, createdAt: '2026-10-21T12:00:00.000Z', assignees: [], assigneeNames: ['Alberto Gonzalez'], mine: true }], soldScope: [] });
+  }
   // The Production Board's rule, as far as the phone can tell it from here:
   // the area furthest behind decides, forward only.
   function coBoardMove(j) {

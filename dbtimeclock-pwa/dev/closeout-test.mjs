@@ -41,7 +41,7 @@ async function boot(flags = {}) {
     errs.push(m.text());
   });
   await page.addInitScript(`window.__MOCK_ROLE=${JSON.stringify(flags.role || 'siteManager')};window.__MOCK_CO_PHOTO409=${!!flags.photo409};
-    window.__MOCK_CO_REJECT=${!!flags.reject};window.__MOCK_CO_DOWN=${!!flags.down};window.__MOCK_CO_UNSET=${!!flags.unset};window.__MOCK_CO_AREAS=${!!flags.areas};`);
+    window.__MOCK_CO_REJECT=${!!flags.reject};window.__MOCK_CO_DOWN=${!!flags.down};window.__MOCK_CO_UNSET=${!!flags.unset};window.__MOCK_CO_AREAS=${!!flags.areas};window.__MOCK_CO_DAYS=${!!flags.days};`);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1300);
@@ -501,6 +501,65 @@ const allErrs = [];
     coRoofOpen({ status: 'Production', areas: [{ key: 'shingle', line: true, form: 'roof', inspected: false, assigneeNames: ['Yahir Gonzalez'], inspectionDate: null }] }, coVisit('x-none'))]), ['inspect', false, true]);
   allErrs.push(...errs);
   await ctx.close();
+}
+
+// ---- the days (T2.11, Carl 26 Oct 2026): "I do not know when this
+// inspection is scheduled for", and no more words on the cards. A strip of
+// your booked days, and the Assigned list filed under day headings.
+{
+  // A server older than `booked`: no strip, no headings — the list as it was.
+  const { ctx, page, errs } = await boot({ role: 'service' });
+  await tap(page, '#tabs [data-tab="co"]', 900);
+  check('an older server: no strip and no day headings', await page.evaluate(() => [document.getElementById('coStrip').classList.contains('hidden'), document.querySelectorAll('#coBody .dayhead').length]), [true, 0]);
+  const plainCard = await page.evaluate(() => Math.round(document.querySelector('#coBody .jcard').getBoundingClientRect().height));
+  allErrs.push(...errs);
+  await ctx.close();
+
+  const s2 = await boot({ role: 'service', days: true });
+  const pg = s2.page;
+  await tap(pg, '#tabs [data-tab="co"]', 900);
+  const day = (n) => pg.evaluate((k) => addDaysLocal(isoLocal(), k), n);
+  const [d0, d4, d5] = [await day(0), await day(4), await day(5)];
+  const groups = () => pg.evaluate(() => [...document.querySelectorAll('#coBody .dayhead')].map((h) => {
+    const out = [h.querySelector('.k').textContent];
+    for (let el = h.nextElementSibling; el && el.classList.contains('jcard'); el = el.nextElementSibling) out.push(el.querySelector('.h-addr').textContent);
+    return out;
+  }));
+  check('the Assigned list is filed under its days: slipped, today, ahead, no day', await groups(), [
+    ['Antes · sigue abierto', '26-0415'],
+    ['Hoy', '26-0418'],
+    [await pg.evaluate((k) => logDateWords(k), d4), '26-0533'],
+    ['Sin día todavía', '26-0540'],
+  ]);
+  check('a slipped day reads in amber, and says so in words', await pg.evaluate(() => document.querySelector('#coBody .dayhead').classList.contains('late')), true);
+  check('the cards are the size they were', await pg.evaluate(() => Math.round([...document.querySelectorAll('#coBody .jcard')].filter((c) => c.querySelector('.h-addr').textContent === '26-0418')[0].getBoundingClientRect().height)), plainCard);
+  const strip = () => pg.evaluate(() => [...document.querySelectorAll('#coStrip .wday')].map((b) => [b.querySelector('.dd').textContent, b.querySelectorAll('.dots i').length, b.disabled]));
+  const st = await strip();
+  check('fourteen days from today, a dot where your work is booked', [st.length, st[0][1], st[4][1], st[5][1], st.filter((x) => x[1]).length, st[1][2]], [14, 1, 1, 1, 3, true]);
+  check('every day on the strip is a 44px target or wider', await pg.evaluate(() => [...document.querySelectorAll('#coStrip .wday')].every((b) => b.getBoundingClientRect().height >= 44 && b.getBoundingClientRect().width >= 44)), true);
+  // All: one list as before, and the strip stays so nothing moves under a thumb.
+  await tap(pg, '#coSeg [data-cofilter="all"]', 500);
+  check('All: one list, no headings, the strip still there', await pg.evaluate(() => [document.querySelectorAll('#coBody .dayhead').length, document.getElementById('coStrip').classList.contains('hidden')]), [0, false]);
+  // A tap on a day goes back to Assigned and brings that day's heading up —
+  // the second day of a two-day stay goes to the heading it is filed under.
+  await tap(pg, `#coStrip [data-coday="${d4}"] >> nth=1`, 900);
+  check('a day tapped from All: back on Assigned, the day brought into view', await pg.evaluate((k) => {
+    const h = document.getElementById('co-day-' + k), box = h.closest('.scroll').getBoundingClientRect();
+    return [CO.filter, Math.abs(h.getBoundingClientRect().top - box.top) < 30];
+  }, d4), ['mine', true]);
+  // A search that hides the day is cleared rather than leaving the tap dead.
+  await pg.locator('#coSearch').fill('Lane');
+  await pg.waitForTimeout(300);
+  await tap(pg, `#coStrip [data-coday="${d0}"]`, 900);
+  check('a search hiding the day is cleared by the tap', await pg.evaluate((k) => [CO.search, document.getElementById('coSearch').value, !!document.getElementById('co-day-' + k)], d0), ['', '', true]);
+  // English
+  await tap(pg, '#coQueueHead [data-lang="en"]', 600);
+  check('in English', (await groups()).map((g) => g[0]), ['Earlier · still open', 'Today', await pg.evaluate((k) => logDateWords(k), d4), 'No day set yet']);
+  check('the strip names the day and the count for a screen reader', await pg.evaluate(() => document.querySelector('#coStrip .wday').getAttribute('aria-label')), (await pg.evaluate(() => logDateWords(isoLocal()))) + ' · 1 job');
+  check('no horizontal scroll at phone width', await pg.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  void d5;
+  allErrs.push(...s2.errs);
+  await s2.ctx.close();
 }
 
 await browser.close();
