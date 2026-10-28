@@ -64,3 +64,11 @@ regeneration, Linux only.
 - The narration names buttons by their words, so a rename in the app, a change
   to a flow the video walks, or a change to the checklist the board sends is a
   re-record. `node record.mjs debug` shows what broke.
+- **Out of date since T2.16–T2.21 (28 Oct 2026), not re-recorded yet.** Carl's
+  notes from watching it: chapter 8 clocks Yahir in on the Clock tab (Start on
+  the repairs card does it now); chapter 2 starts at the roof (the day starts
+  At the shop · Morning clock-in); chapter 5's Stop sheet has four choices now
+  (Leave for another job, the drive and I'm here are new) and Move to another
+  job from the shop meets Before you roll out; chapter 4's yard ticks happen
+  on site, which is now a hard stop at the shop. The fixtures' code lists need
+  the travel line (`travel: true`) for the drive to be filmed.
