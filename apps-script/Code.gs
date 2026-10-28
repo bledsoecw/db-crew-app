@@ -1851,13 +1851,16 @@ function cacheGet_(key) {
 // lines and nothing else; a job without it offers every budget-level Labor
 // or Clock In line, as before. The shop is neither: 25-0011 DB INTERNAL
 // carries a CLOCK IN ITEMS group of its own, but at the shop the crew picks
-// from Morning Clock-In, Training, the two in-house lines and Shop Work —
-// SHOP_CODES, by cost code number (Script Property SHOP_CODES, a comma list,
-// overrides). Administrative (99TM-7) is marked `office` and the phone keeps
+// from Morning Clock-In, Training, the two in-house lines, Shop Work and —
+// for the haulers, Kodey and Rick, who log whole days on it — Hauling &
+// Disposal: SHOP_CODES, by cost code number (Script Property SHOP_CODES, a
+// comma list, overrides). The shop has two 02ST-5 lines, its own (the Crew
+// group's "Hauling & Disposal (Direct)", the one they use) and the CLOCK IN
+// ITEMS one, so a number shows once, the shop's own line first. Administrative (99TM-7) is marked `office` and the phone keeps
 // it for Operations: it is an office code, wherever it appears.
 var CLOCK_IN_GROUP = /^\s*clock\s*in\s*items\s*$/i;
 var SHOP_JOB = { id: '22PMNGeeViuh', number: '25-0011', name: '250011 DB INTERNAL' };
-var SHOP_CODES = ['99TM-1', '99TM-2', '99TM-3', '99TM-5', '99TM-4'];
+var SHOP_CODES = ['99TM-1', '99TM-2', '99TM-3', '99TM-5', '99TM-4', '02ST-5'];
 var OFFICE_CODES = ['99TM-7'];
 function shopJobId_() { return SHOP_JOB.id; }
 function shopCodes_() {
@@ -1908,8 +1911,13 @@ function jobCodesFrom_(jobId, first) {
   var typeOf = function (ci) { return String((ci.costType || {}).name || ''); };
   var picked;
   if (jobId === shopJobId_()) {
-    var want = shopCodes_();
-    picked = all.filter(function (ci) { return want.indexOf(String((ci.costCode || {}).number || '')) !== -1; });
+    var want = shopCodes_(), byNum = {};
+    all.forEach(function (ci) {
+      var num = String((ci.costCode || {}).number || ''), own = !CLOCK_IN_GROUP.test(String((ci.costGroup || {}).name || ''));
+      if (want.indexOf(num) === -1) return;
+      if (!byNum[num] || (own && !byNum[num].own)) byNum[num] = { ci: ci, own: own };
+    });
+    picked = want.filter(function (n) { return byNum[n]; }).map(function (n) { return byNum[n].ci; });
   } else {
     picked = all.filter(function (ci) { return typeOf(ci) === 'Clock In' && CLOCK_IN_GROUP.test(String((ci.costGroup || {}).name || '')); });
     if (!picked.length) picked = all;

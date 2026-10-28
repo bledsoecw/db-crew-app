@@ -249,9 +249,11 @@ fetchImpl = codeJob([
   ci('m7', 'Administrative', '99TM-7', 'Labor', 'Admin'),
   ci('h1', 'Hauling & Disposal (Direct)', '02ST-5', 'Clock In', 'Crew'),
   ci('g2', 'General Requirements', '01GR', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('h2', 'Hauling and Disposal', '02ST-5', 'Clock In', 'CLOCK IN ITEMS'),
   ci('a2', 'Administrative', '99TM-7', 'Clock In', 'CLOCK IN ITEMS')
 ]);
-t('the shop offers exactly its five, morning first', sandbox.getJobCodes('22PMNGeeViuh').map(c => c.name), ['Morning Clock-In', 'Training', 'Crew Labor - Monroe St.', 'Crew Labor - Bonnewitz Ave.', 'Shop Work/Maintenance']);
+t('the shop offers exactly its six, morning first, the haulers\' line last — its own, not the CLOCK IN ITEMS twin', sandbox.getJobCodes('22PMNGeeViuh').map(c => [c.name, c.id]),
+  [['Morning Clock-In', 'm1'], ['Training', 'm2'], ['Crew Labor - Monroe St.', 'm3'], ['Crew Labor - Bonnewitz Ave.', 'm5'], ['Shop Work/Maintenance', 'm4'], ['Hauling & Disposal (Direct)', 'h1']]);
 props = { SHOP_CODES: '99TM-1, 02ST-5' }; cacheStore = {};
 t('…and SHOP_CODES changes them without a release', sandbox.getJobCodes('22PMNGeeViuh').map(c => c.name), ['Morning Clock-In', 'Hauling & Disposal (Direct)']);
 props = {}; cacheStore = {};

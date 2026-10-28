@@ -477,9 +477,11 @@ JobTread every morning (`JOBTREAD-NOTES.md` has the live read):
   Morning Clock-In (`99TM-1`) and opens the camera on the start photo (Carl:
   keep it). **Other shop work** is the shop's own list and nothing else:
   Morning Clock-In, Training, Crew Labor – Monroe St., Crew Labor – Bonnewitz
-  Ave., Shop Work/Maintenance (`SHOP_CODES`; the Script Property of that name,
-  a comma list of code numbers, changes it without a release — the haulers'
-  Hauling & Disposal on DB INTERNAL is not on Carl's list). On the clock there,
+  Ave., Shop Work/Maintenance and — for the haulers, Kodey and Rick, who log
+  whole days on it — Hauling & Disposal (Direct) (`SHOP_CODES`; the Script
+  Property of that name, a comma list of code numbers, changes it without a
+  release). The shop has two `02ST-5` lines, its own and the CLOCK IN ITEMS
+  one; the haulers see one, the shop's own, which is the one they use. On the clock there,
   the job card reads *At the shop · JT #25-0011 / The shop*. The shop's job
   comes from the API on boot (`getStart.shop`); an older API sends none and
   the row is not drawn.

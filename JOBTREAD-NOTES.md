@@ -125,8 +125,11 @@ DB INTERNAL's General Requirements, Training, or — Alberto and Yahir, nearly
 every morning — Administrative, which is meant for the office. Alberto and
 Yahir are clocked in as a pair from one phone (their entries start within
 milliseconds of each other). The haulers (Kodey Nichols, Rick Bright) log
-long blocks on DB INTERNAL's `Hauling & Disposal (Direct)` (Clock In, in the
-`Crew` group), which is not on Carl's shop list.
+long blocks on DB INTERNAL's `Hauling & Disposal (Direct)` (`22PbQZVJecDw`,
+Clock In, in the `Crew` group) and now and then on the CLOCK IN ITEMS group's
+`Hauling and Disposal` (`22PcRp2EkwXP`), both `02ST-5`. Carl, 28 Oct: fix the
+haulers — `02ST-5` is the shop's sixth code, and the app offers the `Crew`
+group's line, the one used most (every hauling day this week).
 
 ## People — the field is `emailAddress`, not `email`
 

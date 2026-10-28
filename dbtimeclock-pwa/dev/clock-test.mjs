@@ -387,11 +387,11 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   check('no page errors', errs, []);
 }
 {
-  // Other shop work: the shop's own five, and nothing else.
+  // Other shop work: the shop's own six, and nothing else.
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
   await tap(page, '#shopOther', 600);
   check('Other shop work is the shop\'s own list', [await txt(page, '#sheetTitle'), await page.locator('.coderow .cname').allTextContents()],
-    ['What are you doing?', ['Morning Clock-In', 'Training', 'Crew Labor - Monroe St.', 'Crew Labor - Bonnewitz Ave.', 'Shop Work/Maintenance']]);
+    ['What are you doing?', ['Morning Clock-In', 'Training', 'Crew Labor - Monroe St.', 'Crew Labor - Bonnewitz Ave.', 'Shop Work/Maintenance', 'Hauling & Disposal (Direct)']]);
   await ctx.close();
   check('no page errors', errs, []);
 }

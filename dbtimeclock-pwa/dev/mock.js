@@ -56,7 +56,7 @@
   ];
   if (window.__MOCK_NOTRAVEL) CODES = CODES.filter(function (c) { return !c.travel; });
   if (FX.codes) CODES = FX.codes;
-  // The shop (T2.17): 25-0011 DB INTERNAL and the five lines the crew
+  // The shop (T2.17): 25-0011 DB INTERNAL and the six lines the crew
   // clocks at the shop, as getJobCodes chooses them. __MOCK_NOSHOP plays an
   // API from before T2.17, which names no shop on boot.
   var SHOP = FX.shop || { id: 'shop', number: '25-0011', name: '250011 DB INTERNAL', customer: '', address: '224 Bonnewitz Ave, Van Wert, OH 45891, USA' };
@@ -65,7 +65,8 @@
     { id: 'sh2', name: 'Training', number: '99TM-2', codeName: 'Training', travel: false, office: false },
     { id: 'sh3', name: 'Crew Labor - Monroe St.', number: '99TM-3', codeName: 'In House- Monroe', travel: false, office: false },
     { id: 'sh5', name: 'Crew Labor - Bonnewitz Ave.', number: '99TM-5', codeName: 'In House- Bonnewitz', travel: false, office: false },
-    { id: 'sh4', name: 'Shop Work/Maintenance', number: '99TM-4', codeName: 'Shop Work/Maintenance', travel: false, office: false }
+    { id: 'sh4', name: 'Shop Work/Maintenance', number: '99TM-4', codeName: 'Shop Work/Maintenance', travel: false, office: false },
+    { id: 'sh6', name: 'Hauling & Disposal (Direct)', number: '02ST-5', codeName: 'Hauling & Disposal (Direct)', travel: false, office: false }
   ];
   // FX.codesPerJob: every job gets its own cost-item ids ('ci5@co-fair'), as
   // in JobTread, where a cost item belongs to one job's budget — so a code
