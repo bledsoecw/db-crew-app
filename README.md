@@ -434,6 +434,26 @@ not the job's, and a refused clock-in leaves the area open all the same.
 `dev/closeout-test.mjs` takes the gutters' Start off the clock and fails on
 the old code. **Needs:** `firebase deploy --only hosting` only.
 
+**Repairs start the clock too** (T2.16, Carl 28 Oct 2026, watching chapter 8
+of the training video — *"for a repair … you have to clock in via clock screen
+only … they should be able to clock these types of jobs from their close out
+side just like punch and final inspections"*). A job at Punch List — a service
+call, a warranty call, a roof's punch repairs — drew "2 repairs" on its card,
+and that button only opened the job, so the video sent Yahir to the Clock tab
+first. Now a repairs card that is yours reads **Start** / **Empezar** with the
+count under it, and does what an inspection's Start does (`coClockHere`): the
+end photo where you are, this job's code, the start photo here; already on the
+clock here, it reads **Continue** and just opens. Which code: a repair on a
+warranty job takes the warranty line, one on a service job the service line
+(never the warranty one), when there is exactly one; the travel line is never
+picked as the work; otherwise the code sheet, as before (`coPreferredCode`).
+Someone else's repairs keep the plain opener, and **every** Close Out job
+screen not on the clock carries one row — **Clock in here**, or **Move the
+clock here · on the clock at Okafor** — for a job reached by its card, a
+search or the All list. The queue fetches the codes of your repair jobs behind
+it, as it does your inspections'. `dev/closeout-test.mjs` walks it.
+**Needs:** `firebase deploy --only hosting` only.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

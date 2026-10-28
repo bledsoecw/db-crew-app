@@ -1440,6 +1440,8 @@ function clockLabel(d){
   return h + ':' + pad2(d.getMinutes()) + ap;
 }
 function codeLabel(c){ return c ? ((c.number ? c.number + ' ' : '') + (c.name||'')) : ''; }
+/* The job's Travel Related Labor line (01GR-9, in CLOCK IN ITEMS). */
+function isTravelCode(c){ return !!c && /travel/i.test((c.name || '') + ' ' + (c.codeName || '')); }
 /* Lowercases the name but keeps the code number intact, for mid-sentence use:
    "04MA masonry labor". */
 function codeInline(c){ return c ? ((c.number ? c.number + ' ' : '') + String(c.name||'').toLowerCase()) : ''; }
@@ -5443,6 +5445,7 @@ var CO_L10N = {
         repairDone:'Reparación terminada', noteOpt:'Nota (opcional)', soldScope:'Trabajo vendido', soldScopeSub:'lo que se vendió, en pocas palabras', loading:'Cargando…',
         lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
         notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
+        clockHere:'Marcar entrada aquí', clockHereSub:'no estás en el reloj en este trabajo', clockMove:'Pasar el reloj aquí', clockMoveSub:'estás en el reloj en {where}',
         onClockHere:'Ya estás en el reloj en este trabajo', onClock:'En el reloj', onClockSub:'cambiar de código o trabajo · salir', clockingIn:'Marcando entrada…',
         onBreak:'En descanso · regresa', breakOver:'Se acabó el descanso', onBreakSub:'terminar el descanso en el reloj', breakFirst:'Termina tu descanso primero — en el reloj',
         checkingJt:'Consultando JobTread…', problemsHint:'Reporta un problema con foto. Lo que arreglaste ahora también cuenta.', newReport:'Reportar otro problema', searchPh:'Buscar trabajos por nombre, número o cliente', noMatch:'Ningún trabajo coincide.', noMatchMine:'Nada asignado coincide. Toca Todos para buscar en el resto.', photosHint:'Fotos del estado del trabajo. Suben con el envío.' },
@@ -5476,6 +5479,7 @@ var CO_L10N = {
         repairDone:'Repair finished', noteOpt:'Note (optional)', soldScope:'Sold scope', soldScopeSub:'what was sold, in a few words', loading:'Loading…',
         lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
         notYours:'Close Out is for the service crew.', noJobs:'Nothing ready to inspect today.', noInspector:'The board doesn’t send you inspections yet — ask the office (Operations → Divisions & PMs).',
+        clockHere:'Clock in here', clockHereSub:'not on the clock at this job', clockMove:'Move the clock here', clockMoveSub:'on the clock at {where}',
         onClockHere:'Already on the clock at this job', onClock:'On the clock', onClockSub:'switch code or job · clock out', clockingIn:'Clocking in…',
         onBreak:'On break · back', breakOver:'Break over', onBreakSub:'end it on the Clock tab', breakFirst:'End your break first — it’s on the Clock tab',
         checkingJt:'Asking JobTread…', problemsHint:'Report a problem with a photo. Something you fixed on the spot counts too.', newReport:'Report another problem', searchPh:'Search jobs by name, number or customer', noMatch:'No jobs match that.', noMatchMine:'Nothing assigned matches. Tap All to search the rest.', photosHint:'Photos of the job’s condition. They go up with the send.' }
@@ -5702,7 +5706,7 @@ function coRestoreJob(jobId){
    (T2.5) so Start finds them on the phone. A handful of jobs; the reads lane. */
 function coPrefetchCodes(){
   if (!canTab('job')) return;
-  (CO.jobs || []).filter(function(j){ return j.mine && coKindOf(j) === 'inspect' && !codesCached(j.id); }).slice(0, 6)
+  (CO.jobs || []).filter(function(j){ return j.mine && (coKindOf(j) === 'inspect' || coKindOf(j) === 'repairs') && !codesCached(j.id); }).slice(0, 6)
     .forEach(function(j){ loadCodes(j.id, true).catch(function(){}); });
 }
 function coOpenJob(jobId){
@@ -5750,17 +5754,27 @@ function coClockHere(jobId, areaKey){
     S.codes = codes;
     render();
     if (S.coReturn !== jobId) return;   // a tab was tapped meanwhile
-    var c = coPreferredCode(S.codes);
+    var c = coPreferredCode(S.codes, j);
     if (c){ S.gateCode = c; beginStart(); }
     else openSheet('codes');
   }).catch(function(e){ S.coReturn = null; failed('getJobCodes', e); });
 }
 /* One code needs no asking: the only one on the job, or the only one that
    reads like inspection, service or punch work. Anything else is the sheet,
-   the same question the Clock tab asks. */
-function coPreferredCode(codes){
-  if (codes.length === 1) return codes[0];
-  var m = codes.filter(function(c){ return /inspect|service|punch|warrant|close.?out/i.test((c.name || '') + ' ' + (c.codeName || '')); });
+   the same question the Clock tab asks. A repair on a warranty job prefers
+   the warranty code and one on a service job the service code (T2.16), so a
+   job carrying both does not ask. The travel line is never the work. */
+function coPreferredCode(codes, j){
+  var words = function(c){ return (c.name || '') + ' ' + (c.codeName || ''); };
+  var work = codes.filter(function(c){ return !isTravelCode(c); });
+  if (work.length === 1) return work[0];
+  if (j && coKindOf(j) === 'repairs'){
+    var kind = ((j.projectTypes || []).join(' ') + ' ' + (j.name || '')).toLowerCase();
+    var war = /warrant/.test(kind), svc = !war && (j.isService || /repair|service/.test(kind));
+    var w = work.filter(function(c){ var t = words(c); return war ? /warrant/i.test(t) : svc && /service|repair/i.test(t) && !/warrant/i.test(t); });
+    if (w.length === 1) return w[0];
+  }
+  var m = work.filter(function(c){ return /inspect|service|punch|warrant|close.?out/i.test(words(c)); });
   return m.length === 1 ? m[0] : null;
 }
 /* After the send (T2.4): the clock is still running on this job and the
@@ -5775,6 +5789,14 @@ function coClockCardHtml(){
   var line = brk ? (onBreakNow() ? co('onBreak') + ' ' + clockLabel(S.open.startedAt) : co('breakOver')) : co('onClock') + ' · ' + codeLabel(S.open.code);
   return '<div class="jcard"><button class="jtile" data-coclock="1"><span class="bi"><span class="es">' + esc(line) + (where ? ' · ' + esc(where) : '') + '</span><span class="en">' + esc(co(brk ? 'onBreakSub' : 'onClockSub')) + '</span></span>' +
          '<span class="cnt tabular">' + esc(coClockCount()) + '</span>' + CK_CHEV + '</button></div>';
+}
+/* A job reached without Start — a search, the All list, someone else's
+   repairs — is one tap from the clock (T2.16): the same move Start makes. */
+function coClockHereHtml(j){
+  if (!canTab('job') || onBreakNow() || (S.open && S.job && S.job.id === j.id)) return '';
+  var where = S.open && S.job ? (S.job.customer || streetOf(S.job.address) || S.job.number || '') : '';
+  return '<div class="jcard"><button class="jtile" data-coclockhere="1"><span class="bi"><span class="es">' + esc(co(S.open ? 'clockMove' : 'clockHere')) + '</span>' +
+         '<span class="en">' + esc(S.open ? co('clockMoveSub').replace('{where}', where) : co('clockHereSub')) + '</span></span>' + CK_CHEV + '</button></div>';
 }
 function coClockCount(){ return onBreakNow() ? countdown(breakLeft()) : hmClock(openSeconds()); }
 function coGo(screen){
@@ -6211,7 +6233,14 @@ function coQueueCard(j){
        (sub ? '<span class="jwith">' + esc(sub) + '</span>' : '') + '</button>';
   if (k !== 'review'){
     var act;
-    if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + (j.openPunchCount || '') + ' ' + esc(co('repairs').toLowerCase()) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
+    // Repairs that are yours start the clock too (T2.16, Carl 28 Oct 2026 —
+    // a service or warranty call had no way onto the clock from here, so the
+    // video sent Yahir to the Clock tab first). Someone else's repairs still
+    // only open, and the job screen offers the clock from there.
+    var nRep = (j.openPunchCount || '') + ' ' + co('repairs').toLowerCase();
+    if (k === 'repairs' && j.mine && canTab('job')){ var here = S.open && S.job && S.job.id === j.id;
+      act = '<button class="jact warn" data-costart="' + esc(j.id) + '"><span class="a1">' + esc(here ? co('cont') : co('start')) + '</span><span class="a2">' + esc(nRep) + '</span></button>'; }
+    else if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + esc(nRep) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
     else { var done = v ? coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup') : 0;
       // Start / Continue also puts the clock on this job (coStartJob, T2.4).
       // "n of 13" counts the roof checklist; a job here for one work area's
@@ -6351,6 +6380,7 @@ function coJobHtml(){
   }
   var pending = coOutboxFor(j.id);
   if (pending.length) h += coOutboxLine(j.id);
+  if (k !== 'review' && !(CO.receipt && CO.receipt.jobId === j.id)) h += coClockHereHtml(j);
   // A job at PM Review is the PM's now (T2.8.2, Carl 13 Oct 2026). The last
   // repair closing moves it there by itself, and on a job whose inspection
   // the rep did on site the crew never had an inspection to send — yet this
@@ -6746,6 +6776,7 @@ function coWire(){
   var on = function(sel, fn){ [].forEach.call(body.querySelectorAll(sel), function(b){ b.onclick = function(ev){ fn(b, ev); }; }); };
   on('[data-cojob]', function(b){ coOpenJob(b.getAttribute('data-cojob')); });
   on('[data-costart]', function(b){ coStartJob(b.getAttribute('data-costart')); });
+  on('[data-coclockhere]', function(){ coClockHere(CO.jobId); });
   on('[data-coclock]', function(){ if (onBreakNow() || breakOver()) setTab('job'); else if (S.open) openSheet('stop'); });
   on('[data-coscreen]', function(b){ var s = b.getAttribute('data-coscreen'); if (s === 'repairs' && CO.job && S.lang === 'es') coTranslateTasks(CO.job); coGo(s); });
   on('[data-coscope]', function(){ var j = CO.job || coJobById(CO.jobId); if (j) coScopeToggle(j); });

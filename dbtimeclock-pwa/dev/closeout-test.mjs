@@ -42,6 +42,7 @@ async function boot(flags = {}) {
   });
   await page.addInitScript(`window.__MOCK_ROLE=${JSON.stringify(flags.role || 'siteManager')};window.__MOCK_CO_PHOTO409=${!!flags.photo409};
     window.__MOCK_CO_REJECT=${!!flags.reject};window.__MOCK_CO_DOWN=${!!flags.down};window.__MOCK_CO_UNSET=${!!flags.unset};window.__MOCK_CO_AREAS=${!!flags.areas};window.__MOCK_CO_DAYS=${!!flags.days};`);
+  if (flags.fix) await page.addInitScript(flags.fix);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1300);
@@ -149,7 +150,7 @@ const allErrs = [];
   check('the badges say what each is', await page.evaluate(() => [...document.querySelectorAll('#coBody .jcard')].map((c) => c.querySelector('.badge').textContent)), ['Inspección final', 'Reparaciones · 2']);
   await tap(page, '[data-cojob="co-hartman"]', 800);
   // Blocked, not disabled (T2.12): a tap says what is left.
-  check('the job home: four tiles and a blocked send', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jtile .es')].map((e) => e.textContent), document.getElementById('coReview').classList.contains('blocked')]), [['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita', 'Trabajo vendido'], true]);
+  check('the job home: four tiles and a blocked send', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]) .es')].map((e) => e.textContent), document.getElementById('coReview').classList.contains('blocked')]), [['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita', 'Trabajo vendido'], true]);
   await tap(page, '[data-coscreen="inspect"]', 500);
   check('eight lines, three answers each', await page.evaluate(() => [document.querySelectorAll('#coBody .ans').length, [...document.querySelectorAll('#coBody .ans')][0].querySelectorAll('button').length]), [8, 3]);
   for (let i = 0; i < 8; i++) if (i !== 3) await tap(page, `.ans[data-key="${['22PdEQfPnVqh','22PdEQfPnVqi','22PdEQfPnVqj','22PdEQfPnVqk','22PdEQfPnVqm','22PdEQfPnVqn','22PdEQfPnVqp','22PdEQfPnVqq'][i]}"] .ok`, 120);
@@ -435,13 +436,65 @@ const allErrs = [];
   await ctx.close();
 }
 
+// ---- T2.16: repairs that are yours start the clock from their card ----
+{
+  const settle = async (page) => { await page.waitForFunction(() => S.clockGate == null && document.body.style.pointerEvents === '', null, { timeout: 10000 }); await page.waitForTimeout(300); };
+  const shoot = (page) => page.evaluate(() => new Promise((res) => {
+    const c = document.createElement('canvas'); c.width = 8; c.height = 8;
+    c.getContext('2d').fillRect(0, 0, 8, 8);
+    c.toBlob((b) => { captured(b, 'image/jpeg'); res(true); }, 'image/jpeg');
+  }));
+  const clockCalls = (page) => page.evaluate(() => (window.__CLOCK || []).map((c) => c.slice(0, 3)));
+  // A service job's codes the way the org names them, with both a service
+  // and a warranty line and the travel line beside them.
+  const fix = `window.__MOCK_FIX = { codes: [
+    { id: 'ci1', name: 'Final Clean', number: '02ST-1', codeName: 'Site Prep/Clean Up' },
+    { id: 'ci2', name: 'Crew Labor', number: '01GR', codeName: 'General Requirements' },
+    { id: 'ci3', name: 'Service Repair Labor', number: '01GR-4', codeName: 'Service Repair Labor' },
+    { id: 'ci4', name: 'Warranty Service', number: '01GR-5', codeName: 'Warranty Work' },
+    { id: 'ci5', name: 'Travel Related Labor', number: '01GR-9', codeName: 'Travel Related Costs' } ] };`;
+  const { ctx, page, errs } = await boot({ role: 'service', fix });
+  check('a repairs card that is yours reads Start, with its count under it', [await txt(page, '[data-costart="co-okafor"] .a1'), await txt(page, '[data-costart="co-okafor"] .a2')], ['Empezar', '2 reparaciones']);
+  await tap(page, '[data-costart="co-okafor"]', 900);
+  check('Start on a service call: the service code without asking (not the warranty one, never travel), the start photo', await page.evaluate(() => [S.tab, S.clockGate, S.gateCode && S.gateCode.id, S.sheet, S.coReturn]), ['cam', 'start', 'ci3', null, 'co-okafor']);
+  await shoot(page); await settle(page);
+  check('…clocked in on the repair job and back on its Close Out screen', [await clockCalls(page), await page.evaluate(() => [S.tab, CO.screen, CO.jobId])], [[['clockIn', 'co-okafor', 'ci3']], ['co', 'job', 'co-okafor']]);
+  check('…on the clock here, the job screen offers no second clock-in', await page.evaluate(() => !!document.querySelector('[data-coclockhere]')), false);
+  await page.evaluate(() => { CO.screen = 'queue'; CO.jobId = null; CO.job = null; coRender(); });
+  await page.waitForTimeout(300);
+  check('…and the card reads Continue', await txt(page, '[data-costart="co-okafor"] .a1'), 'Continuar');
+  // A job reached another way (here someone else's inspection, from All):
+  // the clock is one tap away, and says where it is now.
+  await page.evaluate(() => { CO.filter = 'all'; coRender(); });
+  await page.waitForTimeout(300);
+  await tap(page, '.jmain[data-cojob="co-reyes"]', 900);
+  check('a job opened without Start offers to move the clock here', await page.evaluate(() => { const b = document.querySelector('[data-coclockhere]'); return b ? [b.querySelector('.es').textContent, b.querySelector('.en').textContent] : null; }),
+    ['Pasar el reloj aquí', 'estás en el reloj en Okafor']);
+  await tap(page, '[data-coclockhere]', 900);
+  check('…and it is the move: the end photo first', await page.evaluate(() => [S.tab, S.clockGate, S.pendingJob && S.pendingJob.id, S.coReturn]), ['cam', 'end-switch', 'co-reyes', 'co-reyes']);
+  await page.evaluate(() => camBack());
+  await page.waitForTimeout(400);
+  // The code a repair prefers, by the kind of job.
+  check('which code a Start picks', await page.evaluate(() => {
+    const codes = window.__MOCK_FIX.codes, pick = (j) => { const c = coPreferredCode(codes, j); return c ? c.id : null; };
+    return [pick({ status: 'Punch List', projectTypes: ['R-Warranty'], isService: true, openPunchCount: 1, name: '268049 Sinclair_Warranty' }),
+            pick({ status: 'Punch List', projectTypes: ['R-Repairs/Service'], isService: true, openPunchCount: 1 }),
+            pick({ status: 'Final Inspection', projectTypes: ['R-Shingles'], isService: false }),
+            coPreferredCode([codes[4], codes[1]], { status: 'Final Inspection' }).id];
+  }), ['ci4', 'ci3', null, 'ci2']);
+  // Someone else's repairs still only open.
+  check('repairs that are not yours keep the plain opener', await page.evaluate(() => { const j = Object.assign({}, coJobById('co-okafor'), { mine: false }); return /data-costart=/.test(coQueueCard(j)); }), false);
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
 // ---- work areas (Carl, 23 Oct 2026): a roof and its gutters, each on its own ----
 {
   const { ctx, page, errs } = await boot({ role: 'service', areas: true });
   await tap(page, '.tab[data-tab="co"]', 900);
   // One roof on its own reads exactly as before: no list of areas, the four tiles.
   await tap(page, '[data-cojob="co-hartman"]', 800);
-  check('one roof: no area list, the four tiles', await page.evaluate(() => [!!document.getElementById('coAreas'), [...document.querySelectorAll('#coBody .jcard .jtile .es')].map((e) => e.textContent)]),
+  check('one roof: no area list, the four tiles', await page.evaluate(() => [!!document.getElementById('coAreas'), [...document.querySelectorAll('#coBody .jcard .jtile:not([data-coclockhere]) .es')].map((e) => e.textContent)]),
     [false, ['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita']]);
   // A draft nobody saved never goes (it has no note, and the server would refuse it).
   await page.evaluate(() => { const v = coVisit('co-hartman'); CO_INSPECT.forEach((i) => { v.answers.inspection[i.key] = 'OK'; }); CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = 'OK'; });
@@ -458,7 +511,7 @@ const allErrs = [];
   const masonRows = await areaRows();
   check('two areas: the roof inspected with its repair, the gutters booked for Alberto', [masonRows[0], masonRows[1][0], /^Agendada .+ · Alberto$/.test(masonRows[1][1])],
     [['Techo de tejas', 'Revisada · 1 reparación pendiente'], 'Canales', true]);
-  check('the roof is done: no checklist, no Review & send; the gutters and the repairs are the tiles', await page.evaluate(() => [!!document.querySelector('[data-coscreen="inspect"]'), !!document.getElementById('coReview'), [...document.querySelectorAll('#coBody .jtile .es')].map((e) => e.textContent)]),
+  check('the roof is done: no checklist, no Review & send; the gutters and the repairs are the tiles', await page.evaluate(() => [!!document.querySelector('[data-coscreen="inspect"]'), !!document.getElementById('coReview'), [...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]) .es')].map((e) => e.textContent)]),
     [false, false, ['Canales', 'Reparaciones']]);
   await tap(page, '[data-coarea="gutters"]', 500);
   // T2.15: the gutters' Start puts the clock on this job, as Start on a card
