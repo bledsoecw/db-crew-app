@@ -98,7 +98,7 @@ In Apps Script > Project Settings > **Script Properties**:
 | `ACCESS_FEED_KEY` | the feed key `?accessfeed=1` prints (skip if the key is already baked into `ACCESS_FEED_URL`) |
 | `SHOP_CODES` | optional (T2.17) — the cost code numbers At the shop offers on 25-0011 DB INTERNAL, comma-separated, in order. Default `99TM-1, 99TM-2, 99TM-3, 99TM-5, 99TM-4` (Morning Clock-In, Training, Crew Labor – Monroe St., Crew Labor – Bonnewitz Ave., Shop Work/Maintenance). |
 | `LEFT_SITE_NOTIFY` | optional (T2.19, T2.20) — the names, comma-separated, told beside the job's PM when someone left a site without clocking out, or rolled out without the yard checks. Default `Carl Bledsoe`. A name must match a JobTread user's name exactly. |
-| `PARTNERS_JSON` | optional (T2.21) — who may clock whom in with them: `{"<membership id>":"<membership id>"}`. Unset is Yahir → Alberto (`{"22PdPTwMdkzj":"22PdPUpWzpHy"}`). `{}` is the same as unset; to switch it off, change the code's `PARTNERS`. |
+| `PARTNERS_JSON` | optional (T2.21) — who may clock whom in with them: `{"<membership id>":"<membership id>"}`. Unset is Yahir → Alberto (`{"22PdPTwMdkzj":"22PdPUpWzpHy"}`). Set, it is the whole answer: `{}` partners nobody. |
 
 ### Keep a copy of config.js outside the repo
 

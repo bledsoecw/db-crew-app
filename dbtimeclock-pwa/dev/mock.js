@@ -252,10 +252,11 @@
   if (FX.entries) ST.entries = FX.entries({ job: JOB, code: code, t0: t0 });
   // __MOCK_OPEN_AGO (minutes): on 04MA at Webster since then. __MOCK_OPEN_YESTERDAY:
   // since 7:02a yesterday — a block nobody clocked out of (T2.19).
-  if (window.__MOCK_OPEN_AGO || window.__MOCK_OPEN_YESTERDAY) {
+  // __MOCK_DRIVE_YESTERDAY: the drive back, never ended, since 4:40p yesterday.
+  if (window.__MOCK_OPEN_AGO || window.__MOCK_OPEN_YESTERDAY || window.__MOCK_DRIVE_YESTERDAY) {
     var ob = new Date(Date.now() - (window.__MOCK_OPEN_AGO || 0) * 60000);
-    if (window.__MOCK_OPEN_YESTERDAY) { ob = new Date(); ob.setDate(ob.getDate() - 1); ob.setHours(7, 2, 0, 0); }
-    ST.open = { id: 'oy', startedAt: ob.toISOString(), endedAt: null, minutes: 0, notes: '', job: JOB, code: code('ci9') };
+    if (window.__MOCK_OPEN_YESTERDAY || window.__MOCK_DRIVE_YESTERDAY) { ob = new Date(); ob.setDate(ob.getDate() - 1); ob.setHours(window.__MOCK_DRIVE_YESTERDAY ? 16 : 7, window.__MOCK_DRIVE_YESTERDAY ? 40 : 2, 0, 0); }
+    ST.open = { id: 'oy', startedAt: ob.toISOString(), endedAt: null, minutes: 0, notes: window.__MOCK_DRIVE_YESTERDAY ? 'Drive back · end of the day · from 26-0890 Noah Webster' : '', job: JOB, code: code(window.__MOCK_DRIVE_YESTERDAY ? 'ci11' : 'ci9') };
     ST.entries = [ST.open].concat(ST.entries);
   }
   // __MOCK_KEEP_CLOCK: the clock lives in JobTread, so a reload finds it
@@ -488,7 +489,7 @@
       plan = plan || {};
       (window.__CLOCK = window.__CLOCK || []).push(['leftSite', leftAt, plan.kind || 'out', plan.jobId || null, plan.costItemId || null, plan.travelItemId || null, plan.startPhotoId || null, plan.notes || '']);
       if (!ST.open || Date.parse(ST.open.startedAt) > Date.now()) throw new Error('You are not on the clock at a job.');
-      if (HANDLERS.__driving()) throw new Error('A drive needs no end photo — use the buttons on the drive.');
+      if (HANDLERS.__driving() && (plan.kind || 'out') !== 'out') throw new Error('A drive needs no end photo — use the buttons on the drive.');
       var at = Date.parse(leftAt);
       if (!(at > Date.parse(ST.open.startedAt))) throw new Error('That is before this block began.');
       if (at > Date.now() + 60000) throw new Error('That time has not happened yet.');
@@ -511,7 +512,7 @@
     },
     // The drive (T2.18): from work it carries the end photo of what is left;
     // from a drive nothing. Opens on the line named, saying where to.
-    __driving: function () { return !!(ST.open && Date.parse(ST.open.startedAt) <= Date.now() && ST.open.code && /travel/i.test(ST.open.code.name || '')); },
+    __driving: function () { return !!(ST.open && Date.parse(ST.open.startedAt) <= Date.now() && ((ST.open.code && /travel/i.test(ST.open.code.name || '')) || /^drive (to|back)\b/i.test(ST.open.notes || ''))); },
     startTravel: function (jobId, costItemId, coords, endPhotoId, notes) {
       (window.__CLOCK = window.__CLOCK || []).push(['startTravel', jobId, costItemId, endPhotoId || null, notes || '']);
       if (!ST.open) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');

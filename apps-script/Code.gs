@@ -2069,7 +2069,7 @@ function getStart(me, jobId) {
 function getExtras(me, jobId) {
   var out = { codes: [], jobOptions: [], crew: [], logFields: null, partner: null };
   // The toggle's name (T2.21); never worth failing the extras for.
-  try { var pt = partnerFor_(me); if (pt) out.partner = { name: pt.name }; } catch (ePt) {}
+  try { var pt = partnerFor_(me); out.partner = pt ? { name: pt.name } : null; } catch (ePt) { delete out.partner; }   // could not ask: the phone keeps its box
   var codesHit = jobId ? cacheGet_('jc2_' + jobId) : null;
   var optsHit = me.userId ? cacheGet_('jo_' + me.userId) : null;
   var fieldsHit = cacheGet_(LOG_FIELDS_KEY);
@@ -2256,6 +2256,8 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId) {
 // The same door serves an entry left open overnight: ended at the time given
 // on the day it began.
 var LEFT_SITE_NOTIFY = ['Carl Bledsoe'];
+var LEFT_SITE_DRIVE_MAX_MS = 12 * 3600 * 1000;
+var PARTNER_LEFT_ = null;   // set by withPartner_ only, for the length of one leftSite
 function leftSiteNotify_() {
   var v = '';
   try { v = PropertiesService.getScriptProperties().getProperty('LEFT_SITE_NOTIFY') || ''; } catch (e) {}
@@ -2292,16 +2294,26 @@ function leftSite(me, leftAt, coords, plan) {
   plan = plan || {};
   var open = openEntryFor_(me.userId);
   if (!open || isFuture_(open.startedAt)) throw new Error('You are not on the clock at a job.');
-  if (isTravelEntry_(open)) throw new Error('A drive needs no end photo — use the buttons on the drive.');
+  var kind = plan.kind === 'drive' || plan.kind === 'work' ? plan.kind : 'out';
+  // A drive needs no end photo, so only one left running (overnight, say)
+  // comes here — to end when it ended.
+  if (isTravelEntry_(open) && kind !== 'out') throw new Error('A drive needs no end photo — use the buttons on the drive.');
   var at = Date.parse(leftAt || ''), began = Date.parse(open.startedAt), now = Date.now();
   if (isNaN(at)) throw new Error('Say when you left.');
   if (at <= began) throw new Error('That is before this block began (' + clockWords_(new Date(began)) + ').');
   if (at > now + 60000) throw new Error('That time has not happened yet.');
-  var kind = plan.kind === 'drive' || plan.kind === 'work' ? plan.kind : 'out';
+  // The drive from then until now is paid travel; from last night it would
+  // be a night's pay. Out at the time you left, then clock in where you are.
+  if (kind !== 'out' && now - at > LEFT_SITE_DRIVE_MAX_MS) throw new Error('That was over 12 hours ago — clock out at the time you left, then clock in where you are.');
   if (kind !== 'out' && (!plan.jobId || !plan.costItemId)) throw new Error('Missing the next job or its line.');
   if (kind === 'work') requirePhoto_(plan.startPhotoId, 'A start photo is required to start the next code.');
   assertWrite_(open.job && open.job.id);
   if (kind !== 'out') assertWrite_(plan.jobId);
+  if (kind === 'drive') assertDriveLine_(plan.jobId, plan.costItemId);
+  if (kind === 'work' && plan.travelItemId) assertDriveLine_(plan.jobId, plan.travelItemId, true);
+  // Who else to name, or to stay quiet for, is withPartner_'s to say — never
+  // the phone's (PARTNER_LEFT_).
+  var also = (PARTNER_LEFT_ && PARTNER_LEFT_.alsoName) || '', quiet = !!(PARTNER_LEFT_ && PARTNER_LEFT_.quiet);
   var leftIso = new Date(Math.min(at, now)).toISOString();
   var label = open.job ? [open.job.number, open.job.name].filter(Boolean).join(' ') : 'the job';
   var said = 'No end photo — left the site. Ended from DB Crew at ' + clockWords_(new Date(now)) + ', said they left at ' + clockWords_(new Date(at)) + '.';
@@ -2316,7 +2328,9 @@ function leftSite(me, leftAt, coords, plan) {
   var sc = coordArg_(coords);
   if (kind === 'drive') {
     var a = entry({ jobId: plan.jobId, costItemId: plan.costItemId, startedAt: leftIso });
-    if (plan.notes) a.notes = String(plan.notes).slice(0, 500);
+    // As startTravel's: the notes are what make it a drive on any line.
+    var dn = String(plan.notes || '').trim();
+    a.notes = (/^drive (to|back)\b/i.test(dn) ? dn : 'Drive to ' + plan.jobId + (dn ? ' · ' + dn : '')).slice(0, 500);
     markNudged(create(a));
   } else if (kind === 'work') {
     var nowIso = new Date(now).toISOString();
@@ -2329,8 +2343,8 @@ function leftSite(me, leftAt, coords, plan) {
     if (sc) w.startCoordinates = sc;
     create(w);
   }
-  var notice = plan.quiet ? null : noticeToPm_(open.job && open.job.id,
-    '⏱ ' + me.name + (plan.alsoName ? ' and ' + plan.alsoName : '') + ' left ' + label + ' without clocking out. The block on ' + ((open.code && [open.code.number, open.code.name].filter(Boolean).join(' ')) || 'the job') +
+  var notice = quiet ? null : noticeToPm_(open.job && open.job.id,
+    '⏱ ' + me.name + (also ? ' and ' + also : '') + ' left ' + label + ' without clocking out. The block on ' + ((open.code && [open.code.number, open.code.name].filter(Boolean).join(' ')) || 'the job') +
     ' was ended at ' + clockWords_(new Date(at)) + ', the time given, from DB Crew at ' + clockWords_(new Date(now)) + ' — no end photo.', leftSiteNotify_());
   return { ok: true, closed: open.id, endedAt: leftIso, open: kind === 'out' ? null : openEntryFor_(me.userId), notice: notice, entries: getMyDay(me) };
 }
@@ -2351,8 +2365,10 @@ function leftSite(me, leftAt, coords, plan) {
 var PARTNERS = { '22PdPTwMdkzj': '22PdPUpWzpHy' };   // Yahir Gonzalez → Alberto Gonzalez
 var PARTNER_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startBreak: 1, endBreak: 1 };
 function partnersMap_() {
-  var m = propJson_('PARTNERS_JSON');
-  return Object.keys(m).length ? m : PARTNERS;
+  var raw = '';
+  try { raw = PropertiesService.getScriptProperties().getProperty('PARTNERS_JSON') || ''; } catch (e) {}
+  if (!raw.trim()) return PARTNERS;
+  try { var m = JSON.parse(raw); return m && typeof m === 'object' ? m : {}; } catch (e2) { return {}; }   // set is the answer, {} included
 }
 function partnerFor_(me) {
   var pid = partnersMap_()[String((me && me.membershipId) || '')];
@@ -2379,17 +2395,17 @@ function withPartner_(me, f, fn, args) {
   var known = !rs[0].error && !rs[1].error;
   var mine = known ? openEntryFrom_(rs[0].data) : null, theirs = known ? openEntryFrom_(rs[1].data) : null;
   var same = known && sameClock_(mine, theirs);
-  var copy = function (o, more) { var c = {}; for (var k in (o || {})) c[k] = o[k]; for (var m in more) c[m] = more[m]; return c; };
-  if (same && fn === 'leftSite') { args = args.slice(); args[2] = copy(args[2], { alsoName: p.name }); }
-  var data = f.apply(null, [me].concat(args));
+  var data;
+  try { PARTNER_LEFT_ = same && fn === 'leftSite' ? { alsoName: p.name } : null; data = f.apply(null, [me].concat(args)); }
+  finally { PARTNER_LEFT_ = null; }
   var info = { name: p.name, followed: false };
   if (!known) info.why = 'JobTread did not say where they are';
   else if (!same) info.why = theirs ? 'on the clock at ' + [theirs.job && theirs.job.number, theirs.code && theirs.code.number].filter(Boolean).join(' · ') : 'not on the clock';
   else {
     try {
-      var pargs = args.slice();
-      if (fn === 'leftSite') pargs[2] = copy(args[2], { quiet: true, alsoName: '' });
-      var pd = f.apply(null, [p].concat(pargs));
+      var pd;
+      try { PARTNER_LEFT_ = fn === 'leftSite' ? { quiet: true } : null; pd = f.apply(null, [p].concat(args)); }
+      finally { PARTNER_LEFT_ = null; }
       var pid = pd && (pd.id || (pd.open && pd.open.id));
       if (pid) markNudged(pid);
       info.followed = true;
@@ -2400,7 +2416,21 @@ function withPartner_(me, f, fn, args) {
 }
 
 function isTravelEntry_(open) {
-  return !!(open && !isFuture_(open.startedAt) && open.code && /travel/i.test(open.code.name || ''));
+  // The travel line, or — on a job with none — the line a drive was put on,
+  // which says so in its notes ("Drive to …", "Drive back · …").
+  return !!(open && !isFuture_(open.startedAt) && ((open.code && /travel/i.test(open.code.name || '')) || /^drive (to|back)\b/i.test(open.notes || '')));
+}
+/* The drive goes on the job's travel line; on a job with none, on one of its
+   own lines — never on a line the phone made up. `travelOnly`: the line must
+   be the travel line. JobTread unread is no reason to stop a clock. */
+function assertDriveLine_(jobId, costItemId, travelOnly) {
+  var codes = null;
+  try { codes = getJobCodes(jobId); } catch (e) { return; }
+  if (!codes || !codes.length) return;
+  var travel = codes.filter(function (c) { return c.travel; });
+  var ok = travel.length ? travel.some(function (c) { return c.id === costItemId; })
+                         : !travelOnly && codes.some(function (c) { return c.id === costItemId; });
+  if (!ok) throw new Error(travel.length ? 'The drive goes on the job’s travel line.' : travelOnly ? 'That job has no travel line.' : 'That line is not on the job.');
 }
 function startTravel(me, jobId, costItemId, coords, endPhotoId, notes) {
   if (!jobId) throw new Error('Missing job id.');
@@ -2411,6 +2441,10 @@ function startTravel(me, jobId, costItemId, coords, endPhotoId, notes) {
   // where to) or a break, there is nothing to photograph.
   if (!isTravelEntry_(open) && !isFuture_(open.startedAt)) requirePhoto_(endPhotoId, 'An end photo of the code you are leaving is required to start the drive.');
   assertWrite_(jobId);
+  assertDriveLine_(jobId, costItemId);
+  // The notes are what make a drive on a job with no travel line a drive.
+  notes = String(notes || '').trim();
+  if (!/^drive (to|back)\b/i.test(notes)) notes = 'Drive to ' + jobId + (notes ? ' · ' + notes : '');
   var e = openEntry_(me, jobId, costItemId, coords, notes, open);
   if (e) markNudged(e.id);
   return e;

@@ -1221,8 +1221,38 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   const rf = writes.find(w => w[0] === 'comment')[1];
   t('rolled out without the yard: the PM and Carl, with what was missing', [rf.targetId, rf.assignees, /^📋 Tyler B\. started at 26-1490 Courtney without the yard checks done before rolling out: Tarps checked and loaded · Material loaded for the crew\. Clocked in at \d+:\d\d[ap]\.$/.test(rf.message)],
     ['j9', [{ membershipId: 'm_dave' }, { membershipId: 'm_carl' }], true]);
+  // The review's findings (28 Oct): the phone cannot quiet the notice or add
+  // names to it; nothing carries a night into a drive; the drive's line is
+  // the job's own.
+  writes.length = 0;
+  sandbox.leftSite(ME, leftAt, null, { kind: 'out', quiet: true, alsoName: 'Somebody Else' });
+  const nq = writes.filter(w => w[0] === 'comment');
+  t('a plan cannot quiet the notice, or put a name in it', [nq.length, /^⏱ Tyler B\. left /.test(nq[0] && nq[0][1].message)], [1, true]);
+  writes.length = 0;
+  const longAgo = new Date(Date.now() - 13 * 3600e3).toISOString();
+  openNow = { ...ONSITE, startedAt: new Date(Date.now() - 20 * 3600e3).toISOString() };
+  t('no drive or move from over 12 hours ago', [/over 12 hours ago/.test(refusedBy(() => sandbox.leftSite(ME, longAgo, null, { kind: 'drive', jobId: 'j2', costItemId: 'tr2' }))),
+    /over 12 hours ago/.test(refusedBy(() => sandbox.leftSite(ME, longAgo, null, { kind: 'work', jobId: 'j2', costItemId: 'ci4', startPhotoId: 'ph' }))), writes.length], [true, true, 0]);
+  t('…out at that time is fine', refusedBy(() => sandbox.leftSite(ME, longAgo, null, { kind: 'out' })), '');
+  openNow = { ...ONSITE, notes: 'Drive back · end of the day · from 26-1490', startedAt: new Date(Date.now() - 15 * 3600e3).toISOString(), costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1' } } };
+  writes.length = 0;
+  t('a drive left running overnight (here on a job with no travel line) ends when it ended', [refusedBy(() => sandbox.leftSite(ME, longAgo, null, { kind: 'out' })), writes.find(w => w[0] === 'close')[1].endedAt], ['', longAgo]);
+  // The drive's line: the job's travel line, or one of its own when it has none.
+  const realFetch2 = fetchImpl;
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.job && q.job.costItems) return { code: 200, body: JSON.stringify({ job: { costItems: { nextPage: null, nodes: q.job.$.id === 'j2'
+      ? [ci('tr2', 'Travel Related Labor', '01GR-9', 'Clock In', 'CLOCK IN ITEMS'), ci('ci4', 'Roofing', '07TM-1', 'Clock In', 'CLOCK IN ITEMS')]
+      : [ci('ci5', 'Crew Labor', '01GR', 'Labor', null)] } } }) };
+    return realFetch2(url, opts); };
+  cacheStore = {};
+  openNow = ONSITE;
+  t('a drive on a work line of a job that has a travel line: refused', /travel line/.test(refusedBy(() => sandbox.startTravel(ME, 'j2', 'ci4', null, 'ph_e', 'Drive to 26-1045'))), true);
+  t('…on the travel line: fine', refusedBy(() => sandbox.startTravel(ME, 'j2', 'tr2', null, 'ph_e', 'Drive to 26-1045')), '');
+  openNow = ONSITE;
+  t('…on a line of a job without one: fine; on a line not on the job: refused', [refusedBy(() => sandbox.startTravel(ME, 'j3', 'ci5', null, 'ph_e', 'Drive to 26-1600')), /not on the job/.test(refusedBy(() => sandbox.startTravel(ME, 'j3', 'zz', null, 'ph_e', 'Drive to 26-1600')))], ['', true]);
+  fetchImpl = realFetch2;
   openNow = { ...ONSITE, costItem: { id: 'tr9', name: 'Travel Related Labor', costCode: { number: '01GR-9' } } };
-  t('on a drive there is nothing to get round', /A drive needs no end photo/.test(refusedBy(() => sandbox.leftSite(ME, leftAt, null, { kind: 'out' }))), true);
+  t('on a drive there is nothing to get round', /A drive needs no end photo/.test(refusedBy(() => sandbox.leftSite(ME, leftAt, null, { kind: 'drive', jobId: 'j2', costItemId: 'tr2' }))), true);
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
 
@@ -1270,6 +1300,9 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   made.length = 0;
   r = sandbox.withPartner_(ME, sandbox.clockIn, 'clockIn', ['j9', 'ci1', null, 'ph_s']);
   t('nobody to partner: the person\'s write only', [made.length, r.partner], [1, undefined]);
+  props.PARTNERS_JSON = '{}';
+  t('PARTNERS_JSON set to {} partners nobody', sandbox.partnersMap_(), {});
+  delete props.PARTNERS_JSON;
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
 

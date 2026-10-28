@@ -521,8 +521,11 @@ CLOCK IN ITEMS):
   break's block is).
 - **A job with no travel line** (CLOCK IN ITEMS from before 16 Oct, or none):
   the phone asks which of that job's lines to drive on — Carl's "then and
-  only then". The travel line is never on the ordinary code sheet, and never
-  picked by Start.
+  only then" — and the drive is known as one by its notes (*Drive to …*), on
+  the phone and in the API alike, so it still ends with the start photo on
+  site. The line must be the job's travel line when it has one, or one of its
+  own lines when it has none (`assertDriveLine_`). The travel line is never on
+  the ordinary code sheet, and never picked by Start.
 
 `apps-script/code-test.mjs` and `dev/clock-test.mjs` (the shop to a job and
 back, a job without the line) and `dev/closeout-test.mjs` (Start as the
@@ -554,8 +557,13 @@ time — and one call (`leftSite`) does the rest:
 
 A block still open from **a day before** puts *Still on the clock · Since Tue
 Oct 27 at Noah Webster — when did you leave?* at the top of the clock screen;
-the question then asks only the time, on the day it began. It is never a way
-round the start photo: the work after it still opens with one.
+the question then asks only the time, on the day it began — a drive left running
+overnight too (*When did the drive end?*). A block from a day before always
+ends on its day and carries nothing on: the move it was asked from is a plain
+clock-in at the next job, never a drive from last night, and the API refuses a
+drive or a move from a time over 12 hours ago. It is never a way round the
+start photo: the work after it still opens with one. Who else is named in the
+notice, or kept quiet, is the API's own (`withPartner_`), never the phone's.
 `apps-script/code-test.mjs` (out, the drive, the work, the notes, the comment,
 the refusals) and `dev/clock-test.mjs` (a move, the end of the day, on the
 road, yesterday's block) walk it. **Needs:** the Apps Script first (`leftSite`
@@ -584,11 +592,13 @@ tick on any line. Carl: **a hard stop**.
   clocked straight in there, or left the shop without the app (**Already left
   the shop? Say when** is on the sheet) — shows **Yard checks not done** with
   what is missing, and **Clock in · the PM and Carl are told** goes on to the
-  start photo while `rollForgot` posts one comment on the job assigned to its
-  PM and Carl (`LEFT_SITE_NOTIFY`), once per roof per day.
+  start photo; once the start photo has clocked in, `rollForgot` posts one
+  comment on the job assigned to its PM and Carl (`LEFT_SITE_NOTIFY`), once per
+  roof per day (kept across a reload). Backing out before the shutter tells
+  nobody.
 - Only for a site manager the board lets tick, and only off the board's own
   answer: a board that is down, a fallback job list, or a 403 holds nothing —
-  the clock is payroll. The lines are drawn from `checklist`, phase `yard`; a
+  the clock is payroll — nor a board copy gone stale. The lines are drawn from `checklist`, phase `yard`; a
   board without that phase holds only for Material loaded.
 
 `dev/clock-test.mjs` walks the hold, the ticks and the load, a move held and
@@ -613,8 +623,9 @@ the clock at 26-0890 · 04MA*. Alberto's half never fails Yahir's. The photo is
 on the job once, under Yahir's entry, so Alberto's block is marked nudged;
 Already left together sends one notice naming both. Who partners whom is
 `PARTNERS` in the code (Yahir's membership → Alberto's), and the Script
-Property `PARTNERS_JSON` (`{"<membership id>":"<membership id>"}`) replaces it
-without a release — Carl: "may change later". The README's old line, *"the
+Property `PARTNERS_JSON` (`{"<membership id>":"<membership id>"}`, `{}` for
+nobody) replaces it without a release — Carl: "may change later". A partner
+lookup that fails says nothing to the phone, which keeps the box as it was. The README's old line, *"the
 foreman crew block is read-only … clocking another person in is a payroll
 decision"*, still holds for everyone else; this is that decision, for one pair.
 `apps-script/code-test.mjs` (both off, the same block, Alberto elsewhere,

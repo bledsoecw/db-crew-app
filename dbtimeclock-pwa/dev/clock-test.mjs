@@ -462,7 +462,8 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   check('no travel line there: its own lines, asked', [await txt(page, '#sheetTitle'), await page.locator('[data-tcode]').count() > 0], ['No travel line at Lucas', true]);
   await tap(page, '[data-tcode="ci2"]', 300); await settle(page);
   const c = (await calls(page)).slice(-1)[0];
-  check('…and the drive goes on the line picked', [c[0], c[1], c[2], c[4], await page.evaluate(() => [S.job.id, onTravel()])], ['startTravel', 'j2', 'ci2', 'Drive to 26-1045 Lucas · from 26-0890 Noah Webster', ['j2', false]]);
+  check('…and the drive goes on the line picked — still a drive, by its notes', [c[0], c[1], c[2], c[4], await page.evaluate(() => [S.job.id, onTravel()])], ['startTravel', 'j2', 'ci2', 'Drive to 26-1045 Lucas · from 26-0890 Noah Webster', ['j2', true]]);
+  check('…so it shows the arrival, not the Stop sheet', [await page.locator('#travelStack').isVisible(), await page.locator('#runStack').isVisible()], [true, false]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -583,10 +584,10 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   check('at the roof, the yard not done: say so, then clock in', [await page.evaluate(() => [S.sheet, S.clockGate]), await txt(page, '#sheetTitle'), await page.locator('#sheetBody .trow .nm').count(), await txt(page, '#forgotGo')],
     [['forgot', null], 'Yard checks not done', 3, 'Clock in · the PM and Carl are told']);
   await tap(page, '#forgotGo', 500);
-  check('…told once, with what was missing', await page.evaluate(() => (window.__ROLL || []).map((r) => [r.jobId, r.missing.length])), [['j2', 3]]);
-  check('…and on to the start photo', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'start']);
+  check('…on to the start photo, nobody told yet', await page.evaluate(() => [S.tab, S.clockGate, (window.__ROLL || []).length]), ['cam', 'start', 0]);
   await shoot(page); await settle(page);
   check('…clocked in at the roof', (await calls(page)).slice(-1)[0].slice(0, 2), ['clockIn', 'j2']);
+  check('…and then told once, with what was missing', await page.evaluate(() => (window.__ROLL || []).map((r) => [r.jobId, r.missing.length])), [['j2', 3]]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -597,6 +598,88 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
   await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
   check('the crew leave the shop with the end photo, no hold', await page.evaluate(() => [S.sheet, S.clockGate]), [null, 'end-travel']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- the review's findings (28 Oct): nothing left half-done, no night as a drive ----
+{
+  // Yesterday's block, Already left on the camera of a move: out on that day,
+  // then the next job's clock-in from scratch — never a drive from last night.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_YESTERDAY=true;');
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
+  await tap(page, '#leftBtn', 500);
+  await page.locator('#leftTime').fill('16:30'); await page.waitForTimeout(200);
+  await tap(page, '#leftGo', 300);
+  await page.waitForFunction(() => S.sheet === 'codes' && document.body.style.pointerEvents === '', null, { timeout: 10000 });
+  let c = (await calls(page)).slice(-1)[0];
+  check('yesterday\'s block on a move: out on its day, and no drive', [c[0], c[2], await page.evaluate(() => [!!S.open, S.job.id, !!S.switching, S.pendingJob])], ['leftSite', 'out', [false, 'j2', false, null]]);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 500); await shoot(page); await settle(page);
+  c = (await calls(page)).slice(-1)[0];
+  check('…then a plain clock-in where they are', c.slice(0, 3), ['clockIn', 'j2', 'ci9']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Backing out of Where are you going? after Already left: the next
+  // clock-out is an ordinary one, not a leftSite that is refused.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
+  await tap(page, '#leftBtn', 500); await tap(page, '[data-leftat]:has-text("15 min ago")', 200); await tap(page, '#leftGo', 500);
+  await tap(page, '#sheetClose', 300);
+  check('out of Where are you going?: nothing carried', await page.evaluate(() => [S.sheet, S.switching, S.travelPick, !!S.open]), [null, null, false, true]);
+  await tap(page, '#stopBtn', 300); await tap(page, '#destOther', 0).catch(() => {});
+  await page.evaluate(() => closeSheet());
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopOut', 500); await shoot(page);
+  await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
+  check('…the clock-out is an ordinary one, with its photo', (await calls(page)).slice(-1)[0][0], 'clockOut');
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Another job's search backed out of: the next move is a move, with its camera.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500); await shoot(page);
+  await page.waitForFunction(() => S.sheet === 'dest', null, { timeout: 10000 });
+  await tap(page, '#destOther', 500); await tap(page, '#sheetClose', 300);
+  check('out of the drive\'s job search: nothing carried', await page.evaluate(() => [S.travelPick, S.switching]), [false, null]);
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
+  check('…a later move is a move: the end photo, not a drive', await page.evaluate(() => [S.clockGate, (window.__CLOCK || []).some((x) => x[0] === 'startTravel')]), ['end-switch', false]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Yard checks not done, backed out of; and the notice only once the clock is on.
+  const { ctx, page, errs } = await boot('window.__MOCK_YARD=true;window.__MOCK_OPEN_AGO=90;');
+  await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500); await shoot(page);
+  await page.waitForFunction(() => S.sheet === 'codes', null, { timeout: 10000 });
+  await tap(page, '.coderow:has-text("Crew Labor")', 500);
+  check('the move meets Yard checks not done', await page.evaluate(() => S.sheet), 'forgot');
+  await tap(page, '#sheetClose', 300);
+  check('…backed out: no half-move left', await page.evaluate(() => [S.pendingJob, S.moving, S.switching, S.job.id, S.gateCode]), [null, false, null, 'j_2841', null]);
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500); await shoot(page);
+  await page.waitForFunction(() => S.sheet === 'codes', null, { timeout: 10000 });
+  await tap(page, '.coderow:has-text("Crew Labor")', 500); await tap(page, '#forgotGo', 500);
+  check('…Clock in: not told yet, the camera first', await page.evaluate(() => [(window.__ROLL || []).length, S.clockGate]), [0, 'start']);
+  await tap(page, '#camBack', 400);
+  check('…backing out of the camera tells nobody', await page.evaluate(() => (window.__ROLL || []).length), 0);
+  await tap(page, '.coderow:has-text("Crew Labor")', 500); await shoot(page); await settle(page);
+  check('…the start photo clocks in, and then they are told, once', await page.evaluate(() => [(window.__CLOCK || []).slice(-1)[0][0], (window.__ROLL || []).map((r) => r.jobId)]), ['switchCode', ['j2']]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // The drive back never ended: the next morning asks when it did.
+  const { ctx, page, errs } = await boot('window.__MOCK_DRIVE_YESTERDAY=true;');
+  check('a drive from yesterday is still on the clock, and asked about', [await txt(page, '#clockNudge .nk'), await txt(page, '#arriveBtn')], ['Still on the clock', 'When did the drive end?']);
+  await tap(page, '#travelOut', 500);
+  check('…Clock out asks when, too', await page.evaluate(() => S.sheet), 'left');
+  await page.locator('#leftTime').fill('17:05'); await page.waitForTimeout(200); await tap(page, '#leftGo', 300);
+  await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
+  const c = (await calls(page)).slice(-1)[0];
+  const y = new Date(); y.setDate(y.getDate() - 1); y.setHours(17, 5, 0, 0);
+  check('…the drive ends at 5:05p yesterday', [c[0], c[2], Date.parse(c[1]) === y.getTime()], ['leftSite', 'out', true]);
   check('no page errors', errs, []);
   await ctx.close();
 }
