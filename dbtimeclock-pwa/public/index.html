@@ -1008,7 +1008,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.15 (2026-10-28)';
+var APP_BUILD = 'T2.21 (2026-10-28)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1420,7 +1420,7 @@ var S = {
 
 function savePrefs(){
   try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, push:pushState, jobPickedDay:S.jobPickedDay,
-                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs, shop:S.shop, partner:S.partner, partnerOn:S.partnerOn })); } catch(e){}
+                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs, shop:S.shop, partner:S.partner, partnerOn:S.partnerOn, rollTold:S.rollTold })); } catch(e){}
 }
 function loadPrefs(){
   try {
@@ -1439,6 +1439,8 @@ function loadPrefs(){
     S.talkHinted = !!p.talkHinted;
     if (p.shop && p.shop.id) S.shop = p.shop;
     if (p.partner && p.partner.name){ S.partner = p.partner; S.partnerOn = !!p.partnerOn; }
+    // Told once per roof per day (T2.20), across a reload; other days go.
+    if (p.rollTold) for (var rk in p.rollTold) if (rk.slice(-10) === isoLocal()) S.rollTold[rk] = true;
     // The device stays registered across launches; only this page's memory of
     // it is lost. Restoring it stops Diagnostics claiming "not checked
     // yet" about a phone that is already receiving nudges.
@@ -4230,6 +4232,7 @@ function forgotHtml(){
 function rollForgot(jobId){
   var x = rollOwed(jobId)[0];
   S.rollTold[jobId + '|' + isoLocal()] = true;
+  savePrefs();
   if (!x) return;
   apiCall('rollForgot', [jobId, jobLabelOf(x.v), x.miss.map(function(m){ return m.label; })], { lane: 'reads' }).catch(function(e){ failed('roll-out notice', e, true); });
 }
