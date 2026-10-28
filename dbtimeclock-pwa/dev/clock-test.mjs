@@ -467,6 +467,77 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await ctx.close();
 }
 
+// ---- T2.19: already left the job — say when, no photo ----
+{
+  // A move: the end photo of Webster is owed, but they are at Lucas now.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
+  check('the end-photo camera of a move offers the way round', [await page.evaluate(() => S.clockGate), await page.locator('#leftBtn').isVisible(), await txt(page, '#leftBtn')],
+    ['end-switch', true, 'Already left Noah Webster? Say when — no photo']);
+  await tap(page, '#leftBtn', 500);
+  check('…When did you leave? — only times after the block began', [await txt(page, '#sheetTitle'), await page.locator('[data-leftat] .bt').allTextContents(), await page.locator('#leftGo').isDisabled()],
+    ['When did you leave?', ['Just now', '15 min ago', '30 min ago', '45 min ago', '1 hour ago'], true]);
+  await tap(page, '[data-leftat]:has-text("30 min ago")', 200);
+  check('…a time picked, the button says it', /^I left at \d+:\d\d[ap]$/.test(await txt(page, '#leftGo')), true);
+  await tap(page, '#leftGo', 600);
+  check('…then the next job\'s codes, as a move goes', [await page.evaluate(() => [S.sheet, S.pendingJob && S.pendingJob.id, S.switching && !!S.switching.leftAt]), await txt(page, '#sheetTitle')], [['codes', 'j2', true], 'Code at Lucas']);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 600); await shoot(page); await settle(page);
+  let c = (await calls(page)).slice(-1)[0];
+  check('one call: Webster ends when they left, the drive to Lucas on its travel line, the work from now', [c[0], c[2], c[3], c[4], c[5], typeof c[6], c[7], await page.evaluate(() => [S.job.id, S.open.code.id])],
+    ['leftSite', 'work', 'j2', 'ci9', 'ci11', 'string', 'Drive to 26-1045 Lucas · from 26-0890 Noah Webster', ['j2', 'ci9']]);
+  check('…and it was 30 minutes ago', Math.round((Date.now() - Date.parse(c[1])) / 60000), 30);
+  // A code switch where you still stand has no way round.
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopSwitch', 500);
+  check('a code switch at the same job: no way round', [await page.evaluate(() => S.clockGate), await page.locator('#leftBtn').isVisible()], ['end-switch', false]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // The end of the day, gone home without clocking out.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopOut', 500);
+  await tap(page, '#leftBtn', 500);
+  await tap(page, '[data-leftat]:has-text("15 min ago")', 200);
+  await tap(page, '#leftGo', 300);
+  await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
+  const c = (await calls(page)).slice(-1)[0];
+  check('out: one call, at the time they left, and the site manager lands on the day log', [c[0], c[2], Math.round((Date.now() - Date.parse(c[1])) / 60000), await page.evaluate(() => [!!S.open, S.tab])], ['leftSite', 'out', 15, [false, 'log']]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // On the road already: the drive starts when they left.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
+  await tap(page, '#leftBtn', 500);
+  await tap(page, '[data-leftat]:has-text("45 min ago")', 200);
+  await tap(page, '#leftGo', 500);
+  check('the drive: Where are you going? next', await page.evaluate(() => S.sheet), 'dest');
+  await tap(page, '#destOther', 500); await tap(page, '.jobrow[data-job="j2"]', 300); await settle(page);
+  const c = (await calls(page)).slice(-1)[0];
+  check('…and the drive starts when they left, on that job\'s travel line', [c[0], c[2], c[3], c[4], Math.round((Date.now() - Date.parse(c[1])) / 60000), await page.evaluate(() => onTravel())],
+    ['leftSite', 'drive', 'j2', 'ci11', 45, true]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Still on the clock from yesterday: the clock screen asks, on that day.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_YESTERDAY=true;');
+  check('a block still open from yesterday is the first thing on the clock', [await txt(page, '#clockNudge .nk'), /^Since \w{3} \w{3} \d+ at Noah Webster — when did you leave\?/.test(await txt(page, '#clockNudge .nt'))], ['Still on the clock', true]);
+  await tap(page, '#clockNudge', 500);
+  check('…the question has no "minutes ago", only the time on that day', [await txt(page, '#sheetTitle'), await page.locator('[data-leftat]').count(), await page.locator('#leftTime').isVisible()], ['When did you leave?', 0, true]);
+  await page.locator('#leftTime').fill('16:30'); await page.waitForTimeout(200);
+  check('…I left at 4:30p', await txt(page, '#leftGo'), 'I left at 4:30p');
+  await tap(page, '#leftGo', 300);
+  await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
+  const c = (await calls(page)).slice(-1)[0];
+  const y = new Date(); y.setDate(y.getDate() - 1); y.setHours(16, 30, 0, 0);
+  check('…ended at 4:30p the day it began, and the day starts clean', [c[0], c[2], Date.parse(c[1]) === y.getTime(), await page.evaluate(() => [!!S.open, S.tab, document.getElementById('clockIn').classList.contains('hidden')])],
+    ['leftSite', 'out', true, [false, 'job', false]]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 await browser.close();
 let failed = 0;
 for (const r of results) {

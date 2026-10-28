@@ -250,6 +250,7 @@ button[disabled]{cursor:default}
 .stoprow .ss.sun{color:#ffd84d}
 /* T2.13: how long a break — four big tiles, the length in words a thumb can't miss */
 .brkgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.brkopt.on{border-color:var(--go);background:var(--total)}
 .brkopt{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);color:var(--fg)}
 .brkopt .bt{font:800 36px/1 var(--head);letter-spacing:-.5px}
 .brkopt .bs{color:var(--lab)}
@@ -796,6 +797,7 @@ button[disabled]{cursor:default}
         <button class="tagbtn" data-tag="after"><span class="tl">End</span><span class="tc tabular">00</span></button>
       </div>
       <button id="galBtn" class="galbtn"><span id="galIcon"></span><span id="galLbl">From my photos</span></button>
+      <button id="leftBtn" class="galbtn hidden" style="border-color:rgba(255,216,77,.55);color:#ffd84d"><span id="leftLbl">Already left this job? Say when — no photo</span></button>
       <div id="camCtl">
         <button class="sqbtn" id="modeBtn">
           <span id="modeIcon"></span><span class="sl" id="modeLbl">Video</span>
@@ -1399,6 +1401,7 @@ var S = {
   codesLoading:null,   // T2.5: the job whose code list a tap is waiting on
   shop:null,           // T2.17: the shop's job (25-0011 DB INTERNAL), named by the API on boot
   travelPick:false, travelTo:null,   // T2.18: a drive's job picked by search; one with no travel line
+  leftGate:null, leftPick:0,         // T2.19: the end photo they are getting round, the time picked
   apiLog:[], errs:[], recent:[]
 };
 
@@ -1989,6 +1992,11 @@ function renderCam(){
   $('galBtn').classList.toggle('hidden', !!gate);
   $('galIcon').innerHTML = ico('image', 20);
   $('galLbl').textContent = S.lang === 'es' ? 'De mis fotos' : 'From my photos';
+  // Already left (T2.19): only for an end photo of work — a move, the drive,
+  // the end of the day — never a code switch where you still stand.
+  var canLeave = !!gate && gate !== 'start' && !!S.open && !onTravel() && !onBreakNow() && (gate !== 'end-switch' || !!S.pendingJob);
+  $('leftBtn').classList.toggle('hidden', !canLeave);
+  if (canLeave) $('leftLbl').textContent = 'Already left ' + placeWord(S.job) + '? Say when — no photo';
   $('camBack').classList.toggle('hidden', !gate);
   $('noSkip').classList.toggle('hidden', !gate);
   if (gate && S.mode !== 'photo') S.mode = 'photo';
@@ -3095,9 +3103,14 @@ function nudgeItems(){
   nudgeVisits().forEach(function(v){
     items.push({ kind: 'unsigned', k: 'Site checks', at: 0, text: nudgeText(v), go: function(){ openChecks(v.checks.taskId); } });
   });
+  // Still on the clock from a day before (T2.19): first, above everything.
+  if (canTab('job') && leftOvernight()){
+    var b0 = new Date(S.open.startedAt);
+    items.push({ kind: 'left-open', k: 'Still on the clock', at: b0.getTime(), text: 'Since ' + dayWords(b0) + ' at ' + placeWord(S.job || S.open.job) + ' — when did you leave?', go: leftAsk });
+  }
   // Most pressing kind first; within a kind, the most recent moment first —
   // the roof you just left, before the one you handed over this morning.
-  var rank = { 'log-now': 0, 'unsigned': 1, 'log-late': 2 };
+  var rank = { 'left-open': -1, 'log-now': 0, 'unsigned': 1, 'log-late': 2 };
   items.sort(function(a, b){ return (rank[a.kind] - rank[b.kind]) || ((b.at || 0) - (a.at || 0)); });
   return items;
 }
@@ -3397,7 +3410,11 @@ function setTab(t){
   render();
 }
 
-function closeSheet(){ S.sheet = null; S.promptKind = null; $('scrim').classList.remove('on'); }
+function closeSheet(){
+  // Backing out of When did you leave? leaves the clock as it was (T2.19).
+  if (S.sheet === 'left' && S.leftGate){ if (S.pendingJob) cancelMove(); S.leftGate = null; S.leftPick = 0; }
+  S.sheet = null; S.promptKind = null; $('scrim').classList.remove('on');
+}
 
 function openSheet(kind, promptKind){
   S.sheet = kind; S.promptKind = promptKind || null;
@@ -3409,6 +3426,7 @@ function openSheet(kind, promptKind){
             : kind==='unsign' ? 'Unsign'
             : kind==='coWhy' ? co('whyTitle')
             : kind==='dest' ? 'Where are you going?'
+            : kind==='left' ? 'When did you leave?'
             : kind==='travelCodes' ? 'No travel line at ' + ((S.travelTo && (S.travelTo.job.customer || streetOf(S.travelTo.job.address))) || 'that job')
             : '';
   $('sheetTitle').textContent = title;
@@ -3421,6 +3439,7 @@ function openSheet(kind, promptKind){
                             : kind==='unsign' ? unsignHtml()
                             : kind==='coWhy' ? coWhyHtml()
                             : kind==='dest' ? destHtml()
+                            : kind==='left' ? leftHtml()
                             : kind==='travelCodes' ? travelCodesHtml()
                             : '';
   $('scrim').classList.add('on');
@@ -3587,6 +3606,11 @@ function wireSheet(){
   });
   if ($('destOther')) $('destOther').onclick = function(){ S.travelPick = true; openSheet('jobs'); };
   if ($('destBack')) $('destBack').onclick = function(){ startTravelTo(S.job, true); };
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-leftat]'), function(b){
+    b.onclick = function(){ S.leftPick = Number(b.getAttribute('data-leftat')); leftPaint(); };
+  });
+  var lt = $('leftTime'); if (lt) lt.oninput = lt.onchange = function(){ S.leftPick = leftFromInput(lt.value); leftPaint(); };
+  if ($('leftGo')) $('leftGo').onclick = leftGo;
   [].forEach.call(document.querySelectorAll('#sheetBody [data-tcode]'), function(b){
     b.onclick = function(){ var t = S.travelTo, c = t && t.codes.filter(function(x){ return x.id === b.getAttribute('data-tcode'); })[0]; if (c){ closeSheet(); commitTravel(t.job, c, t.back, t.codes); } };
   });
@@ -3785,7 +3809,12 @@ function commitStart(item, rec){
   if (!code || !target){ S.clockGate = null; clockFlowDone(); return; }
   busy(true, sw ? 'Switching…' : 'Clocking in…');
   withCoords(function(coords){
-    var call = sw ? apiCall('switchCode', [target.id, code.id, coords, sw.endPhotoId, rec.id])
+    // Already left the last job (T2.19): it ends when they left, the drive
+    // from then to now on this job's travel line, and the work from now.
+    var travel = sw && sw.leftAt ? S.codes.filter(isTravelCode)[0] : null;
+    var call = sw && sw.leftAt ? apiCall('leftSite', [sw.leftAt, coords, { kind: 'work', jobId: target.id, costItemId: code.id, travelItemId: travel ? travel.id : null, startPhotoId: rec.id,
+                                   notes: 'Drive to ' + jobWord(target) + (prev && prev.id !== target.id ? ' · from ' + (atShop() ? 'the shop' : jobWord(prev)) : '') }]).then(function(r){ if (r && r.entries) S.entries = r.entries; return r.open; })
+             : sw ? apiCall('switchCode', [target.id, code.id, coords, sw.endPhotoId, rec.id])
                   : apiCall('clockIn', [target.id, code.id, coords, rec.id]);
     call.then(function(open){
       S.open = open;
@@ -3969,7 +3998,9 @@ function commitTravel(job, code, back, codes){
                   : 'Drive to ' + jobWord(job) + (prev && prev.id !== job.id ? ' · from ' + (fromShop ? 'the shop' : jobWord(prev)) : '');
   busy(true, 'Starting the drive…');
   withCoords(function(coords){
-    apiCall('startTravel', [job.id, code.id, coords, sw.endPhotoId || '', note]).then(function(open){
+    var call = sw.leftAt ? apiCall('leftSite', [sw.leftAt, coords, { kind: 'drive', jobId: job.id, costItemId: code.id, notes: note }]).then(function(r){ if (r && r.entries) S.entries = r.entries; return r.open; })
+                         : apiCall('startTravel', [job.id, code.id, coords, sw.endPhotoId || '', note]);
+    call.then(function(open){
       S.open = open; S.switching = null; S.travelTo = null; S.pendingJob = null; S.moving = false;
       if (!back && (!prev || prev.id !== job.id)){
         S.job = job; S.dlJobId = job.id; S.jobPickedDay = isoLocal();
@@ -3997,6 +4028,82 @@ function doTravelOut(){
     }).catch(showErr).then(function(){ busy(false); landAfterOut(job); });
   });
 }
+/* =========================================================
+   ALREADY LEFT (T2.19, Carl 28 Oct 2026)
+   "If they leave a site without clocking out of the site and picture, and
+   try to clock into a new job, they have to snap a picture to clock out of
+   the job they left, but they aren't there anymore to take a meaningful
+   picture." On the end-photo camera (a move, the drive, the end of the
+   day): Already left? Say when. The block ends at that time with no photo,
+   its notes say so, and the PM and Carl get a comment on the job — then
+   whatever was under way carries on: the next job's code and start photo
+   (with the drive from when they left on its travel line), the drive, or
+   out for the day. A block still open from a day before asks the same
+   question on the clock screen, on the day it began.
+   ========================================================= */
+function leftOvernight(){ return !!(S.open && !onTravel() && !onBreakNow() && isoLocal(new Date(S.open.startedAt)) < isoLocal()); }
+function leftChoices(){
+  var began = Date.parse(S.open.startedAt), now = Date.now();
+  return [0, 15, 30, 45, 60, 120].map(function(m){ return now - m * 60000; }).filter(function(t){ return t > began + 60000; });
+}
+function leftFromInput(v){
+  var m = /^(\d\d):(\d\d)$/.exec(v || ''); if (!m || !S.open) return 0;
+  var d = new Date(S.open.startedAt);
+  if (!leftOvernight()) d = new Date();
+  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  return d.getTime();
+}
+function leftOk(t){ return !!S.open && t > Date.parse(S.open.startedAt) && t <= Date.now() + 60000; }
+function leftHtml(){
+  if (!S.open) return '';
+  var over = leftOvernight(), began = new Date(S.open.startedAt);
+  var h = '<div class="sheetpad" style="gap:12px">';
+  h += '<div class="body">' + esc(placeWord(S.job || S.open.job)) + ' · on ' + esc(codeLabel(S.open.code)) + ' since ' + esc((over ? dayWords(began) + ' ' : '') + clockLabel(began)) + '. ' +
+       (over ? 'Still open from ' + esc(dayWords(began)) + ' — pick the time you left that day.' : 'Pick when you left, as near as you can.') + '</div>';
+  if (!over) h += '<div class="brkgrid">' + leftChoices().map(function(t, i){
+    var m = Math.round((Date.now() - t) / 60000);
+    return '<button class="brkopt" style="min-height:76px" data-leftat="' + t + '"><span class="bt" style="font-size:20px">' + esc(m < 1 ? 'Just now' : m < 60 ? m + ' min ago' : (m / 60) + (m === 60 ? ' hour ago' : ' hours ago')) + '</span><span class="k9 bs">' + esc(clockLabel(new Date(t))) + '</span></button>';
+  }).join('') + '</div>';
+  h += '<label class="k" for="leftTime" style="margin-top:4px">' + (over ? 'The time you left' : 'Another time') + '</label>' +
+       '<input id="leftTime" type="time" style="min-height:64px;font:700 22px/1 var(--head);padding:0 14px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);color:var(--fg)">';
+  h += '<button class="btn btn-go" id="leftGo" style="min-height:76px" disabled>Pick a time</button>';
+  h += '<div class="fine" id="leftFine" style="text-align:center">No end photo. The entry says when you left, and your PM and Carl are told on the job.</div></div>';
+  return h;
+}
+function dayWords(d){ return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getDate(); }
+function leftPaint(){
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-leftat]'), function(b){ b.classList.toggle('on', Number(b.getAttribute('data-leftat')) === S.leftPick); });
+  var go = $('leftGo'); if (!go) return;
+  var ok = leftOk(S.leftPick);
+  go.disabled = !ok;
+  go.textContent = ok ? 'I left at ' + clockLabel(new Date(S.leftPick)) : S.leftPick ? 'Not while you were on it' : 'Pick a time';
+}
+function leftGo(){
+  var t = S.leftPick, gate = S.leftGate;
+  if (!leftOk(t)) return;
+  var iso = new Date(Math.min(t, Date.now())).toISOString();
+  S.leftGate = null; S.leftPick = 0;
+  closeSheet();
+  if (gate === 'end-travel'){ S.switching = { endPhotoId: '', leftAt: iso, at: Date.now() }; openSheet('dest'); return; }
+  if (gate === 'end-switch' && S.pendingJob){ S.switching = { endPhotoId: '', leftAt: iso, at: Date.now() }; nextCodes(); return; }
+  leftOut(iso, gate === 'overnight');
+}
+/* Out, at the time they left. */
+function leftOut(iso, overnight){
+  var job = S.job;
+  busy(true, 'Clocking out…');
+  withCoords(function(coords){
+    apiCall('leftSite', [iso, coords, { kind: 'out' }]).then(function(r){
+      S.open = null; S.switching = null;
+      if (r && r.entries) S.entries = r.entries;
+      savePrefs();
+      toast('Clocked out at ' + clockLabel(new Date(iso)) + ' · your PM and Carl are told');
+      return refreshDay();
+    }).catch(showErr).then(function(){ busy(false); if (overnight) setTab('job'); else landAfterOut(job); });
+  });
+}
+function leftAsk(){ if (!leftOvernight()) return; S.leftGate = 'overnight'; S.leftPick = 0; setTab('job'); openSheet('left'); }
+
 /* I'm here: the job's code and its start photo. Back at the shop at the end
    of the day: the shop's list. */
 function arriveHere(){
@@ -7207,6 +7314,7 @@ $('peopleStamp').onclick = function(){ peopleLoad(true); };
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
 $('shopBtn').onclick = function(){ shopStart(false); };
 $('arriveBtn').onclick = arriveHere;
+$('leftBtn').onclick = function(){ var g = S.clockGate; S.clockGate = null; S.leftGate = g; S.leftPick = 0; setTab('job'); openSheet('left'); };
 $('travelElse').onclick = function(){ beginEnd('end-travel'); };
 $('travelOut').onclick = function(){ beginEnd('end-out'); };
 $('shopOther').onclick = function(){ shopStart(true); };

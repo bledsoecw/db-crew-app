@@ -1175,5 +1175,50 @@ fetched = [];
 t('no area named -> refused here, never sent', [/Missing work area/.test(refusedBy(() => sandbox.coCloseArea(ALBERTO, 'j1', { notes: 'x' }, 'ca_8'))), fetched.length], [true, 0]);
 t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() => sandbox.coCloseArea(ME, 'j1', { area: 'gutters' }, 'ca_9'))), true);
 
+// ---- T2.19: left the site without clocking out ----
+// The block ends at the time they say they left, with no photo; its notes say
+// so; the job's PM and Carl get a comment. Then: out, the drive, or the work.
+{
+  props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+  const began = new Date(Date.now() - 4 * 3600e3).toISOString();
+  const ONSITE = { id: 'te5', startedAt: began, minutes: 240, notes: '', job: { id: 'j9', name: '261490 Courtney_Roof', number: '26-1490', location: {} }, costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1', name: 'Roofing' } } };
+  let openNow = ONSITE;
+  const writes = [];
+  const MEM2 = { 'Dave Elick': 'm_dave', 'Carl Bledsoe': 'm_carl' };
+  fetchImpl = route({ people: PEOPLE,
+    member: (q) => { const id = MEM2[q.organization.memberships.$.where[1]]; return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes: id ? [{ id }] : [] } } }) }; },
+    comment: (q) => { writes.push(['comment', q.createComment.$]); return { code: 200, body: '{"createComment":{"createdComment":{"id":"c9"}}}' }; },
+    entries: (q) => { const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } }); return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' && openNow ? [openNow] : [] } } }) }; } });
+  const realFetch = fetchImpl;
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.updateTimeEntry) { writes.push(['close', q.updateTimeEntry.$]); return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    if (q.createTimeEntry) { writes.push(['create', q.createTimeEntry.$]); return { code: 200, body: '{"createTimeEntry":{"createdTimeEntry":{"id":"te' + (writes.length + 10) + '"}}}' }; }
+    return realFetch(url, opts); };
+  const leftAt = new Date(Date.now() - 30 * 60e3).toISOString();
+  t('not before the block began', /before this block began/.test(refusedBy(() => sandbox.leftSite(ME, new Date(Date.parse(began) - 60e3).toISOString(), null, { kind: 'out' }))), true);
+  t('not in the future', /not happened yet/.test(refusedBy(() => sandbox.leftSite(ME, new Date(Date.now() + 10 * 60e3).toISOString(), null, { kind: 'out' }))), true);
+  t('…and nothing was written for either', writes.length, 0);
+  r = sandbox.leftSite(ME, leftAt, null, { kind: 'out' });
+  const close = writes.find(w => w[0] === 'close')[1], note = writes.find(w => w[0] === 'comment')[1];
+  t('out: the block ends at the time given, no photo, and its notes say so', [close.id, close.endedAt, /^No end photo — left the site\. Ended from DB Crew at \d+:\d\d[ap], said they left at \d+:\d\d[ap]\.$/.test(close.notes), r.open],
+    ['te5', leftAt, true, null]);
+  t('…and the PM and Carl get it on the job', [note.targetType, note.targetId, note.assignees, /^⏱ Tyler B\. left 26-1490 261490 Courtney_Roof without clocking out\. The block on 07TM-1 Roofing was ended at /.test(note.message)],
+    ['job', 'j9', [{ membershipId: 'm_dave' }, { membershipId: 'm_carl' }], true]);
+  writes.length = 0;
+  sandbox.leftSite(ME, leftAt, null, { kind: 'drive', jobId: 'j2', costItemId: 'tr2', notes: 'Drive to 26-1045 Lucas · from 26-1490 Courtney' });
+  const drv = writes.filter(w => w[0] === 'create').map(w => w[1]);
+  t('drive: the drive starts when they left, open, on the line named', drv.map(d => [d.jobId, d.costItemId, d.startedAt, d.endedAt || null, d.notes]), [['j2', 'tr2', leftAt, null, 'Drive to 26-1045 Lucas · from 26-1490 Courtney']]);
+  writes.length = 0;
+  t('work: needs the start photo', /start photo/.test(refusedBy(() => sandbox.leftSite(ME, leftAt, null, { kind: 'work', jobId: 'j2', costItemId: 'ci4', travelItemId: 'tr2' }))), true);
+  writes.length = 0;
+  sandbox.leftSite(ME, leftAt, null, { kind: 'work', jobId: 'j2', costItemId: 'ci4', travelItemId: 'tr2', startPhotoId: 'ph_s', notes: 'Drive to 26-1045 Lucas' });
+  const wk = writes.filter(w => w[0] === 'create').map(w => w[1]);
+  t('work: the drive from when they left until now, closed, then the work from now', [wk.length, wk[0].costItemId, wk[0].startedAt, !!wk[0].endedAt, wk[1].costItemId, wk[1].endedAt || null, wk[0].endedAt === wk[1].startedAt],
+    [2, 'tr2', leftAt, true, 'ci4', null, true]);
+  openNow = { ...ONSITE, costItem: { id: 'tr9', name: 'Travel Related Labor', costCode: { number: '01GR-9' } } };
+  t('on a drive there is nothing to get round', /A drive needs no end photo/.test(refusedBy(() => sandbox.leftSite(ME, leftAt, null, { kind: 'out' }))), true);
+  fetchImpl = () => ({ code: 200, body: '{}' });
+}
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

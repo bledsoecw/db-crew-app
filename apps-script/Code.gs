@@ -385,6 +385,7 @@ function doPost(e) {
       switchCode: switchCode,
       clockOut: clockOut,
       startTravel: startTravel,
+      leftSite: leftSite,
       startBreak: startBreak,
       endBreak: endBreak,
       getMyDay: getMyDay,
@@ -2232,6 +2233,89 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId) {
 // photo (clockOut). Which line is the travel line is the phone's pick from
 // getJobCodes (`travel`); on a job without one the phone asks which line to
 // drive on, Carl's "then and only then".
+// ---- left the site without clocking out (T2.19, Carl 28 Oct 2026) --------
+// "If they leave a site without clocking out of the site and picture, and try
+// to clock into a new job, they have to snap a picture to clock out of the
+// job they left, but they aren't there anymore to take a meaningful picture."
+// So the end photo has one way round it, and it is never quiet: the block
+// ends at the time they say they left (never before it began, never in the
+// future), with no photo; its notes say so; and a comment on the job is
+// assigned to the job's PM and to Carl (LEFT_SITE_NOTIFY, a Script Property
+// of names, overrides "Carl Bledsoe"). What comes next is the same call:
+//   kind 'out'   — that was the end of the day.
+//   kind 'drive' — the drive that began when they left, open, on the line
+//                  named (the next job's travel line): they are on the road.
+//   kind 'work'  — they are at the next job now: the drive from when they
+//                  left until now on its travel line when it has one (closed),
+//                  then the work, with its start photo, from now.
+// The same door serves an entry left open overnight: ended at the time given
+// on the day it began.
+var LEFT_SITE_NOTIFY = ['Carl Bledsoe'];
+function leftSiteNotify_() {
+  var v = '';
+  try { v = PropertiesService.getScriptProperties().getProperty('LEFT_SITE_NOTIFY') || ''; } catch (e) {}
+  var list = v.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  return list.length ? list : LEFT_SITE_NOTIFY;
+}
+/** A comment on the job, assigned to its PM and to the names given. Never
+ *  throws: the clock does not wait on a notice. */
+function noticeToPm_(jobId, message, extraNames) {
+  try {
+    var people = jobPeopleByIds_([jobId])[jobId] || { pm: '', reps: [] };
+    var who = assigneesFor_((people.pm ? [people.pm] : []).concat(extraNames || []));
+    var args = { targetType: 'job', targetId: jobId, message: message };
+    if (who.assignees.length) args.assignees = who.assignees;
+    var d = pave({ createComment: { '$': args, createdComment: { id: {} } } });
+    return { ok: true, id: (((d.createComment || {}).createdComment) || {}).id || null, assigned: who.assigned };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}
+function leftSite(me, leftAt, coords, plan) {
+  plan = plan || {};
+  var open = openEntryFor_(me.userId);
+  if (!open || isFuture_(open.startedAt)) throw new Error('You are not on the clock at a job.');
+  if (isTravelEntry_(open)) throw new Error('A drive needs no end photo — use the buttons on the drive.');
+  var at = Date.parse(leftAt || ''), began = Date.parse(open.startedAt), now = Date.now();
+  if (isNaN(at)) throw new Error('Say when you left.');
+  if (at <= began) throw new Error('That is before this block began (' + clockWords_(new Date(began)) + ').');
+  if (at > now + 60000) throw new Error('That time has not happened yet.');
+  var kind = plan.kind === 'drive' || plan.kind === 'work' ? plan.kind : 'out';
+  if (kind !== 'out' && (!plan.jobId || !plan.costItemId)) throw new Error('Missing the next job or its line.');
+  if (kind === 'work') requirePhoto_(plan.startPhotoId, 'A start photo is required to start the next code.');
+  assertWrite_(open.job && open.job.id);
+  if (kind !== 'out') assertWrite_(plan.jobId);
+  var leftIso = new Date(Math.min(at, now)).toISOString();
+  var label = open.job ? [open.job.number, open.job.name].filter(Boolean).join(' ') : 'the job';
+  var said = 'No end photo — left the site. Ended from DB Crew at ' + clockWords_(new Date(now)) + ', said they left at ' + clockWords_(new Date(at)) + '.';
+  pave({ updateTimeEntry: { '$': { id: open.id, endedAt: leftIso, notes: [open.notes, said].filter(Boolean).join(' · ').slice(0, 500) } } });
+  var create = function (args) {
+    var d = pave({ createTimeEntry: { '$': args, createdTimeEntry: { id: {} } } });
+    var id = (((d.createTimeEntry || {}).createdTimeEntry) || {}).id;
+    if (!id) throw new Error('createTimeEntry failed: ' + JSON.stringify(d).slice(0, 200));
+    return id;
+  };
+  var entry = function (more) { var o = { organizationId: ORG, userId: me.userId, type: ENTRY_TYPE }; for (var k in more) o[k] = more[k]; return o; };
+  var sc = coordArg_(coords);
+  if (kind === 'drive') {
+    var a = entry({ jobId: plan.jobId, costItemId: plan.costItemId, startedAt: leftIso });
+    if (plan.notes) a.notes = String(plan.notes).slice(0, 500);
+    markNudged(create(a));
+  } else if (kind === 'work') {
+    var nowIso = new Date(now).toISOString();
+    if (plan.travelItemId && Date.parse(nowIso) - Date.parse(leftIso) >= 60000) {
+      var t = entry({ jobId: plan.jobId, costItemId: plan.travelItemId, startedAt: leftIso, endedAt: nowIso });
+      if (plan.notes) t.notes = String(plan.notes).slice(0, 500);
+      create(t);
+    }
+    var w = entry({ jobId: plan.jobId, costItemId: plan.costItemId, startedAt: nowIso });
+    if (sc) w.startCoordinates = sc;
+    create(w);
+  }
+  var notice = noticeToPm_(open.job && open.job.id,
+    '⏱ ' + me.name + ' left ' + label + ' without clocking out. The block on ' + ((open.code && [open.code.number, open.code.name].filter(Boolean).join(' ')) || 'the job') +
+    ' was ended at ' + clockWords_(new Date(at)) + ', the time given, from DB Crew at ' + clockWords_(new Date(now)) + ' — no end photo.', leftSiteNotify_());
+  return { ok: true, closed: open.id, endedAt: leftIso, open: kind === 'out' ? null : openEntryFor_(me.userId), notice: notice, entries: getMyDay(me) };
+}
+
 function isTravelEntry_(open) {
   return !!(open && !isFuture_(open.startedAt) && open.code && /travel/i.test(open.code.name || ''));
 }

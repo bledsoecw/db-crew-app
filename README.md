@@ -530,6 +530,37 @@ arrival) walk it. **Needs:** the Apps Script first (`startTravel` is a new
 door, and the switch and the clock-out from a drive are refused by an older
 one), then `firebase deploy --only hosting`.
 
+**Already left the job** (T2.19, Carl 28 Oct 2026 — *"if they leave a site
+without clocking out of the site and picture, and try to clock into a new job,
+they have to snap a picture to clock out of the job they left, but they aren't
+there anymore to take a meaningful picture"*). The end-photo camera of a move,
+a drive or the end of the day carries one amber line: **Already left Noah
+Webster? Say when — no photo**. (Never on a code switch at the same job: you
+are standing there.) It asks **When did you leave?** — Just now, 15, 30, 45
+minutes or an hour or two ago, only times after the block began, or another
+time — and one call (`leftSite`) does the rest:
+
+- the block ends at that time, with no photo, and its notes say *No end photo
+  — left the site. Ended from DB Crew at 4:12p, said they left at 3:45p.*;
+- a comment on that job is assigned to its **PM and Carl** (Carl's call;
+  `LEFT_SITE_NOTIFY`, a Script Property of names, changes who besides the PM):
+  *⏱ Tyler Mohr left 26-1490 Courtney_Roof without clocking out. The block on
+  07TM-1 Roofing was ended at 3:45p, the time given, from DB Crew at 4:12p — no
+  end photo.*;
+- then what was under way carries on. A move: the next job's code and its
+  start photo, with **the drive from when they left until now on that job's
+  travel line**. The drive: it starts when they left. The end of the day: out,
+  at that time.
+
+A block still open from **a day before** puts *Still on the clock · Since Tue
+Oct 27 at Noah Webster — when did you leave?* at the top of the clock screen;
+the question then asks only the time, on the day it began. It is never a way
+round the start photo: the work after it still opens with one.
+`apps-script/code-test.mjs` (out, the drive, the work, the notes, the comment,
+the refusals) and `dev/clock-test.mjs` (a move, the end of the day, on the
+road, yesterday's block) walk it. **Needs:** the Apps Script first (`leftSite`
+is a new door), then `firebase deploy --only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

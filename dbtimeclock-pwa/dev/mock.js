@@ -240,6 +240,14 @@
     { id: 'e2', startedAt: new Date(t0 + 42 * 60000).toISOString(), endedAt: new Date(t0 + 180 * 60000).toISOString(), minutes: 138, job: JOB, code: code('ci9') }
   ];
   if (FX.entries) ST.entries = FX.entries({ job: JOB, code: code, t0: t0 });
+  // __MOCK_OPEN_AGO (minutes): on 04MA at Webster since then. __MOCK_OPEN_YESTERDAY:
+  // since 7:02a yesterday — a block nobody clocked out of (T2.19).
+  if (window.__MOCK_OPEN_AGO || window.__MOCK_OPEN_YESTERDAY) {
+    var ob = new Date(Date.now() - (window.__MOCK_OPEN_AGO || 0) * 60000);
+    if (window.__MOCK_OPEN_YESTERDAY) { ob = new Date(); ob.setDate(ob.getDate() - 1); ob.setHours(7, 2, 0, 0); }
+    ST.open = { id: 'oy', startedAt: ob.toISOString(), endedAt: null, minutes: 0, notes: '', job: JOB, code: code('ci9') };
+    ST.entries = [ST.open].concat(ST.entries);
+  }
   // __MOCK_KEEP_CLOCK: the clock lives in JobTread, so a reload finds it
   // where it was — since T2.13 a break is an open entry there, not
   // something only the phone remembers.
@@ -455,6 +463,34 @@
       if (!endPhotoId && !HANDLERS.__driving()) throw new Error('PHOTO_REQUIRED: An end photo of the code you are leaving is required to switch.');
       if (!startPhotoId) throw new Error('PHOTO_REQUIRED: A start photo is required to start the next code.');
       return HANDLERS.__open(jobId, costItemId);
+    },
+    // Left the site without clocking out (T2.19): the block ends at the time
+    // given, no photo; then out, the drive from then, or the work from now
+    // (with the drive from then to now on the travel line named).
+    leftSite: function (leftAt, coords, plan) {
+      plan = plan || {};
+      (window.__CLOCK = window.__CLOCK || []).push(['leftSite', leftAt, plan.kind || 'out', plan.jobId || null, plan.costItemId || null, plan.travelItemId || null, plan.startPhotoId || null, plan.notes || '']);
+      if (!ST.open || Date.parse(ST.open.startedAt) > Date.now()) throw new Error('You are not on the clock at a job.');
+      if (HANDLERS.__driving()) throw new Error('A drive needs no end photo — use the buttons on the drive.');
+      var at = Date.parse(leftAt);
+      if (!(at > Date.parse(ST.open.startedAt))) throw new Error('That is before this block began.');
+      if (at > Date.now() + 60000) throw new Error('That time has not happened yet.');
+      if (plan.kind === 'work' && !plan.startPhotoId) throw new Error('PHOTO_REQUIRED: A start photo is required to start the next code.');
+      ST.open.endedAt = new Date(at).toISOString();
+      ST.open.notes = 'No end photo — left the site.';
+      ST.open = null;
+      var add = function (jobId, costItemId, from, to, notes) {
+        var e = { id: 'open' + (++ST.n), startedAt: from, endedAt: to, minutes: 0, notes: notes || '', job: jobById(jobId) || JOB, code: code(costItemId) };
+        ST.entries = [e].concat(ST.entries);
+        return e;
+      };
+      if (plan.kind === 'drive') ST.open = add(plan.jobId, plan.costItemId, new Date(at).toISOString(), null, plan.notes);
+      if (plan.kind === 'work') {
+        var now = new Date().toISOString();
+        if (plan.travelItemId) add(plan.jobId, plan.travelItemId, new Date(at).toISOString(), now, plan.notes);
+        ST.open = add(plan.jobId, plan.costItemId, now, null);
+      }
+      return { ok: true, open: ST.open, entries: ST.entries };
     },
     // The drive (T2.18): from work it carries the end photo of what is left;
     // from a drive nothing. Opens on the line named, saying where to.
