@@ -432,6 +432,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await tap(page, '#arriveBtn', 600);
   check('I\'m here: no end photo, the job\'s codes — the travel line is not one of them', [await page.evaluate(() => [S.tab, S.clockGate, S.sheet]), (await page.locator('.coderow .cname').allTextContents()).includes('Travel Related Labor'), await page.locator('.coderow').count()],
     [['job', null, 'codes'], false, 10]);
+  check('…asked as the start of the work, not a switch (T2.22)', await txt(page, '#sheetTitle'), 'What are you doing?');
   await tap(page, '.coderow:has-text("Masonry Labor")', 600);
   check('…the start photo on site', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'start']);
   await shoot(page); await settle(page);

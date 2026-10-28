@@ -484,6 +484,15 @@ const allErrs = [];
   }), ['ci4', 'ci3', null, 'ci2']);
   // Someone else's repairs still only open.
   check('repairs that are not yours keep the plain opener', await page.evaluate(() => { const j = Object.assign({}, coJobById('co-okafor'), { mine: false }); return /data-costart=/.test(coQueueCard(j)); }), false);
+  // T2.22: driving there is not having started — the card still reads Start.
+  check('driving to a repairs job, its card reads Start, not Continue', await page.evaluate(() => {
+    const keep = { open: S.open, job: S.job };
+    S.job = coClockJob(coJobById('co-okafor'));
+    S.open = { id: 'drv', startedAt: new Date(Date.now() - 60000).toISOString(), notes: 'Drive to 26-0412 Okafor', code: { id: 'ci11', name: 'Travel Related Labor', number: '01GR-9', travel: true } };
+    const m = /data-costart="co-okafor"><span class="a1">([^<]*)</.exec(coQueueCard(coJobById('co-okafor')));
+    S.open = keep.open; S.job = keep.job;
+    return m && m[1];
+  }), 'Empezar');
 
   // T2.18: driving to the next job, its Start is the arrival — no end photo
   // for the drive, the job's code, its start photo.

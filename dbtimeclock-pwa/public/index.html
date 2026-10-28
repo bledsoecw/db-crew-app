@@ -1008,7 +1008,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.21 (2026-10-28)';
+var APP_BUILD = 'T2.22 (2026-10-28)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -3448,7 +3448,7 @@ function closeSheet(){
 
 function openSheet(kind, promptKind){
   S.sheet = kind; S.promptKind = promptKind || null;
-  var title = kind==='codes' ? (S.pendingJob ? 'Code at ' + (S.pendingJob.customer || streetOf(S.pendingJob.address) || 'the next job') : S.open ? 'Switch code' : 'What are you doing?')
+  var title = kind==='codes' ? (S.pendingJob ? 'Code at ' + (S.pendingJob.customer || streetOf(S.pendingJob.address) || 'the next job') : S.open && !onTravel() ? 'Switch code' : 'What are you doing?')
             : kind==='jobs' ? (S.open ? 'Move to which job?' : 'Pick a job')
             : kind==='stop' ? 'Stop the clock'
             : kind==='break' ? 'How long a break?'
@@ -6741,7 +6741,7 @@ function coQueueCard(j){
     // video sent Yahir to the Clock tab first). Someone else's repairs still
     // only open, and the job screen offers the clock from there.
     var nRep = (j.openPunchCount || '') + ' ' + co('repairs').toLowerCase();
-    if (k === 'repairs' && j.mine && canTab('job')){ var here = S.open && S.job && S.job.id === j.id;
+    if (k === 'repairs' && j.mine && canTab('job')){ var here = S.open && S.job && S.job.id === j.id && !onTravel();   // driving here is not started yet (T2.22)
       act = '<button class="jact warn" data-costart="' + esc(j.id) + '"><span class="a1">' + esc(here ? co('cont') : co('start')) + '</span><span class="a2">' + esc(nRep) + '</span></button>'; }
     else if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + esc(nRep) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
     else { var done = v ? coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup') : 0;

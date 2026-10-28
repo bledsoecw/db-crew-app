@@ -635,6 +635,17 @@ already left together, nobody partnered) and `dev/closeout-test.mjs` (the box,
 the flag, box off, Alberto elsewhere) walk it. **Needs:** the Apps Script, then
 `firebase deploy --only hosting`.
 
+**Two words on the drive, found re-recording the training video** (T2.22,
+28 Oct 2026). Driving to a repair job, its Close Out card read **Continue**
+(the clock was on that job, on its travel line), so the arrival looked like
+work already begun; it reads **Start** until the start photo there.
+Arriving with I'm here, the code sheet was titled **Switch code**; it reads
+**What are you doing?**, as at a clock-in, because the drive is not a code
+being switched away from. Words only: the taps and the writes are as before.
+`dev/closeout-test.mjs` and `dev/clock-test.mjs` carry a check each.
+**Needs:** `firebase deploy --only hosting` (no Apps Script change; the API
+still says T2.21).
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
