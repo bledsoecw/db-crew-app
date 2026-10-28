@@ -65,7 +65,7 @@ regeneration, Linux only.
   to a flow the video walks, or a change to the checklist the board sends is a
   re-record. `node record.mjs debug` shows what broke.
 - **Re-recorded for T2.16–T2.22 (28 Oct 2026)**, off Carl's notes from
-  watching the first cut: about twenty-three minutes, nineteen chapters.
+  watching the first cut: about twenty-two minutes, nineteen chapters.
   Tyler's day now starts **At the shop** (Morning Clock-In), a new chapter 4
   walks leaving the shop (Stop → Leave for the job → Before you roll out with
   the yard lines → end photo → Where are you going? → the drive on Travel

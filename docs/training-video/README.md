@@ -1,6 +1,6 @@
 # Training video: DB Crew for the crews
 
-A narrated, captioned screen recording (about twenty-three minutes, nineteen
+A narrated, captioned screen recording (about twenty-two minutes, nineteen
 chapters in four parts) that walks the crews through the app on a phone, and
 then through the war-room TV:
 
@@ -128,7 +128,7 @@ node photos.mjs                # the camera's picture and the photos (once)
 node record.mjs tts            # speak the narration (cached by wording)
 /tmp/crewvideo/venv/bin/python -I check-voice.py "$VIDEO_WORK/lines.json" "$VIDEO_WORK/voice-am_michael"
 node record.mjs debug          # optional: a fast walk, screenshots in $VIDEO_WORK/debug
-node record.mjs record         # the take, about twenty-three minutes
+node record.mjs record         # the take, about twenty-two minutes
 node assemble.mjs "$VIDEO_WORK/out"
 ```
 
