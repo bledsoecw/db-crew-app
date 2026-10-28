@@ -400,6 +400,24 @@ editor, then `firebase deploy --only hosting`. In the other order a phone on
 the new build asks for a 30-minute break and gets the old one (the block
 closes, Back to work), which is safe, just not the new thing.
 
+**Two things found filming the crews' training video** (T2.14, 28 Oct 2026):
+
+- **Stop takes one tap in Close Out.** A problem's note and a gutters or
+  siding note re-drew the screen the moment the box lost focus (to put the
+  English under it). A press on any button takes the focus first, so the
+  screen was re-drawn under the finger and the tap went nowhere: Record kept
+  listening after Stop, and Save report or Not fixed right after typing
+  needed a second tap. The English and the re-draw now wait a quarter of a
+  second, for the tap to land (`coAfterTap`). `dev/closeout-test.mjs` presses
+  Stop the way a finger does, with new words in the box, and fails on the old
+  code.
+- **A repair's due day reads as a day.** The repair screen printed CheckOut's
+  `endDate` as it arrived — *Due 2026-08-06* — under What to do. It goes
+  through `coDay` now, like every other day on Close Out: *Due Thu, Aug 6*,
+  or *jue, 6 ago* in Spanish.
+
+**Needs:** `firebase deploy --only hosting` only.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

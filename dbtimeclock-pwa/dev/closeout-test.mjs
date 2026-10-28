@@ -469,6 +469,25 @@ const allErrs = [];
   await page.locator('#coAreaNote').blur();
   await page.waitForTimeout(700);
   check('the note gets its English for the office', await page.evaluate(() => coVisit('co-mason').areas.gutters.noteEn), 'EN: El bajante del noreste está flojo');
+  // T2.14: leaving the note box re-draws the screen, and the tap that left it
+  // still has to land — one tap on Stop stops the recording.
+  await page.evaluate(() => { window.SpeechRecognition = function(){ const r = this; r.start = () => { window.__srLive = r; }; r.stop = () => setTimeout(() => r.onend && r.onend(), 10); }; });
+  await tap(page, '#coAreaRec', 300);
+  check('Record listens, with the note box focused', await page.evaluate(() => [dlRec.want, document.activeElement && document.activeElement.id]), [true, 'coAreaNote']);
+  // New words, so leaving the box has a new English note to draw.
+  await page.evaluate(() => { const row = [{ transcript: 'and the elbow is loose' }]; row.isFinal = true; window.__srLive.onresult({ resultIndex: 0, results: [row] }); });
+  await page.waitForTimeout(200);
+  {
+    // A finger, not a script: press, a moment, release.
+    const b = await page.locator('#coAreaRec').boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down(); await page.waitForTimeout(90); await page.mouse.up();
+  }
+  await page.waitForTimeout(500);
+  check('one tap on Stop stops it, though the press took the focus from the note box', await page.evaluate(() => dlRec.want), false);
+  await page.locator('#coAreaNote').fill('El bajante del noreste está flojo');   // the note the send checks below expect
+  await page.locator('#coAreaNote').blur();
+  await page.waitForTimeout(700);
   await tap(page, '#coAreaReport', 500);
   check('a problem on the gutters is filed against them', await page.evaluate(() => { const r = coVisit('co-mason').reports[CO.reportIdx]; return [CO.screen, r.area, document.getElementById('coTitle').textContent]; }), ['report', 'gutters', 'Canales']);
   await addPhoto(page, '#coBody [data-cophoto]');

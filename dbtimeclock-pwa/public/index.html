@@ -988,7 +988,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.13 (2026-10-26)';
+var APP_BUILD = 'T2.14 (2026-10-28)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -6570,7 +6570,7 @@ function coRepairHtml(){
   var tb = JSON.stringify({ kind: 'before', jobId: CO.jobId, taskId: t.id }), ta = JSON.stringify({ kind: 'after', jobId: CO.jobId, taskId: t.id }), b = v.before[t.id], a = v.after[t.id], h = '';
   h += '<div class="rvcard" style="margin-top:4px"><div class="rvstory"><span class="rk">' + esc(co('whatToDo')) + ' · ' + esc(co('whatToDoSub')) + '</span><span class="rt">' + esc(es(t.description) || es(coTaskName(t))) + '</span>' +
        (S.lang === 'es' && CO.trans[t.description || t.name] ? '<span class="small-note" style="font:400 13px/1.4 var(--sans);color:var(--mut)">' + esc(co('autoTranslated')) + '</span>' : '') + '</div>' +
-       (t.endDate ? '<div class="rvrow"><span class="rk">' + esc(co('assignedBy')) + '</span><span class="rv">' + esc(t.endDate) + '</span></div>' : '') + '</div>';
+       (t.endDate ? '<div class="rvrow"><span class="rk">' + esc(co('assignedBy')) + '</span><span class="rv">' + esc(coDay(t.endDate)) + '</span></div>' : '') + '</div>';
   h += '<div class="photos" style="margin-top:14px">' +
        (b ? '<button class="phbig" style="background-image:url(' + b.thumb + ')" data-corm="' + esc(b.id) + '" data-target=\'' + esc(tb) + '\'><span class="tag">' + esc(co('before')) + '</span>' + coBigSrc(b) + '</button>'
           : '<button class="phbig empty" data-cophoto=\'' + esc(tb) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('before')) + '</span><span class="s">' + esc(co('beforeSub')) + '</span></button>') +
@@ -6633,6 +6633,15 @@ function coAreaHtml(){
   h += '<div class="foot">' + esc(can ? coWhatNext(j, reps.some(function(x){ return !x.r.fixed; })) : co('missing') + ': ' + co('photo').toLowerCase()) + '</div>';
   return h;
 }
+
+/* Leaving a note box re-draws the screen — the English note appears under
+   it — but the tap that left the box has to land first (T2.14, found filming
+   the crews' training video). The box loses focus on the press, so a re-draw
+   right there swapped Stop, Save report or Not fixed for a fresh copy before
+   the finger came up, the click went nowhere, and the button needed a second
+   tap: Record kept listening after Stop. The English and the re-draw now
+   wait for the click (both re-draw, so both wait). */
+function coAfterTap(fn){ setTimeout(fn, 260); }
 
 /* ---- drawing the one view ---- */
 var CO_HEADS = { job: 'inspection', area: 'inspection', inspect: 'inspection', cleanup: 'cleanup', problems: 'problems', photos: 'visitPhotos', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
@@ -6760,14 +6769,14 @@ function coWire(){
   var nr = $('coNewReport'); if (nr) nr.onclick = function(){ coStartReport('', 'problems'); };
   var ty = $('coType'); if (ty) ty.onclick = function(){ var ta = $('coNote'); if (ta) ta.focus(); };
   var note = $('coNote'); if (note){ note.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.note = note.value; coPersist(); autoGrow(note); var s = $('coSaveReport'); if (s){ var can = (r.photos || []).length > 0 && !!r.note.trim(); s.disabled = !can; } };
-    note.onblur = function(){ coEnglishFor(coVisit(CO.jobId), CO.reportIdx); coRender(); }; autoGrow(note); }
+    note.onblur = function(){ var v = coVisit(CO.jobId), i = CO.reportIdx; coAfterTap(function(){ coEnglishFor(v, i); coRender(); }); }; autoGrow(note); }
   var wt = $('coWhereText'); if (wt) wt.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.locationText = wt.value; coLocationWords(r); coPersist(); };
   var ln = $('coListNote'); if (ln) ln.oninput = function(){ var v = coVisit(CO.jobId); v.notes[ln.getAttribute('data-notes')] = ln.value; coPersist(); };
   var rn = $('coRepairNote'); if (rn) rn.oninput = function(){ var v = coVisit(CO.jobId); v.repairNote[CO.taskId] = rn.value; coPersist(); };
   var sv = $('coSaveReport'); if (sv) sv.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || !(r.photos || []).length || !r.note.trim()) return; r.saved = true; if (dlRec.want) dlRecStop(); coEnglishFor(v, CO.reportIdx); coPersist(); toast(co('reportSaved')); coBack(); };
   var dr = $('coDeleteReport'); if (dr) dr.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || r.sentAt) return; (r.photos || []).forEach(function(p){ coPhotoDel(p.id); }); v.reports.splice(CO.reportIdx, 1); if (r.itemKey){ var w = r.itemKey.indexOf('22PdEQhB') === 0 ? 'cleanup' : 'inspection'; } coPersist(); coBack(); };
   var an = $('coAreaNote'); if (an){ an.oninput = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); av.note = an.value; coPersist(); autoGrow(an); };
-    an.onblur = function(){ coToEnglish(coAreaV(coVisit(CO.jobId), CO.areaKey)); coRender(); }; autoGrow(an); }
+    an.onblur = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); coAfterTap(function(){ coToEnglish(av); coRender(); }); }; autoGrow(an); }
   var aty = $('coAreaType'); if (aty) aty.onclick = function(){ var ta = $('coAreaNote'); if (ta) ta.focus(); };
   var arp = $('coAreaReport'); if (arp) arp.onclick = function(){ coStartReport('', 'area', CO.areaKey); };
   var asd = $('coAreaSend'); if (asd) asd.onclick = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); if (!av.photos.length || CO.areaSending) return; coSendArea(CO.jobId, CO.areaKey); };
