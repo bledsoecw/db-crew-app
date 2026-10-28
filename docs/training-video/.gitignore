@@ -1,0 +1,4 @@
+# The take, the voice cache and the finished video live in VIDEO_WORK, never here.
+.video-work/
+# A symlink to a Playwright install, made by hand per machine (README.md).
+node_modules

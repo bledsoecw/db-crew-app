@@ -14,6 +14,12 @@
     writable: false, configurable: false
   });
 
+  // A fixture set handed in from outside — the training video's
+  // (docs/training-video/fixtures.js), injected before this file. Anything it
+  // names replaces the demo data below; anything it leaves out stays as it is.
+  // Unset, this harness behaves exactly as it always has.
+  var FX = window.__MOCK_FIX || {};
+
   // A session token the app will accept: it only parses `exp` out of the payload.
   var payload = btoa(JSON.stringify({ email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', exp: 4102444800 }))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -27,7 +33,9 @@
     customer: 'Noah Webster', address: '408 Euclid Ave, Van Wert, OH 45891, USA'
   };
   var LUCAS = { id: 'j2', name: '261045 Lucas_Roof', number: '26-1045', customer: 'Lucas', address: '812 S Washington St, Van Wert, OH 45891, USA' };
-  function jobById(id) { return [JOB, LUCAS].filter(function (j) { return j.id === id; })[0] || null; }
+  if (FX.job) JOB = FX.job;
+  if (FX.job2) LUCAS = FX.job2;
+  function jobById(id) { return (FX.jobs || [JOB, LUCAS]).filter(function (j) { return j.id === id; })[0] || null; }
   // __MOCK_TWO_TODAY: Lucas is booked today as well, and the clock opens with
   // no job remembered — the two-roof morning.
   var TWO = !!window.__MOCK_TWO_TODAY;
@@ -43,7 +51,18 @@
     { id: 'ci9', name: 'Masonry Labor', number: '04MA', codeName: 'Masonry' },
     { id: 'ci10', name: 'Sales On-Site Support', number: '99TM-6', codeName: 'Sales On-Site Support' }
   ];
-  function code(id) { return CODES.filter(function (c) { return c.id === id; })[0]; }
+  if (FX.codes) CODES = FX.codes;
+  // FX.codesPerJob: every job gets its own cost-item ids ('ci5@co-fair'), as
+  // in JobTread, where a cost item belongs to one job's budget — so a code
+  // running at one job is not "Running" on the next job's list.
+  function codesFor(jobId) {
+    if (!FX.codesPerJob || !jobId) return CODES;
+    return CODES.map(function (c) { return Object.assign({}, c, { id: c.id + '@' + jobId }); });
+  }
+  function code(id) {
+    var base = String(id).split('@')[0], c = CODES.filter(function (x) { return x.id === base; })[0];
+    return c && base !== id ? Object.assign({}, c, { id: id }) : c;
+  }
 
   // ---- assigned jobs, as the Production Board returns them ----
   // Shapes match CREW-ASSIGNMENTS-API.md: Visit joined to BoardJob, plus the
@@ -105,6 +124,7 @@
       { key: 'signoff', phase: 'finished', label: 'Signed off:', value: 'signedOff' }
     ]
   };
+  if (FX.checklist) CHECKLIST = FX.checklist;
   var LINE_KEYS = {};
   CHECKLIST.lines.forEach(function (l) { LINE_KEYS[l.key] = true; });
   function blankChecks(ticked) {
@@ -119,6 +139,7 @@
     't4roof': blankChecks(['address', 'homeowner', 'scope', 'color', 'walk', 'septic', 'safety', 'access', 'weather', 'material', 'sign',
                            'tearoff', 'shingles', 'tarped', 'special', 'matcheck', 'photos1', 'pm', 'cleanup', 'nails', 'bundle'])
   };
+  if (FX.checks) CHECKS = FX.checks(blankChecks);
   function checksProgress(c) {
     return CHECKLIST.phases.map(function (p) {
       var ls = CHECKLIST.lines.filter(function (l) { return l.phase === p.key; });
@@ -126,6 +147,7 @@
     });
   }
   function checksWords(c) {
+    if (FX.checksWords) return FX.checksWords(c, checksProgress(c));
     if (c.signedOff) return 'Signed off \u2014 ' + c.signedOff;
     var pr = checksProgress(c), before = pr[0], handover = pr[1], finished = pr[2];
     if (finished.done > 0) return 'Finishing up \u2014 ' + finished.done + ' of ' + finished.total + ' done, not signed off';
@@ -149,7 +171,7 @@
   // is dropped — which is what T1.18's re-ask after a save relies on.
   var WAREHOUSE = {};
   function visits() {
-    var out = [
+    var out = FX.visits ? FX.visits({ isoAdd: isoAdd, checksFor: checksFor, two: TWO }) : [
       { taskId: 't1', jobId: 'j_2841', jobNum: '26-0890', jobName: '260890 Webster_Foundation',
         start: isoAdd(-1), end: isoAdd(1), days: 3, dayOf: 2, today: true,
         crewNote: 'Dumpster on the north side. Gate code 1412 — do not block the neighbour\u2019s drive.',
@@ -201,6 +223,7 @@
     { id: 'e1', startedAt: new Date(t0).toISOString(), endedAt: new Date(t0 + 42 * 60000).toISOString(), minutes: 42, job: JOB, code: code('ci4') },
     { id: 'e2', startedAt: new Date(t0 + 42 * 60000).toISOString(), endedAt: new Date(t0 + 180 * 60000).toISOString(), minutes: 138, job: JOB, code: code('ci9') }
   ];
+  if (FX.entries) ST.entries = FX.entries({ job: JOB, code: code, t0: t0 });
   // __MOCK_KEEP_CLOCK: the clock lives in JobTread, so a reload finds it
   // where it was — since T2.13 a break is an open entry there, not
   // something only the phone remembers.
@@ -216,7 +239,7 @@
 
   // ---- Close Out fixtures: DB CheckOut's demo jobs, in its own shapes ----
   var CO_LANDED = {}, CO_DONE = {};
-  var CO_JOBS = [
+  var CO_JOBS = FX.coJobs ? FX.coJobs({ isoAdd: isoAdd }) : [
     { id: 'co-hartman', number: '26-0418', name: '260418 Hartman_Roof', status: 'Final Inspection', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
       projectManager: 'Neal Deitemeyer', salesRep: 'Austin Leeth', address: '1427 Prairie View Dr, Lima, OH 45801, USA', openPunchCount: 0, mine: true, openPunchTotal: 0,
       punchTasks: [], soldScope: [{ id: 'd1', name: 'Estimate', number: 4, issueDate: '2026-07-02', price: 18450, jtUrl: 'https://app.jobtread.com', lines: [
@@ -237,7 +260,7 @@
   // (Carl, 23 Oct 2026). Hartman's one roof gets its area, and Mason has
   // two: the roof inspected with one repair open, and the gutters booked
   // for today, for Alberto — notes and photos, not the roof checklist.
-  var CO_REVIEWER = { shingle: 'Dave Elick', gutters: 'Neal Deitemeyer' };
+  var CO_REVIEWER = FX.reviewers || { shingle: 'Dave Elick', gutters: 'Neal Deitemeyer' };
   if (window.__MOCK_CO_AREAS) {
     CO_JOBS[0].areas = [{ key: 'shingle', label: 'Shingle roof', line: true, form: 'roof', inspectionTaskId: 'fi-hartman', inspectionDate: isoAdd(0), assigneeNames: ['Alberto Gonzalez', 'Yahir Gonzalez'], mine: true, inspected: false, openRepairs: 0 }];
     CO_JOBS.push({ id: 'co-mason', number: '26-0502', name: '260502 Mason_Roof', status: 'Final Inspection', jobType: 'Roofing', projectTypes: ['R-Shingles', 'R-Gutters'], isService: false,
@@ -290,7 +313,8 @@
       // service · ops. The default is a site manager, which is what every
       // test and screenshot before T2.0 assumed (Tyler has the Day log).
       var appRole = window.__MOCK_ROLE || 'siteManager';
-      var who = appRole === 'service' ? { email: 'alberto@deitemeyerbrothers.com', name: 'Alberto Gonzalez' }
+      var who = FX.who && FX.who[appRole] ? FX.who[appRole]
+              : appRole === 'service' ? { email: 'alberto@deitemeyerbrothers.com', name: 'Alberto Gonzalez' }
               : appRole === 'ops' ? { email: 'operations@deitemeyerbrothers.com', name: 'Operations' }
               : { email: 'tyler.b@deitemeyerbrothers.com', name: 'Tyler B.' };
       return { email: who.email, name: who.name, userId: 'u1', membershipId: 'm1',
@@ -310,17 +334,17 @@
     // flight — the state a real phone is in for the first few seconds of boot.
     getExtras: function (jobId) {
       var b = HANDLERS.getBoot();
-      return { codes: jobId ? CODES : [], jobOptions: HANDLERS.getJobOptions(),
+      return { codes: jobId ? codesFor(jobId) : [], jobOptions: HANDLERS.getJobOptions(),
                crew: b.isForeman ? HANDLERS.getCrewOnClock() : [], logFields: LOG_FIELDS };
     },
     getToday: function (jobId) {
       // __MOCK_NOJOB: nothing remembered on the phone — the seed-from-the-schedule case.
       var job = (ST.open && ST.open.job) || jobById(jobId) || ((TWO || window.__MOCK_NOJOB) ? null : JOB);
-      return { me: { userId: 'u1', name: 'Tyler B.' }, open: ST.open, job: job, codes: CODES,
+      return { me: { userId: 'u1', name: HANDLERS.getBoot().name }, open: ST.open, job: job, codes: codesFor(job && job.id),
                entries: ST.entries, writeEnabled: !window.__MOCK_READONLY };
     },
     getMyDay: function () { return ST.entries; },
-    getJobCodes: function () { return CODES; },
+    getJobCodes: function (jobId) { return codesFor(jobId); },
     getMyJobs: function () {
       window.__MYJOBS = (window.__MYJOBS || 0) + 1;   // how many times the list was asked for
       // __MOCK_NOBOARD exercises the fallback path — the board down, or not
@@ -337,7 +361,7 @@
       }
       return {
         source: 'board', reason: '',
-        crew: { id: 'c1', name: 'Alberto', leadMembershipId: 'm1', leadUserName: 'Alberto Gonzalez' },
+        crew: FX.crew ? FX.crew(window.__MOCK_ROLE || 'siteManager') : { id: 'c1', name: 'Alberto', leadMembershipId: 'm1', leadUserName: 'Alberto Gonzalez' },
         range: { from: isoAdd(-1), to: isoAdd(13) },
         visits: visits(), jobs: [],
         checklist: JSON.parse(JSON.stringify(CHECKLIST))
@@ -359,7 +383,7 @@
       var previous = JSON.parse(JSON.stringify(cur));
       var done = Object.assign({}, cur.done);
       for (var k in (checks.done || {})) if (LINE_KEYS[k]) done[k] = !!checks.done[k];
-      var signedOff = checks.signOff ? (cur.signedOff || ('Tyler \u00b7 ' + shortDate(today))) : null;
+      var signedOff = checks.signOff ? (cur.signedOff || ((FX.signer || 'Tyler') + ' \u00b7 ' + shortDate(today))) : null;
       done.signoff = !!signedOff;
       var notes = Object.assign({}, cur.notes || {});
       for (var nk in (checks.notes || {})) if (LINE_KEYS[nk]) { var nt = String(checks.notes[nk] || '').replace(/\s+/g, ' ').trim().slice(0, 140); if (nt) notes[nk] = nt; else delete notes[nk]; }
@@ -382,9 +406,10 @@
       WAREHOUSE[jobId] = loaded ? { pulled: true, staged: true, loaded: true } : { pulled: cur.pulled, staged: cur.staged, loaded: false };
       return { status: 200, reason: '', body: { human: jobLabel + ' \u2014 ' + (loaded ? 'pulled, staged and loaded for the crew' : 'no longer loaded'), api: [] } };
     },
-    getJobOptions: function () { return [JOB, LUCAS]; },
-    searchJobs: function () { return [JOB]; },
+    getJobOptions: function () { return FX.jobs || [JOB, LUCAS]; },
+    searchJobs: function (term) { return FX.search ? FX.search(term) : [JOB]; },
     getCrewOnClock: function () {
+      if (FX.crewOnClock) return FX.crewOnClock;
       return [
         { name: 'Tyler B.', minutes: 138, job: '26-0890 Webster_Foundation', code: '04MA Masonry Labor' },
         { name: 'Marcus D.', minutes: 138, job: '26-0890 Webster_Foundation', code: '04MA Masonry Labor' },
@@ -479,17 +504,17 @@
     postJobNote: function (jobId, message, author, assignPm) {
       window.__NOTES = window.__NOTES || [];
       window.__NOTES.push({ jobId: jobId, message: message, author: author, assignPm: !!assignPm });
-      return { ok: true, id: 'c' + window.__NOTES.length, assigned: assignPm ? ['Neal Deitemeyer'] : [] };
+      return { ok: true, id: 'c' + window.__NOTES.length, assigned: assignPm ? [FX.pm || 'Neal Deitemeyer'] : [] };
     },
     // "Tell the PM now": a comment on the job, assigned to the PM.
-    tellPm: function (jobId, text) { return HANDLERS.postJobNote(jobId, text, 'Tyler B.', true); },
+    tellPm: function (jobId, text) { return HANDLERS.postJobNote(jobId, text, HANDLERS.getBoot().name, true); },
     // The safety alert: a comment assigned to the PM and a text to the
     // office's list, recorded in window.__ALERTS. __MOCK_ALERTFAIL makes it throw.
     sendSafetyAlert: function (jobId, alert) {
       if (window.__MOCK_ALERTFAIL) throw new Error('Pave error (HTTP 500): boom');
       window.__ALERTS = window.__ALERTS || [];
       window.__ALERTS.push(JSON.parse(JSON.stringify({ jobId: jobId, alert: alert })));
-      return { ok: true, at: Date.now(), commented: true, assigned: ['Neal Deitemeyer'],
+      return { ok: true, at: Date.now(), commented: true, assigned: [FX.pm || 'Neal Deitemeyer'],
                to: ['pm@deitemeyerbrothers.com', 'shawn@deitemeyerbrothers.com', 'neal@deitemeyerbrothers.com', 'carl@deitemeyerbrothers.com'], failed: [] };
     },
     // The daily log, as Code.gs answers: the id, who it was assigned to, and
@@ -506,7 +531,7 @@
           return f && /safety|incident|delay/i.test(f.name) && (v === true || (typeof v === 'string' && v.trim()) || (Array.isArray(v) && v.length));
         });
         var sflag = (spings.length || log.safety === true) ? 'fields' : '';
-        return { ok: true, dailyLogId: 'dl' + window.__LOGS.length, date: log.date, assigned: ['Neal Deitemeyer', 'Justin Phillips'], unresolved: [],
+        return { ok: true, dailyLogId: 'dl' + window.__LOGS.length, date: log.date, assigned: FX.logAssigned || ['Neal Deitemeyer', 'Justin Phillips'], unresolved: [],
                  flag: sflag, commented: !!sflag, photos: (log.photos || []).length };
       }
       var signed = log.checks && log.checks.signedOff;
@@ -515,7 +540,7 @@
         return f && /safety|incident|delay/i.test(f.name) && (v === true || (typeof v === 'string' && v.trim()) || (Array.isArray(v) && v.length));
       });
       var flag = String(log.problems || '').trim() ? 'problems' : pings.length ? 'fields' : (log.crewOnSite === true && !signed ? 'crew-on-site' : '');
-      return { ok: true, dailyLogId: 'dl' + window.__LOGS.length, date: log.date, assigned: ['Neal Deitemeyer', 'Justin Phillips'], unresolved: [],
+      return { ok: true, dailyLogId: 'dl' + window.__LOGS.length, date: log.date, assigned: FX.logAssigned || ['Neal Deitemeyer', 'Justin Phillips'], unresolved: [],
                flag: flag, commented: !!flag, photos: (log.photos || []).length };
     },
     addDailyLogNote: function (jobId, dailyLogId, message) {
@@ -548,16 +573,18 @@
       out.punchTasks.forEach(function (t) { if (CO_DONE[t.id]) t.progress = 1; });
       return { status: 200, body: out };
     },
-    coScope: function () { return { status: 200, body: { en: 'A 32-square Duration roof in Onyx Black with three pipe boots and new gutters on the back.', es: 'Un techo Duration de 32 cuadros en Onyx Black con tres botas y canales nuevos atrás.' } }; },
+    coScope: function () { if (FX.scope) return { status: 200, body: FX.scope }; return { status: 200, body: { en: 'A 32-square Duration roof in Onyx Black with three pipe boots and new gutters on the back.', es: 'Un techo Duration de 32 cuadros en Onyx Black con tres botas y canales nuevos atrás.' } }; },
     coTranslate: function (texts, to) {
       window.__CO.push({ fn: 'coTranslate', to: to, n: texts.length });
-      return { status: 200, body: { translations: texts.map(function (t) { return to === 'en' ? 'EN: ' + t : 'ES: ' + t; }) } };
+      return { status: 200, body: { translations: texts.map(function (t) { return FX.translate ? FX.translate(t, to) : to === 'en' ? 'EN: ' + t : 'ES: ' + t; }) } };
     },
     coReport: function (jobId, report, ref) {
       window.__CO.push({ fn: 'coReport', jobId: jobId, ref: ref, report: report });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
       if (window.__MOCK_CO_REJECT) return { status: 400, reason: 'http-400', body: { error: 'location and englishNote are required' } };
       CO_LANDED[ref] = 't_' + ref;
+      // A fixture set may turn a report into the repair the server would make.
+      if (FX.onReport) FX.onReport(CO_JOBS.filter(function (x) { return x.id === jobId; })[0], report, 't_' + ref);
       return { status: 200, body: { taskId: 't_' + ref, photosUploaded: 0 } };
     },
     coPhoto: function (jobId, photo, ref) {

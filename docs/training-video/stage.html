@@ -1,0 +1,164 @@
+<!doctype html>
+<!-- The frame the Crew App is filmed in: 1920×1080, the app running at phone
+     size in an iframe, scaled up, with the chapter beside it. Served by the
+     recorder at /__stage.html on the app's own origin (studio.mjs), so the
+     stage can read the app's page — nothing here is part of the app. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DB Crew — training</title>
+<style>
+@font-face{font-family:Archivo;src:url(fonts/archivo-800.woff2) format('woff2');font-weight:800}
+@font-face{font-family:Archivo;src:url(fonts/archivo-700.woff2) format('woff2');font-weight:700}
+@font-face{font-family:'IBM Plex Mono';src:url(fonts/plexmono-600.woff2) format('woff2');font-weight:600}
+:root{--navy:#0d1a33;--ink:#e9eef8;--mut:#9fb0cf;--accent:#8fb3ff;--green:#3fa34d;--amber:#f2a900}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#08111f}
+body{font-family:Inter,system-ui,sans-serif;color:var(--ink)}
+#bg{position:absolute;inset:0;background:radial-gradient(1200px 900px at 28% 45%,#16284a 0%,#0d1a33 45%,#08111f 100%)}
+#phone{position:absolute;padding:11px;border-radius:58px;background:linear-gradient(160deg,#2b3240,#11151c 60%,#262c38);
+  box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 2px #3a4252,inset 0 0 0 2px #05070a}
+#screen{position:relative;overflow:hidden;border-radius:47px;background:#000}
+#app{position:absolute;left:0;top:0;width:402px;height:874px;border:0;transform-origin:0 0;background:#000}
+#info{position:absolute}
+#info .k{font:600 19px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.16em;color:var(--accent);text-transform:uppercase}
+#info .t{font:800 60px/1.04 Archivo,Inter,sans-serif;margin-top:20px;letter-spacing:.005em}
+#info .who{display:inline-flex;align-items:center;gap:12px;margin-top:30px;padding:12px 18px;border-radius:999px;
+  background:rgba(143,179,255,.12);border:1px solid rgba(143,179,255,.28);font:600 21px/1.2 Inter,sans-serif;color:#dbe6fb}
+#info .who:empty{display:none}
+#info .who b{color:#fff}
+#info .bar{width:110px;height:6px;border-radius:3px;background:var(--green);margin-top:30px}
+#cap{position:absolute;display:none;font:500 44px/1.32 Inter,sans-serif;color:#fff}
+body.still #cap{display:block}
+
+/* Layout A — the phone left of centre, the words on the right. */
+body.side #phone{left:300px;top:39px}
+body.side #info{left:900px;top:150px;width:900px}
+body.side #cap{left:900px;right:120px;bottom:120px}
+
+/* Layout B — the phone in the middle, the captions underneath. */
+body.under #phone{left:752px;top:22px}
+body.under #info{left:80px;top:90px;width:560px}
+body.under #info .t{font-size:46px}
+body.under #cap{left:220px;right:220px;bottom:28px;text-align:center;font-size:40px;line-height:1.3}
+body.under #cap span{background:rgba(13,26,51,.75);box-shadow:0 0 0 14px rgba(13,26,51,.75);box-decoration-break:clone;-webkit-box-decoration-break:clone}
+
+/* Layout full — the war-room TV, the whole frame; captions at the foot, boxed. */
+#tv{position:absolute;left:134px;top:14px;width:1920px;height:1080px;border:0;display:none;background:#000;
+  transform:scale(.86);transform-origin:0 0;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 2px #2b3446}
+body.full #tv{display:block}
+body.full #phone,body.full #info{display:none}
+
+/* The chapter card, the touch dot and the highlight boxes. */
+#card{position:absolute;inset:0;z-index:20;background:#0d1a33;display:flex;flex-direction:column;justify-content:center;padding:0 160px;
+  transition:opacity .45s;opacity:0;pointer-events:none}
+#card.on{opacity:1}
+#card .k{font:600 20px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.18em;color:var(--accent);text-transform:uppercase}
+#card .t{font:800 72px/1.04 Archivo,Inter,sans-serif;margin-top:24px}
+#card .s{font:400 26px/1.45 Inter,sans-serif;color:#c9d6f0;margin-top:24px;max-width:1150px}
+#card .bar{width:130px;height:6px;border-radius:3px;background:var(--green);margin-top:36px}
+#touch{position:absolute;z-index:15;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;pointer-events:none;
+  background:rgba(255,255,255,.28);border:3px solid rgba(255,255,255,.92);box-shadow:0 2px 10px rgba(0,0,0,.45);
+  transform:translate(-200px,-200px);transition:width .12s,height .12s,margin .12s,background .12s}
+#touch.down{width:38px;height:38px;margin:-19px 0 0 -19px;background:rgba(242,169,0,.55);border-color:#f2a900}
+.ripple{position:absolute;z-index:14;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;pointer-events:none;
+  border:4px solid rgba(242,169,0,.95);animation:rip .6s ease-out forwards}
+@keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.3);opacity:0}}
+.hl{position:absolute;z-index:12;pointer-events:none;border:4px solid #f2a900;border-radius:12px;
+  box-shadow:0 0 0 6px rgba(242,169,0,.22),0 0 26px rgba(242,169,0,.4);animation:hlin .35s ease-out}
+.hl.out{transition:opacity .35s;opacity:0}
+@keyframes hlin{from{opacity:0;transform:scale(1.05)}to{opacity:1;transform:none}}
+.hl b{position:absolute;white-space:nowrap;background:#f2a900;color:#1b1300;font:700 19px/1.2 Inter,sans-serif;padding:8px 13px;border-radius:8px;
+  box-shadow:0 6px 16px rgba(0,0,0,.3)}
+/* A label sits outside the phone, beside the box, so it never covers the app. */
+.hl.hltag{border:0;box-shadow:none;border-radius:0;transform:translateY(-50%);animation:tagin .35s ease-out}
+.hl.hltag b{position:relative;display:block;max-width:250px;white-space:normal;text-align:right;font-size:22px;padding:10px 14px}
+.hl.hltag b::after{content:"";position:absolute;right:-12px;top:50%;margin-top:-10px;border:10px solid transparent;border-left:12px solid #f2a900;border-right:0}
+@keyframes tagin{from{opacity:0}to{opacity:1}}
+.hl b.a{left:-4px;bottom:calc(100% + 10px)}
+.hl b.u{left:-4px;top:calc(100% + 10px)}
+</style>
+</head>
+<body class="side">
+<div id="bg"></div>
+<div id="info"><div class="k" id="kicker"></div><div class="t" id="title"></div><div class="who" id="who"></div><div class="bar"></div></div>
+<div id="phone"><div id="screen"><iframe id="app" title="DB Crew"></iframe></div></div>
+<iframe id="tv" title="Production Board TV"></iframe>
+<div id="cap"></div>
+<div id="touch"></div>
+<div id="card"><div class="k" id="cardK"></div><div class="t" id="cardT"></div><div class="s" id="cardS"></div><div class="bar"></div></div>
+<script>
+// Phone size the app is designed for (dev/preview.mjs uses the same).
+var PW = 402, PH = 874;
+var LAYOUT = { side: 1.12, under: 0.97, full: 1.12 };
+function layout(name){
+  document.body.classList.remove('side', 'under', 'full');
+  document.body.classList.add(name);
+  var k = LAYOUT[name];
+  var app = document.getElementById('app');
+  app.style.transform = 'scale(' + k + ')';
+  var scr = document.getElementById('screen');
+  scr.style.width = Math.round(PW * k) + 'px';
+  scr.style.height = Math.round(PH * k) + 'px';
+}
+layout(new URLSearchParams(location.search).get('layout') || 'side');
+window.__stage = {
+  layout: layout,
+  // Where the app's own pixels are on the stage: the iframe's box and its scale.
+  frame: function(){ var r = document.getElementById('app').getBoundingClientRect(); return { x: r.left, y: r.top, k: r.width / PW }; },
+  load: function(url){ document.getElementById('app').src = url; },
+  tv: function(url){ document.getElementById('tv').src = url; },
+  info: function(spec){
+    document.getElementById('kicker').textContent = spec.kicker || '';
+    document.getElementById('title').textContent = spec.title || '';
+    document.getElementById('who').innerHTML = spec.who || '';
+  },
+  caption: function(t){ document.getElementById('cap').innerHTML = t ? '<span>' + t + '</span>' : ''; },
+  card: function(spec){
+    document.getElementById('cardK').textContent = spec.kicker || '';
+    document.getElementById('cardT').textContent = spec.title || '';
+    document.getElementById('cardS').textContent = spec.sub || '';
+    document.getElementById('card').classList.add('on');
+    document.getElementById('touch').style.visibility = 'hidden';
+  },
+  uncard: function(){ document.getElementById('card').classList.remove('on'); document.getElementById('touch').style.visibility = ''; },
+  move: function(x, y){ document.getElementById('touch').style.transform = 'translate(' + x + 'px,' + y + 'px)'; },
+  press: function(on, x, y){
+    document.getElementById('touch').classList.toggle('down', !!on);
+    if (!on) return;
+    var r = document.createElement('div'); r.className = 'ripple'; r.style.left = x + 'px'; r.style.top = y + 'px';
+    document.body.appendChild(r); setTimeout(function(){ r.remove(); }, 700);
+  },
+  // A box around something on the phone. Its label sits in the space left of
+  // the phone, level with the box, so it never covers the app; on the TV it
+  // sits just above the box.
+  highlight: function(r, label){
+    var el = document.createElement('div'); el.className = 'hl';
+    var pad = 7;
+    // On the phone, a box never runs past the edge of its screen.
+    if (!document.body.classList.contains('full')){
+      var sc = document.getElementById('screen').getBoundingClientRect(), m = 9;
+      var x0 = Math.max(r.x, sc.left + m), y0 = Math.max(r.y, sc.top + m);
+      var x1 = Math.min(r.x + r.width, sc.right - m), y1 = Math.min(r.y + r.height, sc.bottom - m);
+      r = { x: x0, y: y0, width: Math.max(0, x1 - x0), height: Math.max(0, y1 - y0) };
+    }
+    el.style.left = (r.x - pad) + 'px'; el.style.top = (r.y - pad) + 'px';
+    el.style.width = (r.width + pad * 2) + 'px'; el.style.height = (r.height + pad * 2) + 'px';
+    document.body.appendChild(el);
+    if (!label) return;
+    var b = document.createElement('b'); b.textContent = label;
+    if (document.body.classList.contains('full')){
+      b.className = r.y > 120 ? 'a' : 'u'; el.appendChild(b); return;
+    }
+    var ph = document.getElementById('phone').getBoundingClientRect();
+    var tag = document.createElement('div'); tag.className = 'hl hltag';
+    tag.style.right = (1920 - ph.left + 26) + 'px';
+    tag.style.top = (r.y + r.height / 2) + 'px';
+    tag.appendChild(b);
+    document.body.appendChild(tag);
+  },
+  clear: function(){ [].forEach.call(document.querySelectorAll('.hl'), function(el){ el.classList.add('out'); setTimeout(function(){ el.remove(); }, 400); }); }
+};
+</script>
+</body>
+</html>
