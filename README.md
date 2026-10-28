@@ -418,6 +418,22 @@ closes, Back to work), which is safe, just not the new thing.
 
 **Needs:** `firebase deploy --only hosting` only.
 
+**A work area's Start puts the clock on the job** (T2.15, 28 Oct 2026, also
+found filming). Start on a Close Out card has moved the clock to that job since
+T2.4, but a roof's gutters or siding booked while the job sits at Punch List
+are reached from inside the job (the card reads "1 repairs", not Start), and
+the area's own tile also reads **Start** — without moving anything. So an
+inspector who came from another job inspected the gutters with the clock still
+running on the last one, and the hours landed there. Now the area's Start does
+what the card's does (`coClockHere`): on the clock somewhere else, the end
+photo there, this job's code, the start photo here; off the clock, the code and
+the start photo; already on the clock here, the area simply opens. Only a Start
+that has not been started counts — an area with a photo or a note, or one
+already inspected, opens as before. The hand-back is the area's own screen,
+not the job's, and a refused clock-in leaves the area open all the same.
+`dev/closeout-test.mjs` takes the gutters' Start off the clock and fails on
+the old code. **Needs:** `firebase deploy --only hosting` only.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

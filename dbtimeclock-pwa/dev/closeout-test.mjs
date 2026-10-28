@@ -461,6 +461,18 @@ const allErrs = [];
   check('the roof is done: no checklist, no Review & send; the gutters and the repairs are the tiles', await page.evaluate(() => [!!document.querySelector('[data-coscreen="inspect"]'), !!document.getElementById('coReview'), [...document.querySelectorAll('#coBody .jtile .es')].map((e) => e.textContent)]),
     [false, false, ['Canales', 'Reparaciones']]);
   await tap(page, '[data-coarea="gutters"]', 500);
+  // T2.15: the gutters' Start puts the clock on this job, as Start on a card
+  // does — here off the clock, so it asks the code, then the start photo, and
+  // hands back to the gutters.
+  check('the gutters\' Start asks the code question over the gutters', await page.evaluate(() => [CO.screen, CO.areaKey, S.sheet, S.coReturn, S.coReturnArea]), ['area', 'gutters', 'codes', 'co-mason', 'gutters']);
+  await tap(page, '[data-code="ci2"]', 500);
+  await page.evaluate(() => new Promise((res) => { const c = document.createElement('canvas'); c.width = 8; c.height = 8; c.getContext('2d').fillRect(0, 0, 8, 8); c.toBlob((b) => { captured(b, 'image/jpeg'); res(true); }, 'image/jpeg'); }));
+  await page.waitForFunction(() => S.clockGate == null && document.body.style.pointerEvents === '', null, { timeout: 10000 }); await page.waitForTimeout(300);
+  check('…clocked in on this job, and back on the gutters', [(await page.evaluate(() => (window.__CLOCK || []).map((c) => c.slice(0, 3)))), await page.evaluate(() => [S.tab, CO.screen, CO.areaKey, S.job && S.job.id, S.coReturn, S.coReturnArea])],
+    [[['clockIn', 'co-mason', 'ci2']], ['co', 'area', 'gutters', 'co-mason', null, null]]);
+  await tap(page, '#coBack', 600);
+  await tap(page, '[data-coarea="gutters"]', 500);
+  check('…and on the clock here, the gutters simply open', await page.evaluate(() => [(window.__CLOCK || []).length, CO.screen, S.sheet, S.coReturn]), [1, 'area', null, null]);
   check('the gutters: notes and photos, named in the header, the send waits on a photo', await page.evaluate(() => [CO.screen, document.getElementById('coK').textContent, document.getElementById('coTitle').textContent, document.getElementById('coAreaSend').disabled]),
     ['area', 'Inspección · JT #26-0502', 'Canales', true]);
   await addPhoto(page, '#coBody [data-cophoto]');

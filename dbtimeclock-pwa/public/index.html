@@ -988,7 +988,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.14 (2026-10-28)';
+var APP_BUILD = 'T2.15 (2026-10-28)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1380,7 +1380,7 @@ var S = {
   // T2.4: the Close Out job a clock flow was started from (the camera
   // hands back there, not to the clock), and whether a finger has picked
   // a tab this launch (the service crew lands on Close Out otherwise).
-  coReturn:null, tabTouched:false,
+  coReturn:null, coReturnArea:null, tabTouched:false,
   codesLoading:null,   // T2.5: the job whose code list a tap is waiting on
   apiLog:[], errs:[], recent:[]
 };
@@ -3674,8 +3674,13 @@ function camBack(){
 /* Where a clock flow lands when it is over: the Close Out job it was
    started from (T2.4), else the clock. */
 function clockFlowDone(){
-  var back = S.coReturn; S.coReturn = null;
-  if (back && canTab('co')){ setTab('co'); coOpenJob(back); return; }
+  var back = S.coReturn, area = S.coReturnArea; S.coReturn = null; S.coReturnArea = null;
+  if (back && canTab('co')){
+    setTab('co');
+    // A work area's Start hands back to that area, still open under the flow.
+    if (area && CO.jobId === back && CO.job){ CO.areaKey = area; coGo('area'); return; }
+    coOpenJob(back); return;
+  }
   setTab('job');
 }
 
@@ -5719,12 +5724,21 @@ function coOpenJob(jobId){
    inspection open all the same: the checks never wait on the clock. */
 function coClockJob(j){ return { id: j.id, name: j.name, number: j.number, customer: coCustomer(j), address: j.address }; }
 function coStartJob(jobId){
-  var j = coJobById(jobId);
   coOpenJob(jobId);
+  coClockHere(jobId);
+}
+/* The clock half of Start. With `areaKey` it is a work area's Start
+   (T2.15): a roof's gutters booked while the job sits at Punch List are
+   reached from inside the job, not from a Start on its card, so the area's
+   own Start has to move the clock too or the hours land on the last job.
+   The hand-back is then that area's screen, and "already on the clock here"
+   needs no toast — the area simply opens. */
+function coClockHere(jobId, areaKey){
+  var j = coJobById(jobId);
   if (!j) return;
-  if (onBreakNow()){ toast(co('breakFirst')); setTab('job'); return; }
-  if (S.open && S.job && S.job.id === jobId){ toast(co('onClockHere')); return; }
-  S.coReturn = jobId;
+  if (onBreakNow()){ toast(co('breakFirst')); if (!areaKey) setTab('job'); return; }
+  if (S.open && S.job && S.job.id === jobId){ if (!areaKey) toast(co('onClockHere')); return; }
+  S.coReturn = jobId; S.coReturnArea = areaKey || null;
   var job = coClockJob(j);
   if (S.open){ pickJobObj(job, false); return; }
   S.job = job; S.dlJobId = job.id; S.jobPickedDay = isoLocal();
@@ -6740,7 +6754,12 @@ function coWire(){
   on('[data-coretry]', function(b){ coRetryNow(b.getAttribute('data-coretry')); });
   on('[data-corepair]', function(b){ CO.taskId = b.getAttribute('data-corepair'); coGo('repair'); });
   on('[data-coedit]', function(b){ CO.reportIdx = Number(b.getAttribute('data-coedit')); CO.reportFrom = b.getAttribute('data-cofrom') || 'problems'; coGo('report'); });
-  on('[data-coarea]', function(b){ CO.areaKey = b.getAttribute('data-coarea'); coGo('area'); });
+  on('[data-coarea]', function(b){
+    var key = b.getAttribute('data-coarea'), j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), a = coAreas(j).filter(function(x){ return x.key === key; })[0];
+    CO.areaKey = key; coGo('area');
+    // Start on an area puts the clock on this job, as Start on a card does (T2.15).
+    if (a && coAreaIsOpen(j, v, a) && !coAreaStarted(v, key)) coClockHere(CO.jobId, key);
+  });
   on('[data-coreport]', function(b){ coStartReport(b.getAttribute('data-coreport'), CO.screen); });
   on('[data-cophoto]', function(b){ coTakePhoto(JSON.parse(b.getAttribute('data-cophoto'))); });
   on('[data-cogallery]', function(b){ coPickPhotos(JSON.parse(b.getAttribute('data-cogallery'))); });
