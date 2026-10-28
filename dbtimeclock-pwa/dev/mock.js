@@ -780,7 +780,7 @@
         out = fn ? { ok: true, data: fn.apply(null, body.args || []) }
                  : { ok: false, error: 'Unknown function: ' + body.fn };
         // T2.21: a write marked for the partner. __MOCK_PARTNER_AWAY plays a
-        // partner on the clock somewhere else, left as he is.
+        // partner on the clock somewhere else, left alone.
         if (body.partner && out.ok) {
           (window.__PARTNER = window.__PARTNER || []).push(body.fn);
           if (out.data && typeof out.data === 'object') out.data.partner = window.__MOCK_PARTNER_AWAY

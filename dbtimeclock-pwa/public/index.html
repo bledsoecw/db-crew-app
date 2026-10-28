@@ -6803,7 +6803,7 @@ function coQueueHtml(){
   if (CO.reason === 'not-configured') return '<div class="jempty">' + esc(co('notConfigured')) + '</div>';
   if (!CO.jobs && CO.loading) return '<div class="jempty">' + esc(co('checkingJt')) + '</div>';
   var found = coSearchMatches(CO.jobs || [], CO.search), jobs = found.filter(function(j){ return CO.filter === 'all' || j.mine; });
-  // Yahir's partner box (T2.21), where his day starts: the same box as the clock's.
+  // Yahir's partner box (T2.21), where Yahir's day starts: the same box as the clock's.
   if (S.partner && canTab('job')) h += '<button class="pairrow' + (S.partnerOn ? ' on' : '') + '" data-copartner="1" style="margin:0 0 12px;border:1px solid var(--line);border-radius:6px"><span class="box">' + CK_TICK + '</span><span class="lbl">' +
     esc((S.lang === 'es' ? 'Marcar a ' + S.partner.name + ' contigo' : 'Clock ' + S.partner.name + ' in and out with you')) + '</span></button>';
   if (!jobs.length && coSearchWords(CO.search).length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && found.length ? co('noMatchMine') : co('noMatch')) + '</div>';

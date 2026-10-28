@@ -608,7 +608,7 @@ End break, a clock-out, Already left — goes for Alberto too (`partner: true`
 on the request; `withPartner_` in `Code.gs`): the same job, code, photo ids and
 times, **but only when Alberto's clock stands where Yahir's did** (both off,
 or both on the same job and code, on a break or not). Alberto somewhere else
-is left as he is, and the phone says so: *Alberto Gonzalez was not changed — on
+is left alone, and the phone says so: *Alberto Gonzalez was not changed — on
 the clock at 26-0890 · 04MA*. Alberto's half never fails Yahir's. The photo is
 on the job once, under Yahir's entry, so Alberto's block is marked nudged;
 Already left together sends one notice naming both. Who partners whom is

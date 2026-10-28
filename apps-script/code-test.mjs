@@ -1259,7 +1259,7 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   open.uA = entryOn('a9', 'uA', 'j1', 'ci7');
   made.length = 0;
   r = sandbox.withPartner_(YAHIR, sandbox.switchCode, 'switchCode', ['j9', 'ci3', null, 'ph_e', 'ph_s3']);
-  t('Alberto elsewhere: left as he is, and said', [made, r.partner], [[['uY', 'j9', 'ci3']], { name: 'Alberto Gonzalez', followed: false, why: 'on the clock at 26-0890 · 07TM-1' }]);
+  t('Alberto elsewhere: left alone, and said', [made, r.partner], [[['uY', 'j9', 'ci3']], { name: 'Alberto Gonzalez', followed: false, why: 'on the clock at 26-0890 · 07TM-1' }]);
   // Already left, together: one notice naming both.
   open.uA = entryOn('a10', 'uA', 'j9', 'ci3'); open.uY = { ...open.uY, id: 'y10', job: open.uA.job, costItem: open.uA.costItem };
   made.length = 0;
