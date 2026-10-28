@@ -251,6 +251,8 @@ button[disabled]{cursor:default}
 /* T2.13: how long a break — four big tiles, the length in words a thumb can't miss */
 .brkgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .brkopt.on{border-color:var(--go);background:var(--total)}
+/* A green button that is waiting on something (T2.19, T2.20) reads as waiting. */
+#rollGo:disabled,#leftGo:disabled{background:var(--surf2);color:var(--lab)}
 .brkopt{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);color:var(--fg)}
 .brkopt .bt{font:800 36px/1 var(--head);letter-spacing:-.5px}
 .brkopt .bs{color:var(--lab)}
@@ -1402,6 +1404,7 @@ var S = {
   shop:null,           // T2.17: the shop's job (25-0011 DB INTERNAL), named by the API on boot
   travelPick:false, travelTo:null,   // T2.18: a drive's job picked by search; one with no travel line
   leftGate:null, leftPick:0,         // T2.19: the end photo they are getting round, the time picked
+  rollNext:null, rollTold:{},        // T2.20: what Before you roll out holds up; the roofs already told about
   apiLog:[], errs:[], recent:[]
 };
 
@@ -3024,7 +3027,7 @@ function saveLoaded(jobId, on){
   if (!v) return;
   delete mlConfirm[jobId];
   mlBusy[jobId] = true; render();
-  apiCall('saveMaterialLoaded', [jobId, (v.jobNum ? 'JT #' + v.jobNum + ' ' : '') + (v.cust || ''), on])
+  return apiCall('saveMaterialLoaded', [jobId, (v.jobNum ? 'JT #' + v.jobNum + ' ' : '') + (v.cust || ''), on])
     .then(function(r){
       mlBusy[jobId] = false;
       r = r || {};
@@ -3413,6 +3416,8 @@ function setTab(t){
 function closeSheet(){
   // Backing out of When did you leave? leaves the clock as it was (T2.19).
   if (S.sheet === 'left' && S.leftGate){ if (S.pendingJob) cancelMove(); S.leftGate = null; S.leftPick = 0; }
+  // …and out of Before you roll out: still at the shop (T2.20).
+  if (S.sheet === 'roll' && S.rollNext){ if (S.pendingJob) cancelMove(); S.rollNext = null; }
   S.sheet = null; S.promptKind = null; $('scrim').classList.remove('on');
 }
 
@@ -3427,6 +3432,8 @@ function openSheet(kind, promptKind){
             : kind==='coWhy' ? co('whyTitle')
             : kind==='dest' ? 'Where are you going?'
             : kind==='left' ? 'When did you leave?'
+            : kind==='roll' ? 'Before you roll out'
+            : kind==='forgot' ? 'Yard checks not done'
             : kind==='travelCodes' ? 'No travel line at ' + ((S.travelTo && (S.travelTo.job.customer || streetOf(S.travelTo.job.address))) || 'that job')
             : '';
   $('sheetTitle').textContent = title;
@@ -3440,6 +3447,8 @@ function openSheet(kind, promptKind){
                             : kind==='coWhy' ? coWhyHtml()
                             : kind==='dest' ? destHtml()
                             : kind==='left' ? leftHtml()
+                            : kind==='roll' ? rollHtml()
+                            : kind==='forgot' ? forgotHtml()
                             : kind==='travelCodes' ? travelCodesHtml()
                             : '';
   $('scrim').classList.add('on');
@@ -3611,6 +3620,20 @@ function wireSheet(){
   });
   var lt = $('leftTime'); if (lt) lt.oninput = lt.onchange = function(){ S.leftPick = leftFromInput(lt.value); leftPaint(); };
   if ($('leftGo')) $('leftGo').onclick = leftGo;
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-rline]'), function(b){
+    b.onclick = function(){
+      var v = visitForChecks(b.getAttribute('data-rtask')), key = b.getAttribute('data-rline');
+      if (!v) return;
+      ckTouch(v, function(st){ st.done[key] = !st.done[key]; });
+      openSheet(S.sheet);
+    };
+  });
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-rloaded]'), function(b){
+    b.onclick = function(){ var p = saveLoaded(b.getAttribute('data-rloaded'), true); openSheet(S.sheet); if (p) p.then(function(){ if (S.sheet === 'roll') openSheet('roll'); }); };
+  });
+  if ($('rollGo')) $('rollGo').onclick = function(){ var k = S.rollNext; if (rollOwed().length) return; S.rollNext = null; closeSheet(); beginEnd(k); };
+  if ($('rollLeft')) $('rollLeft').onclick = function(){ var k = S.rollNext; S.rollNext = null; S.leftGate = k; S.leftPick = 0; openSheet('left'); };
+  if ($('forgotGo')) $('forgotGo').onclick = function(){ var id = S.rollFor; closeSheet(); rollForgot(id); beginStart(); };
   [].forEach.call(document.querySelectorAll('#sheetBody [data-tcode]'), function(b){
     b.onclick = function(){ var t = S.travelTo, c = t && t.codes.filter(function(x){ return x.id === b.getAttribute('data-tcode'); })[0]; if (c){ closeSheet(); commitTravel(t.job, c, t.back, t.codes); } };
   });
@@ -3761,6 +3784,10 @@ function waitFor(p, label){
 /* The camera, locked. The shutter is what commits (see captured). */
 function beginStart(){
   if (!S.job){ toast('Pick a job first'); return; }
+  // At a roof whose yard was never done (T2.20): clock in all the same, and
+  // say so to the PM and Carl.
+  var tgt = S.pendingJob || S.job;
+  if (tgt && !(S.shop && tgt.id === S.shop.id) && !S.rollTold[tgt.id + '|' + isoLocal()] && rollOwed(tgt.id).length){ S.rollFor = tgt.id; openSheet('forgot'); return; }
   S.clockGate = 'start'; S.capture = 'before'; S.returnToClock = false;
   setTab('cam');
 }
@@ -3769,6 +3796,10 @@ function beginEnd(kind){
   // A drive ends in the truck (T2.18): no end photo — straight on to what
   // comes next.
   if (onTravel()){ afterTravelEnd(kind); return; }
+  // Leaving the shop for the day's roofs (T2.20): not before the yard.
+  if (atShop() && (kind === 'end-travel' || (kind === 'end-switch' && S.pendingJob)) && rollOwed().length){
+    S.rollNext = kind; setTab(S.coReturn ? 'co' : 'job'); openSheet('roll'); return;
+  }
   S.clockGate = kind; S.capture = 'after'; S.returnToClock = false;
   setTab('cam');
 }
@@ -4103,6 +4134,83 @@ function leftOut(iso, overnight){
   });
 }
 function leftAsk(){ if (!leftOvernight()) return; S.leftGate = 'overnight'; S.leftPick = 0; setTab('job'); openSheet('left'); }
+
+/* =========================================================
+   BEFORE YOU ROLL OUT (T2.20, Carl 28 Oct 2026)
+   "I thought we set something up in the app they have to check before
+   leaving the shop for the day." We had: the board's checklist starts
+   At the yard, before you roll out (tarps, dry-in supplies — "while the
+   truck is loaded, the same moment as marking the material loaded"),
+   and My jobs carries Material loaded. But both sat one tap down inside
+   each roof, nothing asked for them, and not one October roof had a
+   tick. Carl: a hard stop. A site manager leaving the shop — the drive,
+   or a move — goes nowhere until each of today's roofs has its yard
+   lines ticked and, where the material comes through the shop, is
+   marked loaded. The lines are the board's own (phase `yard`), ticked
+   through the same local-first save as the checklist screen. Forgot —
+   clocked in at the roof without them, or left the shop without the
+   app: "let them clock in later with the same guidelines as before" —
+   they clock in, and the PM and Carl are told on the job, as for a site
+   left without clocking out (T2.19). Never in the way of the clock when
+   the board is down or says this person cannot tick (no visits, or
+   read-only): the clock is payroll.
+   ========================================================= */
+var ROLL_PHASE = 'yard';
+function rollVisitsToday(onlyJobId){
+  var today = isoLocal();
+  return ((S.assign && S.assign.visits) || []).filter(function(v){ return v.start && v.start <= today && (v.end || v.start) >= today && (!onlyJobId || v.jobId === onlyJobId); });
+}
+function rollMissing(v){
+  var out = [];
+  if (v.checks && v.checks.taskId && ckShape()){
+    var st = ckStateFor(v);
+    ckLinesOf(ROLL_PHASE).forEach(function(l){ if (!st.done[l.key]) out.push({ kind: 'line', key: l.key, label: l.label }); });
+  }
+  if (v.warehouse && !v.warehouse.loaded) out.push({ kind: 'loaded', label: 'Material loaded for the crew' });
+  return out;
+}
+function rollOwed(onlyJobId){
+  if (effRole() !== 'siteManager' || ckReadOnly() || (S.assign && S.assign.source && S.assign.source !== 'board')) return [];
+  return rollVisitsToday(onlyJobId).map(function(v){ return { v: v, miss: rollMissing(v) }; }).filter(function(x){ return x.miss.length; });
+}
+function rollListHtml(only){
+  var all = rollVisitsToday(only).filter(function(v){ return (v.checks && v.checks.taskId && ckLinesOf(ROLL_PHASE).length) || v.warehouse; });
+  return all.map(function(v){
+    var st = v.checks && v.checks.taskId ? ckStateFor(v) : null;
+    var h = '<div class="k" style="margin-top:6px">' + esc(jobLabelOf(v)) + (v.address ? ' · ' + esc(streetOf(v.address)) : '') + '</div>';
+    if (st) ckLinesOf(ROLL_PHASE).forEach(function(l){
+      var on = !!st.done[l.key];
+      h += '<button class="ckrow' + (on ? ' on' : '') + '" data-rtask="' + esc(v.checks.taskId) + '" data-rline="' + esc(l.key) + '"><span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(l.label) + '</span></button>';
+    });
+    if (v.warehouse){
+      var on2 = !!v.warehouse.loaded, busy2 = !!mlBusy[v.jobId];
+      h += '<button class="ckrow' + (on2 ? ' on' : '') + '"' + (on2 || busy2 ? ' disabled' : ' data-rloaded="' + esc(v.jobId) + '"') + '><span class="box">' + CK_TICK + '</span><span class="lbl">' +
+           esc(busy2 ? 'Saving…' : 'Material loaded for the crew' + (v.warehouse.words ? ' · ' + v.warehouse.words : '')) + '</span></button>';
+    }
+    return h;
+  }).join('');
+}
+function rollHtml(){
+  var left = rollOwed().reduce(function(n, x){ return n + x.miss.length; }, 0);
+  return '<div class="sheetpad" style="gap:10px"><div class="body">Today’s roofs, before the truck leaves the shop. The drive starts once these are done.</div>' + rollListHtml() +
+    '<button class="btn btn-go" id="rollGo" style="min-height:76px;margin-top:6px"' + (left ? ' disabled' : '') + '>' + (left ? left + ' left to check' : 'All done · start the drive') + '</button>' +
+    '<button class="btn btn-out" id="rollLeft" style="min-height:52px;font-size:13px;color:var(--mut);border-color:var(--line)">Already left the shop? Say when</button></div>';
+}
+function forgotHtml(){
+  var x = rollOwed(S.rollFor)[0];
+  if (!x) return '';
+  return '<div class="sheetpad" style="gap:10px"><div class="body">' + esc(jobLabelOf(x.v)) + ' rolled out without the yard done:</div>' +
+    x.miss.map(function(m){ return '<div class="trow"><span class="nm" style="text-transform:none;font-weight:600">' + esc(m.label) + '</span></div>'; }).join('') +
+    '<button class="btn btn-go" id="forgotGo" style="min-height:76px;margin-top:6px">Clock in · the PM and Carl are told</button>' +
+    '<div class="fine" style="text-align:center">Next time, tick them at the shop — the drive waits for them there.</div></div>';
+}
+/* Told once per roof per day; never in the way if it does not go. */
+function rollForgot(jobId){
+  var x = rollOwed(jobId)[0];
+  S.rollTold[jobId + '|' + isoLocal()] = true;
+  if (!x) return;
+  apiCall('rollForgot', [jobId, jobLabelOf(x.v), x.miss.map(function(m){ return m.label; })], { lane: 'reads' }).catch(function(e){ failed('roll-out notice', e, true); });
+}
 
 /* I'm here: the job's code and its start photo. Back at the shop at the end
    of the day: the shop's list. */

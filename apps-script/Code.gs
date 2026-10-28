@@ -386,6 +386,7 @@ function doPost(e) {
       clockOut: clockOut,
       startTravel: startTravel,
       leftSite: leftSite,
+      rollForgot: rollForgot,
       startBreak: startBreak,
       endBreak: endBreak,
       getMyDay: getMyDay,
@@ -2268,6 +2269,20 @@ function noticeToPm_(jobId, message, extraNames) {
     var d = pave({ createComment: { '$': args, createdComment: { id: {} } } });
     return { ok: true, id: (((d.createComment || {}).createdComment) || {}).id || null, assigned: who.assigned };
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}
+// ---- rolled out without the yard done (T2.20, Carl 28 Oct 2026) ----------
+// Leaving the shop for a roof is a hard stop on the phone until the board's
+// "At the yard, before you roll out" lines are ticked and the shop material is
+// loaded. Forgot — at the roof without them — the site manager still clocks
+// in ("with the same guidelines as before": T2.19's), and the job's PM and
+// Carl get one comment saying what was not done.
+function rollForgot(me, jobId, jobLabel, missing) {
+  jobId = String(jobId || '').trim();
+  if (!jobId) throw new Error('Missing job id.');
+  assertWrite_(jobId);
+  var what = (missing || []).map(function (m) { return String(m || '').split(' — ')[0].trim(); }).filter(Boolean);
+  return noticeToPm_(jobId, '📋 ' + me.name + ' started at ' + (String(jobLabel || '').trim() || 'the job') + ' without the yard checks done before rolling out' +
+    (what.length ? ': ' + what.join(' · ') : '') + '. Clocked in at ' + clockWords_(new Date()) + '.', leftSiteNotify_());
 }
 function leftSite(me, leftAt, coords, plan) {
   plan = plan || {};

@@ -378,6 +378,10 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   await settle(page);
   check('then asks for the code at the next roof', await txt(page, '#sheetTitle'), 'Code at Lucas');
   await tap(page, '.coderow:has-text("Final Clean")', 500);
+  // Lucas's shop material was never marked loaded (T2.20): the site manager
+  // clocks in all the same, and the PM and Carl are told.
+  check('Lucas rolled out without its material loaded: said, then on', [await page.evaluate(() => S.sheet), await txt(page, '#sheetBody .trow .nm')], ['forgot', 'Material loaded for the crew']);
+  await tap(page, '#forgotGo', 500);
   check('then the start photo there', [await page.evaluate(() => S.clockGate), await txt(page, '#afterBarT')], ['start', 'Start photo · the clock starts when you shoot']);
   await shoot(page);
   await settle(page);

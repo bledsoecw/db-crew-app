@@ -561,6 +561,42 @@ the refusals) and `dev/clock-test.mjs` (a move, the end of the day, on the
 road, yesterday's block) walk it. **Needs:** the Apps Script first (`leftSite`
 is a new door), then `firebase deploy --only hosting`.
 
+**Before you roll out** (T2.20, Carl 28 Oct 2026 — *"the video didn't really
+show much about what the site manager checks for before leaving the shop in
+the morning, I thought we set something up in the app they have to check"*).
+It was there: the board's checklist opens with **At the yard, before you roll
+out** (phase `yard`: *Tarps checked and loaded*, *Dry-in supplies loaded* —
+"while the truck is loaded, the same moment as marking the material loaded"),
+and My jobs carries **Material loaded**. But both sat one tap down inside each
+roof's Site checks, nothing asked for them, and not one real October roof had a
+tick on any line. Carl: **a hard stop**.
+
+- A site manager leaving the shop — **Leave for the job**, or **Move to another
+  job** off the shop's block — gets **Before you roll out** instead of the
+  camera: each of today's roofs from the board, its yard lines as boxes
+  (ticked through the same local-first save as the checklist screen, one PUT
+  per burst) and, where the material comes through the shop, **Material loaded
+  for the crew** (the board's `PUT /api/crew/loaded`). The button reads *3 left
+  to check* until all are done, then **All done · start the drive** — and only
+  then the end photo, the loaded truck. Backing out stays at the shop.
+- **Forgot** (*"if they forget, need to let them clock in later with the same
+  guidelines as before"*): starting work at a roof whose yard is still owed —
+  clocked straight in there, or left the shop without the app (**Already left
+  the shop? Say when** is on the sheet) — shows **Yard checks not done** with
+  what is missing, and **Clock in · the PM and Carl are told** goes on to the
+  start photo while `rollForgot` posts one comment on the job assigned to its
+  PM and Carl (`LEFT_SITE_NOTIFY`), once per roof per day.
+- Only for a site manager the board lets tick, and only off the board's own
+  answer: a board that is down, a fallback job list, or a 403 holds nothing —
+  the clock is payroll. The lines are drawn from `checklist`, phase `yard`; a
+  board without that phase holds only for Material loaded.
+
+`dev/clock-test.mjs` walks the hold, the ticks and the load, a move held and
+backed out of, the forgot path, and a crew member who is never held;
+`dev/daylog-test.mjs` now meets the forgot step on its move to Lucas, whose
+shop material was never loaded. **Needs:** the Apps Script (`rollForgot` is a
+new door), then `firebase deploy --only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

@@ -1215,6 +1215,12 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   const wk = writes.filter(w => w[0] === 'create').map(w => w[1]);
   t('work: the drive from when they left until now, closed, then the work from now', [wk.length, wk[0].costItemId, wk[0].startedAt, !!wk[0].endedAt, wk[1].costItemId, wk[1].endedAt || null, wk[0].endedAt === wk[1].startedAt],
     [2, 'tr2', leftAt, true, 'ci4', null, true]);
+  // T2.20: rolled out without the yard done — the same two people, told once.
+  writes.length = 0;
+  sandbox.rollForgot(ME, 'j9', '26-1490 Courtney', ['Tarps checked and loaded — four sound 20×40s', 'Material loaded for the crew']);
+  const rf = writes.find(w => w[0] === 'comment')[1];
+  t('rolled out without the yard: the PM and Carl, with what was missing', [rf.targetId, rf.assignees, /^📋 Tyler B\. started at 26-1490 Courtney without the yard checks done before rolling out: Tarps checked and loaded · Material loaded for the crew\. Clocked in at \d+:\d\d[ap]\.$/.test(rf.message)],
+    ['j9', [{ membershipId: 'm_dave' }, { membershipId: 'm_carl' }], true]);
   openNow = { ...ONSITE, costItem: { id: 'tr9', name: 'Travel Related Labor', costCode: { number: '01GR-9' } } };
   t('on a drive there is nothing to get round', /A drive needs no end photo/.test(refusedBy(() => sandbox.leftSite(ME, leftAt, null, { kind: 'out' }))), true);
   fetchImpl = () => ({ code: 200, body: '{}' });

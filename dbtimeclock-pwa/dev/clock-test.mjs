@@ -538,6 +538,69 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await ctx.close();
 }
 
+// ---- T2.20: before you roll out — a hard stop at the shop ----
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_YARD=true;');
+  await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
+  await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
+  const rollRows = () => page.locator('#sheetBody .ckrow .lbl').allTextContents();
+  check('leaving the shop: Before you roll out, not the camera', [await page.evaluate(() => [S.tab, S.clockGate, S.sheet]), await txt(page, '#sheetTitle')], [['job', null, 'roll'], 'Before you roll out']);
+  check('…today\'s roof: its yard lines and the shop material, nothing else', (await rollRows()).map((t) => t.split(' — ')[0].split(' · ')[0]),
+    ['Tarps checked and loaded', 'Dry-in supplies loaded', 'Material loaded for the crew']);
+  check('…and the drive waits for them', [await page.locator('#rollGo').isDisabled(), await txt(page, '#rollGo')], [true, '3 left to check']);
+  await tap(page, '[data-rline="tarps"]', 200); await tap(page, '[data-rline="dryin"]', 200);
+  check('ticks land as the checklist screen\'s do', [await txt(page, '#rollGo'), await page.evaluate(() => ckStateFor(visitForChecks('t2roof')).done.tarps)], ['1 left to check', true]);
+  await tap(page, '[data-rloaded="j2"]', 900);
+  check('…Material loaded through the board\'s door, and the drive is free', [await page.evaluate(() => (window.__LOADS || []).map((l) => [l.jobId, l.loaded])), await page.locator('#rollGo').isDisabled(), await txt(page, '#rollGo')],
+    [[['j2', true]], false, 'All done · start the drive']);
+  await page.waitForTimeout(1800);
+  check('the yard ticks went to the board in one save', await page.evaluate(() => (window.__PUTS || []).map((p) => [p.taskId, p.checks.done.tarps, p.checks.done.dryin])), [['t2roof', true, true]]);
+  await tap(page, '#rollGo', 500);
+  check('…then the end photo, the loaded truck', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'end-travel']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // A move from the shop is held the same way; backing out stays at the shop.
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_YARD=true;');
+  await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
+  await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
+  check('Move to another job from the shop: held too', await page.evaluate(() => [S.sheet, S.clockGate, S.pendingJob && S.pendingJob.id]), ['roll', null, 'j2']);
+  await tap(page, '#sheetClose', 300);
+  check('…backing out: still at the shop, nothing moved', await page.evaluate(() => [S.sheet, S.pendingJob, S.moving, S.open.code.number, (window.__CLOCK || []).length]), [null, null, false, '99TM-1', 1]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Forgot: clocked in at the roof without the yard done — in all the same, told.
+  const { ctx, page, errs } = await boot('window.__MOCK_YARD=true;');
+  await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
+  await page.evaluate(() => { pickJobObj(visitAsJob(S.assign.visits.filter((v) => v.jobId === 'j2')[0]), false); });
+  await page.waitForTimeout(400);
+  await tap(page, '#clockIn', 400); await tap(page, '.coderow:has-text("Crew Labor")', 500);
+  check('at the roof, the yard not done: say so, then clock in', [await page.evaluate(() => [S.sheet, S.clockGate]), await txt(page, '#sheetTitle'), await page.locator('#sheetBody .trow .nm').count(), await txt(page, '#forgotGo')],
+    [['forgot', null], 'Yard checks not done', 3, 'Clock in · the PM and Carl are told']);
+  await tap(page, '#forgotGo', 500);
+  check('…told once, with what was missing', await page.evaluate(() => (window.__ROLL || []).map((r) => [r.jobId, r.missing.length])), [['j2', 3]]);
+  check('…and on to the start photo', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'start']);
+  await shoot(page); await settle(page);
+  check('…clocked in at the roof', (await calls(page)).slice(-1)[0].slice(0, 2), ['clockIn', 'j2']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Not a site manager: nothing to hold.
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_YARD=true;window.__MOCK_ROLE="crew";');
+  await page.waitForTimeout(800);
+  await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
+  check('the crew leave the shop with the end photo, no hold', await page.evaluate(() => [S.sheet, S.clockGate]), [null, 'end-travel']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 await browser.close();
 let failed = 0;
 for (const r of results) {

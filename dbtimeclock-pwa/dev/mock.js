@@ -141,6 +141,15 @@
     ]
   };
   if (FX.checklist) CHECKLIST = FX.checklist;
+  // __MOCK_YARD (T2.20): the board's checklist as it is today, starting At the
+  // yard, before you roll out — and Lucas, its yard lines open and its shop
+  // material not loaded, is booked today.
+  var YARD = !!window.__MOCK_YARD;
+  if (YARD && !FX.checklist) {
+    CHECKLIST.phases.unshift({ key: 'yard', label: 'At the yard, before you roll out', tag: 'AT THE YARD', when: 'while the truck is loaded \u2014 the same moment as marking the material loaded' });
+    CHECKLIST.lines.unshift({ key: 'tarps', phase: 'yard', label: 'Tarps checked and loaded \u2014 four sound 20\u00d740s with tie-downs, a torn one swapped out' },
+                            { key: 'dryin', phase: 'yard', label: 'Dry-in supplies loaded \u2014 underlayment, flashing, sealants, fasteners for the planned section' });
+  }
   var LINE_KEYS = {};
   CHECKLIST.lines.forEach(function (l) { LINE_KEYS[l.key] = true; });
   function blankChecks(ticked) {
@@ -165,7 +174,8 @@
   function checksWords(c) {
     if (FX.checksWords) return FX.checksWords(c, checksProgress(c));
     if (c.signedOff) return 'Signed off \u2014 ' + c.signedOff;
-    var pr = checksProgress(c), before = pr[0], handover = pr[1], finished = pr[2];
+    var pr = checksProgress(c), by = {}; pr.forEach(function (p) { by[p.phase] = p; });
+    var before = by.before, handover = by.handover, finished = by.finished;
     if (finished.done > 0) return 'Finishing up \u2014 ' + finished.done + ' of ' + finished.total + ' done, not signed off';
     if (handover.done > 0) return 'Handing over \u2014 ' + handover.done + ' of ' + handover.total + ' done';
     if (before.done === 0) return 'Site checks not started';
@@ -204,7 +214,7 @@
         warehouse: { delivered: false, pulled: true, staged: true, where: 'Bay 3', loaded: true, toWarehouse: false, words: 'Pulled, staged and loaded for the crew' },
         checks: checksFor('t4roof'), alongside: 'Platinum (Shingle)', pm: 'Dave Elick', reps: ['Shawn Deitemeyer', 'Jenn Grubb'] },
       { taskId: 't2', jobId: 'j2', jobNum: '26-1045', jobName: '261045 Lucas_Roof',
-        start: isoAdd(TWO ? 0 : 2), end: isoAdd(TWO ? 0 : 2), days: 1, dayOf: TWO ? 1 : null, today: TWO,
+        start: isoAdd(TWO || YARD ? 0 : 2), end: isoAdd(TWO || YARD ? 0 : 2), days: 1, dayOf: TWO || YARD ? 1 : null, today: TWO || YARD,
         crewNote: '', cust: 'Lucas', city: 'Van Wert', address: '812 S Washington St, Van Wert, OH 45891, USA',
         status: 'Production', jtype: 'Roofing',
         material: { text: 'Pull from shop', cls: 'warn' },
@@ -463,6 +473,11 @@
       if (!endPhotoId && !HANDLERS.__driving()) throw new Error('PHOTO_REQUIRED: An end photo of the code you are leaving is required to switch.');
       if (!startPhotoId) throw new Error('PHOTO_REQUIRED: A start photo is required to start the next code.');
       return HANDLERS.__open(jobId, costItemId);
+    },
+    // Rolled out without the yard done (T2.20): the PM and Carl are told.
+    rollForgot: function (jobId, jobLabel, missing) {
+      (window.__ROLL = window.__ROLL || []).push({ jobId: jobId, jobLabel: jobLabel, missing: missing });
+      return { ok: true, assigned: ['Dave Elick', 'Carl Bledsoe'] };
     },
     // Left the site without clocking out (T2.19): the block ends at the time
     // given, no photo; then out, the drive from then, or the work from now
