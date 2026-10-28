@@ -51,6 +51,8 @@ FADE = 0.006  # seconds faded at each sentence's ends, so joins never click
 # the board's people by name; add a line here when a new name is mispronounced.
 LEXICON = {
     "Yahir": "jɑːˈɪɹ",  # yah-EER
+    "Whitcombe": "wˈɪtkəm",  # WIT-cum (the video's made-up customer)
+    "Bonnewitz": "bˈɑːnəwɪts",  # BON-uh-wits, the street the yard is on
     "Alberto": "ælbˈɛɹtoʊ",  # al-BEHR-toe
     "Kreischer": "kɹˈaɪʃɚ",  # KRY-sher
     "Ingman": "ˈɪŋmən",

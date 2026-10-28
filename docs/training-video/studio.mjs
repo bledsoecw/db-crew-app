@@ -305,7 +305,7 @@ export function director({ page, capture, lengths, collect, debugDir }) {
       await api.say(`Part ${n}. ${title}.`, { es: es?.say });
     },
     /** A chapter: its card, then the stage keeps its name beside the phone. */
-    async chapter(n, title, { sub, kicker, who, es } = {}) {
+    async chapter(n, title, { sub, kicker, who, es, day } = {}) {
       if (collect) {
         marks.push({ title });
         return api.say(n === 0 ? title : `${title}.`, { es: es ? (n === 0 ? es : `${es}.`) : null });
@@ -313,7 +313,7 @@ export function director({ page, capture, lengths, collect, debugDir }) {
       marks.push({ title, at: capture ? capture.t() : 0 });
       await page.evaluate(
         ([spec, info]) => { window.__stage.card(spec); window.__stage.info(info); },
-        [{ kicker: kicker ?? (n === 0 ? "DB Crew · training" : `Chapter ${n}`), title, sub },
+        [{ kicker: kicker ?? (n === 0 ? "DB Crew · training" : `Chapter ${n}`), title, sub, day: !!day },
           n === 0 ? { kicker: "", title: "", who: "" } : { kicker: `${part ? part + " · " : ""}Chapter ${n}`, title, who: who ?? "" }],
       );
       await api.say(n === 0 ? title : `${title}.`, { es: es ? (n === 0 ? es : `${es}.`) : null });

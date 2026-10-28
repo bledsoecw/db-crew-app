@@ -12,10 +12,10 @@ file holds only what does not fit there.
 service repair warranty and close out crews. with chapters. and how to read the
 production board also. same voice as the video"* (Carl, 28 Oct 2026) — the
 "video" being the Production Board's service-PM training video
-(`bledsoecw/DB_Production_Board`, `docs/guides/service-pm-video/`). About
-seventeen minutes, fourteen chapters in four parts: production crews (signed in
-as Tyler, a site manager), service/repair/warranty and close out (signed in as
-Yahir), and the war-room TV. Carl's calls before it was scripted: the phone big
+(`bledsoecw/DB_Production_Board`, `docs/guides/service-pm-video/`). In
+four parts: production crews (signed in as Tyler, a site manager),
+service/repair/warranty and close out (signed in as Yahir), and the war-room
+TV. Carl's calls before it was scripted: the phone big
 on the left with the words on the right (two stills were shown), English
 narration with **English or Spanish subtitles** (so it is made twice), one full
 video **plus each part on its own**, and Tyler throughout the production part.
@@ -64,11 +64,26 @@ regeneration, Linux only.
 - The narration names buttons by their words, so a rename in the app, a change
   to a flow the video walks, or a change to the checklist the board sends is a
   re-record. `node record.mjs debug` shows what broke.
-- **Out of date since T2.16–T2.21 (28 Oct 2026), not re-recorded yet.** Carl's
-  notes from watching it: chapter 8 clocks Yahir in on the Clock tab (Start on
-  the repairs card does it now); chapter 2 starts at the roof (the day starts
-  At the shop · Morning clock-in); chapter 5's Stop sheet has four choices now
-  (Leave for another job, the drive and I'm here are new) and Move to another
-  job from the shop meets Before you roll out; chapter 4's yard ticks happen
-  on site, which is now a hard stop at the shop. The fixtures' code lists need
-  the travel line (`travel: true`) for the drive to be filmed.
+- **Re-recorded for T2.16–T2.22 (28 Oct 2026)**, off Carl's notes from
+  watching the first cut: about twenty-three minutes, nineteen chapters.
+  Tyler's day now starts **At the shop** (Morning Clock-In), a new chapter 4
+  walks leaving the shop (Stop → Leave for the job → Before you roll out with
+  the yard lines → end photo → Where are you going? → the drive on Travel
+  Related Labor → I'm here, the job's code, start photo), the site checks
+  open with the yard already ticked, the Stop sheet has four choices, the
+  clock-out photo shows **Already left**, and Yahir's part goes shop → drive
+  → **Start on the repairs card** as the arrival (no Clock tab detour),
+  drives Castellano → Abernathy with Leave for another job, and uses Already
+  left at Fairbanks — the pointless end photo Carl hit, filmed where it
+  happens. Yahir's phone carries the Clock Alberto too box (`FX.partner`;
+  `fixtures.js` gives the service role no board visits, so the drive's
+  destinations are Close Out's own). Every job's code list carries the travel
+  line (`TRAVEL`, `travel: true`). **Each of Parts 1–3 ends on a "your day"
+  chapter** (Carl: *"I like how the Service Repair Managers video ended, with
+  a quick what your day looks like"*): a card listing the day's steps
+  (`chapter(…, { day: true, sub })`, one step a line — `stage.html`'s
+  `#card.day`) while the narration walks them. Per part rather than once at
+  the end because each part also goes out as its own file.
+- **Recording it found two words wrong on the drive**, fixed first (T2.22,
+  README): a repair card read Continue while driving to it, and the arrival's
+  code sheet was titled Switch code.

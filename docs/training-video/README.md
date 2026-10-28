@@ -1,19 +1,28 @@
 # Training video: DB Crew for the crews
 
-A narrated, captioned screen recording (about seventeen minutes, fourteen
+A narrated, captioned screen recording (about twenty-three minutes, nineteen
 chapters in four parts) that walks the crews through the app on a phone, and
 then through the war-room TV:
 
 1. **Production crews** — signed in as Tyler, a site manager: finding your way
-   around, clocking in with the start photo, My jobs, the site checks and the
-   sign-off, photos, breaks and switching codes, clocking out and the day log.
-2. **Service, repair and warranty** — signed in as Yahir: the Close Out list,
-   and a repair from start to finish (before and after photos, Finish & send
-   to PM).
-3. **Close out** — the final inspection, a problem report, the cleanup, visit
-   photos, the send, and a gutters inspection.
+   around, clocking in at the shop (Morning Clock-In and the start photo), My
+   jobs, leaving the shop (Before you roll out, the drive, I'm here), the site
+   checks and the sign-off, photos, breaks and switching codes, clocking out
+   (Already left) and the day log — then **your day, production crew**.
+2. **Service, repair and warranty** — signed in as Yahir: the Close Out list
+   and the Clock Alberto too box, and a repair from start to finish (the shop,
+   the drive, Start on the repair card as the arrival, before and after photos,
+   Finish & send to PM) — then **your day on service calls**.
+3. **Close out** — the drive to a final inspection and Start as the arrival,
+   a problem report, the cleanup, visit photos, the send, and a gutters
+   inspection reached with Already left — then **your day on close out**.
 4. **Reading the Production Board** — the war-room TV: lanes, cards, the
    material tags, the inspection and repair cards, the week buttons.
+
+Each of the first three parts ends on a "your day" chapter: a card listing the
+day's steps, one a line, while the narration walks them (Carl liked the
+service PM video's ending). They sit at the end of each part rather than once
+at the end because each part is also a file of its own.
 
 English narration (the same Kokoro voice as the Production Board's service-PM
 video), made twice: once with English captions and once with Spanish
@@ -119,7 +128,7 @@ node photos.mjs                # the camera's picture and the photos (once)
 node record.mjs tts            # speak the narration (cached by wording)
 /tmp/crewvideo/venv/bin/python -I check-voice.py "$VIDEO_WORK/lines.json" "$VIDEO_WORK/voice-am_michael"
 node record.mjs debug          # optional: a fast walk, screenshots in $VIDEO_WORK/debug
-node record.mjs record         # the take, about seventeen minutes
+node record.mjs record         # the take, about twenty-three minutes
 node assemble.mjs "$VIDEO_WORK/out"
 ```
 

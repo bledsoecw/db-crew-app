@@ -96,6 +96,9 @@
     { id: 'ci5', name: 'Hauling & Disposal (R)', number: '02ST-5', codeName: 'Hauling & Disposal (Direct)' },
     { id: 'ci6', name: 'Service Repair Labor', number: '01GR-4', codeName: 'Service Repair Labor' }
   ];
+  // Every job's CLOCK IN ITEMS carries the travel line (T2.18): the drive goes
+  // on the job you are driving to. The code sheets never show it.
+  var TRAVEL = { id: 'ci9', name: 'Travel Related Labor', number: '01GR-9', codeName: 'Travel Related Costs', travel: true };
   if (role === 'service') CODES = [
     { id: 'ci1', name: 'Final Clean', number: '02ST-1', codeName: 'Site Prep/Clean Up' },
     { id: 'ci2', name: 'Crew Labor', number: '01GR', codeName: 'General Requirements' },
@@ -108,6 +111,7 @@
     { id: 'ci3', name: 'Site Prep/Clean Up', number: '02ST-1', codeName: 'Site Prep/Clean Up' },
     { id: 'ci4', name: 'Hauling & Disposal (Direct)', number: '02ST-5', codeName: 'Hauling & Disposal (Direct)' }
   ];
+  CODES = CODES.concat([TRAVEL]);
 
   var who = {
     crew: { email: 'zac@deitemeyerbrothers.com', name: 'Zac Deitemeyer' },
@@ -126,6 +130,8 @@
     },
     codes: CODES,
     codesPerJob: true,
+    // Yahir and Alberto work as a pair (T2.21): the API names Alberto on Yahir's phone only.
+    partner: role === 'service' ? { name: 'Alberto Gonzalez' } : null,
     entries: function () { return []; },
     pm: role === 'crew' ? 'Neal Deitemeyer' : 'Kyle Akerman',
     logAssigned: role === 'crew' ? ['Neal Deitemeyer', 'Justin Phillips'] : ['Kyle Akerman', 'Sam Black'],
@@ -156,6 +162,8 @@
         return Object.assign({ jobId: j.id, jobNum: j.number, jobName: j.name, cust: j.customer, address: j.address,
           city: j.address.split(', ')[1], status: 'Production', warehouse: null, checks: null, alongside: null, reps: [], crewNote: '' }, o);
       };
+      // Yahir's day is Close Out's; the board books no roofs on him.
+      if (role === 'service') return [];
       if (role === 'crew') return [
         v(J.lindqvist, { taskId: 'z1', start: h.isoAdd(-1), end: h.isoAdd(1), days: 3, dayOf: 2, today: true, jtype: 'Construction',
           material: { text: '7 of 9 lines in — Window (MBS) due Aug 12', cls: 'warn' }, pm: 'Neal Deitemeyer', reps: ['Justin Phillips'],

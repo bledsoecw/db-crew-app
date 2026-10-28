@@ -75,8 +75,8 @@ export default async function script(s) {
   });
   await s.clear();
 
-  // ── 2 · Clocking in ──────────────────────────────────────────────────────
-  await s.chapter(2, "Clocking in", { who: TYLER, es: "Marcar entrada" });
+  // ── 2 · Clocking in at the shop ──────────────────────────────────────────
+  await s.chapter(2, "Clocking in at the shop", { who: TYLER, es: "Marcar entrada en el taller" });
   await s.uncard();
   await s.say("Today's job is at the top of the Clock. The app picks it from the Production Board: the job you're booked on today.", () => s.highlight($("#jobCard"), "Today's job"), {
     es: "El trabajo de hoy está arriba en «Clock». La aplicación lo toma del Production Board: el trabajo donde estás programado hoy.",
@@ -86,23 +86,26 @@ export default async function script(s) {
     es: "Si no es el trabajo correcto, «Change job» te deja escoger el correcto.",
   });
   await s.clear();
-  await s.say("To start your day, tap Clock in.", () => s.tap($("#clockIn")), { es: "Para empezar tu día, toca «Clock in»." });
-  await s.say("Pick what you're doing. These are the job's own labor codes from JobTread.", () => s.highlight([code("Project Management"), code("Service Repair Labor")], "The job's codes"), {
-    es: "Escoge lo que vas a hacer. Estos son los códigos de mano de obra del trabajo, de JobTread.",
+  await s.say("But the day starts at the shop on Monroe Street. When you get there, you clock in at the shop.", () => s.highlight($("#shopBtn"), "At the shop"), {
+    es: "Pero el día empieza en el taller de Monroe Street. Cuando llegas, marcas entrada en el taller.",
   });
   await s.clear();
-  await s.say("Tyler is running the job, so he picks Project Management.", () => s.tap(code("Project Management"), { after: 1600 }), {
-    es: "Tyler dirige la obra, así que escoge «Project Management».",
+  await s.say("Other shop work, under it, is the shop's short list for anything else: training, crew labor at Monroe Street or Bonnewitz, shop work and maintenance, and hauling.", () => s.highlight($("#shopOther"), "Other shop work"), {
+    es: "«Other shop work», abajo, es la lista corta del taller para todo lo demás: capacitación, mano de obra en Monroe Street o Bonnewitz, trabajo y mantenimiento del taller, y acarreo.",
   });
-  await s.say("The camera opens on the start photo. Take a picture of the job. The shutter is what clocks you in.", () => s.highlight($("#shutter"), "The shutter clocks you in"), {
-    es: "La cámara se abre en la foto de inicio. Toma una foto del trabajo. El botón de la cámara es lo que marca tu entrada.",
+  await s.clear();
+  await s.say("Tap At the shop. It puts you on the shop's Morning Clock-In, and the camera opens on the start photo.", () => s.tap($("#shopBtn"), { after: 1800 }), {
+    es: "Toca «At the shop». Te pone en «Morning Clock-In» del taller, y la cámara se abre en la foto de inicio.",
+  });
+  await s.say("The shutter is what clocks you in.", () => s.highlight($("#shutter"), "The shutter clocks you in"), {
+    es: "El botón de la cámara es lo que marca tu entrada.",
   });
   await s.clear();
   await s.say("There's no clocking in without the photo. It goes on the job in JobTread, tagged to your time.", () => s.tap($("#shutter"), { after: 3600 }), {
     es: "No se puede marcar entrada sin la foto. La foto queda en el trabajo en JobTread, ligada a tu tiempo.",
   });
-  await s.say("You're on the clock. The timer runs, and the line underneath says when you started and that the start photo is in.", () => s.highlight($("#band"), "On the clock"), {
-    es: "Ya estás marcado. El reloj corre, y la línea de abajo dice a qué hora empezaste y que la foto de inicio ya está.",
+  await s.say("You're on the clock at the shop. The timer runs, and the line underneath says when you started and that the start photo is in.", () => s.highlight($("#band"), "On the clock"), {
+    es: "Ya estás marcado en el taller. El reloj corre, y la línea de abajo dice a qué hora empezaste y que la foto de inicio ya está.",
   });
   await s.clear();
 
@@ -132,22 +135,83 @@ export default async function script(s) {
     es: "«Directions» abre los mapas de tu teléfono con la dirección ya puesta.",
   });
   await s.clear();
-  await s.say("Under Next up are the jobs still to come. Go here instead moves your clock to that job, if the plan changes in the morning.", async () => {
+  await s.say("Under Next up are the jobs still to come. If the plan changes, Go here instead makes that one your job.", async () => {
     await s.highlight($('.jcard:has([data-go="v-8140"])'), "Next up");
     await s.wait(2600);
     await s.clear();
     await s.highlight($('[data-go="v-8140"]'), "Go here instead");
-  }, { es: "En «Next up» están los trabajos que vienen. «Go here instead» pasa tu reloj a ese trabajo, si el plan cambia en la mañana." });
+  }, { es: "En «Next up» están los trabajos que vienen. Si cambia el plan, «Go here instead» lo hace tu trabajo." });
   await s.clear();
   await s.say("If the board can't be reached, My jobs says so, and shows the jobs you've clocked into lately. The clock never waits on the board.", {
     es: "Si no se puede llegar al Production Board, «My jobs» te lo dice y te muestra los trabajos donde marcaste últimamente. El reloj nunca espera al Production Board.",
   });
 
-  // ── 4 · Site checks ──────────────────────────────────────────────────────
-  await s.chapter(4, "Site checks, for site managers", { who: TYLER, es: "La lista de la obra, para supervisores" });
+  // ── 4 · Leaving the shop, and the drive ──────────────────────────────────
+  await s.later(50 * 60_000);
+  await s.chapter(4, "Leaving the shop, and the drive", { who: TYLER, es: "Salir del taller, y el viaje" });
+  await s.tap(tab("job"), { after: 600 });
   await s.uncard();
-  await s.say("Site managers: the site checks replace the paper checklist in the packet. Every roofing job has them.", () => s.highlight($('.jcard.today [data-checks]'), "Site checks"), {
-    es: "Supervisores de obra: la lista de la obra reemplaza la lista de papel del paquete. Cada trabajo de techo la tiene.",
+  await s.say("The truck is loaded and it's time to go. Tap Stop the clock, then Leave for the job.", async () => {
+    await s.tap($("#stopBtn"), { after: 700 });
+    await s.highlight($("#stopTravel"), "Leave for the job");
+    await s.wait(1400);
+    await s.clear();
+    await s.tap($("#stopTravel"), { after: 1200 });
+  }, { es: "La camioneta está cargada y es hora de salir. Toca «Stop the clock», y luego «Leave for the job»." });
+  await s.say("Site managers: before the truck leaves the shop, the app stops here. Before you roll out lists today's roofs, each with its yard checks.", () => s.highlight($("#sheetBody"), "Before you roll out"), {
+    es: "Supervisores de obra: antes de que la camioneta salga del taller, la aplicación se detiene aquí. «Before you roll out» muestra los techos de hoy, cada uno con sus revisiones del patio.",
+  });
+  await s.clear();
+  await s.say("For Whitcombe: the tarps, and the dry-in supplies. When the material comes through the shop, Material loaded is on the list too.", () => s.highlight([$('[data-rline="tarps"]'), $('[data-rline="dryin"]')], "The yard checks"), {
+    es: "Para Whitcombe: las lonas, y el material para cubrir el techo. Cuando el material pasa por el taller, «Material loaded» también está en la lista.",
+  });
+  await s.clear();
+  await s.say("Tyler checked both on the truck, so he ticks them. The drive waits until every line is ticked.", async () => {
+    await s.tap($('[data-rline="tarps"]'), { after: 700 });
+    await s.tap($('[data-rline="dryin"]'), { after: 900 });
+  }, { es: "Tyler revisó las dos en la camioneta, así que las marca. El viaje espera hasta que todas las líneas estén marcadas." });
+  await s.say("They're the first group of the job's site checks, so they're ticked there too. Then tap All done, start the drive.", () => s.tap($("#rollGo"), { after: 1500 }), {
+    es: "Son el primer grupo de la lista de la obra, así que también quedan marcadas ahí. Luego toca «All done · start the drive».",
+  });
+  await s.say("First the end photo at the shop. Taking it starts the drive.", () => s.tap($("#shutter"), { after: 2600 }), {
+    es: "Primero la foto final en el taller. Al tomarla empieza el viaje.",
+  });
+  await s.say("Where are you going? Today's roofs from the board are on the list. Tyler taps Whitcombe.", async () => {
+    await s.highlight($("#sheetBody"), "Where are you going?");
+    await s.wait(1800);
+    await s.clear();
+    await s.tap($('[data-dest="v-8127"]'), { after: 2400 });
+  }, { es: "¿A dónde vas? Los techos de hoy del Production Board están en la lista. Tyler toca Whitcombe." });
+  await s.say("The clock is on the drive now: Driving to Ellen Whitcombe, on that job's Travel Related Labor line. The drive is paid, and it takes no photo at either end.", () => s.highlight($("#band"), "On the drive"), {
+    es: "Ahora el reloj está en el viaje: «Driving to Ellen Whitcombe», en la línea «Travel Related Labor» de ese trabajo. El viaje se paga, y no lleva foto ni al salir ni al llegar.",
+  });
+  await s.clear();
+  await s.later(28 * 60_000);
+  await s.say("At the roof, tap I'm here, start work.", () => s.tap($("#arriveBtn"), { after: 1400 }), {
+    es: "En el techo, toca «I'm here · start work».",
+  });
+  await s.say("Pick what you're doing. These are the job's clock-in lines from JobTread, its Clock In Items.", () => s.highlight([code("Project Management"), code("Service Repair Labor")], "The job's codes"), {
+    es: "Escoge lo que vas a hacer. Estas son las líneas para marcar del trabajo, de JobTread: sus «Clock In Items».",
+  });
+  await s.clear();
+  await s.say("Tyler is running the job, so he picks Project Management. Then the start photo of the job. It ends the drive and starts the work.", async () => {
+    await s.tap(code("Project Management"), { after: 1600 });
+    await s.tap($("#shutter"), { after: 3400 });
+  }, { es: "Tyler dirige la obra, así que escoge «Project Management». Luego la foto de inicio del trabajo. Termina el viaje y empieza el trabajo." });
+  await s.say("Driving from one roof to the next later in the day works the same way: Stop the clock, then Leave for another job.", () => s.highlight($("#stopBtn"), "Stop the clock"), {
+    es: "Manejar de un techo al siguiente más tarde en el día funciona igual: «Stop the clock», y luego «Leave for another job».",
+  });
+  await s.clear();
+  await s.say("Forgot the yard checks at the shop? You can still clock in at the roof. The app asks for them first, and the PM and Carl are told.", {
+    es: "¿Se te olvidaron las revisiones del patio en el taller? Todavía puedes marcar entrada en el techo. La aplicación las pide primero, y se les avisa al PM y a Carl.",
+  });
+
+  // ── 5 · Site checks ──────────────────────────────────────────────────────
+  await s.chapter(5, "Site checks, for site managers", { who: TYLER, es: "La lista de la obra, para supervisores" });
+  await s.tap(tab("jobs"), { after: 900 });
+  await s.uncard();
+  await s.say("Site managers: the site checks replace the paper checklist in the packet. Every roofing job has them. They're on the job's card in My jobs.", () => s.highlight($('.jcard.today [data-checks]'), "Site checks"), {
+    es: "Supervisores de obra: la lista de la obra reemplaza la lista de papel del paquete. Cada trabajo de techo la tiene. Está en la tarjeta del trabajo en «My jobs».",
   });
   await s.clear();
   await s.tap($('.jcard.today [data-checks]'), { after: 900 });
@@ -157,19 +221,18 @@ export default async function script(s) {
     { es: "Hay cinco grupos, en el orden del trabajo: en el patio, antes de quitar el techo viejo, mientras el techo está abierto, antes de irte si te vas temprano, y antes de que la cuadrilla se vaya para siempre." },
   );
   await s.clear();
-  await s.say("At the yard, before you roll out: the tarps and the dry-in supplies. Tap a line to tick it.", async () => {
-    await s.tap($('.ckrow[data-line="tarps"]'), { after: 500 });
-    await s.tap($('.ckrow[data-line="dryin"]'), { after: 500 });
-  }, { es: "En el patio, antes de salir: las lonas y el material para cubrir el techo. Toca una línea para marcarla." });
-  await s.say("It saves by itself, and the top of the screen says Saved. The next group opens on its own.", () => s.highlight($("#ckState"), "Saved"), {
-    es: "Se guarda solo, y arriba de la pantalla dice «Saved». El siguiente grupo se abre solo.",
+  await s.say("At the yard is done already. Tyler ticked it at the shop, before the drive.", {
+    es: "«At the yard» ya está hecho. Tyler lo marcó en el taller, antes del viaje.",
   });
-  await s.clear();
-  await s.say("Before the tear-off: right address, the homeowner talked to, and the scope on site matches the work order.", async () => {
+  await s.say("Before the tear-off: right address, the homeowner talked to, and the scope on site matches the work order. Tap a line to tick it.", async () => {
     await s.tap($('.ckrow[data-line="address"]'), { after: 400 });
     await s.tap($('.ckrow[data-line="homeowner"]'), { after: 400 });
     await s.tap($('.ckrow[data-line="scope"]'), { after: 400 });
-  }, { es: "Antes de quitar el techo viejo: la dirección correcta, ya hablaste con el dueño, y el trabajo en la obra coincide con la orden de trabajo." });
+  }, { es: "Antes de quitar el techo viejo: la dirección correcta, ya hablaste con el dueño, y el trabajo en la obra coincide con la orden de trabajo. Toca una línea para marcarla." });
+  await s.say("It saves by itself, and the top of the screen says Saved.", () => s.highlight($("#ckState"), "Saved"), {
+    es: "Se guarda solo, y arriba de la pantalla dice «Saved».",
+  });
+  await s.clear();
   await s.say("Got something to add? The pen at the end of a line puts a note on it.", () => s.tap($('[data-note-add="septic"]'), { after: 600 }), {
     es: "¿Tienes algo que agregar? El lápiz al final de una línea le pone una nota.",
   });
@@ -205,8 +268,8 @@ export default async function script(s) {
   await s.clear();
   await s.tap($("#ckBack"), { after: 700 });
 
-  // ── 5 · Photos, breaks and switching ─────────────────────────────────────
-  await s.chapter(5, "Photos, breaks and switching codes", { who: TYLER, es: "Fotos, descansos y cambio de código" });
+  // ── 6 · Photos, breaks and switching ─────────────────────────────────────
+  await s.chapter(6, "Photos, breaks and switching codes", { who: TYLER, es: "Fotos, descansos y cambio de código" });
   await s.tap(tab("job"), { after: 600 });
   await s.uncard();
   await s.say("Back on the Clock. Take a photo opens the camera for a progress shot.", () => s.tap($("#photoBtn"), { after: 1500 }), {
@@ -222,8 +285,8 @@ export default async function script(s) {
   await s.say("A few hours later, it's time for a break. Tap Stop the clock.", () => s.tap($("#stopBtn"), { after: 600 }), {
     es: "Unas horas después, es hora de descansar. Toca «Stop the clock».",
   });
-  await s.say("It gives you three choices: a break, switching code or job, or clocking out for the day.", () => s.highlight($("#sheetBody"), "Three choices"), {
-    es: "Te da tres opciones: un descanso, cambiar de código o de trabajo, o marcar salida del día.",
+  await s.say("It gives you four choices: a break, switching code or job, leaving for another job, or clocking out for the day.", () => s.highlight($("#sheetBody"), "Four choices"), {
+    es: "Te da cuatro opciones: un descanso, cambiar de código o de trabajo, salir a otro trabajo, o marcar salida del día.",
   });
   await s.clear();
   await s.say("Tap Break, and pick how long: fifteen minutes, half an hour, forty-five minutes or an hour. Each one shows when the clock starts again.", async () => {
@@ -261,20 +324,27 @@ export default async function script(s) {
     es: "Un solo paso cierra el código viejo y abre el nuevo, así que nunca quedas fuera del reloj entre uno y otro.",
   });
   await s.clear();
-  await s.say("Going to another roof is Move to another job, at the top. It's the same end photo, then the other job's code and its start photo.", () => s.highlight($("#pickJobBtn"), "Move to another job"), {
-    es: "Para ir a otro techo usa «Move to another job», arriba. Es la misma foto final, y luego el código del otro trabajo y su foto de inicio.",
+  await s.say("Going to another roof is Leave for another job, on the same Stop sheet. It's the same end photo, then the drive, just like leaving the shop.", () => s.highlight($("#stopBtn"), "Stop the clock"), {
+    es: "Para ir a otro techo usa «Leave for another job», en la misma hoja de «Stop». Es la misma foto final, y luego el viaje, igual que al salir del taller.",
   });
   await s.clear();
 
-  // ── 6 · Clocking out and the day log ─────────────────────────────────────
-  await s.chapter(6, "Clocking out and the day log", { who: TYLER, es: "Marcar salida y el reporte del día" });
+  // ── 7 · Clocking out and the day log ─────────────────────────────────────
+  await s.chapter(7, "Clocking out and the day log", { who: TYLER, es: "Marcar salida y el reporte del día" });
   await s.later(2 * 3600_000);
   await s.uncard();
-  await s.say("At the end of the day, Stop the clock, then Clock out for the day.", async () => {
+  await s.say("Heading back to the shop at the end of the day? Don't clock out at the roof. Stop the clock, Leave for another job, then Back to the shop. The drive back is paid travel.", {
+    es: "¿Regresas al taller al final del día? No marques salida en el techo. «Stop the clock», «Leave for another job», y luego «Back to the shop». El viaje de regreso se paga como viaje.",
+  });
+  await s.say("Tyler's crew goes home from the roof, so he clocks out here: Stop the clock, then Clock out for the day.", async () => {
     await s.tap($("#stopBtn"), { after: 600 });
     await s.tap($("#stopOut"), { after: 1500 });
-  }, { es: "Al final del día, «Stop the clock», y luego «Clock out for the day»." });
-  await s.say("Take the end photo. That clocks you out.", () => s.tap($("#shutter"), { after: 3200 }), { es: "Toma la foto final. Eso marca tu salida." });
+  }, { es: "La cuadrilla de Tyler se va a casa desde el techo, así que él marca salida aquí: «Stop the clock», y luego «Clock out for the day»." });
+  await s.say("Already left the job before you clocked out? Don't take a picture of the road. Already left, at the bottom of the camera, asks when you left and ends your time then, with no photo. Your PM and Carl are told on the job.", () => s.highlight($("#leftBtn"), "Already left"), {
+    es: "¿Ya te fuiste del trabajo antes de marcar salida? No le tomes foto a la carretera. «Already left», abajo en la cámara, pregunta a qué hora te fuiste y termina tu tiempo a esa hora, sin foto. Se les avisa en el trabajo a tu PM y a Carl.",
+  });
+  await s.clear();
+  await s.say("Tyler is still on the roof, so he takes the end photo. That clocks him out.", () => s.tap($("#shutter"), { after: 3200 }), { es: "Tyler todavía está en el techo, así que toma la foto final. Eso marca su salida." });
   await s.say("A site manager lands on today's day log, with a reminder to send it before you go. On the crew, you just see your hours for the day.", () => s.highlight($("#dlBody .promptbox"), "Send it before you go"), {
     es: "El supervisor llega al reporte del día, con un recordatorio de mandarlo antes de irse. En la cuadrilla, solo ves tus horas del día.",
   });
@@ -324,13 +394,31 @@ export default async function script(s) {
     es: "En un día tranquilo hay una forma más rápida: «Normal day, nothing to report» contesta que no a todas las preguntas y lo manda con un solo toque.",
   });
 
+  // ── 8 · Your day ─────────────────────────────────────────────────────────
+  await s.chapter(8, "Your day, production crew", {
+    who: TYLER, es: "Tu día, cuadrilla de producción", day: true,
+    sub: "1 · At the shop — Morning Clock-In, start photo\n2 · Site managers: yard checks, then Leave for the job\n3 · At the roof — I’m here, the job’s code, start photo\n4 · Site checks as the job runs · photos · breaks\n5 · Back to the shop on the clock, or clock out — then the day log",
+  });
+  await s.say("So here's your day. Get to the shop, tap At the shop, and take the start photo.", {
+    es: "Así es tu día. Llega al taller, toca «At the shop», y toma la foto de inicio.",
+  });
+  await s.say("When the truck is loaded, site managers tick the yard checks. Then Stop the clock, Leave for the job, and pick the roof.", {
+    es: "Cuando la camioneta está cargada, los supervisores marcan las revisiones del patio. Luego «Stop the clock», «Leave for the job», y escoge el techo.",
+  });
+  await s.say("At the roof: I'm here, the job's code, and the start photo. Site managers tick the site checks as the job runs. Everyone takes photos as they go, and Stop the clock is for breaks and new codes.", {
+    es: "En el techo: «I'm here», el código del trabajo, y la foto de inicio. Los supervisores marcan la lista de la obra mientras avanza el trabajo. Todos toman fotos sobre la marcha, y «Stop the clock» es para descansos y códigos nuevos.",
+  });
+  await s.say("At the end of the day, drive back to the shop on the clock, or clock out at the roof with the end photo. Site managers send the day log before they go.", {
+    es: "Al final del día, maneja de regreso al taller con el reloj corriendo, o marca salida en el techo con la foto final. Los supervisores mandan el reporte del día antes de irse.",
+  });
+
   // ══ PART 2 · SERVICE, REPAIR & WARRANTY ═══════════════════════════════════
   await s.part(2, "Service, repair and warranty", "Your Close Out list, and a repair from start to finish.", { say: "Parte 2. Servicio, reparación y garantía." });
   await s.do(({ page }) => page.clock.setSystemTime(new Date("2026-08-06T11:12:00Z")));
   await s.phone("service");
 
-  // ── 7 · Your Close Out list ──────────────────────────────────────────────
-  await s.chapter(7, "Your Close Out list", { who: YAHIR, es: "Tu lista de Close Out" });
+  // ── 9 · Your Close Out list ──────────────────────────────────────────────
+  await s.chapter(9, "Your Close Out list", { who: YAHIR, es: "Tu lista de Close Out" });
   await s.uncard();
   await s.say("Service, repair and warranty work, and final inspections, live on the Close Out tab. Alberto's and Yahir's phones open straight on it.", () => s.highlight(tab("co"), "Close Out"), {
     es: "El trabajo de servicio, reparación y garantía, y las inspecciones finales, están en la pestaña «Close Out». Los teléfonos de Alberto y Yahir abren directo ahí.",
@@ -346,6 +434,13 @@ export default async function script(s) {
     es: "«Assigned» es tu trabajo. «All» son todos los trabajos que esperan cierre.",
   });
   await s.clear();
+  await s.say("Yahir and Alberto work as a pair, so Yahir's phone has one more box: Clock Alberto in and out with you.", () => s.highlight($("[data-copartner]"), "Alberto too"), {
+    es: "Yahir y Alberto trabajan en pareja, así que el teléfono de Yahir tiene una casilla más: «Clock Alberto Gonzalez in and out with you».",
+  });
+  await s.clear();
+  await s.say("Ticked, Alberto's clock follows Yahir's: clocking in, switching, breaks, the drive, and clocking out. If Alberto is already on the clock somewhere else, his clock is left alone, and the phone says so.", () => s.tap($("[data-copartner]"), { after: 1400 }), {
+    es: "Marcada, el reloj de Alberto sigue al de Yahir: la entrada, los cambios, los descansos, el viaje y la salida. Si Alberto ya está marcado en otro lado, su reloj no se toca, y el teléfono te lo dice.",
+  });
   await s.say("Under it, your next two weeks, with a dot on each day you have work. Tap a day to jump to it.", () => s.highlight($("#coStrip"), "Your days"), {
     es: "Abajo, tus próximas dos semanas, con un punto en cada día que tienes trabajo. Toca un día para ir a él.",
   });
@@ -359,25 +454,40 @@ export default async function script(s) {
   });
   await s.clear();
 
-  // ── 8 · A repair, start to finish ────────────────────────────────────────
-  await s.chapter(8, "A repair, start to finish", { who: YAHIR, es: "Una reparación, de principio a fin" });
+  // ── 10 · A repair, start to finish ────────────────────────────────────────
+  await s.chapter(10, "A repair, start to finish", { who: YAHIR, es: "Una reparación, de principio a fin" });
   await s.uncard();
-  await s.say("Today Yahir has a service call: two repairs at Castellano. First, put the clock on that job. On the Clock tab, tap Change job and find it.", async () => {
-    await s.tap(tab("job"), { after: 700 });
-    await s.tap($("#pickJobBtn"), { after: 900 });
-    await s.do(({ page }) => page.keyboard.type("8072", { delay: 90 }));
-    await s.wait(900);
-    await s.tap($('#jobResults [data-pick="co-cast"], #jobResults button').first(), { after: 900 });
-  }, { es: "Hoy Yahir tiene una llamada de servicio: dos reparaciones en Castellano. Primero, pon el reloj en ese trabajo. En la pestaña «Clock», toca «Change job» y búscalo." });
-  await s.say("Clock in, pick Service Repair Labor, and take the start photo.", async () => {
-    await s.tap($("#clockIn"), { after: 700 });
-    await s.tap(code("Service Repair Labor"), { after: 1500 });
-    await s.tap($("#shutter"), { after: 3200 });
-  }, { es: "Marca entrada, escoge «Service Repair Labor», y toma la foto de inicio." });
-  await s.say("Now back to Close Out, and tap the Castellano card.", async () => {
-    await s.tap(tab("co"), { after: 800 });
-    await s.tap($('.jact[data-cojob="co-cast"]'), { after: 1200 });
-  }, { es: "Ahora regresa a «Close Out», y toca la tarjeta de Castellano." });
+  await s.say("Today Yahir has a service call: two repairs at Castellano. His day starts at the shop, like everyone's. On the Clock tab, At the shop, and the start photo.", async () => {
+    await s.tap(tab("job"), { after: 800 });
+    await s.tap($("#shopBtn"), { after: 1600 });
+    await s.tap($("#shutter"), { after: 3000 });
+  }, { es: "Hoy Yahir tiene una llamada de servicio: dos reparaciones en Castellano. Su día empieza en el taller, como el de todos. En la pestaña «Clock», «At the shop», y la foto de inicio." });
+  await s.later(35 * 60_000);
+  await s.say("Time to go. Stop the clock, Leave for the job, and the end photo at the shop.", async () => {
+    await s.tap($("#stopBtn"), { after: 700 });
+    await s.tap($("#stopTravel"), { after: 1300 });
+    await s.tap($("#shutter"), { after: 2600 });
+  }, { es: "Hora de salir. «Stop the clock», «Leave for the job», y la foto final en el taller." });
+  await s.say("Where are you going? Today's Close Out work is on the list. Yahir taps Castellano.", async () => {
+    await s.highlight($("#sheetBody"), "Where are you going?");
+    await s.wait(1600);
+    await s.clear();
+    await s.tap($('[data-dest="co-cast"]'), { after: 2400 });
+  }, { es: "¿A dónde vas? El trabajo de «Close Out» de hoy está en la lista. Yahir toca Castellano." });
+  await s.say("He's on the drive, on Castellano's travel line. No photo until he gets there.", () => s.highlight($("#band"), "On the drive"), {
+    es: "Está en el viaje, en la línea de viaje de Castellano. No hay foto hasta que llegue.",
+  });
+  await s.clear();
+  await s.later(22 * 60_000);
+  await s.say("At Castellano, he goes back to Close Out. A repair card that's yours says Start.", async () => {
+    await s.tap(tab("co"), { after: 900 });
+    await s.highlight($('[data-costart="co-cast"]'), "Start");
+  }, { es: "En Castellano, regresa a «Close Out». Una tarjeta de reparación que es tuya dice «Start»." });
+  await s.clear();
+  await s.say("Start puts the clock here and opens the job: no end photo for the drive, Service Repair Labor picked for him, and the start photo.", async () => {
+    await s.tap($('[data-costart="co-cast"]'), { after: 1800 });
+    await s.tap($("#shutter"), { after: 3400 });
+  }, { es: "«Start» pone el reloj aquí y abre el trabajo: sin foto final del viaje, «Service Repair Labor» ya escogido, y la foto de inicio." });
   await s.say("Repairs lists what the office asked for. Mine is yours. Everyone is every repair on the job.", async () => {
     await s.tap($('[data-coscreen="repairs"]'), { after: 900 });
     await s.highlight($("#coSeg"), "Yours, or everyone's");
@@ -422,25 +532,48 @@ export default async function script(s) {
   }, { es: "Una llamada de garantía funciona exactamente igual. Sinclair, mañana, es una reparación de garantía." });
   await s.clear();
 
+  // ── 11 · Your service day ────────────────────────────────────────────────
+  await s.chapter(11, "Your day on service calls", {
+    who: YAHIR, es: "Tu día en llamadas de servicio", day: true,
+    sub: "1 · At the shop — Morning Clock-In, start photo\n2 · Leave for the job — pick the call from today’s Close Out work\n3 · Start on the repair card\n4 · Before photo · the repair · after photo · Done\n5 · The last one: Finish & send to PM — then the next job",
+  });
+  await s.say("So here's a service day. Clock in at the shop, then Leave for the job, and pick the call from today's Close Out work.", {
+    es: "Así es un día de servicio. Marca entrada en el taller, luego «Leave for the job», y escoge la llamada del trabajo de «Close Out» de hoy.",
+  });
+  await s.say("When you get there, Start on the repair card puts the clock on the job. Before photo, the repair, the after photo, and Done. The last one is Finish and send to PM.", {
+    es: "Cuando llegas, «Start» en la tarjeta de reparación pone el reloj en el trabajo. La foto de antes, la reparación, la foto de después, y «Done». La última es «Finish & send to PM».",
+  });
+  await s.say("Then Leave for another job, and drive to the next one.", {
+    es: "Luego «Leave for another job», y maneja al siguiente.",
+  });
+
   // ══ PART 3 · CLOSE OUT ════════════════════════════════════════════════════
   await s.part(3, "Close out", "The final inspection, cleanup, problems and the send.", { say: "Parte 3. Cierre de obra." });
 
-  // ── 9 · Starting an inspection ───────────────────────────────────────────
+  // ── 12 · Starting an inspection ──────────────────────────────────────────
   await s.later(40 * 60_000);
-  await s.chapter(9, "Starting a final inspection", { who: YAHIR, es: "Empezar una inspección final" });
+  await s.chapter(12, "Starting a final inspection", { who: YAHIR, es: "Empezar una inspección final" });
   await s.uncard();
   await s.say("A final inspection card says Start. Start moves your clock to the job and opens the inspection, in one go.", () => s.highlight($('[data-costart="co-aber"]'), "Start"), {
     es: "Una tarjeta de inspección final dice «Start». «Start» pasa tu reloj al trabajo y abre la inspección, todo de una vez.",
   });
   await s.clear();
-  await s.say("Yahir is still on the clock at Castellano, so it asks for that end photo first.", async () => {
-    await s.tap($('[data-costart="co-aber"]'), { after: 1500 });
-    await s.tap($("#shutter"), { after: 3000 });
-  }, { es: "Yahir todavía está marcado en Castellano, así que primero pide la foto final de ese trabajo." });
-  await s.say("Then the code here, Final Clean, and the start photo.", async () => {
+  await s.say("Abernathy is a drive from Castellano. It's the same as leaving the shop: on the Clock tab, Stop the clock, Leave for another job, and the end photo.", async () => {
+    await s.tap(tab("job"), { after: 800 });
+    await s.tap($("#stopBtn"), { after: 700 });
+    await s.tap($("#stopTravel"), { after: 1300 });
+    await s.tap($("#shutter"), { after: 2600 });
+  }, { es: "Abernathy queda a un viaje de Castellano. Es igual que salir del taller: en la pestaña «Clock», «Stop the clock», «Leave for another job», y la foto final." });
+  await s.say("Then Abernathy, from today's Close Out work.", () => s.tap($('[data-dest="co-aber"]'), { after: 2400 }), {
+    es: "Luego Abernathy, del trabajo de «Close Out» de hoy.",
+  });
+  await s.later(15 * 60_000);
+  await s.say("At Abernathy, Start on the card is the arrival. Pick the code here, Final Clean, and the start photo.", async () => {
+    await s.tap(tab("co"), { after: 900 });
+    await s.tap($('[data-costart="co-aber"]'), { after: 1600 });
     await s.tap(code("Final Clean"), { after: 1500 });
     await s.tap($("#shutter"), { after: 3400 });
-  }, { es: "Luego el código de aquí, «Final Clean», y la foto de inicio." });
+  }, { es: "En Abernathy, «Start» en la tarjeta es la llegada. Escoge el código de aquí, «Final Clean», y la foto de inicio." });
   await s.say("The job screen holds the whole visit: the inspection, the cleanup, any problems, visit photos, and what was sold.", () => s.highlight($("#coBody"), "The whole visit"), {
     es: "La pantalla del trabajo tiene toda la visita: la inspección, la limpieza, los problemas, las fotos de la visita, y lo que se vendió.",
   });
@@ -450,8 +583,8 @@ export default async function script(s) {
   });
   await s.clear();
 
-  // ── 10 · The inspection and cleanup ──────────────────────────────────────
-  await s.chapter(10, "The inspection and the cleanup", { who: YAHIR, es: "La inspección y la limpieza" });
+  // ── 13 · The inspection and cleanup ──────────────────────────────────────
+  await s.chapter(13, "The inspection and the cleanup", { who: YAHIR, es: "La inspección y la limpieza" });
   await s.uncard();
   await s.say("The inspection is eight checks. Each one is OK, N/A, or Fix.", async () => {
     await s.tap($('[data-coscreen="inspect"]'), { after: 900 });
@@ -490,8 +623,8 @@ export default async function script(s) {
     es: "«Next» te regresa al trabajo, donde está esperando «Review & send».",
   });
 
-  // ── 11 · Photos and the send ─────────────────────────────────────────────
-  await s.chapter(11, "Photos, and sending it", { who: YAHIR, es: "Las fotos, y mandarlo" });
+  // ── 14 · Photos and the send ─────────────────────────────────────────────
+  await s.chapter(14, "Photos, and sending it", { who: YAHIR, es: "Las fotos, y mandarlo" });
   await s.uncard();
   await s.say("Visit photos show how the job was left. They're optional, but they save a trip.", async () => {
     await s.tap($('[data-coscreen="photos"]'), { after: 900 });
@@ -519,9 +652,9 @@ export default async function script(s) {
     es: "¿No hay señal? Todo queda guardado en el teléfono, y se manda solo en cuanto haya señal.",
   });
 
-  // ── 12 · Gutters and siding ──────────────────────────────────────────────
+  // ── 15 · Gutters and siding ──────────────────────────────────────────────
   await s.later(90 * 60_000);
-  await s.chapter(12, "Gutters and siding", { who: YAHIR, es: "Canales y siding" });
+  await s.chapter(15, "Gutters and siding", { who: YAHIR, es: "Canales y siding" });
   await s.uncard();
   await s.say("Some jobs have more than a roof. Fairbanks has a roof and gutters, and each one is inspected on its own.", async () => {
     await s.tap($("#coBackQueue"), { after: 900 });
@@ -530,10 +663,22 @@ export default async function script(s) {
     await s.highlight($("#coAreas"), "Each area on its own");
   }, { es: "Algunos trabajos tienen más que un techo. Fairbanks tiene techo y canales, y cada uno se inspecciona por separado." });
   await s.clear();
-  await s.say("Start on the gutters moves your clock here too. Yahir is still on the clock at Abernathy, so it asks for that end photo first.", async () => {
+  await s.say("Yahir drove here without stopping the clock at Abernathy. Start on the gutters moves the clock, so it asks for Abernathy's end photo. But he isn't at Abernathy any more.", async () => {
     await s.tap($('[data-coarea="gutters"]'), { after: 1500 });
-    await s.tap($("#shutter"), { after: 3000 });
-  }, { es: "«Start» en los canales también pasa tu reloj aquí. Yahir todavía está marcado en Abernathy, así que primero pide la foto final de ese trabajo." });
+    await s.highlight($("#leftBtn"), "Already left");
+  }, { es: "Yahir manejó hasta aquí sin parar el reloj en Abernathy. «Start» en los canales mueve el reloj, así que pide la foto final de Abernathy. Pero ya no está en Abernathy." });
+  await s.clear();
+  await s.say("So he taps Already left Abernathy, and says when he left: half an hour ago.", async () => {
+    await s.tap($("#leftBtn"), { after: 1200 });
+    await s.tap(target((x) => x.app.locator("#sheetBody [data-leftat]").nth(2)), { after: 900 });
+    await s.highlight($("#leftGo"), "I left at…");
+    await s.wait(1200);
+    await s.clear();
+    await s.tap($("#leftGo"), { after: 1600 });
+  }, { es: "Así que toca «Already left Abernathy», y dice a qué hora se fue: hace media hora." });
+  await s.say("Abernathy's time ends then, with no photo. The half hour since goes on this job's travel line, and the PM and Carl are told on the job.", {
+    es: "El tiempo de Abernathy termina a esa hora, sin foto. La media hora desde entonces va a la línea de viaje de este trabajo, y se les avisa en el trabajo al PM y a Carl.",
+  });
   await s.say("Then Final Clean here, and the start photo.", async () => {
     await s.tap(code("Final Clean"), { after: 1500 });
     await s.tap($("#shutter"), { after: 3400 });
@@ -552,14 +697,32 @@ export default async function script(s) {
   }, { es: "Luego «Finish & send». Le llega al PM que revisa los canales, y el tablero mueve el trabajo cuando todas sus partes están listas." });
   await s.clear();
 
+  // ── 16 · Your close-out day ──────────────────────────────────────────────
+  await s.chapter(16, "Your day on close out", {
+    who: YAHIR, es: "Tu día en el cierre de obra", day: true,
+    sub: "1 · At the shop, then Leave for the job\n2 · Start on the inspection card\n3 · Eight checks — Fix makes a report\n4 · Five cleanup checks · visit photos\n5 · Review & send — gutters and siding on their own\nLeft without stopping the clock? Already left — say when",
+  });
+  await s.say("So here's a close-out day. Clock in at the shop, Leave for the job, and Start on the card when you get there.", {
+    es: "Así es un día de cierre. Marca entrada en el taller, «Leave for the job», y «Start» en la tarjeta cuando llegues.",
+  });
+  await s.say("Work the eight checks. Anything wrong is Fix, with a photo, where it is, and a note. Then the five cleanup checks, and a few visit photos.", {
+    es: "Haz las ocho revisiones. Lo que esté mal es «Fix», con una foto, dónde está, y una nota. Luego las cinco revisiones de limpieza, y unas fotos de la visita.",
+  });
+  await s.say("Then Review and send. Gutters and siding are inspected on their own, with photos and a note. A problem you couldn't fix comes back to you as a repair.", {
+    es: "Luego «Review & send». Los canales y el siding se inspeccionan por separado, con fotos y una nota. Un problema que no pudiste arreglar te regresa como reparación.",
+  });
+  await s.say("And if you drove off without stopping the clock, don't take a photo of somewhere you've left. Already left, and say when.", {
+    es: "Y si te fuiste sin parar el reloj, no le tomes foto a un lugar donde ya no estás. «Already left», y di a qué hora.",
+  });
+
   // ══ PART 4 · READING THE PRODUCTION BOARD ═════════════════════════════════
   await s.part(4, "Reading the Production Board", "The war-room TVs: who goes where, and what the colours mean.", { say: "Parte 4. Cómo leer el Production Board." });
   await s.do(({ page }) => page.clock.setSystemTime(new Date("2026-08-06T11:40:00Z")));
   await s.setLayout("full");
   await s.do(({ page }) => showTv(page, "roofing"));
 
-  // ── 13 · The war-room TV ─────────────────────────────────────────────────
-  await s.chapter(13, "The war-room TV", { who: TV, es: "La televisión de la sala de juntas" });
+  // ── 17 · The war-room TV ─────────────────────────────────────────────────
+  await s.chapter(17, "The war-room TV", { who: TV, es: "La televisión de la sala de juntas" });
   await s.uncard();
   await s.say("The Production Board is the office's schedule. In the war room, two TVs show it. This one has roofing, service and inspections. The other has construction.", {
     es: "El Production Board es la programación de la oficina. En la sala de juntas, dos televisiones lo muestran. Esta tiene techos, servicio e inspecciones. La otra tiene construcción.",
@@ -622,11 +785,11 @@ export default async function script(s) {
     es: "Nada se puede cambiar desde la televisión. Si tu tarjeta está mal, o no aparece, avísale a la oficina. Ellos la arreglan en el tablero, y la televisión y tu teléfono se actualizan solos.",
   });
 
-  // ── 14 · Wrap up ─────────────────────────────────────────────────────────
-  await s.chapter(14, "That's DB Crew", { who: "", es: "Eso es DB Crew" });
+  // ── 18 · Wrap up ─────────────────────────────────────────────────────────
+  await s.chapter(18, "That's DB Crew", { who: "", es: "Eso es DB Crew" });
   await s.say(
-    "That's DB Crew. Clock in with a photo. Check My jobs for where you're going. Site managers, tick the site checks and send the day log. Service and close out, work from the Close Out tab and send it from the job.",
-    { es: "Eso es DB Crew. Marca entrada con una foto. Revisa «My jobs» para saber a dónde vas. Supervisores, marquen la lista de la obra y manden el reporte del día. Servicio y cierre, trabajen desde la pestaña «Close Out» y mándenlo desde el trabajo." },
+    "That's DB Crew: one app for the whole day. The clock, from the shop to the roof and back. Your jobs and the TV, from the same schedule. And the site checks, the day log and Close Out, all going straight into JobTread.",
+    { es: "Eso es DB Crew: una sola aplicación para todo el día. El reloj, del taller al techo y de regreso. Tus trabajos y la televisión, de la misma programación. Y la lista de la obra, el reporte del día y «Close Out», todo directo a JobTread." },
   );
   await s.say("If something in the app looks wrong, tell the office. Thanks for watching.", {
     es: "Si algo en la aplicación se ve mal, avísale a la oficina. Gracias por ver.",

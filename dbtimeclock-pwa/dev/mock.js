@@ -373,7 +373,7 @@
       return { codes: jobId ? codesFor(jobId) : [], jobOptions: HANDLERS.getJobOptions(),
                crew: b.isForeman ? HANDLERS.getCrewOnClock() : [], logFields: LOG_FIELDS,
                // __MOCK_PARTNER: Yahir's phone — the API names Alberto (T2.21).
-               partner: window.__MOCK_PARTNER ? { name: 'Alberto Gonzalez' } : null };
+               partner: window.__MOCK_PARTNER ? { name: 'Alberto Gonzalez' } : (FX.partner || null) };
     },
     getToday: function (jobId) {
       // __MOCK_NOJOB: nothing remembered on the phone — the seed-from-the-schedule case.
