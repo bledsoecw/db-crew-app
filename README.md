@@ -454,6 +454,44 @@ search or the All list. The queue fetches the codes of your repair jobs behind
 it, as it does your inspections'. `dev/closeout-test.mjs` walks it.
 **Needs:** `firebase deploy --only hosting` only.
 
+**The codes are the job's CLOCK IN ITEMS, and the day starts At the shop**
+(T2.17, Carl 28 Oct 2026). Two things, both from what the crews do in
+JobTread every morning (`JOBTREAD-NOTES.md` has the live read):
+
+- **Which lines a job offers.** New jobs carry a `CLOCK IN ITEMS` cost group
+  whose lines are cost type *Clock In*, not Labor — the code list here never
+  showed one of them. Carl: *"they should only have the options listed in the
+  Clock in Items cost group. If the cost group is missing from the job, then
+  and only then offer other clock in options so they can at least clock in."*
+  So `getJobCodes` offers the group's Clock In lines when the job has them
+  (a line added twice shows once) and every budget-level Labor or Clock In
+  line when it does not. Each code says whether it is the job's **travel**
+  line and whether it is an **office** code: Administrative (`99TM-7`) is
+  kept off the code sheet for everyone but Operations — Carl's call, an
+  office code wherever it appears. The API's cache key and the phone's kept
+  lists are versioned, so a list from before this is never offered again.
+- **At the shop.** *"All crew members typically start their day at the
+  Monroe Street production building. When they get there they are on the
+  clock and need to clock in."* Off the clock, under Clock in: **At the shop
+  · Morning clock-in** — one tap puts the clock on 25-0011 DB INTERNAL's
+  Morning Clock-In (`99TM-1`) and opens the camera on the start photo (Carl:
+  keep it). **Other shop work** is the shop's own list and nothing else:
+  Morning Clock-In, Training, Crew Labor – Monroe St., Crew Labor – Bonnewitz
+  Ave., Shop Work/Maintenance (`SHOP_CODES`; the Script Property of that name,
+  a comma list of code numbers, changes it without a release — the haulers'
+  Hauling & Disposal on DB INTERNAL is not on Carl's list). On the clock there,
+  the job card reads *At the shop · JT #25-0011 / The shop*. The shop's job
+  comes from the API on boot (`getStart.shop`); an older API sends none and
+  the row is not drawn.
+
+`apps-script/code-test.mjs` (a job with the group, one without, the shop,
+`SHOP_CODES`) and `dev/clock-test.mjs` (the one tap, the shop's list,
+Administrative by role, an API that names no shop) walk it. **Needs:** the
+Apps Script (`clasp push`, a new version of the web app deployment), then
+`firebase deploy --only hosting`. A new phone on the old script draws no shop
+row and reads the old code list; the old phone on the new script reads the
+new list.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

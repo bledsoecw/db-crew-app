@@ -212,6 +212,50 @@ const afterFirst = fetched.length;
 t('a second ask is served from cache', [sandbox.getJobCodes('j1').map(c => c.id), fetched.length], [['ci1'], afterFirst]);
 t('a different job is not', [sandbox.getJobCodes('j2').length, fetched.length > afterFirst], [1, true]);
 
+// ---- T2.17: the CLOCK IN ITEMS group decides, when the job has one ----
+// Shapes as JobTread answered for 26-1517 Zimmerman_Roof and 25-0011 DB
+// INTERNAL on 28 Oct 2026: the group's lines are cost type "Clock In".
+const ci = (id, name, number, type, group, extra) => Object.assign({ id, name, costType: { name: type }, costGroup: group ? { name: group } : null, costCode: { number, name: name } }, extra || {});
+let codesAsked = null;
+const codeJob = (nodes) => (url, opts) => { try { codesAsked = JSON.parse(opts.payload).query; } catch (e) {} return { code: 200, body: JSON.stringify({ job: { costItems: { nextPage: null, nodes } } }) }; };
+props = {}; cacheStore = {}; fetched = [];
+fetchImpl = codeJob([
+  ci('s1', 'Service Repair Labor - Roofing', '01GR-4', 'Labor', 'Standard Roofing Repair Agreement'),
+  ci('r1', 'Roofing', '07TM-1', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('p1', 'Payment processing (est. 3%)', '01GR-92', 'Other', 'CLOCK IN ITEMS'),
+  ci('g1', 'General Requirements', '01GR', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('r2', 'Roofing', '07TM-1', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('a1', 'Administrative', '99TM-7', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('t1', 'Travel Related Labor', '01GR-9', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('r3', 'Roofing', '07TM-1', 'Clock In', 'CLOCK IN ITEMS', { document: { id: 'd1' }, jobCostItem: { id: 'r1' } })
+]);
+const grouped = sandbox.getJobCodes('jz');
+t('the query asks for Labor and Clock In lines, with their group', [JSON.stringify(codesAsked.job.costItems.$.where), !!codesAsked.job.costItems.nodes.costGroup], ['[["costType","name"],"in",["Labor","Clock In"]]', true]);
+t('a job with CLOCK IN ITEMS offers only its Clock In lines — no estimate Labor, no Other, a twice-added line once', grouped.map(c => c.id), ['g1', 't1', 'r1', 'a1']);
+t('…the travel line says so, and Administrative is an office code', grouped.map(c => [c.id, c.travel, c.office]), [['g1', false, false], ['t1', true, false], ['r1', false, false], ['a1', false, true]]);
+fetchImpl = codeJob([
+  ci('l1', 'Crew Labor', '01GR', 'Labor', 'Shingle Roof Replacement'),
+  ci('l2', 'Final Clean', '02ST-1', 'Labor', null),
+  ci('t2', 'Travel Related Labor', '01GR-9', 'Clock In', null),
+  ci('l3', 'Copy', '01GR', 'Labor', null, { document: { id: 'd2' } })
+]);
+t('a job without the group: then and only then, every budget line — Labor or Clock In', sandbox.getJobCodes('jold').map(c => c.id), ['l1', 't2', 'l2']);
+fetchImpl = codeJob([
+  ci('m1', 'Morning Clock-In', '99TM-1', 'Labor', 'Crew'),
+  ci('m2', 'Training', '99TM-2', 'Labor', 'Crew'),
+  ci('m3', 'Crew Labor - Monroe St.', '99TM-3', 'Labor', 'Crew'),
+  ci('m5', 'Crew Labor - Bonnewitz Ave.', '99TM-5', 'Labor', 'Crew'),
+  ci('m4', 'Shop Work/Maintenance', '99TM-4', 'Labor', 'Crew'),
+  ci('m7', 'Administrative', '99TM-7', 'Labor', 'Admin'),
+  ci('h1', 'Hauling & Disposal (Direct)', '02ST-5', 'Clock In', 'Crew'),
+  ci('g2', 'General Requirements', '01GR', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('a2', 'Administrative', '99TM-7', 'Clock In', 'CLOCK IN ITEMS')
+]);
+t('the shop offers exactly its five, morning first', sandbox.getJobCodes('22PMNGeeViuh').map(c => c.name), ['Morning Clock-In', 'Training', 'Crew Labor - Monroe St.', 'Crew Labor - Bonnewitz Ave.', 'Shop Work/Maintenance']);
+props = { SHOP_CODES: '99TM-1, 02ST-5' }; cacheStore = {};
+t('…and SHOP_CODES changes them without a release', sandbox.getJobCodes('22PMNGeeViuh').map(c => c.name), ['Morning Clock-In', 'Hauling & Disposal (Direct)']);
+props = {}; cacheStore = {};
+
 // A router for the stubbed fetch: by URL, then by the shape of the Pave query.
 // The org's daily-log custom fields as JobTread returned them on 2026-09-15.
 const LOG_FIELDS = [

@@ -35,7 +35,7 @@
   var LUCAS = { id: 'j2', name: '261045 Lucas_Roof', number: '26-1045', customer: 'Lucas', address: '812 S Washington St, Van Wert, OH 45891, USA' };
   if (FX.job) JOB = FX.job;
   if (FX.job2) LUCAS = FX.job2;
-  function jobById(id) { return (FX.jobs || [JOB, LUCAS]).filter(function (j) { return j.id === id; })[0] || null; }
+  function jobById(id) { return (FX.jobs || [JOB, LUCAS]).concat([FX.shop || { id: 'shop', number: '25-0011', name: '250011 DB INTERNAL', customer: '', address: '224 Bonnewitz Ave, Van Wert, OH 45891, USA' }]).filter(function (j) { return j.id === id; })[0] || null; }
   // __MOCK_TWO_TODAY: Lucas is booked today as well, and the clock opens with
   // no job remembered — the two-roof morning.
   var TWO = !!window.__MOCK_TWO_TODAY;
@@ -52,15 +52,27 @@
     { id: 'ci10', name: 'Sales On-Site Support', number: '99TM-6', codeName: 'Sales On-Site Support' }
   ];
   if (FX.codes) CODES = FX.codes;
+  // The shop (T2.17): 25-0011 DB INTERNAL and the five lines the crew
+  // clocks at the shop, as getJobCodes chooses them. __MOCK_NOSHOP plays an
+  // API from before T2.17, which names no shop on boot.
+  var SHOP = FX.shop || { id: 'shop', number: '25-0011', name: '250011 DB INTERNAL', customer: '', address: '224 Bonnewitz Ave, Van Wert, OH 45891, USA' };
+  var SHOP_CODES = [
+    { id: 'sh1', name: 'Morning Clock-In', number: '99TM-1', codeName: 'Morning Clock-In', travel: false, office: false },
+    { id: 'sh2', name: 'Training', number: '99TM-2', codeName: 'Training', travel: false, office: false },
+    { id: 'sh3', name: 'Crew Labor - Monroe St.', number: '99TM-3', codeName: 'In House- Monroe', travel: false, office: false },
+    { id: 'sh5', name: 'Crew Labor - Bonnewitz Ave.', number: '99TM-5', codeName: 'In House- Bonnewitz', travel: false, office: false },
+    { id: 'sh4', name: 'Shop Work/Maintenance', number: '99TM-4', codeName: 'Shop Work/Maintenance', travel: false, office: false }
+  ];
   // FX.codesPerJob: every job gets its own cost-item ids ('ci5@co-fair'), as
   // in JobTread, where a cost item belongs to one job's budget — so a code
   // running at one job is not "Running" on the next job's list.
   function codesFor(jobId) {
+    if (jobId === SHOP.id) return SHOP_CODES;
     if (!FX.codesPerJob || !jobId) return CODES;
     return CODES.map(function (c) { return Object.assign({}, c, { id: c.id + '@' + jobId }); });
   }
   function code(id) {
-    var base = String(id).split('@')[0], c = CODES.filter(function (x) { return x.id === base; })[0];
+    var base = String(id).split('@')[0], c = CODES.concat(SHOP_CODES).filter(function (x) { return x.id === base; })[0];
     return c && base !== id ? Object.assign({}, c, { id: id }) : c;
   }
 
@@ -328,7 +340,7 @@
     getStart: function (jobId) {
       var b = HANDLERS.getBoot();
       var t = HANDLERS.getToday(jobId);
-      return { me: b, open: t.open, job: t.job, entries: t.entries, writeEnabled: t.writeEnabled };
+      return { me: b, open: t.open, job: t.job, entries: t.entries, writeEnabled: t.writeEnabled, shop: window.__MOCK_NOSHOP ? undefined : { id: SHOP.id, number: SHOP.number, name: SHOP.name } };
     },
     // Set __MOCK_SLOWEXTRAS to watch the sheets while the extras are still in
     // flight — the state a real phone is in for the first few seconds of boot.

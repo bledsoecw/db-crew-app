@@ -85,6 +85,49 @@ A real job's Labor lines, for shape: Project Management (C), Sales On-Site
 Support, Equipment Operation, Site Prep Labor, Demolition, Hauling & Disposal,
 Hand Excavation, Crew Labor, Masonry Labor, Final Clean.
 
+### The CLOCK IN ITEMS group (read live 28 Oct 2026)
+
+Since early October new jobs carry a job-level cost group named **`CLOCK IN
+ITEMS`** (all caps; on some jobs it was added twice). Its lines are cost type
+**`Clock In`** — a fifth cost type beside Labor, Materials, Subcontractor and
+Other — so a filter on `costType.name === 'Labor'` never sees one. On a job
+made from the templates updated **16 Oct** the group holds about forty lines,
+one per cost code (General Requirements, Project Management, Site Supervisor,
+Roofing, Siding, Demolition … Administrative), plus **`Travel Related Labor`**
+(`01GR-9 Travel Related Costs`, Clock In) — the line the crew clocks the drive
+into. Groups added before 16 Oct have no travel line, and some hold only
+`Roofing` and an Other-type `Payment processing (est. 3%)`.
+
+Carl, 28 Oct 2026: *"for clocking into travel and labor items, they should
+only have the options listed in the Clock in Items cost group. If the cost
+group is missing from the job, then and only then offer other clock in
+options so they can at least clock in."* `getJobCodes` asks for Labor and
+Clock In lines (`where: [['costType','name'], 'in', ['Labor','Clock In']]`,
+with `costGroup { name }`) and keeps the group's Clock In lines when there are
+any; otherwise every budget-level line, as before.
+
+### The shop: 25-0011 DB INTERNAL
+
+The crew's morning clock-in at the Monroe Street building is job **`25-0011
+DB INTERNAL`** (`22PMNGeeViuh`, location 224 Bonnewitz Avenue), line
+**`Morning Clock-In`** (`99TM-1`, `22PMNHSujxaK`, described in JobTread as
+*"for Crew team members to clock in to the morning meeting"*). Its `Crew`
+group also holds Training (`99TM-2`), Crew Labor – Monroe St. (`99TM-3`),
+Shop Work/Maintenance (`99TM-4`) and Crew Labor – Bonnewitz Ave. (`99TM-5`),
+all Labor; Administrative (`99TM-7`) sits in an `Admin` group, and the job
+has a CLOCK IN ITEMS group of its own besides. Carl's list for the shop is the
+five `99TM-1…5` lines and nothing else (`SHOP_CODES` in Code.gs).
+
+What people actually did, Sep 1 – Oct 28: 102 Morning Clock-Ins from eight
+people, most 15–60 minutes and then a switch at the site (the drive rode on
+the shop's line), a few left running all day; others started the day on
+DB INTERNAL's General Requirements, Training, or — Alberto and Yahir, nearly
+every morning — Administrative, which is meant for the office. Alberto and
+Yahir are clocked in as a pair from one phone (their entries start within
+milliseconds of each other). The haulers (Kodey Nichols, Rick Bright) log
+long blocks on DB INTERNAL's `Hauling & Disposal (Direct)` (Clock In, in the
+`Crew` group), which is not on Carl's shop list.
+
 ## People — the field is `emailAddress`, not `email`
 
 **Corrected 2026-09-14 against the live API.** The query written here before was

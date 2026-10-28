@@ -1834,8 +1834,35 @@ function cacheGet_(key) {
   } catch (e) { return null; }
 }
 
+// ---- which lines a job offers to clock into (T2.17, Carl 28 Oct 2026) ----
+// Since early October every new job carries a CLOCK IN ITEMS cost group: the
+// lines the crew is meant to clock into, cost type "Clock In" — not Labor, so
+// the list this app read before never showed one of them — with the job's
+// Travel Related Labor (01GR-9) among them on jobs made from 16 Oct. Carl:
+// "for clocking into travel and labor items, they should only have the
+// options listed in the Clock in Items cost group. If the cost group is
+// missing from the job, then and only then offer other clock in options so
+// they can at least clock in." So a job with the group offers its Clock In
+// lines and nothing else; a job without it offers every budget-level Labor
+// or Clock In line, as before. The shop is neither: 25-0011 DB INTERNAL
+// carries a CLOCK IN ITEMS group of its own, but at the shop the crew picks
+// from Morning Clock-In, Training, the two in-house lines and Shop Work —
+// SHOP_CODES, by cost code number (Script Property SHOP_CODES, a comma list,
+// overrides). Administrative (99TM-7) is marked `office` and the phone keeps
+// it for Operations: it is an office code, wherever it appears.
+var CLOCK_IN_GROUP = /^\s*clock\s*in\s*items\s*$/i;
+var SHOP_JOB = { id: '22PMNGeeViuh', number: '25-0011', name: '250011 DB INTERNAL' };
+var SHOP_CODES = ['99TM-1', '99TM-2', '99TM-3', '99TM-5', '99TM-4'];
+var OFFICE_CODES = ['99TM-7'];
+function shopJobId_() { return SHOP_JOB.id; }
+function shopCodes_() {
+  var v = '';
+  try { v = PropertiesService.getScriptProperties().getProperty('SHOP_CODES') || ''; } catch (e) {}
+  var list = v.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  return list.length ? list : SHOP_CODES;
+}
 function jobCodesQuery_(jobId, page) {
-  var arg = { where: [['costType', 'name'], 'Labor'], size: 100 };
+  var arg = { where: [['costType', 'name'], 'in', ['Labor', 'Clock In']], size: 100 };
   if (page) arg.page = page;
   return {
     job: {
@@ -1847,6 +1874,8 @@ function jobCodesQuery_(jobId, page) {
           id: {}, name: {},
           document: { id: {} },
           jobCostItem: { id: {} },
+          costType: { name: {} },
+          costGroup: { name: {} },
           costCode: { number: {}, name: {} }
         }
       }
@@ -1854,9 +1883,10 @@ function jobCodesQuery_(jobId, page) {
   };
 }
 /** The code list from its first page (already fetched), the rest paged in
- *  as needed; sorted and cached. */
+ *  as needed; chosen as above, sorted and cached. Each code says `travel`
+ *  (the job's Travel Related Labor) and `office` (Administrative). */
 function jobCodesFrom_(jobId, first) {
-  var out = [], seen = {}, d = first;
+  var all = [], seen = {}, d = first;
   for (var i = 0; i < 4; i++) {
     var conn = (((d.job || {}).costItems) || {});
     var nodes = conn.nodes || [];
@@ -1865,26 +1895,46 @@ function jobCodesFrom_(jobId, first) {
       if (ci.document || ci.jobCostItem) continue;   // document line item, not the budget line
       if (seen[ci.id]) continue;
       seen[ci.id] = 1;
-      var cc = ci.costCode || {};
-      out.push({
-        id: ci.id,
-        name: ci.name || (cc.name || 'Labor'),
-        number: cc.number || '',
-        codeName: cc.name || ''
-      });
+      all.push(ci);
     }
     if (!conn.nextPage) break;
     d = pave(jobCodesQuery_(jobId, conn.nextPage));
   }
+  var typeOf = function (ci) { return String((ci.costType || {}).name || ''); };
+  var picked;
+  if (jobId === shopJobId_()) {
+    var want = shopCodes_();
+    picked = all.filter(function (ci) { return want.indexOf(String((ci.costCode || {}).number || '')) !== -1; });
+  } else {
+    picked = all.filter(function (ci) { return typeOf(ci) === 'Clock In' && CLOCK_IN_GROUP.test(String((ci.costGroup || {}).name || '')); });
+    if (!picked.length) picked = all;
+  }
+  // A job given the group twice (a template applied on top of a hand-added
+  // one) lists the same line twice; the crew sees it once.
+  var out = [], named = {};
+  picked.forEach(function (ci) {
+    var cc = ci.costCode || {}, name = ci.name || (cc.name || 'Labor'), key = (cc.number || '') + '|' + name.toLowerCase();
+    if (named[key]) return;
+    named[key] = 1;
+    out.push({
+      id: ci.id,
+      name: name,
+      number: cc.number || '',
+      codeName: cc.name || '',
+      travel: /travel/i.test(name),
+      office: OFFICE_CODES.indexOf(cc.number || '') !== -1
+    });
+  });
   out.sort(function (a, b) {
+    if (jobId === shopJobId_()) { var w = shopCodes_(); return w.indexOf(a.number) - w.indexOf(b.number); }
     return String(a.number).localeCompare(String(b.number)) || String(a.name).localeCompare(String(b.name));
   });
-  cachePut_('jc_' + jobId, out, CODES_CACHE_SEC);
+  cachePut_('jc2_' + jobId, out, CODES_CACHE_SEC);
   return out;
 }
 function getJobCodes(jobId) {
   if (!jobId) throw new Error('Missing job id.');
-  var cached = cacheGet_('jc_' + jobId);
+  var cached = cacheGet_('jc2_' + jobId);
   if (cached) return cached;
   return jobCodesFrom_(jobId, pave(jobCodesQuery_(jobId, null)));
 }
@@ -1999,6 +2049,9 @@ function getStart(me, jobId) {
     job: job,
     entries: myDayFrom_(rs[1].data),
     writeEnabled: writeEnabled_(),
+    // The shop's job, for At the shop (T2.17): its codes come from
+    // getJobCodes like any job's.
+    shop: SHOP_JOB,
     recent: recentCalls_()
   };
 }
@@ -2010,7 +2063,7 @@ function getStart(me, jobId) {
 // so and reloads.
 function getExtras(me, jobId) {
   var out = { codes: [], jobOptions: [], crew: [], logFields: null };
-  var codesHit = jobId ? cacheGet_('jc_' + jobId) : null;
+  var codesHit = jobId ? cacheGet_('jc2_' + jobId) : null;
   var optsHit = me.userId ? cacheGet_('jo_' + me.userId) : null;
   var fieldsHit = cacheGet_(LOG_FIELDS_KEY);
   var foreman = bootProfile_(me).isForeman;

@@ -135,6 +135,9 @@ button[disabled]{cursor:default}
 #clockIn{min-height:132px;background:var(--go);color:var(--goink);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:16px}
 #clockIn .big{font:800 30px/1 var(--head);letter-spacing:.9px;text-transform:uppercase}
 #clockIn .sm{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;opacity:.7}
+.bi2{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left}
+.bi2 .b1{font:800 19px/1 var(--head);letter-spacing:.76px}
+.bi2 .b2{font:600 10px/1 var(--mono);letter-spacing:1.2px;color:var(--lab)}
 .stack{display:flex;flex-direction:column;gap:12px;margin-top:14px}
 
 .tbl{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:11px}
@@ -730,6 +733,13 @@ button[disabled]{cursor:default}
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"/><polyline points="12 6.6 12 12 15.8 14"/></svg>
           <span class="big">Clock in</span><span class="sm">Code, then start photo</span>
         </button>
+        <div id="shopRow" class="stack hidden">
+          <button class="btn btn-out" id="shopBtn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/></svg>
+            <span class="bi2"><span class="b1">At the shop</span><span class="b2">Morning clock-in · start photo</span></span>
+          </button>
+          <button class="btn btn-out" id="shopOther" style="min-height:56px;font-size:14px;letter-spacing:.5px;color:var(--mut);border-color:var(--line)">Other shop work</button>
+        </div>
 
         <div class="sect">
           <div class="k">Today on this job</div>
@@ -1382,12 +1392,13 @@ var S = {
   // a tab this launch (the service crew lands on Close Out otherwise).
   coReturn:null, coReturnArea:null, tabTouched:false,
   codesLoading:null,   // T2.5: the job whose code list a tap is waiting on
+  shop:null,           // T2.17: the shop's job (25-0011 DB INTERNAL), named by the API on boot
   apiLog:[], errs:[], recent:[]
 };
 
 function savePrefs(){
   try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, push:pushState, jobPickedDay:S.jobPickedDay,
-                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs })); } catch(e){}
+                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs, shop:S.shop })); } catch(e){}
 }
 function loadPrefs(){
   try {
@@ -1404,6 +1415,7 @@ function loadPrefs(){
     S.langSet = !!p.langSet;
     S.viewAs = (p.viewAs === 'crew' || p.viewAs === 'siteManager' || p.viewAs === 'service') ? p.viewAs : '';
     S.talkHinted = !!p.talkHinted;
+    if (p.shop && p.shop.id) S.shop = p.shop;
     // The device stays registered across launches; only this page's memory of
     // it is lost. Restoring it stops Diagnostics claiming "not checked
     // yet" about a phone that is already receiving nudges.
@@ -1453,11 +1465,14 @@ function codeInline(c){ return c ? ((c.number ? c.number + ' ' : '') + String(c.
    per job is kept on the phone for the shift: a tap gets it at once and the
    API's answer replaces it behind. */
 var CODES_TTL_MS = 12 * 3600 * 1000, CODES_KEEP = 24;
+// v2 (T2.17): a job's list is its CLOCK IN ITEMS lines now; a list kept from
+// before that is the old Labor list, and is not offered again.
+var CODES_V = 2;
 function codesCache(){ try { return JSON.parse(localStorage.getItem('dbtc_codes') || '{}') || {}; } catch(e){ return {}; } }
-function codesCached(jobId){ var e = codesCache()[jobId]; return (e && Date.now() - e.at < CODES_TTL_MS && Array.isArray(e.codes)) ? e.codes : null; }
+function codesCached(jobId){ var e = codesCache()[jobId]; return (e && e.v === CODES_V && Date.now() - e.at < CODES_TTL_MS && Array.isArray(e.codes)) ? e.codes : null; }
 function codesRemember(jobId, codes){
   if (!jobId || !Array.isArray(codes)) return;
-  var m = codesCache(); m[jobId] = { at: Date.now(), codes: codes };
+  var m = codesCache(); m[jobId] = { at: Date.now(), v: CODES_V, codes: codes };
   Object.keys(m).sort(function(a, b){ return m[b].at - m[a].at; }).slice(CODES_KEEP).forEach(function(k){ delete m[k]; });
   try { localStorage.setItem('dbtc_codes', JSON.stringify(m)); } catch(e){}
 }
@@ -1770,11 +1785,11 @@ function jobTitle(j){
 }
 
 function renderJob(){
-  var j = S.job;
-  $('jobK').textContent = j ? ("Today's job · JT #" + (j.number || '')) : "Today's job";
-  $('jobAddr').textContent = j ? (streetOf(j.address) || jobTitle(j) || '—') : 'Pick a job';
-  $('jobSub').textContent = j
-    ? [j.customer, cityOf(j.address)].filter(Boolean).join(' · ')
+  var j = S.job, shop = atShop();
+  $('jobK').textContent = j ? ((shop ? 'At the shop' : "Today's job") + ' · JT #' + (j.number || '')) : "Today's job";
+  $('jobAddr').textContent = shop ? 'The shop' : j ? (streetOf(j.address) || jobTitle(j) || '—') : 'Pick a job';
+  $('jobSub').textContent = shop ? 'Morning clock-in, training and shop work'
+    : j ? [j.customer, cityOf(j.address)].filter(Boolean).join(' · ')
     : 'Tap below to choose where you are working.';
   $('jobChips').innerHTML = j
     ? [jobTitle(j)].filter(Boolean).map(function(x){ return '<span class="chip">' + esc(x) + '</span>'; }).join('')
@@ -1819,6 +1834,7 @@ function renderClock(){
   var on = !!S.open && !paused && !over, brk = paused || over || legacy;
   $('onClock').classList.toggle('hidden', !on && !brk);
   $('clockIn').classList.toggle('hidden', on || brk);
+  $('shopRow').classList.toggle('hidden', on || brk || !S.shop);
   $('clockIn').disabled = !S.job;
   $('clockIn').style.opacity = S.job ? 1 : .45;
   $('runStack').classList.toggle('hidden', !on);
@@ -3382,10 +3398,15 @@ function openSheet(kind, promptKind){
   wireSheet();
 }
 
+/* What the code sheet offers (T2.17): the job's list as the API chose it,
+   less Administrative for anyone but Operations — an office code. */
+function codeShown(c){ return !!c && !(c.office && effRole() !== 'ops'); }
+function sheetCodes(){ return S.codes.filter(codeShown); }
 function codesHtml(){
-  if (!S.codes.length) return '<div class="sheetpad"><div class="body">' +
+  var list = sheetCodes();
+  if (!list.length) return '<div class="sheetpad"><div class="body">' +
     ((S.extrasLoading || S.codesLoading) ? 'Loading this job&rsquo;s code list&hellip;'
-      : 'No labor cost codes on this job. Ask the office to add a labor line to the budget.') +
+      : 'Nothing to clock into on this job. Ask the office to add the CLOCK IN ITEMS group to its budget.') +
     '</div></div>';
   var bySec = {};
   S.entries.forEach(function(e){
@@ -3393,7 +3414,7 @@ function codesHtml(){
     var sec = e.endedAt ? (new Date(e.endedAt)-new Date(e.startedAt))/1000 : Math.max(0,(Date.now()-new Date(e.startedAt))/1000);
     bySec[e.code.id] = (bySec[e.code.id]||0) + sec;
   });
-  return S.codes.map(function(c){
+  return list.map(function(c){
     var running = S.open && S.open.code && S.open.code.id === c.id;
     var banked = bySec[c.id] || 0;
     return '<button class="coderow' + (running?' on':'') + '" data-code="' + esc(c.id) + '">' +
@@ -3573,6 +3594,31 @@ function pickJobObj(j, seeded){
   render();
   loadCodes(j.id).then(function(codes){ S.codes = codes; render(); })
     .catch(function(e){ failed('getJobCodes', e); });
+}
+/* ---- the shop (T2.17, Carl 28 Oct 2026) ----
+   "All crew members typically start their day at the Monroe Street
+   production building. When they get there they are on the clock and need
+   to clock in." In JobTread that is 25-0011 DB INTERNAL, Morning Clock-In
+   (99TM-1) — the line whose description says it is for the morning
+   meeting. One tap: the shop's job, Morning Clock-In, the start photo.
+   Other shop work is the shop's own short list (training, the two in-house
+   lines, shop work — getJobCodes chooses it). The API names the shop's job
+   on boot; an older API names none and the row is not drawn. */
+function shopJob(){ var s = S.shop; return s ? { id: s.id, name: s.name || '', number: s.number || '', customer: 'The shop', address: '' } : null; }
+function atShop(){ return !!(S.shop && S.job && S.job.id === S.shop.id); }
+function isMorningCode(c){ return !!c && (c.number === '99TM-1' || /morning/i.test(c.name || '')); }
+function shopStart(other){
+  var job = shopJob();
+  if (!job || S.open) return;
+  S.job = job; S.jobPickedDay = isoLocal();
+  S.codes = []; S.pendingJob = null; S.moving = false;
+  savePrefs(); render();
+  waitFor(loadCodes(job.id), 'Clocking in…').then(function(codes){
+    S.codes = codes; render();
+    var m = sheetCodes().filter(isMorningCode)[0];
+    if (!other && m){ S.gateCode = m; beginStart(); }
+    else openSheet('codes');
+  }).catch(function(e){ failed('getJobCodes', e); });
 }
 function cancelMove(){
   S.pendingJob = null; S.moving = false; S.switching = null;
@@ -5260,6 +5306,7 @@ function bootStart(lastJob, attempt){
     S.job = d.job;
     S.entries = d.entries || [];
     S.recent = d.recent || [];
+    if (d.shop && d.shop.id){ S.shop = d.shop; savePrefs(); }
     // Close Out's people read Spanish first (CheckOut's rule); a language
     // somebody chose on this phone wins.
     if (!S.langSet && S.me && S.me.appRole === 'service') S.lang = 'es';
@@ -5766,7 +5813,7 @@ function coClockHere(jobId, areaKey){
    job carrying both does not ask. The travel line is never the work. */
 function coPreferredCode(codes, j){
   var words = function(c){ return (c.name || '') + ' ' + (c.codeName || ''); };
-  var work = codes.filter(function(c){ return !isTravelCode(c); });
+  var work = codes.filter(function(c){ return !isTravelCode(c) && codeShown(c); });
   if (work.length === 1) return work[0];
   if (j && coKindOf(j) === 'repairs'){
     var kind = ((j.projectTypes || []).join(' ') + ' ' + (j.name || '')).toLowerCase();
@@ -6963,6 +7010,8 @@ $('coFile').onchange = function(){ var f = this.files && this.files[0]; coPhotoT
 $('coGallery').onchange = function(){ var fs = [].slice.call(this.files || []); this.value = ''; coGalleryPicked(fs); };
 $('peopleStamp').onclick = function(){ peopleLoad(true); };
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
+$('shopBtn').onclick = function(){ shopStart(false); };
+$('shopOther').onclick = function(){ shopStart(true); };
 $('clockIn').onclick = function(){
   if (!S.job) return;
   openSheet('codes');

@@ -369,6 +369,49 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await ctx.close();
 }
 
+// ---- T2.17: At the shop is one tap; the code sheet is the job's clock-in list ----
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
+  check('off the clock: At the shop sits under Clock in', [await page.locator('#shopRow').isVisible(), await txt(page, '#shopBtn'), await txt(page, '#shopOther')],
+    [true, 'At the shopMorning clock-in · start photo', 'Other shop work']);
+  await tap(page, '#shopBtn', 600);
+  let s = await st(page);
+  check('one tap: the shop\'s Morning Clock-In, straight to the start photo', [s.tab, s.gate, await page.evaluate(() => [S.job && S.job.id, S.gateCode && S.gateCode.number, S.sheet])], ['cam', 'start', ['shop', '99TM-1', null]]);
+  check('…the stamps name the shop and the code', await txt(page, '#stampCode'), '99TM-1 Morning Clock-In');
+  await shoot(page); await settle(page);
+  s = await st(page);
+  check('the shutter clocks in at the shop', [(await calls(page)).map((c) => c.slice(0, 3)), s.code, await txt(page, '#jobK'), await txt(page, '#jobAddr')],
+    [[['clockIn', 'shop', 'sh1']], '99TM-1', 'At the shop · JT #25-0011', 'The shop']);
+  check('on the clock, the shop row is gone', await page.locator('#shopRow').isVisible(), false);
+  await ctx.close();
+  check('no page errors', errs, []);
+}
+{
+  // Other shop work: the shop's own five, and nothing else.
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
+  await tap(page, '#shopOther', 600);
+  check('Other shop work is the shop\'s own list', [await txt(page, '#sheetTitle'), await page.locator('.coderow .cname').allTextContents()],
+    ['What are you doing?', ['Morning Clock-In', 'Training', 'Crew Labor - Monroe St.', 'Crew Labor - Bonnewitz Ave.', 'Shop Work/Maintenance']]);
+  await ctx.close();
+  check('no page errors', errs, []);
+}
+{
+  // Administrative is an office code: the field never sees it on a sheet;
+  // Operations does. An API from before T2.17 names no shop: no row.
+  const fix = `window.__MOCK_FIX = { codes: [
+    { id: 'ci1', name: 'General Requirements', number: '01GR', codeName: 'General Requirements', office: false },
+    { id: 'ci2', name: 'Roofing', number: '07TM-1', codeName: 'Roofing', office: false },
+    { id: 'ci3', name: 'Administrative', number: '99TM-7', codeName: 'Administrative', office: true } ] };`;
+  for (const [role, want] of [['crew', ['General Requirements', 'Roofing']], ['siteManager', ['General Requirements', 'Roofing']], ['ops', ['General Requirements', 'Roofing', 'Administrative']]]) {
+    const { ctx, page, errs } = await boot(`window.__MOCK_ROLE='${role}';window.__MOCK_NOSHOP=true;` + fix);
+    await tap(page, '#clockIn', 500);
+    check(`${role}: the code sheet`, await page.locator('.coderow .cname').allTextContents(), want);
+    if (role === 'crew') check('an API that names no shop draws no shop row', await page.evaluate(() => [!!S.shop, document.getElementById('shopRow').classList.contains('hidden')]), [false, true]);
+    await ctx.close();
+    check('no page errors', errs, []);
+  }
+}
+
 await browser.close();
 let failed = 0;
 for (const r of results) {
