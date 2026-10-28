@@ -384,6 +384,7 @@ function doPost(e) {
       clockIn: clockIn,
       switchCode: switchCode,
       clockOut: clockOut,
+      startTravel: startTravel,
       startBreak: startBreak,
       endBreak: endBreak,
       getMyDay: getMyDay,
@@ -2148,9 +2149,11 @@ function clockIn(me, jobId, costItemId, coords, startPhotoId) {
 }
 
 /** Open a block on a code, closing anything already running — a crew member
- *  on two clocks at once is a payroll problem. */
-function openEntry_(me, jobId, costItemId, coords) {
-  var open = openEntryFor_(me.userId);
+ *  on two clocks at once is a payroll problem. `notes` rides the new block
+ *  (a drive says where to); `known` is the open entry when the caller has
+ *  just read it, which saves asking again. */
+function openEntry_(me, jobId, costItemId, coords, notes, known) {
+  var open = known !== undefined ? known : openEntryFor_(me.userId);
   // On a break the open entry is the block planned for after it, starting in
   // the future: closing it would end it before it began. Starting work ends
   // the break early, so it goes — what JobTread's own app does.
@@ -2165,6 +2168,7 @@ function openEntry_(me, jobId, costItemId, coords) {
     startedAt: new Date().toISOString(),
     type: ENTRY_TYPE
   };
+  if (notes) args.notes = String(notes).slice(0, 500);
   var sc = coordArg_(coords);
   if (sc) args.startCoordinates = sc;
 
@@ -2192,7 +2196,9 @@ function clockOut(me, coords, endPhotoId) {
     forgetBreak_(me.userId);
     return { ok: true, closed: null, cancelled: open.id, entries: getMyDay(me) };
   }
-  requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
+  // Out at the end of a drive (T2.18): the photo was taken where the drive
+  // began; the end of one is the inside of a truck.
+  if (!isTravelEntry_(open)) requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
   if (!open) return { ok: true, closed: null };
   assertWrite_(open.job && open.job.id);
   closeEntry_(open.id, coords);
@@ -2204,10 +2210,43 @@ function clockOut(me, coords, endPhotoId) {
 // photo of the code just ended and the start photo of the next both ride.
 function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId) {
   if (!costItemId) throw new Error('Pick a code to switch to.');
-  requirePhoto_(endPhotoId, 'An end photo of the code you are leaving is required to switch.');
+  // Arriving from a drive (T2.18) owes no end photo: it ends in the truck.
+  var open = openEntryFor_(me.userId);
+  if (!isTravelEntry_(open)) requirePhoto_(endPhotoId, 'An end photo of the code you are leaving is required to switch.');
   requirePhoto_(startPhotoId, 'A start photo is required to start the next code.');
   assertWrite_(jobId);
-  return openEntry_(me, jobId, costItemId, coords);   // closes what is running, then opens
+  return openEntry_(me, jobId, costItemId, coords, null, open);   // closes what is running, then opens
+}
+
+// ---- the drive (T2.18, Carl 28 Oct 2026) ----------------------------------
+// "We need a process to switch the clock from wherever they are to something
+// when they are traveling." The something is the job's own Travel Related
+// Labor line in CLOCK IN ITEMS (01GR-9): the drive to a job goes on THAT
+// job's travel line, the drive back at the end of the day on the travel line
+// of the job just left ("the drive at the end of the day counts as paid
+// travel"). One call closes what is running — with its end photo, taken where
+// the crew still is — and opens the drive, whose `notes` say where to. The
+// drive owes no start photo (marked nudged, as a break's block is) and its
+// end owes none either: arriving is the next code's start photo at the site
+// (switchCode), and the end of the day from a drive is a clock-out with no
+// photo (clockOut). Which line is the travel line is the phone's pick from
+// getJobCodes (`travel`); on a job without one the phone asks which line to
+// drive on, Carl's "then and only then".
+function isTravelEntry_(open) {
+  return !!(open && !isFuture_(open.startedAt) && open.code && /travel/i.test(open.code.name || ''));
+}
+function startTravel(me, jobId, costItemId, coords, endPhotoId, notes) {
+  if (!jobId) throw new Error('Missing job id.');
+  if (!costItemId) throw new Error('Pick the line to drive on.');
+  var open = openEntryFor_(me.userId);
+  if (!open) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');
+  // From work, the end photo of what is being left; from a drive (changing
+  // where to) or a break, there is nothing to photograph.
+  if (!isTravelEntry_(open) && !isFuture_(open.startedAt)) requirePhoto_(endPhotoId, 'An end photo of the code you are leaving is required to start the drive.');
+  assertWrite_(jobId);
+  var e = openEntry_(me, jobId, costItemId, coords, notes, open);
+  if (e) markNudged(e.id);
+  return e;
 }
 
 // ---- breaks, the way JobTread's own app takes them -------------------------

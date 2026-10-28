@@ -976,6 +976,33 @@ t('a break closes the block with no photo', [r.closed, paveKinds().includes('clo
 fetched = [];
 sandbox.endBreak(ME, 'j1', 'ci1', null);
 t('...and back to work opens a new one, no start photo', paveKinds().includes('create'), true);
+
+// ---- T2.18: the drive ----
+// From work: the end photo of what is left, then the drive opens on the
+// travel line, saying where to, owing no start photo. From a drive: arriving
+// (a switch) and clocking out owe no end photo — the drive ends in the truck.
+const OPEN_DRIVE = { id: 'te7', startedAt: '2026-09-16T12:00:00Z', minutes: 20, notes: 'Drive to 26-1591 Dirham', job: { id: 'j2', name: 'Dirham', number: '26-1591', location: {} }, costItem: { id: 'tr2', name: 'Travel Related Labor', costCode: { number: '01GR-9', name: 'Travel Related Costs' } } };
+const withEntry = (e) => route({ jobs: JOBS, entries: (q) => {
+  const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+  return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' && e ? [e] : [] } } }) };
+} });
+const created = () => fetched.map(f => (paveOf(f.opts) || {}).createTimeEntry).filter(Boolean).map(c => c.$);
+fetchImpl = withEntry(null); fetched = [];
+t('no drive from off the clock', /not on the clock/.test(refusedBy(() => sandbox.startTravel(ME, 'j2', 'tr2', null, 'ph_e', 'Drive to 26-1591 Dirham'))), true);
+fetchImpl = withEntry(OPEN_TE); fetched = [];
+t('from work, the drive needs the end photo of what is left', [/end photo/.test(refusedBy(() => sandbox.startTravel(ME, 'j2', 'tr2', null, '', 'Drive to 26-1591 Dirham'))), paveKinds().some(k => k === 'close' || k === 'create')], [true, false]);
+fetched = []; delete props.nudged_te9;
+sandbox.startTravel(ME, 'j2', 'tr2', null, 'ph_e', 'Drive to 26-1591 Dirham');
+t('…with it, one call closes the block and opens the drive on that job\'s travel line, saying where to', [paveKinds().filter(k => k === 'close' || k === 'create'), created().map(c => [c.jobId, c.costItemId, c.notes])],
+  [['close', 'create'], [['j2', 'tr2', 'Drive to 26-1591 Dirham']]]);
+fetchImpl = withEntry(OPEN_DRIVE); fetched = [];
+t('on a drive: arriving is the start photo only', refusedBy(() => sandbox.switchCode(ME, 'j2', 'ci1', null, '', 'ph_s')), '');
+t('…and still needs the start photo', /start photo/.test(refusedBy(() => sandbox.switchCode(ME, 'j2', 'ci1', null, '', ''))), true);
+fetched = [];
+r = sandbox.clockOut(ME, null, '');
+t('on a drive: clocking out for the day owes no photo', [r.closed, paveKinds().includes('close')], ['te7', true]);
+fetched = [];
+t('on a drive: going somewhere else instead owes no photo either', refusedBy(() => sandbox.startTravel(ME, 'j3', 'tr3', null, '', 'Drive to 26-1600 Hall')), '');
 fetched = [];
 fetchImpl = route({ entries: () => ({ code: 200, body: '{"organization":{"files":{"nodes":[{"description":"#START #TE:te1 01GR x"},{"description":"#BEFORE #TE:te2 01GR y"}]}}}' }) });
 fetchImpl = (url, opts) => ({ code: 200, body: '{"organization":{"files":{"nextPage":null,"nodes":[{"description":"#START #TE:te1 01GR x"},{"description":"#BEFORE #TE:te2 01GR y"}]}}}' });

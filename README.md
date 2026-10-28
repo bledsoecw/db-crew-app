@@ -492,6 +492,44 @@ Apps Script (`clasp push`, a new version of the web app deployment), then
 row and reads the old code list; the old phone on the new script reads the
 new list.
 
+**The drive** (T2.18, Carl 28 Oct 2026 — *"we need a process to switch the
+clock from wherever they are to something when they are traveling, whether
+that is from the shop in the morning to when they get to the job site"*).
+The something is the job's own **Travel Related Labor** line (`01GR-9`, in
+CLOCK IN ITEMS):
+
+- **Leaving** is Stop the clock · **Leave for the job** (at the shop) or
+  **Leave for another job**: the end photo where you still are — at the shop,
+  the loaded truck — then **Where are you going?**: today's booked jobs from
+  the board, today's Close Out work, **Another job** (the job search), and,
+  away from the shop, **Back to the shop · end of the day**. One call
+  (`startTravel`) closes the block with its end photo and opens the drive on
+  the travel line of the job you are going to; the entry's notes say *Drive to
+  26-0890 Noah Webster · from the shop*. The drive back goes on the travel line
+  of the job just left (*Drive back · end of the day · from …*) — Carl: the drive
+  at the end of the day counts as paid travel.
+- **On the drive** the band reads *Driving to Noah Webster* with the travel
+  line under it, and the buttons are the arrival: **I'm here · start work**,
+  **Going somewhere else**, **Clock out · done for the day**. Driving back:
+  **At the shop · shop work** and **Clock out · I'm back**.
+- **Arriving** is the job's code and its **start photo on site** — one switch,
+  with no end photo for the drive: it ends in a truck. Start on a Close Out
+  card for the job you are driving to is the same arrival, and its job screen
+  says *I'm here · start work*. Clocking out from a drive takes no photo.
+  `switchCode` and `clockOut` drop the end-photo rule only when the running
+  block is a drive, and the drive owes no start photo (marked nudged, as a
+  break's block is).
+- **A job with no travel line** (CLOCK IN ITEMS from before 16 Oct, or none):
+  the phone asks which of that job's lines to drive on — Carl's "then and
+  only then". The travel line is never on the ordinary code sheet, and never
+  picked by Start.
+
+`apps-script/code-test.mjs` and `dev/clock-test.mjs` (the shop to a job and
+back, a job without the line) and `dev/closeout-test.mjs` (Start as the
+arrival) walk it. **Needs:** the Apps Script first (`startTravel` is a new
+door, and the switch and the clock-out from a drive are refused by an older
+one), then `firebase deploy --only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

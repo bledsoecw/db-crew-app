@@ -721,6 +721,11 @@ button[disabled]{cursor:default}
               Stop the clock
             </button>
           </div>
+          <div class="stack hidden" id="travelStack">
+            <button class="btn btn-go" id="arriveBtn" style="min-height:88px;font-size:20px">I'm here · start work</button>
+            <button class="btn btn-out" id="travelElse" style="min-height:60px;font-size:15px;letter-spacing:.6px">Going somewhere else</button>
+            <button class="btn btn-out" id="travelOut" style="min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)">Clock out · done for the day</button>
+          </div>
           <div class="foot" id="stopFoot"></div>
           <div class="stack hidden" id="breakStack">
             <button class="btn btn-go" id="backBtn">Back to work</button>
@@ -1393,6 +1398,7 @@ var S = {
   coReturn:null, coReturnArea:null, tabTouched:false,
   codesLoading:null,   // T2.5: the job whose code list a tap is waiting on
   shop:null,           // T2.17: the shop's job (25-0011 DB INTERNAL), named by the API on boot
+  travelPick:false, travelTo:null,   // T2.18: a drive's job picked by search; one with no travel line
   apiLog:[], errs:[], recent:[]
 };
 
@@ -1452,8 +1458,9 @@ function clockLabel(d){
   return h + ':' + pad2(d.getMinutes()) + ap;
 }
 function codeLabel(c){ return c ? ((c.number ? c.number + ' ' : '') + (c.name||'')) : ''; }
-/* The job's Travel Related Labor line (01GR-9, in CLOCK IN ITEMS). */
-function isTravelCode(c){ return !!c && /travel/i.test((c.name || '') + ' ' + (c.codeName || '')); }
+/* The job's Travel Related Labor line (01GR-9, in CLOCK IN ITEMS): the API
+   says so on the code list (`travel`), and a running entry by its name. */
+function isTravelCode(c){ return !!c && (c.travel === true || (c.travel == null && /travel/i.test(c.name || ''))); }
 /* Lowercases the name but keeps the code number intact, for mid-sentence use:
    "04MA masonry labor". */
 function codeInline(c){ return c ? ((c.number ? c.number + ' ' : '') + String(c.name||'').toLowerCase()) : ''; }
@@ -1786,7 +1793,7 @@ function jobTitle(j){
 
 function renderJob(){
   var j = S.job, shop = atShop();
-  $('jobK').textContent = j ? ((shop ? 'At the shop' : "Today's job") + ' · JT #' + (j.number || '')) : "Today's job";
+  $('jobK').textContent = j ? ((shop ? 'At the shop' : onTravel() && !travelBack() ? 'Driving to' : "Today's job") + ' · JT #' + (j.number || '')) : "Today's job";
   $('jobAddr').textContent = shop ? 'The shop' : j ? (streetOf(j.address) || jobTitle(j) || '—') : 'Pick a job';
   $('jobSub').textContent = shop ? 'Morning clock-in, training and shop work'
     : j ? [j.customer, cityOf(j.address)].filter(Boolean).join(' · ')
@@ -1837,7 +1844,9 @@ function renderClock(){
   $('shopRow').classList.toggle('hidden', on || brk || !S.shop);
   $('clockIn').disabled = !S.job;
   $('clockIn').style.opacity = S.job ? 1 : .45;
-  $('runStack').classList.toggle('hidden', !on);
+  var drive = on && onTravel();
+  $('runStack').classList.toggle('hidden', !on || drive);
+  $('travelStack').classList.toggle('hidden', !drive);
   $('stopFoot').classList.toggle('hidden', !on);
   $('breakStack').classList.toggle('hidden', !brk);
   $('band').classList.toggle('paused', paused || legacy);
@@ -1881,6 +1890,21 @@ function renderClock(){
     return;
   }
   if (!on) return;
+  if (drive){
+    var back = travelBack();
+    $('band').querySelector('.lbl').textContent = back ? 'Driving back · end of the day' : 'Driving to ' + placeWord(S.job);
+    $('elapsed').textContent = hms(openSeconds());
+    $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
+    $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
+    $('bandSub').textContent = 'Since ' + clockLabel(S.open.startedAt) + ' · on ' + jobWord(S.job) + '’s travel line';
+    $('arriveBtn').textContent = back ? (S.shop ? 'At the shop · shop work' : 'I’m back · start work') : 'I’m here · start work';
+    $('arriveBtn').classList.toggle('hidden', back && !S.shop);
+    $('travelElse').classList.toggle('hidden', back);
+    $('travelOut').textContent = back ? 'Clock out · I’m back' : 'Clock out · done for the day';
+    $('stopFoot').textContent = back ? 'The drive back is paid travel. Clocking out from a drive takes no photo.'
+                                     : 'Your start photo on site ends the drive. The drive itself takes no photo.';
+    return;
+  }
   $('band').querySelector('.lbl').textContent = 'On the clock';
   $('elapsed').textContent = hms(openSeconds());
   $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
@@ -1957,7 +1981,7 @@ function renderCam(){
   if (gate){
     var num = (code && code.number) || 'this code';
     $('afterBarT').textContent = gate === 'start' ? 'Start photo · the clock starts when you shoot'
-      : 'End photo of ' + num + ' · you ' + (gate === 'end-out' ? 'clock out' : 'switch') + ' when you shoot';
+      : 'End photo of ' + num + ' · you ' + (gate === 'end-out' ? 'clock out' : gate === 'end-travel' ? 'start the drive' : 'switch') + ' when you shoot';
     $('camBackLbl').textContent = gate === 'start' ? 'Back' : 'Stay on';
   }
   $('modeBtn').classList.toggle('hidden', !!gate);
@@ -2592,6 +2616,7 @@ var CK_PEN = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke
 /* The rest of the inline icons, Lucide-style on a 24 grid, drawn at the
    size a spot needs. */
 var ICONS = {
+  truck: '<path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
   mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>',
   keyboard: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M8 17h8M10 13h4"/>',
   send: '<path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
@@ -3383,6 +3408,8 @@ function openSheet(kind, promptKind){
             : kind==='signoff' ? 'Sign off'
             : kind==='unsign' ? 'Unsign'
             : kind==='coWhy' ? co('whyTitle')
+            : kind==='dest' ? 'Where are you going?'
+            : kind==='travelCodes' ? 'No travel line at ' + ((S.travelTo && (S.travelTo.job.customer || streetOf(S.travelTo.job.address))) || 'that job')
             : '';
   $('sheetTitle').textContent = title;
   $('sheet').classList.toggle('tall', kind === 'jobs');
@@ -3393,6 +3420,8 @@ function openSheet(kind, promptKind){
                             : kind==='signoff' ? signoffHtml()
                             : kind==='unsign' ? unsignHtml()
                             : kind==='coWhy' ? coWhyHtml()
+                            : kind==='dest' ? destHtml()
+                            : kind==='travelCodes' ? travelCodesHtml()
                             : '';
   $('scrim').classList.add('on');
   wireSheet();
@@ -3401,7 +3430,7 @@ function openSheet(kind, promptKind){
 /* What the code sheet offers (T2.17): the job's list as the API chose it,
    less Administrative for anyone but Operations — an office code. */
 function codeShown(c){ return !!c && !(c.office && effRole() !== 'ops'); }
-function sheetCodes(){ return S.codes.filter(codeShown); }
+function sheetCodes(){ return S.codes.filter(function(c){ return codeShown(c) && !isTravelCode(c); }); }
 function codesHtml(){
   var list = sheetCodes();
   if (!list.length) return '<div class="sheetpad"><div class="body">' +
@@ -3502,6 +3531,8 @@ function stopHtml(){
       '<span class="k9 ss">15, 30, 45 or 60 min · no photo</span></span>' + ico('chev', 22) + '</button>' +
     '<button class="stoprow" id="stopSwitch"><span style="flex:1;min-width:0"><span class="st" style="display:block">Switch code or job</span>' +
       '<span class="k9 ss warn">End photo of ' + esc(num) + ' first</span></span>' + ico('camera', 22) + '</button>' +
+    '<button class="stoprow" id="stopTravel"><span style="flex:1;min-width:0"><span class="st" style="display:block">' + (atShop() ? 'Leave for the job' : 'Leave for another job') + '</span>' +
+      '<span class="k9 ss warn">End photo here, then the drive</span></span>' + ico('truck', 22) + '</button>' +
     '<button class="stoprow out" id="stopOut"><span style="flex:1;min-width:0"><span class="st" style="display:block">Clock out for the day</span>' +
       '<span class="k9 ss sun">End photo, then today’s log</span></span>' + ico('camera', 22) + '</button>' +
     '<div class="fine" style="text-align:center;margin-top:4px">Your ' + esc(hmClock(code ? codeSecondsToday(code.id) : openSeconds())) + ' on ' + esc(num) +
@@ -3550,6 +3581,15 @@ function wireSheet(){
     b.onclick = function(){ closeSheet(); doBreak(Number(b.getAttribute('data-brk'))); };
   });
   if ($('stopSwitch')) $('stopSwitch').onclick = function(){ closeSheet(); beginEnd('end-switch'); };
+  if ($('stopTravel')) $('stopTravel').onclick = function(){ closeSheet(); beginEnd('end-travel'); };
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-dest]'), function(b){
+    b.onclick = function(){ var d = destChoices().filter(function(x){ return x.job.id === b.getAttribute('data-dest'); })[0]; if (d) startTravelTo(d.job, false); };
+  });
+  if ($('destOther')) $('destOther').onclick = function(){ S.travelPick = true; openSheet('jobs'); };
+  if ($('destBack')) $('destBack').onclick = function(){ startTravelTo(S.job, true); };
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-tcode]'), function(b){
+    b.onclick = function(){ var t = S.travelTo, c = t && t.codes.filter(function(x){ return x.id === b.getAttribute('data-tcode'); })[0]; if (c){ closeSheet(); commitTravel(t.job, c, t.back, t.codes); } };
+  });
   if ($('stopOut')) $('stopOut').onclick = function(){ closeSheet(); beginEnd('end-out'); };
   if ($('skNo')) $('skNo').onclick = function(){ closeSheet(); };
   if ($('skYes')) $('skYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, true); render(); };
@@ -3571,6 +3611,8 @@ function pickJob(jobId){
   var j = null;
   jobPool().forEach(function(x){ if (x.id === jobId) j = x; });
   if (!j){ closeSheet(); render(); return; }
+  // Another job, picked from Where are you going? (T2.18): the drive there.
+  if (S.travelPick){ S.travelPick = false; startTravelTo(j, false); return; }
   pickJobObj(j, false);
 }
 function visitAsJob(v){ return { id:v.jobId, name:v.jobName, number:v.jobNum, customer:v.cust, address:v.address }; }
@@ -3700,6 +3742,9 @@ function beginStart(){
 }
 function beginEnd(kind){
   if (!S.open){ render(); return; }
+  // A drive ends in the truck (T2.18): no end photo — straight on to what
+  // comes next.
+  if (onTravel()){ afterTravelEnd(kind); return; }
   S.clockGate = kind; S.capture = 'after'; S.returnToClock = false;
   setTab('cam');
 }
@@ -3813,8 +3858,12 @@ function afterEndShot(item, rec){
   S.clockGate = null;
   savePrefs();
   enqueueUpload(item);
-  // Mid-move from a Close Out Start (T2.4): the code sheet opens over that
-  // job's screen, not over the clock.
+  nextCodes();
+}
+/* After the end photo of a switch (or the end of a drive, which has none):
+   the code sheet — this job's, or the next job's on a move. Mid-move from a
+   Close Out Start (T2.4) it opens over that job's screen, not the clock. */
+function nextCodes(){
   setTab(S.coReturn ? 'co' : 'job');
   if (S.pendingJob){
     var j = S.pendingJob;
@@ -3826,6 +3875,134 @@ function afterEndShot(item, rec){
     return;
   }
   openSheet('codes');
+}
+
+/* =========================================================
+   THE DRIVE (T2.18, Carl 28 Oct 2026)
+   "We need a process to switch the clock from wherever they are to
+   something when they are traveling — whether that is from the shop in
+   the morning to when they get to the job site." The something is the
+   job's own Travel Related Labor line (CLOCK IN ITEMS, 01GR-9).
+   Leaving is Stop · Leave for a job: the end photo where you still are (at
+   the shop, the loaded truck), then Where are you going? — today's booked
+   jobs, another job, or back to the shop at the end of the day — and the
+   drive opens on THAT job's travel line (the drive back on the line of the
+   job just left: "the drive at the end of the day counts as paid travel").
+   Arriving is I'm here: the job's code and its start photo, on site. The
+   drive itself owes no photo either end — it ends in a truck. A job with
+   no travel line asks which of its lines to drive on.
+   ========================================================= */
+function onTravel(){ return !!(S.open && !onBreakNow() && isTravelCode(S.open.code)); }
+function travelBack(){ return onTravel() && /^drive back/i.test(S.open.notes || ''); }
+function jobWord(j){ return j ? [j.number, j.customer || streetOf(j.address) || jobTitle(j)].filter(Boolean).join(' ') : ''; }
+function placeWord(j){ return j ? (j.customer || streetOf(j.address) || jobTitle(j) || j.number || 'the job') : 'the job'; }
+/* The end photo of a drive's start: kept for the call that opens the drive. */
+function afterTravelShot(item, rec){
+  var open = S.open;
+  item.entryId = open.id; item.codeLabel = codeLabel(open.code);
+  rec.codeId = open.code ? open.code.id : null;
+  S.photos.push(rec);
+  S.switching = { endPhotoId: rec.id, at: Date.now(), travel: true };
+  S.clockGate = null;
+  savePrefs();
+  enqueueUpload(item);
+  setTab('job');
+  openSheet('dest');
+}
+/* What a move, a switch or a clock-out does from a drive: the same step,
+   without the end photo. */
+function afterTravelEnd(kind){
+  if (kind === 'end-out'){ doTravelOut(); return; }
+  S.switching = { endPhotoId: '', at: Date.now(), fromTravel: true };
+  if (kind === 'end-travel'){ setTab('job'); openSheet('dest'); return; }
+  if (S.pendingJob || !S.job){ nextCodes(); return; }
+  // Arriving: the codes of the job the drive was to.
+  var j = S.job;
+  setTab(S.coReturn ? 'co' : 'job');
+  waitFor(loadCodes(j.id), 'Getting the codes at ' + placeWord(j) + '…').then(function(codes){
+    if (!S.job || S.job.id !== j.id) return;
+    S.codes = codes;
+    openSheet('codes');
+  }).catch(function(e){ S.switching = null; failed('getJobCodes', e); render(); });
+}
+/* Where a drive goes: today's booked jobs from the board, today's Close Out
+   work, never the job you are on or the shop. */
+function destChoices(){
+  var today = isoLocal(), here = S.job && S.job.id, seen = {}, out = [];
+  var add = function(j, why){ if (!j || !j.id || j.id === here || seen[j.id] || (S.shop && j.id === S.shop.id)) return; seen[j.id] = 1; out.push({ job: j, why: why }); };
+  ((S.assign && S.assign.visits) || []).forEach(function(v){ if (v.start && v.start <= today && (v.end || v.start) >= today) add(visitAsJob(v), 'Booked today'); });
+  if (typeof CO !== 'undefined') (CO.jobs || []).forEach(function(j){ if (j.mine && coJobDay(j, today) === today) add(coClockJob(j), 'Close Out today'); });
+  return out;
+}
+function destHtml(){
+  var rows = destChoices(), from = S.job;
+  var row = function(attr, t, sub, icon, cls){ return '<button class="stoprow' + (cls ? ' ' + cls : '') + '" ' + attr + '><span style="flex:1;min-width:0"><span class="st" style="display:block">' + esc(t) + '</span><span class="k9 ss">' + esc(sub) + '</span></span>' + ico(icon, 22) + '</button>'; };
+  var h = '<div class="sheetpad" style="gap:12px">';
+  h += rows.map(function(r){ return row('data-dest="' + esc(r.job.id) + '"', placeWord(r.job), [r.why, 'JT #' + (r.job.number || ''), streetOf(r.job.address)].filter(Boolean).join(' · '), 'truck'); }).join('');
+  h += row('id="destOther"', 'Another job', 'Search JobTread', 'chev');
+  if (from && !atShop()) h += row('id="destBack"', 'Back to the shop · end of the day', 'On ' + jobWord(from) + '’s travel line', 'chev', 'out');
+  h += '<div class="fine" style="text-align:center;margin-top:4px">The drive goes on the travel line of the job you are going to. When you get there, I’m here starts the work with its start photo.</div></div>';
+  return h;
+}
+function travelCodesHtml(){
+  var t = S.travelTo; if (!t) return '';
+  var list = t.codes.filter(codeShown);
+  return '<div class="sheetpad" style="gap:10px"><div class="body" style="margin-bottom:4px">This job has no Travel Related Labor line yet. Pick the line to drive on — the office can move it later.</div></div>' +
+    (list.map(function(c){ return '<button class="coderow" data-tcode="' + esc(c.id) + '"><span class="cn tabular">' + esc(c.number || '') + '</span><span class="cname">' + esc(c.name) + '</span><span class="cmeta"></span></button>'; }).join('') ||
+     '<div class="sheetpad"><div class="body">Nothing to clock into on that job either. Ask the office to add the CLOCK IN ITEMS group to its budget.</div></div>');
+}
+/* The drive's line: the job's travel line when it has one; else Carl's
+   "then and only then" — whatever the job has, asked. */
+function startTravelTo(job, back){
+  closeSheet();
+  if (!job || !S.open) return;
+  waitFor(loadCodes(job.id), 'Getting the travel line' + (back ? '' : ' at ' + placeWord(job)) + '…').then(function(codes){
+    var t = (codes || []).filter(isTravelCode)[0];
+    if (t){ commitTravel(job, t, back, codes); return; }
+    S.travelTo = { job: job, back: back, codes: codes || [] };
+    openSheet('travelCodes');
+  }).catch(function(e){ failed('getJobCodes', e); });
+}
+function commitTravel(job, code, back, codes){
+  var sw = S.switching || {}, prev = S.job, fromShop = atShop();
+  var note = back ? 'Drive back · end of the day · from ' + jobWord(prev)
+                  : 'Drive to ' + jobWord(job) + (prev && prev.id !== job.id ? ' · from ' + (fromShop ? 'the shop' : jobWord(prev)) : '');
+  busy(true, 'Starting the drive…');
+  withCoords(function(coords){
+    apiCall('startTravel', [job.id, code.id, coords, sw.endPhotoId || '', note]).then(function(open){
+      S.open = open; S.switching = null; S.travelTo = null; S.pendingJob = null; S.moving = false;
+      if (!back && (!prev || prev.id !== job.id)){
+        S.job = job; S.dlJobId = job.id; S.jobPickedDay = isoLocal();
+        if (codes) S.codes = codes;
+        // The roof just left is owed its log, as on any move.
+        if (prev && !fromShop) dlPromptFor(prev.id, 'switch');
+      }
+      savePrefs();
+      toast(back ? 'Driving back · the drive is on ' + jobWord(prev) : 'Driving to ' + placeWord(job) + ' · on its travel line');
+      return refreshDay();
+    }).catch(showErr).then(function(){ busy(false); clockFlowDone(); });
+  });
+}
+/* Out for the day from a drive: no photo. */
+function doTravelOut(){
+  var job = S.job;
+  busy(true, 'Clocking out…');
+  withCoords(function(coords){
+    apiCall('clockOut', [coords, '']).then(function(r){
+      S.open = null; S.switching = null;
+      if (r && r.entries) S.entries = r.entries;
+      savePrefs();
+      toast('Clocked out · the drive is saved');
+      return refreshDay();
+    }).catch(showErr).then(function(){ busy(false); landAfterOut(job); });
+  });
+}
+/* I'm here: the job's code and its start photo. Back at the shop at the end
+   of the day: the shop's list. */
+function arriveHere(){
+  if (!onTravel()) return;
+  if (travelBack()){ var sj = shopJob(); if (sj){ S.pendingJob = sj; S.moving = true; } }
+  beginEnd('end-switch');
 }
 
 /* A break (T2.13), as JobTread's own app takes one: one call closes the
@@ -4052,6 +4229,7 @@ function captured(blob, mime, meta){
     if (S.clockGate === 'start'){ commitStart(item, rec); return; }
     if (S.clockGate === 'end-out'){ commitOut(item, rec); return; }
     if (S.clockGate === 'end-switch'){ afterEndShot(item, rec); return; }
+    if (S.clockGate === 'end-travel'){ afterTravelShot(item, rec); return; }
     S.photos.push(rec);
     dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
     // Shot from the safety alert card: it belongs to the alert too.
@@ -5492,6 +5670,7 @@ var CO_L10N = {
         repairDone:'Reparación terminada', noteOpt:'Nota (opcional)', soldScope:'Trabajo vendido', soldScopeSub:'lo que se vendió, en pocas palabras', loading:'Cargando…',
         lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
         notYours:'Close Out es para el equipo de servicio.', noJobs:'Nada listo para revisar hoy.', noInspector:'El tablero no te manda inspecciones todavía — pide a la oficina (Operations → Divisions & PMs).',
+        arrived:'Ya llegué · empezar', arrivedSub:'el viaje termina con la foto de inicio aquí',
         clockHere:'Marcar entrada aquí', clockHereSub:'no estás en el reloj en este trabajo', clockMove:'Pasar el reloj aquí', clockMoveSub:'estás en el reloj en {where}',
         onClockHere:'Ya estás en el reloj en este trabajo', onClock:'En el reloj', onClockSub:'cambiar de código o trabajo · salir', clockingIn:'Marcando entrada…',
         onBreak:'En descanso · regresa', breakOver:'Se acabó el descanso', onBreakSub:'terminar el descanso en el reloj', breakFirst:'Termina tu descanso primero — en el reloj',
@@ -5526,6 +5705,7 @@ var CO_L10N = {
         repairDone:'Repair finished', noteOpt:'Note (optional)', soldScope:'Sold scope', soldScopeSub:'what was sold, in a few words', loading:'Loading…',
         lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
         notYours:'Close Out is for the service crew.', noJobs:'Nothing ready to inspect today.', noInspector:'The board doesn’t send you inspections yet — ask the office (Operations → Divisions & PMs).',
+        arrived:'I’m here · start work', arrivedSub:'the drive ends with the start photo here',
         clockHere:'Clock in here', clockHereSub:'not on the clock at this job', clockMove:'Move the clock here', clockMoveSub:'on the clock at {where}',
         onClockHere:'Already on the clock at this job', onClock:'On the clock', onClockSub:'switch code or job · clock out', clockingIn:'Clocking in…',
         onBreak:'On break · back', breakOver:'Break over', onBreakSub:'end it on the Clock tab', breakFirst:'End your break first — it’s on the Clock tab',
@@ -5788,6 +5968,19 @@ function coClockHere(jobId, areaKey){
   var j = coJobById(jobId);
   if (!j) return;
   if (onBreakNow()){ toast(co('breakFirst')); if (!areaKey) setTab('job'); return; }
+  // Driving here (T2.18): Start is the arrival — this job's code, its start
+  // photo, no end photo for the drive.
+  if (onTravel() && S.job && S.job.id === jobId){
+    S.coReturn = jobId; S.coReturnArea = areaKey || null;
+    S.switching = { endPhotoId: '', at: Date.now(), fromTravel: true };
+    waitFor(loadCodes(jobId), co('clockingIn')).then(function(codes){
+      S.codes = codes; render();
+      if (S.coReturn !== jobId) return;
+      var c = coPreferredCode(S.codes, j);
+      if (c){ S.gateCode = c; beginStart(); } else openSheet('codes');
+    }).catch(function(e){ S.coReturn = null; S.switching = null; failed('getJobCodes', e); });
+    return;
+  }
   if (S.open && S.job && S.job.id === jobId){ if (!areaKey) toast(co('onClockHere')); return; }
   S.coReturn = jobId; S.coReturnArea = areaKey || null;
   var job = coClockJob(j);
@@ -5840,7 +6033,9 @@ function coClockCardHtml(){
 /* A job reached without Start — a search, the All list, someone else's
    repairs — is one tap from the clock (T2.16): the same move Start makes. */
 function coClockHereHtml(j){
-  if (!canTab('job') || onBreakNow() || (S.open && S.job && S.job.id === j.id)) return '';
+  if (!canTab('job') || onBreakNow() || (S.open && S.job && S.job.id === j.id && !onTravel())) return '';
+  if (onTravel() && S.job && S.job.id === j.id)
+    return '<div class="jcard"><button class="jtile" data-coclockhere="1"><span class="bi"><span class="es">' + esc(co('arrived')) + '</span><span class="en">' + esc(co('arrivedSub')) + '</span></span>' + CK_CHEV + '</button></div>';
   var where = S.open && S.job ? (S.job.customer || streetOf(S.job.address) || S.job.number || '') : '';
   return '<div class="jcard"><button class="jtile" data-coclockhere="1"><span class="bi"><span class="es">' + esc(co(S.open ? 'clockMove' : 'clockHere')) + '</span>' +
          '<span class="en">' + esc(S.open ? co('clockMoveSub').replace('{where}', where) : co('clockHereSub')) + '</span></span>' + CK_CHEV + '</button></div>';
@@ -6824,7 +7019,7 @@ function coWire(){
   on('[data-cojob]', function(b){ coOpenJob(b.getAttribute('data-cojob')); });
   on('[data-costart]', function(b){ coStartJob(b.getAttribute('data-costart')); });
   on('[data-coclockhere]', function(){ coClockHere(CO.jobId); });
-  on('[data-coclock]', function(){ if (onBreakNow() || breakOver()) setTab('job'); else if (S.open) openSheet('stop'); });
+  on('[data-coclock]', function(){ if (onBreakNow() || breakOver() || onTravel()) setTab('job'); else if (S.open) openSheet('stop'); });
   on('[data-coscreen]', function(b){ var s = b.getAttribute('data-coscreen'); if (s === 'repairs' && CO.job && S.lang === 'es') coTranslateTasks(CO.job); coGo(s); });
   on('[data-coscope]', function(){ var j = CO.job || coJobById(CO.jobId); if (j) coScopeToggle(j); });
   on('[data-cooutbox]', function(){ coGo('outbox'); });
@@ -7011,6 +7206,9 @@ $('coGallery').onchange = function(){ var fs = [].slice.call(this.files || []); 
 $('peopleStamp').onclick = function(){ peopleLoad(true); };
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
 $('shopBtn').onclick = function(){ shopStart(false); };
+$('arriveBtn').onclick = arriveHere;
+$('travelElse').onclick = function(){ beginEnd('end-travel'); };
+$('travelOut').onclick = function(){ beginEnd('end-out'); };
 $('shopOther').onclick = function(){ shopStart(true); };
 $('clockIn').onclick = function(){
   if (!S.job) return;

@@ -92,7 +92,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   // the stop sheet
   await tap(page, '#stopBtn', 400);
   check('Stop the clock: three rows and the fine print', [await txt(page, '#sheetTitle'), await page.locator('.stoprow .st').allTextContents(), await page.locator('.stoprow .ss').allTextContents(), /^Your \d+:\d\d on 04MA is already saved\. Nothing here can lose time\.$/.test(await txt(page, '#sheetBody .fine'))],
-    ['Stop the clock', ['Break', 'Switch code or job', 'Clock out for the day'], ['15, 30, 45 or 60 min · no photo', 'End photo of 04MA first', 'End photo, then today’s log'], true]);
+    ['Stop the clock', ['Break', 'Switch code or job', 'Leave for another job', 'Clock out for the day'], ['15, 30, 45 or 60 min · no photo', 'End photo of 04MA first', 'End photo here, then the drive', 'End photo, then today’s log'], true]);
   await tap(page, '#sheetClose', 300);
 
   // a break (T2.13): pick how long; JobTread's shape — the block ends, the
@@ -254,7 +254,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   check('Enter picks the one row showing', await page.evaluate(() => [S.sheet, S.job && S.job.id]), [null, 'j2']);
   // The codes for the picked job are kept on the phone for the shift.
   await until(page, () => !!codesCached('j2'));
-  check('the code list is kept on the phone (the boot job\'s too, from the extras)', await page.evaluate(() => [codesCached('j2').length, Object.keys(codesCache()).sort()]), [10, ['j2', 'j_2841']]);
+  check('the code list is kept on the phone (the boot job\'s too, from the extras)', await page.evaluate(() => [codesCached('j2').length, Object.keys(codesCache()).sort()]), [11, ['j2', 'j_2841']]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -410,6 +410,61 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
     await ctx.close();
     check('no page errors', errs, []);
   }
+}
+
+// ---- T2.18: the drive — from the shop to the job, the job back to the shop ----
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
+  await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
+  await tap(page, '#stopBtn', 300);
+  check('at the shop, Stop offers Leave for the job', await txt(page, '#stopTravel .st'), 'Leave for the job');
+  await tap(page, '#stopTravel', 500);
+  check('…the end photo first, where you still are', [await page.evaluate(() => [S.tab, S.clockGate]), await txt(page, '#afterBarT')], [['cam', 'end-travel'], 'End photo of 99TM-1 · you start the drive when you shoot']);
+  await shoot(page); await until(page, () => S.sheet === 'dest');
+  check('…then Where are you going? — today\'s booked job, another job; no drive back from the shop', [await txt(page, '#sheetTitle'), await page.locator('#sheetBody .stoprow .st').allTextContents()],
+    ['Where are you going?', ['Noah Webster', 'Another job']]);
+  await tap(page, '[data-dest="j_2841"]', 300); await settle(page);
+  let c = (await calls(page)).slice(-1)[0];
+  check('one call: the drive opens on that job\'s travel line, with the shop\'s end photo, saying where to', [c[0], c[1], c[2], typeof c[3], c[4]],
+    ['startTravel', 'j_2841', 'ci11', 'string', 'Drive to 26-0890 Noah Webster · from the shop']);
+  check('the band is the drive; the buttons are the arrival', [await txt(page, '#band .lbl'), await txt(page, '#jobK'), await page.locator('#travelStack').isVisible(), await page.locator('#runStack').isVisible(), await txt(page, '#arriveBtn'), await txt(page, '#travelOut')],
+    ['Driving to Noah Webster', 'Driving to · JT #26-0890', true, false, 'I’m here · start work', 'Clock out · done for the day']);
+  await tap(page, '#arriveBtn', 600);
+  check('I\'m here: no end photo, the job\'s codes — the travel line is not one of them', [await page.evaluate(() => [S.tab, S.clockGate, S.sheet]), (await page.locator('.coderow .cname').allTextContents()).includes('Travel Related Labor'), await page.locator('.coderow').count()],
+    [['job', null, 'codes'], false, 10]);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 600);
+  check('…the start photo on site', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'start']);
+  await shoot(page); await settle(page);
+  c = (await calls(page)).slice(-1)[0];
+  check('…one switch, with no end photo for the drive', [c[0], c[1], c[2], c[3], typeof c[4], await page.evaluate(() => S.open.code.number)], ['switchCode', 'j_2841', 'ci9', null, 'string', '04MA']);
+  // The end of the day: back to the shop, on this job's travel line.
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500); await shoot(page); await until(page, () => S.sheet === 'dest');
+  check('away from the shop, the drive back is offered, on this job\'s line', [await page.locator('#sheetBody .stoprow .st').allTextContents(), await txt(page, '#destBack .ss')],
+    [['Another job', 'Back to the shop · end of the day'], 'On 26-0890 Noah Webster’s travel line']);
+  await tap(page, '#destBack', 300); await settle(page);
+  c = (await calls(page)).slice(-1)[0];
+  check('the drive back is paid travel on the job just left', [c[0], c[1], c[2], c[4], await txt(page, '#band .lbl'), await txt(page, '#arriveBtn'), await txt(page, '#travelOut'), await page.locator('#travelElse').isVisible()],
+    ['startTravel', 'j_2841', 'ci11', 'Drive back · end of the day · from 26-0890 Noah Webster', 'Driving back · end of the day', 'At the shop · shop work', 'Clock out · I’m back', false]);
+  await tap(page, '#travelOut', 300); await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
+  c = (await calls(page)).slice(-1)[0];
+  check('Clock out from the drive: no photo, and a site manager lands on the day log', [c, await page.evaluate(() => [!!S.open, S.tab])], [['clockOut', null], [false, 'log']]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // A job with no travel line: the drive asks which of its lines to drive on.
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_NOTRAVEL=true;');
+  await tap(page, '#clockIn', 400); await tap(page, '.coderow:has-text("Masonry Labor")', 600); await shoot(page); await settle(page);
+  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500); await shoot(page); await until(page, () => S.sheet === 'dest');
+  await tap(page, '#destOther', 500);
+  check('Another job is the job search', [await page.evaluate(() => [S.sheet, S.travelPick])], [['jobs', true]]);
+  await tap(page, '.jobrow[data-job="j2"]', 600);
+  check('no travel line there: its own lines, asked', [await txt(page, '#sheetTitle'), await page.locator('[data-tcode]').count() > 0], ['No travel line at Lucas', true]);
+  await tap(page, '[data-tcode="ci2"]', 300); await settle(page);
+  const c = (await calls(page)).slice(-1)[0];
+  check('…and the drive goes on the line picked', [c[0], c[1], c[2], c[4], await page.evaluate(() => [S.job.id, onTravel()])], ['startTravel', 'j2', 'ci2', 'Drive to 26-1045 Lucas · from 26-0890 Noah Webster', ['j2', false]]);
+  check('no page errors', errs, []);
+  await ctx.close();
 }
 
 await browser.close();

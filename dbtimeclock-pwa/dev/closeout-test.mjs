@@ -484,6 +484,25 @@ const allErrs = [];
   }), ['ci4', 'ci3', null, 'ci2']);
   // Someone else's repairs still only open.
   check('repairs that are not yours keep the plain opener', await page.evaluate(() => { const j = Object.assign({}, coJobById('co-okafor'), { mine: false }); return /data-costart=/.test(coQueueCard(j)); }), false);
+
+  // T2.18: driving to the next job, its Start is the arrival — no end photo
+  // for the drive, the job's code, its start photo.
+  await page.evaluate(() => { setTab('job'); openSheet('stop'); });
+  await tap(page, '#stopTravel', 500); await shoot(page);
+  await page.waitForFunction(() => S.sheet === 'dest', null, { timeout: 10000 });
+  await tap(page, '#destOther', 500);
+  await page.locator('#jobSearch').fill('26-0418'); await page.waitForTimeout(700);
+  await tap(page, '.jobrow[data-job="co-hartman"]', 300); await settle(page);
+  check('the drive to the inspection is on its travel line', (await clockCalls(page)).slice(-1)[0], ['startTravel', 'co-hartman', 'ci5']);
+  await tap(page, '.tab[data-tab="co"]', 600);
+  await page.evaluate(() => { CO.screen = 'queue'; CO.jobId = null; CO.job = null; CO.filter = 'mine'; coRender(); });
+  await page.waitForTimeout(300);
+  await tap(page, '[data-costart="co-hartman"]', 900);
+  check('Start on the job driven to: no end photo, straight to its code', await page.evaluate(() => [S.tab, S.clockGate, S.sheet, S.coReturn]), ['co', null, 'codes', 'co-hartman']);
+  await tap(page, '[data-code="ci1"]', 500);
+  await shoot(page); await settle(page);
+  check('…the arrival is one switch with the start photo only, and back on its Close Out screen', [(await page.evaluate(() => (window.__CLOCK || []).slice(-1)[0])).slice(0, 4), await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.open.code.id])],
+    [['switchCode', 'co-hartman', 'ci1', null], ['co', 'job', 'co-hartman', 'ci1']]);
   allErrs.push(...errs);
   await ctx.close();
 }
