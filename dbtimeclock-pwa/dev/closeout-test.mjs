@@ -507,6 +507,37 @@ const allErrs = [];
   await ctx.close();
 }
 
+// ---- T2.21: Yahir's "Clock in Alberto too" ----
+{
+  const settle = async (page) => { await page.waitForFunction(() => S.clockGate == null && document.body.style.pointerEvents === '', null, { timeout: 10000 }); await page.waitForTimeout(300); };
+  const shoot = (page) => page.evaluate(() => new Promise((res) => { const c = document.createElement('canvas'); c.width = 8; c.height = 8; c.getContext('2d').fillRect(0, 0, 8, 8); c.toBlob((b) => { captured(b, 'image/jpeg'); res(true); }, 'image/jpeg'); }));
+  { const { ctx, page, errs } = await boot({ role: 'service' });
+    check('no partner named: no box', await page.evaluate(() => [!!S.partner, !!document.querySelector('[data-copartner]'), document.getElementById('partnerBtn').classList.contains('hidden')]), [false, false, true]);
+    allErrs.push(...errs); await ctx.close(); }
+  const { ctx, page, errs } = await boot({ role: 'service', fix: 'window.__MOCK_PARTNER=true;' });
+  await page.waitForFunction(() => !!S.partner, null, { timeout: 10000 }); await page.evaluate(() => coRender()); await page.waitForTimeout(300);
+  check('Yahir\'s queue carries the box, not ticked', [await txt(page, '[data-copartner] .lbl'), await page.evaluate(() => [S.partnerOn, document.querySelector('[data-copartner]').classList.contains('on')])],
+    ['Marcar a Alberto Gonzalez contigo', [false, false]]);
+  await tap(page, '[data-copartner]', 400);
+  check('…a tap ticks it, kept on the phone', await page.evaluate(() => [S.partnerOn, document.querySelector('[data-copartner]').classList.contains('on'), JSON.parse(localStorage.getItem('dbtc_prefs')).partnerOn]), [true, true, true]);
+  await tap(page, '[data-costart="co-hartman"]', 900);
+  await tap(page, '[data-code="ci2"]', 500); await shoot(page); await settle(page);
+  check('…and the clock-in goes for Alberto too', await page.evaluate(() => [(window.__PARTNER || []), (window.__CLOCK || []).slice(-1)[0].slice(0, 2)]), [['clockIn'], ['clockIn', 'co-hartman']]);
+  await page.evaluate(() => { S.partnerOn = false; savePrefs(); });
+  await page.evaluate(() => { setTab('job'); openSheet('stop'); }); await tap(page, '#stopOut', 500); await shoot(page); await settle(page);
+  check('box off: the clock-out is Yahir\'s alone', await page.evaluate(() => [(window.__PARTNER || []), (window.__CLOCK || []).slice(-1)[0][0]]), [['clockIn'], 'clockOut']);
+  check('the clock tab has the same box', await page.evaluate(() => !document.getElementById('partnerBtn').classList.contains('hidden')), true);
+  allErrs.push(...errs); await ctx.close();
+  // Alberto on the clock somewhere else: Yahir is in, and told Alberto was not moved.
+  { const { ctx, page, errs } = await boot({ role: 'service', fix: 'window.__MOCK_PARTNER=true;window.__MOCK_PARTNER_AWAY=true;' });
+    await page.waitForFunction(() => !!S.partner, null, { timeout: 10000 });
+    await page.evaluate(() => { S.partnerOn = true; savePrefs(); coRender(); });
+    await tap(page, '[data-costart="co-hartman"]', 900); await tap(page, '[data-code="ci2"]', 500); await shoot(page); await settle(page);
+    await page.waitForTimeout(1900);
+    check('Alberto elsewhere: Yahir is in, and the phone says Alberto was not moved', [await page.evaluate(() => !!S.open), await txt(page, '#toast')], [true, 'Alberto Gonzalez was not changed — on the clock at 26-0890 · 04MA']);
+    allErrs.push(...errs); await ctx.close(); }
+}
+
 // ---- work areas (Carl, 23 Oct 2026): a roof and its gutters, each on its own ----
 {
   const { ctx, page, errs } = await boot({ role: 'service', areas: true });

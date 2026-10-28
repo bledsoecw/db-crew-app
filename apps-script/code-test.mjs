@@ -1226,5 +1226,52 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
 
+// ---- T2.21: Yahir's "Clock in Alberto too" ----
+{
+  props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+  const YAHIR = { email: 'yahir@deitemeyerbrothers.com', name: 'Yahir Gonzalez', userId: 'uY', membershipId: '22PdPTwMdkzj', role: 'Crew' };
+  const entryOn = (id, user, job, code) => ({ id, startedAt: new Date(Date.now() - 3600e3).toISOString(), minutes: 60, notes: '', user: { id: user }, job: { id: job, name: job, number: job === 'j1' ? '26-0890' : '26-1490', location: {} }, costItem: { id: code, name: code === 'tr1' ? 'Travel Related Labor' : 'Roofing', costCode: { number: code === 'tr1' ? '01GR-9' : '07TM-1' } } });
+  let open = {}, n = 0;
+  const made = [], closed = [];
+  fetchImpl = (url, opts) => {
+    const q = paveOf(opts) || {};
+    if (q.membership) return { code: 200, body: JSON.stringify({ membership: { id: q.membership.$.id, user: { id: 'uA', name: 'Alberto Gonzalez' } } }) };
+    if (q.createTimeEntry) { const a = q.createTimeEntry.$; const id = 'n' + (++n); made.push([a.userId, a.jobId, a.costItemId]); if (!a.endedAt) open[a.userId] = entryOn(id, a.userId, a.jobId, a.costItemId); return { code: 200, body: JSON.stringify({ createTimeEntry: { createdTimeEntry: { id } } }) }; }
+    if (q.updateTimeEntry) { const a = q.updateTimeEntry.$; for (const u of Object.keys(open)) if (open[u] && open[u].id === a.id) { closed.push(u); open[u] = null; } return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    if (q.createComment) { made.push(['comment', q.createComment.$.message]); return { code: 200, body: '{"createComment":{"createdComment":{"id":"c1"}}}' }; }
+    if (q.organization && q.organization.timeEntries) {
+      const a = q.organization.timeEntries.$, u = a.where.and ? a.where.and[0][1] : null;
+      const nodes = a.size === 1 ? (open[u] ? [open[u]] : []) : [];
+      return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes } } }) };
+    }
+    if (q.organization && q.organization.jobs) return { code: 200, body: '{"organization":{"jobs":{"nodes":[]}}}' };
+    return { code: 200, body: '{}' };
+  };
+  // Both off the clock: Yahir's clock-in is Alberto's too, and Alberto's block owes no photo nudge.
+  let r = sandbox.withPartner_(YAHIR, sandbox.clockIn, 'clockIn', ['j9', 'ci1', null, 'ph_s']);
+  t('both off: one clock-in, for both', [made, r.partner], [[['uY', 'j9', 'ci1'], ['uA', 'j9', 'ci1']], { name: 'Alberto Gonzalez', followed: true }]);
+  t('…Alberto\'s block is marked nudged — the photo is on the job under Yahir\'s', !!props['nudged_' + open.uA.id], true);
+  // On the same block: a switch moves both.
+  made.length = 0; closed.length = 0;
+  r = sandbox.withPartner_(YAHIR, sandbox.switchCode, 'switchCode', ['j9', 'ci2', null, 'ph_e', 'ph_s2']);
+  t('on the same block: a switch moves both', [closed.sort(), made, r.partner.followed], [['uA', 'uY'], [['uY', 'j9', 'ci2'], ['uA', 'j9', 'ci2']], true]);
+  // Alberto somewhere else: Yahir's write only, and the answer says where Alberto is.
+  open.uA = entryOn('a9', 'uA', 'j1', 'ci7');
+  made.length = 0;
+  r = sandbox.withPartner_(YAHIR, sandbox.switchCode, 'switchCode', ['j9', 'ci3', null, 'ph_e', 'ph_s3']);
+  t('Alberto elsewhere: left as he is, and said', [made, r.partner], [[['uY', 'j9', 'ci3']], { name: 'Alberto Gonzalez', followed: false, why: 'on the clock at 26-0890 · 07TM-1' }]);
+  // Already left, together: one notice naming both.
+  open.uA = entryOn('a10', 'uA', 'j9', 'ci3'); open.uY = { ...open.uY, id: 'y10', job: open.uA.job, costItem: open.uA.costItem };
+  made.length = 0;
+  sandbox.withPartner_(YAHIR, sandbox.leftSite, 'leftSite', [new Date(Date.now() - 600e3).toISOString(), null, { kind: 'out' }]);
+  const notes = made.filter(m => m[0] === 'comment');
+  t('already left, together: both out, one notice naming both', [open.uY, open.uA, notes.length, /^⏱ Yahir Gonzalez and Alberto Gonzalez left /.test(notes[0] && notes[0][1])], [null, null, 1, true]);
+  // Nobody partnered: the write is the person's alone.
+  made.length = 0;
+  r = sandbox.withPartner_(ME, sandbox.clockIn, 'clockIn', ['j9', 'ci1', null, 'ph_s']);
+  t('nobody to partner: the person\'s write only', [made.length, r.partner], [1, undefined]);
+  fetchImpl = () => ({ code: 200, body: '{}' });
+}
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

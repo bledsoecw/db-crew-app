@@ -432,7 +432,9 @@ function doPost(e) {
     else if (WITH_USER[fn]) {
       var me = memberFor_(email);
       tMember = Date.now();
-      data = WITH_USER[fn].apply(null, [me].concat(args));
+      // Yahir's "Clock in Alberto too" (T2.21): the same write for the partner.
+      data = body.partner === true && PARTNER_FNS[fn] ? withPartner_(me, WITH_USER[fn], fn, args)
+                                                       : WITH_USER[fn].apply(null, [me].concat(args));
     }
     else if (PLAIN[fn]) data = PLAIN[fn].apply(null, args);
     else throw new Error('Unknown function: ' + fn);
@@ -2065,7 +2067,9 @@ function getStart(me, jobId) {
 // without the job list you can still search, without the codes the sheet says
 // so and reloads.
 function getExtras(me, jobId) {
-  var out = { codes: [], jobOptions: [], crew: [], logFields: null };
+  var out = { codes: [], jobOptions: [], crew: [], logFields: null, partner: null };
+  // The toggle's name (T2.21); never worth failing the extras for.
+  try { var pt = partnerFor_(me); if (pt) out.partner = { name: pt.name }; } catch (ePt) {}
   var codesHit = jobId ? cacheGet_('jc2_' + jobId) : null;
   var optsHit = me.userId ? cacheGet_('jo_' + me.userId) : null;
   var fieldsHit = cacheGet_(LOG_FIELDS_KEY);
@@ -2325,10 +2329,74 @@ function leftSite(me, leftAt, coords, plan) {
     if (sc) w.startCoordinates = sc;
     create(w);
   }
-  var notice = noticeToPm_(open.job && open.job.id,
-    '⏱ ' + me.name + ' left ' + label + ' without clocking out. The block on ' + ((open.code && [open.code.number, open.code.name].filter(Boolean).join(' ')) || 'the job') +
+  var notice = plan.quiet ? null : noticeToPm_(open.job && open.job.id,
+    '⏱ ' + me.name + (plan.alsoName ? ' and ' + plan.alsoName : '') + ' left ' + label + ' without clocking out. The block on ' + ((open.code && [open.code.number, open.code.name].filter(Boolean).join(' ')) || 'the job') +
     ' was ended at ' + clockWords_(new Date(at)) + ', the time given, from DB Crew at ' + clockWords_(new Date(now)) + ' — no end photo.', leftSiteNotify_());
   return { ok: true, closed: open.id, endedAt: leftIso, open: kind === 'out' ? null : openEntryFor_(me.userId), notice: notice, entries: getMyDay(me) };
+}
+
+// ---- a partner on the clock (T2.21, Carl 28 Oct 2026) ---------------------
+// "For just Yahir, he can have a Clock in Alberto Too option. May change
+// later." The two work as a pair, and in JobTread one phone clocks both
+// (their entries start within milliseconds of each other). PARTNERS maps the
+// signed-in person's membership to the partner's — the Script Property
+// PARTNERS_JSON, {"<membership id>":"<membership id>"}, replaces it. A clock
+// write the phone marks `partner` is made for the partner too: the same job,
+// code, photo ids and times. Only when the partner's clock stands where the
+// person's did before the write — both off, or both on the same job and code,
+// both on a break or neither — otherwise the partner is left as they are and
+// the answer says where they are. The partner's half never fails the
+// person's: the shutter committed the person's clock. The photo is on the job
+// once, under the person's entry, so the partner's block is marked nudged.
+var PARTNERS = { '22PdPTwMdkzj': '22PdPUpWzpHy' };   // Yahir Gonzalez → Alberto Gonzalez
+var PARTNER_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startBreak: 1, endBreak: 1 };
+function partnersMap_() {
+  var m = propJson_('PARTNERS_JSON');
+  return Object.keys(m).length ? m : PARTNERS;
+}
+function partnerFor_(me) {
+  var pid = partnersMap_()[String((me && me.membershipId) || '')];
+  if (!pid) return null;
+  var key = 'partner_' + pid, hit = cacheGet_(key);
+  if (hit && hit.userId) return hit;
+  var d = pave({ membership: { '$': { id: pid }, id: {}, user: { id: {}, name: {} } } });
+  var u = ((d.membership || {}).user) || {};
+  if (!u.id) return null;
+  var p = { membershipId: pid, userId: u.id, name: u.name || 'Your partner', email: '' };
+  cachePut_(key, p, 21600);
+  return p;
+}
+function sameClock_(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return !!(a.job && b.job && a.job.id === b.job.id && a.code && b.code && a.code.id === b.code.id && isFuture_(a.startedAt) === isFuture_(b.startedAt));
+}
+function withPartner_(me, f, fn, args) {
+  var p = null;
+  try { p = partnerFor_(me); } catch (e) {}
+  if (!p) return f.apply(null, [me].concat(args));
+  var rs = paveAll_([openEntryQuery_(me.userId), openEntryQuery_(p.userId)]);
+  var known = !rs[0].error && !rs[1].error;
+  var mine = known ? openEntryFrom_(rs[0].data) : null, theirs = known ? openEntryFrom_(rs[1].data) : null;
+  var same = known && sameClock_(mine, theirs);
+  var copy = function (o, more) { var c = {}; for (var k in (o || {})) c[k] = o[k]; for (var m in more) c[m] = more[m]; return c; };
+  if (same && fn === 'leftSite') { args = args.slice(); args[2] = copy(args[2], { alsoName: p.name }); }
+  var data = f.apply(null, [me].concat(args));
+  var info = { name: p.name, followed: false };
+  if (!known) info.why = 'JobTread did not say where they are';
+  else if (!same) info.why = theirs ? 'on the clock at ' + [theirs.job && theirs.job.number, theirs.code && theirs.code.number].filter(Boolean).join(' · ') : 'not on the clock';
+  else {
+    try {
+      var pargs = args.slice();
+      if (fn === 'leftSite') pargs[2] = copy(args[2], { quiet: true, alsoName: '' });
+      var pd = f.apply(null, [p].concat(pargs));
+      var pid = pd && (pd.id || (pd.open && pd.open.id));
+      if (pid) markNudged(pid);
+      info.followed = true;
+    } catch (e2) { info.why = String((e2 && e2.message) || e2).slice(0, 160); }
+  }
+  if (data && typeof data === 'object') data.partner = info;
+  return data;
 }
 
 function isTravelEntry_(open) {

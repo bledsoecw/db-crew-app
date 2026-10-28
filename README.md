@@ -597,6 +597,31 @@ backed out of, the forgot path, and a crew member who is never held;
 shop material was never loaded. **Needs:** the Apps Script (`rollForgot` is a
 new door), then `firebase deploy --only hosting`.
 
+**Yahir can clock Alberto in too** (T2.21, Carl 28 Oct 2026 — *"for just Yahir,
+he can have a Clock in Alberto Too option. May change later."*). The two work
+as a pair, and in JobTread one phone clocks both — their entries start within
+milliseconds of each other. On Yahir's phone a box sits at the top of Close
+Out and under the clock's job card: **Clock Alberto Gonzalez in and out with
+you** / *Marcar a Alberto Gonzalez contigo*, remembered on the phone. Ticked,
+every clock write the phone makes — a clock-in, a switch, a drive, a break,
+End break, a clock-out, Already left — goes for Alberto too (`partner: true`
+on the request; `withPartner_` in `Code.gs`): the same job, code, photo ids and
+times, **but only when Alberto's clock stands where Yahir's did** (both off,
+or both on the same job and code, on a break or not). Alberto somewhere else
+is left as he is, and the phone says so: *Alberto Gonzalez was not changed — on
+the clock at 26-0890 · 04MA*. Alberto's half never fails Yahir's. The photo is
+on the job once, under Yahir's entry, so Alberto's block is marked nudged;
+Already left together sends one notice naming both. Who partners whom is
+`PARTNERS` in the code (Yahir's membership → Alberto's), and the Script
+Property `PARTNERS_JSON` (`{"<membership id>":"<membership id>"}`) replaces it
+without a release — Carl: "may change later". The README's old line, *"the
+foreman crew block is read-only … clocking another person in is a payroll
+decision"*, still holds for everyone else; this is that decision, for one pair.
+`apps-script/code-test.mjs` (both off, the same block, Alberto elsewhere,
+already left together, nobody partnered) and `dev/closeout-test.mjs` (the box,
+the flag, box off, Alberto elsewhere) walk it. **Needs:** the Apps Script, then
+`firebase deploy --only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

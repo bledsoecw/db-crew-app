@@ -401,10 +401,10 @@ button[disabled]{cursor:default}
 .ckphase.open .ckph .chev{transform:rotate(90deg)}
 .ckrows{display:none}
 .ckphase.open .ckrows{display:block}
-.ckrow{width:100%;min-height:64px;display:flex;align-items:center;gap:14px;padding:10px 16px;border-top:1px solid var(--line);text-align:left}
-.ckrow .box{width:34px;height:34px;border-radius:7px;border:2.5px solid var(--line2);display:flex;align-items:center;justify-content:center;flex:none;color:transparent;background:transparent}
-.ckrow.on .box{background:var(--go);border-color:var(--go);color:var(--goink)}
-.ckrow .lbl{flex:1;min-width:0;font:600 17px/1.25 var(--sans);color:var(--fg)}
+.ckrow,.pairrow{width:100%;min-height:64px;display:flex;align-items:center;gap:14px;padding:10px 16px;border-top:1px solid var(--line);text-align:left}
+.ckrow .box,.pairrow .box{width:34px;height:34px;border-radius:7px;border:2.5px solid var(--line2);display:flex;align-items:center;justify-content:center;flex:none;color:transparent;background:transparent}
+.ckrow.on .box,.pairrow.on .box{background:var(--go);border-color:var(--go);color:var(--goink)}
+.ckrow .lbl,.pairrow .lbl{flex:1;min-width:0;font:600 17px/1.25 var(--sans);color:var(--fg)}
 .ckrow[disabled]{opacity:.5}
 .ckwho{display:flex;align-items:center;gap:8px;padding:0 16px 14px 64px}
 .ckwho input{flex:1;min-width:0;min-height:50px;border:1.5px solid var(--line);border-radius:6px;background:var(--bg);padding:10px 12px;font:400 16px var(--sans);color:var(--fg);outline:none;-webkit-appearance:none}
@@ -706,6 +706,7 @@ button[disabled]{cursor:default}
           </button>
         </div>
         <div id="todayPick" class="todaypick hidden"></div>
+        <button id="partnerBtn" class="pairrow hidden" style="margin-top:12px;border:1px solid var(--line);border-radius:6px"></button>
 
         <div id="onClock" class="hidden">
           <div id="band">
@@ -1271,7 +1272,7 @@ function apiAttempt(fn, args, attempt, co){
   var opts = {
     method:'POST',
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },  // avoids the CORS preflight Apps Script can't answer
-    body: JSON.stringify({ t: sentTok, fn: fn, args: args || [] })
+    body: JSON.stringify({ t: sentTok, fn: fn, args: args || [], partner: co.partner ? true : undefined })
   };
   if (ctl) opts.signal = ctl.signal;
 
@@ -1349,10 +1350,16 @@ var API_THAW_GRACE_MS = 5000;   // after a freeze: how long a request still gets
 var apiServer = {};   // fn -> the server's own timing from its reply, cleared as each call starts
 var apiBusy = 0;      // calls out right now; a new build waits for zero before it reloads the page
 
+/* Yahir's "Clock in Alberto too" (T2.21): with the box ticked, every clock
+   write goes for the partner as well — the API decides whether the partner's
+   clock is where this one was, and says when it was not. Two people's writes
+   take longer, so the ceiling is longer. */
+var PARTNER_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startBreak: 1, endBreak: 1 };
 function apiCall(fn, args, co){
   if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
   co = co || {};
   if (co.timeout == null && API_TIMEOUTS[fn]) co.timeout = API_TIMEOUTS[fn];
+  if (PARTNER_FNS[fn] && S.partner && S.partnerOn){ co.partner = true; co.timeout = Math.max(co.timeout || API_TIMEOUT_MS, 50000); }
   var lane = co.lane || API_LANE[fn] || 'main';
   var queuedAt = Date.now(), t0 = 0;
   var run = function(){ t0 = Date.now(); apiBusy++; return apiAttempt(fn, args, 1, co); };
@@ -1361,7 +1368,9 @@ function apiCall(fn, args, co){
   // doing — never behind a cold open's extras. Writes never ride it.
   var p = lane === 'now' ? Promise.resolve().then(run) : (apiLanes[lane] || Promise.resolve()).then(run, run);
   if (lane !== 'now') apiLanes[lane] = p.then(function(){}, function(){});
-  return p.then(function(v){ apiBusy--; apiNote(fn, queuedAt, t0, true, null); return v; },
+  return p.then(function(v){ apiBusy--; apiNote(fn, queuedAt, t0, true, null);
+                             if (co.partner && v && v.partner && !v.partner.followed) setTimeout(function(){ toast(v.partner.name + ' was not changed — ' + (v.partner.why || 'not where you were'), true); }, 1600);
+                             return v; },
                 function(e){ apiBusy--; apiNote(fn, queuedAt, t0, false, e); throw e; });
 }
 /* The last dozen calls as the phone saw them — how long in line, how long
@@ -1405,12 +1414,13 @@ var S = {
   travelPick:false, travelTo:null,   // T2.18: a drive's job picked by search; one with no travel line
   leftGate:null, leftPick:0,         // T2.19: the end photo they are getting round, the time picked
   rollNext:null, rollTold:{},        // T2.20: what Before you roll out holds up; the roofs already told about
+  partner:null, partnerOn:false,     // T2.21: the partner the API names (Yahir's Alberto), and the box
   apiLog:[], errs:[], recent:[]
 };
 
 function savePrefs(){
   try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, push:pushState, jobPickedDay:S.jobPickedDay,
-                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs, shop:S.shop })); } catch(e){}
+                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs, shop:S.shop, partner:S.partner, partnerOn:S.partnerOn })); } catch(e){}
 }
 function loadPrefs(){
   try {
@@ -1428,6 +1438,7 @@ function loadPrefs(){
     S.viewAs = (p.viewAs === 'crew' || p.viewAs === 'siteManager' || p.viewAs === 'service') ? p.viewAs : '';
     S.talkHinted = !!p.talkHinted;
     if (p.shop && p.shop.id) S.shop = p.shop;
+    if (p.partner && p.partner.name){ S.partner = p.partner; S.partnerOn = !!p.partnerOn; }
     // The device stays registered across launches; only this page's memory of
     // it is lost. Restoring it stops Diagnostics claiming "not checked
     // yet" about a phone that is already receiving nudges.
@@ -1797,7 +1808,15 @@ function jobTitle(j){
   return String((j && j.name) || '').replace(/^\d+\s*/, '').replace(/_/g, ' ').trim();
 }
 
+function renderPartner(){
+  var b = $('partnerBtn'), show = !!S.partner && canTab('job');
+  b.classList.toggle('hidden', !show);
+  if (!show) return;
+  b.classList.toggle('on', !!S.partnerOn);
+  b.innerHTML = '<span class="box">' + CK_TICK + '</span><span class="lbl">Clock ' + esc(S.partner.name) + ' in and out with you</span>';
+}
 function renderJob(){
+  renderPartner();
   var j = S.job, shop = atShop();
   $('jobK').textContent = j ? ((shop ? 'At the shop' : onTravel() && !travelBack() ? 'Driving to' : "Today's job") + ' · JT #' + (j.number || '')) : "Today's job";
   $('jobAddr').textContent = shop ? 'The shop' : j ? (streetOf(j.address) || jobTitle(j) || '—') : 'Pick a job';
@@ -2274,6 +2293,9 @@ function loadExtras(){
     if (forJob && d.codes && d.codes.length) codesRemember(forJob, d.codes);
     S.jobOptions = d.jobOptions || [];
     S.crew = d.crew || [];
+    // The partner the API names, or none: an older API sends no key, which
+    // keeps what the phone had.
+    if ('partner' in d){ S.partner = d.partner && d.partner.name ? d.partner : null; if (!S.partner) S.partnerOn = false; savePrefs(); }
     // JobTread's own daily-log fields: the questions on the Day log tab.
     // null means the API could not ask; the phone keeps the list it has.
     if (Array.isArray(d.logFields)){ S.logFields = d.logFields; saveLogFields(); }
@@ -6781,6 +6803,9 @@ function coQueueHtml(){
   if (CO.reason === 'not-configured') return '<div class="jempty">' + esc(co('notConfigured')) + '</div>';
   if (!CO.jobs && CO.loading) return '<div class="jempty">' + esc(co('checkingJt')) + '</div>';
   var found = coSearchMatches(CO.jobs || [], CO.search), jobs = found.filter(function(j){ return CO.filter === 'all' || j.mine; });
+  // Yahir's partner box (T2.21), where his day starts: the same box as the clock's.
+  if (S.partner && canTab('job')) h += '<button class="pairrow' + (S.partnerOn ? ' on' : '') + '" data-copartner="1" style="margin:0 0 12px;border:1px solid var(--line);border-radius:6px"><span class="box">' + CK_TICK + '</span><span class="lbl">' +
+    esc((S.lang === 'es' ? 'Marcar a ' + S.partner.name + ' contigo' : 'Clock ' + S.partner.name + ' in and out with you')) + '</span></button>';
   if (!jobs.length && coSearchWords(CO.search).length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && found.length ? co('noMatchMine') : co('noMatch')) + '</div>';
   else if (!jobs.length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && (CO.jobs || []).length ? co('nothingForYou') : co('noJobs')) + (CO.err && !(CO.jobs || []).length ? '<br><span style="color:var(--ckamber)">' + esc(CO.err) + '</span>' : '') + '</div>';
   else if (CO.filter === 'mine' && coHasDays()) h += coDayGroupsHtml(jobs);
@@ -7234,6 +7259,7 @@ function coWire(){
   on('[data-cojob]', function(b){ coOpenJob(b.getAttribute('data-cojob')); });
   on('[data-costart]', function(b){ coStartJob(b.getAttribute('data-costart')); });
   on('[data-coclockhere]', function(){ coClockHere(CO.jobId); });
+  on('[data-copartner]', function(){ $('partnerBtn').onclick(); coRender(); });
   on('[data-coclock]', function(){ if (onBreakNow() || breakOver() || onTravel()) setTab('job'); else if (S.open) openSheet('stop'); });
   on('[data-coscreen]', function(b){ var s = b.getAttribute('data-coscreen'); if (s === 'repairs' && CO.job && S.lang === 'es') coTranslateTasks(CO.job); coGo(s); });
   on('[data-coscope]', function(){ var j = CO.job || coJobById(CO.jobId); if (j) coScopeToggle(j); });
@@ -7421,6 +7447,10 @@ $('coGallery').onchange = function(){ var fs = [].slice.call(this.files || []); 
 $('peopleStamp').onclick = function(){ peopleLoad(true); };
 $('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
 $('shopBtn').onclick = function(){ shopStart(false); };
+$('partnerBtn').onclick = function(){
+  S.partnerOn = !S.partnerOn; savePrefs(); renderPartner();
+  toast(S.lang === 'es' ? (S.partnerOn ? S.partner.name + ' marca contigo' : 'Solo tú, desde ahora') : (S.partnerOn ? S.partner.name + ' clocks in and out with you' : 'Only you, from now on'));
+};
 $('arriveBtn').onclick = arriveHere;
 $('leftBtn').onclick = function(){ var g = S.clockGate; S.clockGate = null; S.leftGate = g; S.leftPick = 0; setTab('job'); openSheet('left'); };
 $('travelElse').onclick = function(){ beginEnd('end-travel'); };

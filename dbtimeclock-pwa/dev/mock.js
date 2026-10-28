@@ -369,7 +369,9 @@
     getExtras: function (jobId) {
       var b = HANDLERS.getBoot();
       return { codes: jobId ? codesFor(jobId) : [], jobOptions: HANDLERS.getJobOptions(),
-               crew: b.isForeman ? HANDLERS.getCrewOnClock() : [], logFields: LOG_FIELDS };
+               crew: b.isForeman ? HANDLERS.getCrewOnClock() : [], logFields: LOG_FIELDS,
+               // __MOCK_PARTNER: Yahir's phone — the API names Alberto (T2.21).
+               partner: window.__MOCK_PARTNER ? { name: 'Alberto Gonzalez' } : null };
     },
     getToday: function (jobId) {
       // __MOCK_NOJOB: nothing remembered on the phone — the seed-from-the-schedule case.
@@ -777,6 +779,13 @@
       try {
         out = fn ? { ok: true, data: fn.apply(null, body.args || []) }
                  : { ok: false, error: 'Unknown function: ' + body.fn };
+        // T2.21: a write marked for the partner. __MOCK_PARTNER_AWAY plays a
+        // partner on the clock somewhere else, left as he is.
+        if (body.partner && out.ok) {
+          (window.__PARTNER = window.__PARTNER || []).push(body.fn);
+          if (out.data && typeof out.data === 'object') out.data.partner = window.__MOCK_PARTNER_AWAY
+            ? { name: 'Alberto Gonzalez', followed: false, why: 'on the clock at 26-0890 · 04MA' } : { name: 'Alberto Gonzalez', followed: true };
+        }
       } catch (err) {
         out = { ok: false, error: String(err && err.message || err), readOnly: /^READ_ONLY/.test(String(err && err.message || '')) };
       }
