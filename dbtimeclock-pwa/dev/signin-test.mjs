@@ -113,7 +113,7 @@ const allErrs = [];
   // Reopen: before the API answers, the name, the role and Close Out are already there.
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(150);
-  check('reopen: the header and the tab from the last answer', [await page.locator('#hdrW').textContent(), await page.evaluate(() => S.tab)], ['Alberto Gonzalez · Service', 'co']);
+  check('reopen: the header and the tab from the last answer', [await page.locator('#hdrW').textContent(), await page.evaluate(() => S.tab)], ['Alberto Gonzalez · Servicio', 'co']);   // the service crew read Spanish first (T2.24: the header too)
   await page.waitForTimeout(900);
   check('reopen: the read-only bar never showed', await page.evaluate(() => window.__RO.every(Boolean)), true);
   allErrs.push(...errs);

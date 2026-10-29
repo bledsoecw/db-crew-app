@@ -2,7 +2,7 @@
    Navigation: network-first (a fresh build wins), cache fallback so the app
    still opens with no signal. Same-origin assets: cache-first. Cross-origin
    (the Apps Script API, JobTread's CDN, FCM): never touched. */
-var CACHE = 'dbtc-t2-23';
+var CACHE = 'dbtc-t2-24';
 var SHELL = ['./', './index.html', './config.js', './manifest.json',
              './app-icon-180.png', './app-icon-192.png', './app-icon-512.png', './app-icon-maskable.png',
              './fonts/archivo-700.woff2', './fonts/archivo-800.woff2',
@@ -70,14 +70,15 @@ self.addEventListener('push', function (e) {
 self.addEventListener('notificationclick', function (e) {
   e.notification.close();
   var data = e.notification.data || {};
-  var schedule = data.kind === 'schedule', brk = data.kind === 'break';
+  var schedule = data.kind === 'schedule', brk = data.kind === 'break', left = data.kind === 'left-open';
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
     for (var i = 0; i < list.length; i++) {
       if ('focus' in list[i]) {
-        list[i].postMessage(schedule ? { kind: 'open-tab', tab: 'jobs' } : brk ? { kind: 'open-tab', tab: 'job' } : { kind: 'open-before-photo', data: data });
+        list[i].postMessage(schedule ? { kind: 'open-tab', tab: 'jobs' } : brk ? { kind: 'open-tab', tab: 'job' } : left ? { kind: 'open-left' } : { kind: 'open-before-photo', data: data });
         return list[i].focus();
       }
     }
-    if (clients.openWindow) return clients.openWindow(schedule ? './?tab=jobs' : brk ? './?tab=job' : './?shoot=before');
+    // Still on the clock in the evening (T2.24): When did you leave?
+    if (clients.openWindow) return clients.openWindow(schedule ? './?tab=jobs' : brk ? './?tab=job' : left ? './?left=1' : './?shoot=before');
   }));
 });

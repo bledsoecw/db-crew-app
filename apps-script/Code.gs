@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.23 (2026-10-29)';
+var APP_BUILD = 'T2.24 (2026-10-29)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -386,7 +386,9 @@ function doPost(e) {
       clockOut: clockOut,
       startTravel: startTravel,
       leftSite: leftSite,
+      startedEarlier: startedEarlier,
       rollForgot: rollForgot,
+      rollChecked: rollChecked,
       startBreak: startBreak,
       endBreak: endBreak,
       getMyDay: getMyDay,
@@ -940,13 +942,24 @@ function fetchAssignmentsRaw_(cfg, membershipId, from, to) {
   return { code: resp.getResponseCode(), text: resp.getContentText() };
 }
 
+// Day n of m, counted the board's way (T2.24): day 1 is the start date
+// whatever day it falls on, and every WEEKDAY after it is one more — the
+// board's own `visitDays`, so a Friday start's Monday is day 2, not day 4.
+function stayDayOf_(start, today) {
+  var d = new Date(start + 'T12:00:00Z'), end = new Date(today + 'T12:00:00Z'), n = 1;
+  if (isNaN(d) || isNaN(end) || end < d) return null;
+  for (d.setUTCDate(d.getUTCDate() + 1); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    var w = d.getUTCDay();
+    if (w !== 0 && w !== 6) n++;
+  }
+  return n;
+}
 // Day n of m, and the job shape the clock screen already knows how to render.
 function shapeVisit_(v, today) {
   var days = Number(v.days) || 1;
   var dayOf = null;
   if (v.start && today >= v.start && (!v.end || today <= v.end)) {
-    var ms = new Date(today + 'T12:00:00Z') - new Date(v.start + 'T12:00:00Z');
-    dayOf = Math.min(days, Math.max(1, Math.round(ms / 86400000) + 1));
+    dayOf = Math.min(days, Math.max(1, stayDayOf_(v.start, today) || 1));
   }
   return {
     taskId: v.taskId || '',
@@ -1483,10 +1496,19 @@ function dailyLogStoryText_(me, log, fields) {
  *  either shape. */
 function dailyLogTail_(me, log) {
   var L = [];
-  var ck = log.checks || {};
-  if (ck.words || ck.magnetBy) {
+  var ck = log.checks || {}, roll = log.roll || null;
+  // The morning's shop checks on a multi-day roof (T2.24): the day's own
+  // record, beside the job's checklist words.
+  var rollLine = roll && Array.isArray(roll.lines) && roll.lines.length
+    ? 'Before rolling out' + (Number(roll.day) > 1 ? ' (day ' + Math.round(Number(roll.day)) + ')' : '') + ': ' +
+      roll.lines.map(function (l) { return String(l || '').split(' — ')[0].trim(); }).filter(Boolean).join(' · ') +
+      (roll.bring ? ' — bringing: ' + String(roll.bring).replace(/\s+/g, ' ').trim().slice(0, 140) : '')
+    : '';
+  if (ck.words || ck.magnetBy || rollLine) {
     L.push('SITE CHECKS');
-    L.push([ck.words, ck.magnetBy ? 'Magnet run by ' + ck.magnetBy : ''].filter(Boolean).join(' · '));
+    var ckLine = [ck.words, ck.magnetBy ? 'Magnet run by ' + ck.magnetBy : ''].filter(Boolean).join(' · ');
+    if (ckLine) L.push(ckLine);
+    if (rollLine) L.push(rollLine);
     L.push('');
   }
   var hrs = (log.hours || []).filter(function (h) { return h && (Number(h.minutes) || 0) > 0; });
@@ -2183,7 +2205,7 @@ function requirePhoto_(id, what) {
   if (!id || !String(id).trim()) throw new Error('PHOTO_REQUIRED: ' + what);
 }
 
-// ---- the photo rule (T2.23, the Ops Director, 29 Oct 2026) ----------------
+// ---- the photo rule (T2.23, Carl, 29 Oct 2026) ----------------
 // "The photo rule is ok": a start photo when you START WORK at a job site,
 // and an end photo when you LEAVE it for the day — nothing else asks. Not a
 // code change on the same site, not a supply run or coming back from one, not
@@ -2423,6 +2445,70 @@ function rollForgot(me, jobId, jobLabel, missing) {
   return noticeToPm_(jobId, '📋 ' + me.name + ' started at ' + (String(jobLabel || '').trim() || 'the job') + ' without the shop checks done before rolling out' +
     (what.length ? ': ' + what.join(' · ') : '') + '. Clocked in at ' + clockWords_(new Date()) + '.', opsDirector_());
 }
+// ---- the shop checks, every morning of a multi-day roof (T2.24) -----------
+// The board's "At the shop" lines are ticks on the JOB's checklist, so on day
+// 2 they already read done and nothing asked again. Carl, 29 Oct 2026: tarps
+// checked every morning of a multi-day roof, "and any materials that need to
+// be brought". The phone asks those each morning and this writes them down,
+// once per roof per day, on the checklist's own task — its thread, where the
+// board's site-check messages already go, not the job's feed. A record, so
+// nobody is assigned; the morning nobody ticked is rollForgot's.
+var ROLL_LINE_MAX = 120, ROLL_BRING_MAX = 140;
+function rollChecked(me, jobId, taskId, jobLabel, day, lines, bring) {
+  jobId = String(jobId || '').trim(); taskId = String(taskId || '').trim();
+  if (!jobId || !taskId) throw new Error('Missing the job or its checklist.');
+  assertWrite_(jobId);
+  // The task is the phone's to name, so it is read back: a comment only ever
+  // lands on a task of the job it says it is about.
+  var t = (pave({ task: { '$': { id: taskId }, id: {}, job: { id: {} } } }) || {}).task;
+  if (!t || !t.job || t.job.id !== jobId) throw new Error('That checklist is not on this job.');
+  var clean = function (x, max) { return String(x || '').replace(/\s+/g, ' ').trim().slice(0, max); };
+  var said = (lines || []).map(function (l) { return clean(String(l || '').split(' — ')[0], ROLL_LINE_MAX); }).filter(Boolean);
+  if (!said.length) throw new Error('Nothing was ticked.');
+  var what = clean(bring, ROLL_BRING_MAX), n = Math.round(Number(day) || 0);
+  var msg = '🚚 Shop checks before rolling out' + (n > 1 ? ', day ' + n : '') + ' (' + fmtDayLong_(isoDay_(new Date())) + '): ' +
+    said.join(' · ') + (what ? ' — bringing: ' + what : '') + '. ' + me.name + ', ' + clockWords_(new Date()) + ' — sent from DB Crew.';
+  var d = pave({ createComment: { '$': { targetType: 'task', targetId: taskId, message: msg }, createdComment: { id: {} } } });
+  return { ok: true, id: (((d.createComment || {}).createdComment) || {}).id || null, message: msg };
+}
+// ---- started earlier than the clock-in (T2.24, 29 Oct 2026) --------------
+// The mirror of Already left (T2.19): clocked in late, the work began before
+// it. Asked right after a clock-in — "Started earlier? Say when" — it moves
+// the block's start back to the time given, says so in the block's notes, and
+// tells the job's PM and the Ops Director, the same two Already left tells.
+// Bounded so it fixes a forgotten clock-in and nothing else: the block just
+// opened (within the hour), the same day, no more than four hours back, never
+// over another block of the day, never a drive or a break.
+var STARTED_EARLIER_MAX_MS = 4 * 3600 * 1000, STARTED_EARLIER_WINDOW_MS = 3600 * 1000;
+function startedEarlier(me, startedAt) {
+  var open = openEntryFor_(me.userId);
+  if (!open || isFuture_(open.startedAt)) throw new Error('You are not on the clock.');
+  if (isTravelEntry_(open)) throw new Error('A drive starts when you leave — say when with Already left.');
+  var at = Date.parse(startedAt || ''), began = Date.parse(open.startedAt), now = Date.now();
+  if (isNaN(at)) throw new Error('Say when you started.');
+  if (now - began > STARTED_EARLIER_WINDOW_MS) throw new Error('That block began over an hour ago — ask the office to change it.');
+  if (at >= began) throw new Error('That is not before you clocked in (' + clockWords_(new Date(began)) + ').');
+  if (began - at > STARTED_EARLIER_MAX_MS) throw new Error('That is more than 4 hours before you clocked in — ask the office to fix the day.');
+  if (isoDay_(new Date(at)) !== isoDay_(new Date(began))) throw new Error('That was the day before — ask the office to fix it.');
+  var clash = getMyDay(me).filter(function (x) {
+    if (x.id === open.id || isFuture_(x.startedAt)) return false;
+    var end = Date.parse(x.endedAt || '');
+    return !isNaN(end) && end > at;
+  })[0];
+  if (clash) throw new Error('You were on the clock until ' + clockWords_(new Date(Date.parse(clash.endedAt))) + ' — start after that.');
+  assertWrite_(open.job && open.job.id);
+  var from = new Date(at), was = new Date(began);
+  var notes = [String(open.notes || '').trim(), 'Started earlier — said they started at ' + clockWords_(from) + ', clocked in from DB Crew at ' + clockWords_(was) + '.'].filter(Boolean).join(' ');
+  pave({ updateTimeEntry: { '$': { id: open.id, startedAt: from.toISOString(), notes: notes } } });
+  var notice = null;
+  if (!(PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet) && open.job) {
+    var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '';
+    var code = open.code ? [open.code.number, open.code.name].filter(Boolean).join(' ') : 'their code';
+    notice = noticeToPm_(open.job.id, '⏱ ' + me.name + (also ? ' and ' + also : '') + ' clocked in at ' + clockWords_(was) + ' on ' + code + ' and ' +
+      (also ? 'say they' : 'says they') + ' started at ' + clockWords_(from) + ' — the block starts at ' + clockWords_(from) + ' now. Sent from DB Crew.', opsDirector_());
+  }
+  return { ok: true, id: open.id, startedAt: from.toISOString(), notice: notice };
+}
 function leftSite(me, leftAt, coords, plan) {
   plan = plan || {};
   var open = openEntryFor_(me.userId);
@@ -2497,7 +2583,7 @@ function leftSite(me, leftAt, coords, plan) {
 // person's: the shutter committed the person's clock. The photo is on the job
 // once, under the person's entry, so the partner's block is marked nudged.
 var PARTNERS = { '22PdPTwMdkzj': '22PdPUpWzpHy' };   // Yahir Gonzalez → Alberto Gonzalez
-var PARTNER_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startBreak: 1, endBreak: 1 };
+var PARTNER_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startedEarlier: 1, startBreak: 1, endBreak: 1 };
 function partnersMap_() {
   var raw = '';
   try { raw = PropertiesService.getScriptProperties().getProperty('PARTNERS_JSON') || ''; } catch (e) {}
@@ -2530,7 +2616,7 @@ function withPartner_(me, f, fn, args) {
   var mine = known ? openEntryFrom_(rs[0].data) : null, theirs = known ? openEntryFrom_(rs[1].data) : null;
   var same = known && sameClock_(mine, theirs);
   var data;
-  var notices = fn === 'leftSite' || fn === 'clockIn';
+  var notices = fn === 'leftSite' || fn === 'clockIn' || fn === 'startedEarlier';
   try { PARTNER_NOTICE_ = same && notices ? { alsoName: p.name } : null; data = f.apply(null, [me].concat(args)); }
   finally { PARTNER_NOTICE_ = null; }
   var info = { name: p.name, followed: false };
@@ -2964,13 +3050,16 @@ function pushEnabled_() {
 // ---- device registration -------------------------------------------------
 // One token per user. Re-registering replaces the old one, which is what we
 // want: a crew member who reinstalls shouldn't accumulate dead endpoints.
-function registerPushToken(me, token, platform) {
+function registerPushToken(me, token, platform, lang) {
   token = String(token || '').trim();
   if (!token) throw new Error('Missing push token.');
   // membershipId rides along so the schedule sweep can ask the board for this
-  // person without a lookup per device.
+  // person without a lookup per device. The phone's language (T2.24) rides
+  // along too, so the clock's own pushes — the missing start photo, still on
+  // the clock in the evening — come in the words the phone is set to.
   PropertiesService.getScriptProperties().setProperty('pt_' + me.userId, JSON.stringify({
-    token: token, platform: String(platform || ''), name: me.name, membershipId: me.membershipId || '', at: Date.now()
+    token: token, platform: String(platform || ''), name: me.name, membershipId: me.membershipId || '',
+    lang: lang === 'es' ? 'es' : 'en', at: Date.now()
   }));
   return { ok: true };
 }
@@ -2984,6 +3073,12 @@ function pushTokenFor_(userId) {
   var raw = PropertiesService.getScriptProperties().getProperty('pt_' + userId);
   if (!raw) return null;
   try { return JSON.parse(raw).token || null; } catch (e) { return null; }
+}
+/** 'es' when the phone that registered last is set to Spanish. */
+function pushLangFor_(userId) {
+  var raw = userId ? PropertiesService.getScriptProperties().getProperty('pt_' + userId) : null;
+  if (!raw) return 'en';
+  try { return JSON.parse(raw).lang === 'es' ? 'es' : 'en'; } catch (e) { return 'en'; }
 }
 
 // ---- FCM transport -------------------------------------------------------
@@ -3129,9 +3224,9 @@ function openEntriesForSweep_(sinceIso) {
           size: 100
         },
         nodes: {
-          id: {}, startedAt: {}, minutes: {},
+          id: {}, startedAt: {}, minutes: {}, notes: {},
           user: { id: {}, name: {} },
-          job: { id: {}, name: {} },
+          job: { id: {}, name: {}, number: {} },
           costItem: { id: {}, name: {}, costCode: { number: {} } }
         }
       }
@@ -3155,6 +3250,7 @@ function sweepBeforePhotoNudges() {
 
   var open = openEntriesForSweep_(sinceIso);
   if (!open.length) { cleanupNudgeMarkers_(props, {}); return { open: 0, sent: 0 }; }
+  var evening = sweepEveningLeft_(open, props);
 
   var haveBefore = entryIdsWithBeforePhoto_(sinceIso);
   var stillOpen = {};
@@ -3178,11 +3274,12 @@ function sweepBeforePhotoNudges() {
 
     var ci = t.costItem || {};
     var label = (((ci.costCode || {}).number || '') + ' ' + (ci.name || '')).trim();
-    var mins = Math.max(1, Math.round(ageMin));
+    var mins = Math.max(1, Math.round(ageMin)), es = pushLangFor_(userId) === 'es';
     var res;
     try {
-      res = sendPush_(token, 'Before photo not taken',
-        label + ' started ' + mins + ' minutes ago. The office has been copied.',
+      res = sendPush_(token, es ? 'Falta la foto de inicio' : 'Before photo not taken',
+        es ? label + ' empezó hace ' + mins + ' minutos. Se le avisó a la oficina.'
+           : label + ' started ' + mins + ' minutes ago. The office has been copied.',
         { kind: 'before-photo', timeEntryId: t.id, jobId: (t.job || {}).id || '' });
     } catch (e) {
       res = { ok: false, error: String(e && e.message || e) };
@@ -3196,7 +3293,56 @@ function sweepBeforePhotoNudges() {
   }
 
   cleanupNudgeMarkers_(props, stillOpen);
-  return { open: open.length, sent: sent, skipped: skipped, failed: failed };
+  return { open: open.length, sent: sent, skipped: skipped, failed: failed, evening: evening };
+}
+
+// ---- still on the clock in the evening (T2.24, 29 Oct 2026) ---------------
+// A forgotten clock-out was only caught the next morning (one entry on 28 Oct
+// ran 13 h 15 m). From EVENING_NUDGE_HOUR (7pm unless the Script Property says
+// otherwise), a block that began today and is still open gets one push — the
+// tap opens Already left, which clocks out at the time they say they left.
+// One push per block, ever; the marker goes when the block closes.
+var EVENING_NUDGE_HOUR = 19;
+function eveningHour_() {
+  var v = NaN;
+  try { v = Number(PropertiesService.getScriptProperties().getProperty('EVENING_NUDGE_HOUR')); } catch (e) {}
+  return v >= 12 && v <= 23 ? Math.floor(v) : EVENING_NUDGE_HOUR;
+}
+function sweepEveningLeft_(open, props) {
+  var now = new Date(), out = { sent: 0, skipped: 0, failed: 0 };
+  var hour = Number(Utilities.formatDate(now, Session.getScriptTimeZone(), 'H'));
+  if (!(hour >= eveningHour_())) return out;
+  var today = isoDay_(now), appUrl = String(props.getProperty('APP_URL') || '').replace(/\/+$/, '');
+  for (var i = 0; i < open.length; i++) {
+    var t = open[i];
+    if (isFuture_(t.startedAt) || isoDay_(new Date(t.startedAt)) !== today) { out.skipped++; continue; }
+    if (props.getProperty('evening_' + t.id)) { out.skipped++; continue; }
+    var userId = (t.user || {}).id;
+    var token = userId ? pushTokenFor_(userId) : null;
+    props.setProperty('evening_' + t.id, String(Date.now()));
+    if (!token) { out.skipped++; continue; }
+    var since = clockWords_(new Date(t.startedAt)), ci = t.costItem || {};
+    var label = (((ci.costCode || {}).number || '') + ' ' + (ci.name || '')).trim();
+    var drive = /travel/i.test(ci.name || '') || DRIVE_NOTES.test(t.notes || '');
+    var where = String((t.job || {}).name || '').replace(/^\d{6}\s+/, '').replace(/_/g, ' ').trim() || (t.job || {}).number || 'the job';
+    var es = pushLangFor_(userId) === 'es', res;
+    try {
+      res = sendPush_(token, es ? 'Sigues en el reloj' : 'Still on the clock',
+        es ? (drive ? 'Manejando desde las ' + since + ' — ¿ya regresaste? Toca para decir a qué hora, y el reloj para a esa hora.'
+                    : 'Desde las ' + since + ' en ' + (where === 'the job' ? 'el trabajo' : where) + (label ? ' · ' + label : '') + ' — ¿ya saliste? Toca para decir a qué hora, y el reloj para a esa hora.')
+           : drive ? 'Driving since ' + since + ' — back already? Tap to say when, and the clock stops then.'
+              : 'Since ' + since + ' at ' + where + (label ? ' on ' + label : '') + ' — left already? Tap to say when, and the clock stops then.',
+        { kind: 'left-open', timeEntryId: t.id, jobId: (t.job || {}).id || '' },
+        { tag: 'dbtc-left', link: (appUrl || '') + '/?left=1', ttl: '43200' });
+    } catch (e) { res = { ok: false, error: String(e && e.message || e) }; }
+    if (res.ok) out.sent++;
+    else {
+      out.failed++;
+      if (res.stale && userId) props.deleteProperty('pt_' + userId);
+      console.warn('evening push failed for ' + ((t.user || {}).name || userId) + ': ' + res.error);
+    }
+  }
+  return out;
 }
 
 /** Drop markers for entries that have since closed, so Script Properties
@@ -3204,8 +3350,8 @@ function sweepBeforePhotoNudges() {
 function cleanupNudgeMarkers_(props, stillOpen) {
   var all = props.getProperties();
   for (var k in all) {
-    if (k.indexOf('nudged_') !== 0) continue;
-    if (!stillOpen[k.slice(7)]) props.deleteProperty(k);
+    var id = k.indexOf('nudged_') === 0 ? k.slice(7) : k.indexOf('evening_') === 0 ? k.slice(8) : null;
+    if (id && !stillOpen[id]) props.deleteProperty(k);
   }
 }
 

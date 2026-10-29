@@ -120,6 +120,7 @@ button[disabled]{cursor:default}
 #bandCodeN{font:600 15px/1 var(--mono);letter-spacing:.9px;color:#7ba4dd}
 #bandCodeName{font:700 17px/1.1 var(--head);letter-spacing:.34px;text-transform:uppercase;color:#fff}
 #bandSub{font:400 13px/1.4 var(--sans);color:rgba(255,255,255,.55)}
+#earlierBtn{display:block;min-height:44px;margin:4px -4px -10px;padding:0 4px;font:600 14px/1 var(--sans);color:#ffd84d;text-decoration:underline;text-underline-offset:3px;text-align:left}
 
 
 .btn{width:100%;min-height:var(--tap);display:flex;align-items:center;justify-content:center;gap:11px;border-radius:6px;font-family:var(--head);text-transform:uppercase}
@@ -406,6 +407,9 @@ button[disabled]{cursor:default}
 .ckph .c.all{color:var(--acc)}
 .ckph .chev{flex:none;color:var(--lab);transition:transform .18s}
 .ckphase.open .ckph .chev{transform:rotate(90deg)}
+.ckphase.later{border-style:dashed}
+.ckphase.later .ckph{background:var(--surf)}
+.ckphase.later .ckph .w{color:var(--lab);font-weight:600}
 .ckrows{display:none}
 .ckphase.open .ckrows{display:block}
 .ckrow,.pairrow{width:100%;min-height:64px;display:flex;align-items:center;gap:14px;padding:10px 16px;border-top:1px solid var(--line);text-align:left}
@@ -662,6 +666,8 @@ button[disabled]{cursor:default}
 .langtog{display:flex;border:1px solid var(--line2);border-radius:3px;overflow:hidden;flex:none}
 .langtog button{padding:8px 10px;color:var(--mut);min-height:44px}
 .langtog button.on{background:var(--nav);color:#fff}
+.hdrR{display:flex;align-items:center;gap:8px;flex:none}
+.hdrR.stack{flex-direction:column;align-items:flex-end;gap:6px}
 .coscope{margin-top:14px;border:1px solid var(--line);border-radius:8px;background:var(--surf);overflow:hidden}
 .coscope .rvstory{padding-top:10px}
 </style>
@@ -691,9 +697,12 @@ button[disabled]{cursor:default}
           <div id="hdrW"></div>
         </div>
       </div>
-      <button id="sunBtn" aria-label="Toggle sun mode">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.6v2.4M12 20v2.4M1.6 12H4M20 12h2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg>
-      </button>
+      <div class="hdrR">
+        <div class="langtog" id="clockLang"><button class="k9" data-lang="en">EN</button><button class="k9" data-lang="es">ES</button></div>
+        <button id="sunBtn" aria-label="Toggle sun mode">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.6v2.4M12 20v2.4M1.6 12H4M20 12h2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg>
+        </button>
+      </div>
     </div>
     <div id="offlineBar" class="warnbar hidden"></div>
     <div id="roBar" class="warnbar robar hidden"></div>
@@ -721,54 +730,55 @@ button[disabled]{cursor:default}
             <div id="elapsed" class="tabular">0:00:00</div>
             <div id="bandCode"><span id="bandCodeN" class="tabular"></span><span id="bandCodeName"></span></div>
             <div id="bandSub"></div>
+            <button id="earlierBtn" class="hidden" data-l="Started earlier? Say when">Started earlier? Say when</button>
           </div>
           <div class="stack" id="runStack">
             <div class="clkgrid">
-              <button class="cbtn" id="breakBtn"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></svg>Break</button>
-              <button class="cbtn" id="codeBtn"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg>Change code</button>
+              <button class="cbtn" id="breakBtn"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></svg><span data-l="Break">Break</span></button>
+              <button class="cbtn" id="codeBtn"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></svg><span data-l="Change code">Change code</span></button>
               <button class="cbtn leave" id="leaveBtn"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><span id="leaveLbl">Leave the site</span></button>
-              <button class="cbtn out" id="outBtn"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>Clock out</button>
+              <button class="cbtn out" id="outBtn"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg><span data-l="Clock out">Clock out</span></button>
             </div>
             <button class="btn btn-out" id="photoBtn">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
-              Take a photo
+              <span data-l="Take a photo">Take a photo</span>
             </button>
-            <div id="photoNote">Photos through the day go in DB Cam.</div>
+            <div id="photoNote" data-l="Photos through the day go in DB Cam.">Photos through the day go in DB Cam.</div>
           </div>
           <div class="stack hidden" id="travelStack">
             <button class="btn btn-go" id="arriveBtn" style="min-height:88px;font-size:20px">I'm here · start work</button>
-            <button class="btn btn-out" id="travelElse" style="min-height:60px;font-size:15px;letter-spacing:.6px">Going somewhere else</button>
+            <button class="btn btn-out" id="travelElse" style="min-height:60px;font-size:15px;letter-spacing:.6px" data-l="Going somewhere else">Going somewhere else</button>
             <button class="btn btn-out" id="travelOut" style="min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)">Clock out · done for the day</button>
           </div>
           <div class="foot" id="stopFoot"></div>
           <div class="stack hidden" id="breakStack">
             <button class="btn btn-go" id="backBtn">Back to work</button>
-            <button class="btn btn-out" id="breakOutBtn" style="min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)">Clock out for the day</button>
+            <button class="btn btn-out" id="breakOutBtn" style="min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)" data-l="Clock out for the day">Clock out for the day</button>
             <div class="foot" id="breakFoot"></div>
           </div>
         </div>
 
         <button id="clockIn">
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.4"/><polyline points="12 6.6 12 12 15.8 14"/></svg>
-          <span class="big">Clock in</span><span class="sm">Code, then start photo</span>
+          <span class="big" data-l="Clock in">Clock in</span><span class="sm" data-l="Code, then start photo">Code, then start photo</span>
         </button>
         <div id="shopRow" class="stack hidden">
           <button class="btn btn-out" id="shopBtn">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/></svg>
-            <span class="bi2"><span class="b1">At the shop</span><span class="b2">Morning clock-in · one tap</span></span>
+            <span class="bi2"><span class="b1" data-l="At the shop">At the shop</span><span class="b2" data-l="Morning clock-in · one tap">Morning clock-in · one tap</span></span>
           </button>
-          <button class="btn btn-out" id="shopOther" style="min-height:56px;font-size:14px;letter-spacing:.5px;color:var(--mut);border-color:var(--line)">Other shop work</button>
+          <button class="btn btn-out" id="shopOther" style="min-height:56px;font-size:14px;letter-spacing:.5px;color:var(--mut);border-color:var(--line)" data-l="Other shop work">Other shop work</button>
         </div>
 
         <div class="sect">
-          <div class="k">Today on this job</div>
+          <div class="k" data-l="Today on this job">Today on this job</div>
           <div class="tbl" id="dayTbl"></div>
         </div>
 
         <div class="sect hidden" id="crewSect">
           <div class="secthead">
             <div class="k" id="crewK">Crew</div>
-            <div class="k9" style="color:var(--lab)">Foreman view</div>
+            <div class="k9" style="color:var(--lab)" data-l="Foreman view">Foreman view</div>
           </div>
           <div id="crewList" style="display:flex;flex-direction:column;gap:10px"></div>
         </div>
@@ -789,7 +799,7 @@ button[disabled]{cursor:default}
       <div id="camFallback">
         <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
         <div class="body" style="color:rgba(255,255,255,.76)" id="camFbMsg">Tap to allow the camera.</div>
-        <div class="btn btn-go" style="max-width:260px;padding:0 22px;min-height:66px">Allow camera</div>
+        <div class="btn btn-go" style="max-width:260px;padding:0 22px;min-height:66px" data-l="Allow camera">Allow camera</div>
       </div>
       <i class="corner" style="top:20px;left:20px;border-left:2px solid;border-top:2px solid"></i>
       <i class="corner" style="top:20px;right:20px;border-right:2px solid;border-top:2px solid"></i>
@@ -805,9 +815,9 @@ button[disabled]{cursor:default}
     </div>
     <div id="camDeck">
       <div id="tagRow">
-        <button class="tagbtn on" data-tag="before"><span class="tl">Start</span><span class="tc tabular">00</span></button>
-        <button class="tagbtn" data-tag="during"><span class="tl">During</span><span class="tc tabular">00</span></button>
-        <button class="tagbtn" data-tag="after"><span class="tl">End</span><span class="tc tabular">00</span></button>
+        <button class="tagbtn on" data-tag="before"><span class="tl" data-l="Start">Start</span><span class="tc tabular">00</span></button>
+        <button class="tagbtn" data-tag="during"><span class="tl" data-l="During">During</span><span class="tc tabular">00</span></button>
+        <button class="tagbtn" data-tag="after"><span class="tl" data-l="End">End</span><span class="tc tabular">00</span></button>
       </div>
       <button id="galBtn" class="galbtn"><span id="galIcon"></span><span id="galLbl">From my photos</span></button>
       <button id="leftBtn" class="galbtn hidden" style="border-color:rgba(255,216,77,.55);color:#ffd84d"><span id="leftLbl">Already left this job? Say when — no photo</span></button>
@@ -820,7 +830,7 @@ button[disabled]{cursor:default}
         </button>
         <button id="shutter" aria-label="Shutter"><span id="shutterIn"></span></button>
         <button class="sqbtn" id="lastShot"><span id="lastCount" class="tabular">00</span></button>
-        <span id="noSkip" class="hidden">No skip</span>
+        <span id="noSkip" class="hidden" data-l="No skip">No skip</span>
       </div>
     </div>
     <input type="file" id="fileIn" accept="image/*" capture="environment" class="hidden">
@@ -853,7 +863,10 @@ button[disabled]{cursor:default}
         <div class="k" id="jobsK">My jobs</div>
         <div id="jobsCrew">—</div>
       </div>
-      <button id="boardStamp" aria-label="Refresh assigned jobs">Board · —</button>
+      <div class="hdrR stack">
+        <div class="langtog" id="jobsLang"><button class="k9" data-lang="en">EN</button><button class="k9" data-lang="es">ES</button></div>
+        <button id="boardStamp" aria-label="Refresh assigned jobs">Board · —</button>
+      </div>
     </div>
     <div id="jobsSrc" class="warnbar robar hidden"></div>
     <button id="jobsNudge" class="nudge hidden"></button>
@@ -1018,7 +1031,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.23 (2026-10-29)';
+var APP_BUILD = 'T2.24 (2026-10-29)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1364,7 +1377,7 @@ var apiBusy = 0;      // calls out right now; a new build waits for zero before 
    write goes for the partner as well — the API decides whether the partner's
    clock is where this one was, and says when it was not. Two people's writes
    take longer, so the ceiling is longer. */
-var PARTNER_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startBreak: 1, endBreak: 1 };
+var PARTNER_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startedEarlier: 1, startBreak: 1, endBreak: 1 };
 function apiCall(fn, args, co){
   if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
   co = co || {};
@@ -1379,7 +1392,7 @@ function apiCall(fn, args, co){
   var p = lane === 'now' ? Promise.resolve().then(run) : (apiLanes[lane] || Promise.resolve()).then(run, run);
   if (lane !== 'now') apiLanes[lane] = p.then(function(){}, function(){});
   return p.then(function(v){ apiBusy--; apiNote(fn, queuedAt, t0, true, null);
-                             if (co.partner && v && v.partner && !v.partner.followed) setTimeout(function(){ toast(v.partner.name + ' was not changed — ' + (v.partner.why || 'not where you were'), true); }, 1600);
+                             if (co.partner && v && v.partner && !v.partner.followed) setTimeout(function(){ toast(Lf('{name} was not changed — {why}', { name: v.partner.name, why: partnerWhy(v.partner.why) }), true); }, 1600);
                              return v; },
                 function(e){ apiBusy--; apiNote(fn, queuedAt, t0, false, e); throw e; });
 }
@@ -1424,6 +1437,7 @@ var S = {
   travelPick:false, travelTo:null,   // T2.18: a drive's job picked by search; one with no travel line
   leftGate:null, leftPick:0,         // T2.19: the end photo they are getting round, the time picked
   rollNext:null, rollTold:{}, rollPending:null,   // T2.20: what Before you roll out holds up; the roofs told about; one to tell at the start photo
+  earlierPick:0,   // T2.24: the time picked on When did you start?
   partner:null, partnerOn:false,     // T2.21: the partner the API names (Yahir's Alberto), and the box
   leaveMode:null, leaveTo:null, leaveAfterLog:null, moveAsked:false, wrongJob:null,   // T2.23: a leaving under way, the log it waits on, What happened?
   recentCodes:null, allCodes:false,  // T2.23: your codes (the API's), and the sheet opened out to all of them
@@ -1582,7 +1596,7 @@ function failed(where, e, quiet){
 var toastT = null;
 function toast(msg, isErr){
   var t = $('toast');
-  t.querySelector('span').textContent = msg;
+  t.querySelector('span').textContent = L(msg);
   t.classList.toggle('err', !!isErr);
   t.style.display = 'flex';
   clearTimeout(toastT);
@@ -1743,7 +1757,7 @@ function enablePush(){
     .then(function(token){
       if (!token) throw new Error('Firebase returned no device token. Usually the vapidKey in config.js is not this project\u2019s Web Push key.');
       step = 'registering the token';
-      return apiCall('registerPushToken', [token, isIOS() ? 'ios' : 'android']);
+      return apiCall('registerPushToken', [token, isIOS() ? 'ios' : 'android', S.lang]);
     })
     .then(function(){ pushState = 'on'; savePrefs(); })
     .catch(function(e){
@@ -1764,6 +1778,8 @@ function handleShootParam(){
     setTab('cam');
     return;
   }
+  // The evening's still-on-the-clock push (T2.24): When did you leave?
+  if (/[?&]left=1\b/.test(q)){ history.replaceState(null, '', location.pathname); openLeftFromPush(); return; }
   // A schedule push lands on My jobs.
   var m = /[?&]tab=(jobs|log|job|co|people)\b/.exec(q);
   if (m){ history.replaceState(null, '', location.pathname); setTab(m[1]); }
@@ -1783,16 +1799,16 @@ function measureTabs(){
 
 function render(){
   applyTheme();
-  $('hdrW').textContent = meNow() ? (meNow().name + ' · ' + roleWords()) : '';
+  $('hdrW').textContent = meNow() ? (meNow().name + ' · ' + L(roleWords())) : '';
   renderRoleChrome();
 
   var ob = $('offlineBar');
   ob.classList.toggle('hidden', S.online);
-  ob.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l20 20M8.6 16.5a5 5 0 0 1 6.8 0M5 12.6a10 10 0 0 1 4.6-2.4M19.7 12.6a10 10 0 0 0-4.3-2.5"/><path d="M12 20h.01"/></svg><span>No signal · ' + (S.queued ? S.queued + (S.queued===1?' item':' items') + ' queued' : 'nothing waiting') + '</span>';
+  ob.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l20 20M8.6 16.5a5 5 0 0 1 6.8 0M5 12.6a10 10 0 0 1 4.6-2.4M19.7 12.6a10 10 0 0 0-4.3-2.5"/><path d="M12 20h.01"/></svg><span>' + (S.queued ? Lf(S.queued === 1 ? 'No signal · {n} item queued' : 'No signal · {n} items queued', { n: S.queued }) : L('No signal · nothing waiting')) + '</span>';
   var rb = $('roBar');
   // Unknown until the API says (null): no bar, rather than a wrong one.
   rb.classList.toggle('hidden', S.writeEnabled !== false);
-  rb.innerHTML = '<span>Read-only build · hours are not posting yet</span>';
+  rb.innerHTML = '<span>' + esc(L('Read-only build · hours are not posting yet')) + '</span>';
 
   renderJob();
   renderJobs();
@@ -1828,23 +1844,23 @@ function renderPartner(){
   b.classList.toggle('hidden', !show);
   if (!show) return;
   b.classList.toggle('on', !!S.partnerOn);
-  b.innerHTML = '<span class="box">' + CK_TICK + '</span><span class="lbl">Clock ' + esc(S.partner.name) + ' in and out with you</span>';
+  b.innerHTML = '<span class="box">' + CK_TICK + '</span><span class="lbl">' + Lf('Clock {name} in and out with you', { name: esc(S.partner.name) }) + '</span>';
 }
 function renderJob(){
   renderPartner();
   var j = S.job, shop = atShop();
-  $('jobK').textContent = j ? ((shop ? 'At the shop' : onTravel() && !travelBack() ? 'Driving to' : "Today's job") + ' · JT #' + (j.number || '')) : "Today's job";
-  $('jobAddr').textContent = shop ? 'The shop' : j ? (streetOf(j.address) || jobTitle(j) || '—') : 'Pick a job';
-  $('jobSub').textContent = shop ? 'Morning clock-in, training and shop work'
+  $('jobK').textContent = j ? (L(shop ? 'At the shop' : onTravel() && !travelBack() ? 'Driving to' : "Today's job") + ' · JT #' + (j.number || '')) : L("Today's job");
+  $('jobAddr').textContent = shop ? L('The shop') : j ? (streetOf(j.address) || jobTitle(j) || '—') : L('Pick a job');
+  $('jobSub').textContent = shop ? L('Morning clock-in, training and shop work')
     : j ? [j.customer, cityOf(j.address)].filter(Boolean).join(' · ')
-    : 'Tap below to choose where you are working.';
+    : L('Tap below to choose where you are working.');
   $('jobChips').innerHTML = j
     ? [jobTitle(j)].filter(Boolean).map(function(x){ return '<span class="chip">' + esc(x) + '</span>'; }).join('')
     : '';
   // While the clock runs the hours belong to this job, so "change" becomes a
   // move: the entry here closes and one opens at the next roof, in one call.
   var paused = onBreakNow();
-  $('pickJobLbl').textContent = paused ? 'End your break to change job' : !j ? 'Pick a job' : S.open ? 'Move to another job' : 'Change job';
+  $('pickJobLbl').textContent = L(paused ? 'End your break to change job' : !j ? 'Pick a job' : S.open ? 'Move to another job' : 'Change job');
   $('pickJobBtn').disabled = paused;
   $('pickJobBtn').style.opacity = paused ? .45 : 1;
 }
@@ -1857,7 +1873,7 @@ function renderTodayPick(){
              !(S.job && S.todayChoices.some(function(v){ return v.jobId === S.job.id; }));
   el.classList.toggle('hidden', !show);
   if (!show) return;
-  el.innerHTML = '<div class="k">Booked today · which one are you at?</div>' + S.todayChoices.map(function(v){
+  el.innerHTML = '<div class="k">' + esc(L('Booked today · which one are you at?')) + '</div>' + S.todayChoices.map(function(v){
     return '<button class="btn btn-out" data-today="' + esc(v.jobId) + '" style="justify-content:flex-start;padding:0 16px;text-align:left">' +
       esc((v.cust || v.jobNum || '') + (streetOf(v.address) ? ' · ' + streetOf(v.address) : '')) + '</button>';
   }).join('');
@@ -1890,22 +1906,22 @@ function renderClock(){
   $('stopFoot').classList.toggle('hidden', !on);
   $('breakStack').classList.toggle('hidden', !brk);
   $('band').classList.toggle('paused', paused || legacy);
-  $('backBtn').textContent = legacy ? 'Back to work' : 'End break';
+  $('backBtn').textContent = L(legacy ? 'Back to work' : 'End break');
   $('breakFoot').classList.toggle('hidden', legacy);
   if (paused){
     // Counting down to the block JobTread already has waiting.
-    var b = S.brk && S.brk.entryId === S.open.id ? S.brk : null, c = S.open.code, num = (c && c.number) || 'the code';
+    var b = S.brk && S.brk.entryId === S.open.id ? S.brk : null, c = S.open.code, num = (c && c.number) || L('the code');
     $('elapsed').textContent = countdown(breakLeft());
     $('bandCodeN').textContent = (c && c.number) || '';
     $('bandCodeName').textContent = (c && c.name) || '';
-    $('band').querySelector('.lbl').textContent = 'On break · back at ' + clockLabel(S.open.startedAt);
+    $('band').querySelector('.lbl').textContent = Lf('On break · back at {t}', { t: clockLabel(S.open.startedAt) });
     $('bandSub').textContent = b
-      ? (b.minutes ? b.minutes + '-minute break' : 'Break') + ' · started ' + clockLabel(b.at) + ' · ' + hmClock(b.sec || 0) + ' on ' + num + ' saved'
-      : 'Break taken in JobTread · the clock starts again on ' + num + ' at ' + clockLabel(S.open.startedAt);
-    $('breakFoot').textContent = (pushState === 'on'
+      ? Lf(b.minutes ? '{m}-minute break · started {t} · {hm} on {num} saved' : 'Break · started {t} · {hm} on {num} saved', { m: b.minutes, t: clockLabel(b.at), hm: hmClock(b.sec || 0), num: num })
+      : Lf('Break taken in JobTread · the clock starts again on {num} at {t}', { num: num, t: clockLabel(S.open.startedAt) });
+    $('breakFoot').textContent = L(pushState === 'on'
       ? 'A reminder comes 5 minutes before it ends, and one when it does. '
       : 'Notifications are off on this phone — keep the app open for the reminders. ') +
-      'The clock starts again by itself at ' + clockLabel(S.open.startedAt) + '. Back early? End break starts it now.';
+      Lf('The clock starts again by itself at {t}. Back early? End break starts it now.', { t: clockLabel(S.open.startedAt) });
     return;
   }
   if (over){
@@ -1913,9 +1929,9 @@ function renderClock(){
     $('elapsed').textContent = hms(openSeconds());
     $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
     $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
-    $('band').querySelector('.lbl').textContent = 'Break over · clock on since ' + clockLabel(S.open.startedAt);
-    $('bandSub').textContent = 'The clock started again by itself when your break ended.';
-    $('breakFoot').textContent = 'Tap End break when you’re back. Clocking out from here takes an end photo — the clock is running.';
+    $('band').querySelector('.lbl').textContent = Lf('Break over · clock on since {t}', { t: clockLabel(S.open.startedAt) });
+    $('bandSub').textContent = L('The clock started again by itself when your break ended.');
+    $('breakFoot').textContent = L('Tap End break when you’re back. Clocking out from here takes an end photo — the clock is running.');
     return;
   }
   if (legacy){
@@ -1925,39 +1941,40 @@ function renderClock(){
     $('elapsed').textContent = hms(lb.sec || 0);
     $('bandCodeN').textContent = (lb.code && lb.code.number) || '';
     $('bandCodeName').textContent = (lb.code && lb.code.name) || '';
-    $('band').querySelector('.lbl').textContent = 'On break · ' + clockLabel(lb.at);
-    $('bandSub').textContent = 'Back to work re-opens ' + ((lb.code && lb.code.number) || 'the code') + ' · no start photo';
+    $('band').querySelector('.lbl').textContent = Lf('On break · {t}', { t: clockLabel(lb.at) });
+    $('bandSub').textContent = Lf('Back to work re-opens {num} · no start photo', { num: (lb.code && lb.code.number) || L('the code') });
     return;
   }
   if (!on) return;
   if (drive){
     var back = travelBack(), sup = supplyRun();
-    $('band').querySelector('.lbl').textContent = sup ? 'Supply run · back to ' + placeWord(S.job) : back ? 'Driving back · end of the day' : 'Driving to ' + placeWord(S.job);
+    $('band').querySelector('.lbl').textContent = sup ? Lf('Supply run · back to {p}', { p: pw(S.job) }) : back ? L('Driving back · end of the day') : Lf('Driving to {p}', { p: pw(S.job) });
     $('elapsed').textContent = hms(openSeconds());
     $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
     $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
-    $('bandSub').textContent = 'Since ' + clockLabel(S.open.startedAt) + ' · on ' + jobWord(S.job) + '’s travel line';
+    $('bandSub').textContent = Lf('Since {t} · on {j}’s travel line', { t: clockLabel(S.open.startedAt), j: jobWord(S.job) });
     var stale = leftOvernight();
     var rc = sup ? supplyReturn() : null;
-    $('arriveBtn').textContent = stale ? 'When did the drive end?' : sup ? 'Back at ' + placeWord(S.job) + (rc ? ' · ' + (rc.name || rc.number) : '') : back ? (S.shop ? 'At the shop · shop work' : 'I’m back · start work') : 'I’m here · start work';
+    $('arriveBtn').textContent = stale ? L('When did the drive end?') : sup ? Lf('Back at {p}', { p: pw(S.job) }) + (rc ? ' · ' + (rc.name || rc.number) : '') : L(back ? (S.shop ? 'At the shop · shop work' : 'I’m back · start work') : 'I’m here · start work');
     $('arriveBtn').classList.toggle('hidden', back && !S.shop && !stale);
     $('travelElse').classList.toggle('hidden', back);
-    $('travelOut').textContent = back ? 'Clock out · I’m back' : 'Clock out · done for the day';
-    $('stopFoot').textContent = sup ? 'The run is ' + placeWord(S.job) + '’s travel time. Back at the job puts you on the same code again — no photo.'
-      : back ? 'The drive back is paid travel. Clocking out from a drive takes no photo.'
-             : 'Starting work there ends the drive. The drive itself takes no photo.';
+    $('travelOut').textContent = L(back ? 'Clock out · I’m back' : 'Clock out · done for the day');
+    $('stopFoot').textContent = sup ? Lf('The run is {p}’s travel time. Back at the job puts you on the same code again — no photo.', { p: pw(S.job) })
+      : L(back ? 'The drive back is paid travel. Clocking out from a drive takes no photo.'
+             : 'Starting work there ends the drive. The drive itself takes no photo.');
     return;
   }
-  $('band').querySelector('.lbl').textContent = 'On the clock';
+  $('band').querySelector('.lbl').textContent = L('On the clock');
   $('elapsed').textContent = hms(openSeconds());
   $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
   $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
   var n = codePhotos().length;
-  $('bandSub').textContent = 'Started ' + clockLabel(S.open.startedAt) + (hasTag('before') ? ' with a start photo' : '') +
-                             ' · ' + n + (n === 1 ? ' photo' : ' photos') + ' on this code';
-  $('leaveLbl').textContent = atShop() ? 'Leave the shop' : 'Leave the site';
-  $('stopFoot').textContent = atShop() ? 'At the shop no photo is asked for.'
-    : 'A start photo when you start here, an end photo when you leave for the day — nothing in between.';
+  $('bandSub').textContent = Lf(hasTag('before') ? 'Started {t} with a start photo' : 'Started {t}', { t: clockLabel(S.open.startedAt) }) +
+                             ' · ' + Lf(n === 1 ? '{n} photo on this code' : '{n} photos on this code', { n: n });
+  $('leaveLbl').textContent = L(atShop() ? 'Leave the shop' : 'Leave the site');
+  $('earlierBtn').classList.toggle('hidden', !earlierBlock());
+  $('stopFoot').textContent = L(atShop() ? 'At the shop no photo is asked for.'
+    : 'A start photo when you start here, an end photo when you leave for the day — nothing in between.');
 }
 
 function renderDay(){
@@ -1979,8 +1996,8 @@ function renderDay(){
             '<span class="nm">' + esc(r.code.name||'') + (r.live ? ' ·' : '') + '</span>' +
             '<span class="d tabular">' + hm(r.sec) + '</span></div>';
   });
-  if (!order.length) html = '<div class="trow"><span class="nm" style="text-transform:none;font-weight:400;color:var(--mut)">Nothing on the clock yet today.</span></div>';
-  html += '<div class="ttotal"><span class="l">Total today</span><span class="v tabular">' + hm(total) + '</span></div>';
+  if (!order.length) html = '<div class="trow"><span class="nm" style="text-transform:none;font-weight:400;color:var(--mut)">' + esc(L('Nothing on the clock yet today.')) + '</span></div>';
+  html += '<div class="ttotal"><span class="l">' + esc(L('Total today')) + '</span><span class="v tabular">' + hm(total) + '</span></div>';
   $('dayTbl').innerHTML = html;
 }
 
@@ -1992,21 +2009,21 @@ function renderCrew(){
   // such, and not counted as on.
   var brk = function(c){ return Date.parse(c.startedAt) > Date.now(); };
   var nOn = S.crew.filter(function(c){ return !brk(c); }).length, nBrk = S.crew.length - nOn;
-  $('crewK').innerHTML = 'Crew · <span style="color:var(--acc)">' + nOn + ' on</span>' + (nBrk ? ' · ' + nBrk + ' on break' : '');
+  $('crewK').innerHTML = esc(L('Crew')) + ' · <span style="color:var(--acc)">' + esc(Lf('{n} on', { n: nOn })) + '</span>' + (nBrk ? ' · ' + esc(Lf('{n} on break', { n: nBrk })) : '');
   $('crewList').innerHTML = S.crew.map(function(c){
     var b = brk(c);
     return '<div class="crewrow ' + (b ? 'brk' : 'on') + '"><span class="cd"></span>' +
       '<span style="flex:1;min-width:0"><span class="cn" style="display:block">' + esc(c.name) + '</span>' +
-      '<span class="cs" style="display:block">' + esc(b ? 'On break · back ' + clockLabel(c.startedAt) : (c.code || '—')) + ' · ' + esc(c.job || '') + '</span></span>' +
-      '<span class="ct tabular">' + (b ? 'Break' : hm((c.minutes||0)*60)) + '</span></div>';
-  }).join('') || '<div class="body">Nobody is on the clock right now.</div>';
+      '<span class="cs" style="display:block">' + esc(b ? Lf('On break · back {t}', { t: clockLabel(c.startedAt) }) : (c.code || '—')) + ' · ' + esc(c.job || '') + '</span></span>' +
+      '<span class="ct tabular">' + (b ? esc(L('Break')) : hm((c.minutes||0)*60)) + '</span></div>';
+  }).join('') || '<div class="body">' + esc(L('Nobody is on the clock right now.')) + '</div>';
 }
 
 function renderCam(){
   var gate = S.clockGate, code = gate === 'start' ? S.gateCode : (S.open && S.open.code);
-  $('stampAddr').textContent = S.job ? (streetOf(S.job.address) || jobTitle(S.job)) + (S.job.number ? ' · JT #' + S.job.number : '') : 'No job';
-  $('stampCode').textContent = code ? codeLabel(code) + (gate && gate !== 'start' && S.open ? ' · ' + hmClock(openSeconds()) : '') : 'Not clocked in';
-  $('stampCount').textContent = pad2(S.photos.length) + ' today';
+  $('stampAddr').textContent = S.job ? (streetOf(S.job.address) || jobTitle(S.job)) + (S.job.number ? ' · JT #' + S.job.number : '') : L('No job');
+  $('stampCode').textContent = code ? codeLabel(code) + (gate && gate !== 'start' && S.open ? ' · ' + hmClock(openSeconds()) : '') : L('Not clocked in');
+  $('stampCount').textContent = Lf('{n} today', { n: pad2(S.photos.length) });
   $('lastCount').textContent = pad2(S.photos.length);
   var last = S.photos[S.photos.length-1];
   $('lastShot').style.backgroundImage = last && last.thumb ? 'url(' + last.thumb + ')' : '';
@@ -2024,24 +2041,24 @@ function renderCam(){
   $('afterBar').style.display = gate ? 'flex' : 'none';
   if (gate){
     var num = (code && code.number) || 'this code';
-    $('afterBarT').textContent = gate === 'start' ? 'Start photo · the clock starts when you shoot'
-      : 'End photo of ' + placeWord(S.job) + ' · you ' + (gate === 'end-out' ? 'clock out' : gate === 'end-travel' ? 'start the drive' : 'switch') + ' when you shoot';
-    $('camBackLbl').textContent = gate === 'start' ? 'Back' : 'Stay on';
+    $('afterBarT').textContent = gate === 'start' ? L('Start photo · the clock starts when you shoot')
+      : Lf(gate === 'end-out' ? 'End photo of {p} · you clock out when you shoot' : gate === 'end-travel' ? 'End photo of {p} · you start the drive when you shoot' : 'End photo of {p} · you switch when you shoot', { p: pw(S.job) });
+    $('camBackLbl').textContent = L(gate === 'start' ? 'Back' : 'Stay on');
   }
   $('modeBtn').classList.toggle('hidden', !!gate);
   $('lastShot').classList.toggle('hidden', !!gate);
   $('galBtn').classList.toggle('hidden', !!gate);
   $('galIcon').innerHTML = ico('image', 20);
-  $('galLbl').textContent = S.lang === 'es' ? 'De mis fotos' : 'From my photos';
+  $('galLbl').textContent = L('From my photos');
   // Already left (T2.19): only for an end photo of work — a move, the drive,
   // the end of the day — never a code switch where you still stand.
   var canLeave = !!gate && gate !== 'start' && !!S.open && !onTravel() && !onBreakNow() && (gate !== 'end-switch' || !!S.pendingJob);
   $('leftBtn').classList.toggle('hidden', !canLeave);
-  if (canLeave) $('leftLbl').textContent = 'Already left ' + placeWord(S.job) + '? Say when — no photo';
+  if (canLeave) $('leftLbl').textContent = Lf('Already left {p}? Say when — no photo', { p: pw(S.job) });
   $('camBack').classList.toggle('hidden', !gate);
   $('noSkip').classList.toggle('hidden', !gate);
   if (gate && S.mode !== 'photo') S.mode = 'photo';
-  $('modeLbl').textContent = S.mode === 'photo' ? 'Video' : 'Photo';
+  $('modeLbl').textContent = L(S.mode === 'photo' ? 'Video' : 'Photo');
   $('modeIcon').innerHTML = S.mode === 'photo'
     ? '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>'
     : '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>';
@@ -2232,6 +2249,7 @@ function renderLog(){ renderDayLog(); }
    cannot be blocked by the board being down.
    ========================================================= */
 var DOW3 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function dow3(d){ return (S.lang === 'es' ? DOW_ES : DOW3)[d.getDay()]; }
 function isoLocal(d){ d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
 
 /* Every job the assigned-jobs tab can offer, in the shape the clock screen
@@ -2377,19 +2395,19 @@ function loadAssignments(){
 /* "Today · day 2 of 3" is what a crew member actually needs off a schedule —
    which day of the stay this is, not a date they have to subtract from. */
 function visitWhen(v){
-  var span = v.days > 1 ? ' · ' + v.days + ' days' : '';
+  var span = v.days > 1 ? ' · ' + Lf('{n} days', { n: v.days }) : '';
   // The window starts yesterday now, for the site checks: a visit that has
   // ended says so, and is never dressed up as today's.
   var today = isoLocal();
   if (v.end && v.end < today){
-    if (v.end === isoLocal(new Date(Date.now() - 86400000))) return 'Yesterday' + span;
+    if (v.end === isoLocal(new Date(Date.now() - 86400000))) return L('Yesterday') + span;
     var de = new Date(v.end + 'T12:00:00');
-    return (isNaN(de) ? v.end : DOW3[de.getDay()] + ' ' + (de.getMonth()+1) + '/' + de.getDate()) + ' · ended';
+    return (isNaN(de) ? v.end : dow3(de) + ' ' + (de.getMonth()+1) + '/' + de.getDate()) + ' · ' + L('ended');
   }
-  if (v.today) return v.days > 1 && v.dayOf ? 'You’re here · day ' + v.dayOf + ' of ' + v.days : 'You’re here';
-  if (v.start === isoLocal(new Date(Date.now() + 86400000))) return 'Tomorrow' + span;
+  if (v.today) return v.days > 1 && v.dayOf ? Lf('You’re here · day {n} of {m}', { n: v.dayOf, m: v.days }) : L('You’re here');
+  if (v.start === isoLocal(new Date(Date.now() + 86400000))) return L('Tomorrow') + span;
   var d = new Date(v.start + 'T12:00:00');
-  return isNaN(d) ? v.start : DOW3[d.getDay()] + ' ' + (d.getMonth()+1) + '/' + d.getDate() + span;
+  return isNaN(d) ? v.start : dow3(d) + ' ' + (d.getMonth()+1) + '/' + d.getDate() + span;
 }
 
 /* Why the list isn't the board's answer. Said plainly — a crew member who is
@@ -2398,21 +2416,19 @@ function assignNote(a){
   if (!a) return '';
   if (a.source === 'board' && a.crew) {
     return S.assignStale
-      ? 'Could not reach the board just now — this is the schedule as of ' + clockLabel(S.assignAt) + '.'
+      ? Lf('Could not reach the board just now — this is the schedule as of {t}.', { t: clockLabel(S.assignAt) })
       : '';
   }
   switch (a.reason){
     case 'no-membership':
     case 'no-crew':
-      return 'No crew is linked to your account yet — ask the office. Showing jobs you have recently clocked into.';
+      return L('No crew is linked to your account yet — ask the office. Showing jobs you have recently clocked into.');
     case 'not-configured':
-      return 'The production board is not connected yet. Showing jobs you have recently clocked into.';
+      return L('The production board is not connected yet. Showing jobs you have recently clocked into.');
     case 'board-slow':
-      return 'Still waiting on the board after ' + Math.round(BOARD_WAIT_MS/1000) +
-             ' seconds. Showing jobs you have recently clocked into — this list will ' +
-             'replace itself if the answer arrives.';
+      return Lf('Still waiting on the board after {s} seconds. Showing jobs you have recently clocked into — this list will replace itself if the answer arrives.', { s: Math.round(BOARD_WAIT_MS/1000) });
     default:
-      return 'Could not reach the production board. Showing jobs you have recently clocked into.';
+      return L('Could not reach the production board. Showing jobs you have recently clocked into.');
   }
 }
 
@@ -2434,17 +2450,27 @@ function matWords(t){ return String(t||'').replace(/[\u2713\u2714]\s*$/, '').tri
    the board's materialWords(), and anything that rewords them here is wrong
    twice over. The tick is still stripped — the self-hosted face draws U+2713
    as a radical sign — and the colour still comes from `cls`. */
+/* In Spanish (T2.24) each of the board's lines has its own Spanish line, one
+   for one — a translation, never a merge of two states into one sentence.
+   A line the phone has no Spanish for is shown as the board sent it. */
+function matEs(t){
+  if (S.lang !== 'es') return t;
+  if (Object.prototype.hasOwnProperty.call(ES, t)) return ES[t];
+  var m = /^Staged at (.+) — not loaded$/.exec(t); if (m) return 'Apartado en ' + m[1] + ' — sin cargar';
+  m = /^Staged at (.+)$/.exec(t); if (m) return 'Apartado en ' + m[1];
+  return t;
+}
 function matLine(m){
   if (!m || !m.text) return null;
   var cls = m.cls === 'bad' ? 'bad' : m.cls === 'warn' ? 'warn' : 'good';
-  return { cls: cls, text: matWords(m.text) };
+  return { cls: cls, text: matEs(matWords(m.text)) };
 }
 /* Hand the street address to whatever maps app the phone has. A geo: URL is
    ignored by iOS, so this is the one form that opens Maps on both. */
 function navCellHtml(address){
   if (!address) return '';
   return '<a class="jnav" href="https://maps.google.com/?q=' + encodeURIComponent(address) + '" target="_blank" rel="noopener">' +
-    '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>Directions</a>';
+    '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>' + esc(L('Directions')) + '</a>';
 }
 /* What tapping the card does. Today's roof (and one that ended): whether
    its log went, and a tap to do it. Any other: go there instead — the end
@@ -2454,13 +2480,13 @@ function actionCellHtml(v){
   var today = isoLocal();
   if (v.today || (v.end && v.end < today)){
     var date = v.today ? today : v.end, e = dlGet(v.jobId, date);
-    if (e && e.sent) return '<button class="jact ok" data-log="' + esc(v.jobId) + '" data-date="' + esc(date) + '"><span class="a1">Log sent · ' + esc(clockLabel(e.sent.at)) + '</span></button>';
-    return '<button class="jact warn" data-log="' + esc(v.jobId) + '" data-date="' + esc(date) + '"><span class="a1">Log not sent</span><span class="a2">Tap to do it</span></button>';
+    if (e && e.sent) return '<button class="jact ok" data-log="' + esc(v.jobId) + '" data-date="' + esc(date) + '"><span class="a1">' + esc(Lf('Log sent · {t}', { t: clockLabel(e.sent.at) })) + '</span></button>';
+    return '<button class="jact warn" data-log="' + esc(v.jobId) + '" data-date="' + esc(date) + '"><span class="a1">' + esc(L('Log not sent')) + '</span><span class="a2">' + esc(L('Tap to do it')) + '</span></button>';
   }
   return goCellHtml(v.jobId);
 }
 function goCellHtml(jobId){
-  return '<button class="jact nav" data-go="' + esc(jobId) + '"><span class="a1">Go here instead</span>' + (S.open ? '<span class="a2">Moves the clock</span>' : '') + '</button>';
+  return '<button class="jact nav" data-go="' + esc(jobId) + '"><span class="a1">' + esc(L('Go here instead')) + '</span>' + (S.open ? '<span class="a2">' + esc(L('Moves the clock')) + '</span>' : '') + '</button>';
 }
 
 function visitCardHtml(v){
@@ -2477,16 +2503,16 @@ function visitCardHtml(v){
   h += '<button class="jmain" data-pick="' + esc(v.jobId) + '">' +
        '<span class="h-addr">' + esc(street) + '</span>' +
        (sub ? '<span class="sub">' + esc(sub) + '</span>' : '') +
-       (v.alongside ? '<span class="jwith">with ' + esc(v.alongside) + '</span>' : '') + '</button>';
+       (v.alongside ? '<span class="jwith">' + esc(Lf('with {who}', { who: v.alongside })) + '</span>' : '') + '</button>';
   if (m && !far) h += '<div class="jmat ' + m.cls + '"><span class="dot"></span>' + esc(m.text) + '</div>';
   h += warehousePanelHtml(v);
   // "Not started" on next Thursday's roof is true and useless: the words
   // appear once the visit has begun. The button is always there.
   if (!v.start || v.start <= today) h += checksLineHtml(v);
-  if (v.crewNote) h += '<div class="jnote"><span class="k">From the office</span>' + esc(v.crewNote) + '</div>';
+  if (v.crewNote) h += '<div class="jnote"><span class="k">' + esc(L('From the office')) + '</span>' + esc(v.crewNote) + '</div>';
   h += '<div class="jrow">' + navCellHtml(v.address) + actionCellHtml(v) + '</div>';
   if (v.checks && v.checks.taskId){
-    h += '<button class="jbtn" data-checks="' + esc(v.checks.taskId) + '">Site checks' + CK_CHEV + '</button>';
+    h += '<button class="jbtn" data-checks="' + esc(v.checks.taskId) + '">' + esc(L('Site checks')) + CK_CHEV + '</button>';
   }
   return h + '</div>';
 }
@@ -2497,14 +2523,14 @@ function addDaysLocal(iso, n){
   return isoLocal(d);
 }
 function dayLabel(iso, today){
-  if (iso === today) return 'Today';
-  if (iso === addDaysLocal(today, 1)) return 'Tomorrow';
+  if (iso === today) return L('Today');
+  if (iso === addDaysLocal(today, 1)) return L('Tomorrow');
   var d = new Date(iso + 'T12:00:00');
-  return isNaN(d) ? iso : DOW3[d.getDay()] + ' ' + (d.getMonth()+1) + '/' + d.getDate();
+  return isNaN(d) ? iso : dow3(d) + ' ' + (d.getMonth()+1) + '/' + d.getDate();
 }
 function fullDate(iso){
   var d = new Date(iso + 'T12:00:00');
-  return isNaN(d) ? '' : d.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+  return isNaN(d) ? '' : d.toLocaleDateString(S.lang === 'es' ? 'es-MX' : 'en-US', { weekday:'long', month:'short', day:'numeric' });
 }
 /* Fourteen chips from today, a dot per visit on that day. Tapping one scrolls
    to the heading that visit sits under — a multi-day stay is listed once. */
@@ -2517,7 +2543,7 @@ function renderWeekStrip(vs, today){
     var target = on.length ? ((on[0].start > today) ? on[0].start : today) : '';
     html += '<button class="wday' + (iso === today ? ' today' : '') + (on.length ? ' booked' : ' empty') + '"' +
             (target ? ' data-day="' + esc(target) + '"' : ' disabled') + '>' +
-            '<span class="dn">' + DOW3[d.getDay()] + '</span><span class="dd">' + d.getDate() + '</span>' +
+            '<span class="dn">' + dow3(d) + '</span><span class="dd">' + d.getDate() + '</span>' +
             '<span class="dots">' + on.slice(0, 3).map(function(){ return '<i></i>'; }).join('') + '</span></button>';
   }
   el.innerHTML = html;
@@ -2535,7 +2561,7 @@ function renderWeekStrip(vs, today){
 function recentCardHtml(j){
   var sub = [j.customer, cityOf(j.address)].filter(Boolean).join(' · ');
   return '<div class="jcard">' +
-    '<div class="jwhen"><span class="d">Recent</span>' +
+    '<div class="jwhen"><span class="d">' + esc(L('Recent')) + '</span>' +
     (j.number ? '<span class="n">JT #' + esc(j.number) + '</span>' : '') + '</div>' +
     '<button class="jmain" data-pick="' + esc(j.id) + '">' +
     '<span class="h-addr">' + esc(streetOf(j.address) || jobTitle(j) || '—') + '</span>' +
@@ -2545,10 +2571,10 @@ function recentCardHtml(j){
 
 function renderJobs(){
   var a = S.assign, board = !!(a && a.source === 'board');
-  $('jobsK').textContent = 'My jobs' + (a && a.crew && a.crew.name ? ' · ' + a.crew.name : '');
-  $('jobsCrew').textContent = new Date().toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  $('jobsK').textContent = L('My jobs') + (a && a.crew && a.crew.name ? ' · ' + a.crew.name : '');
+  $('jobsCrew').textContent = logDateWords(isoLocal());
   // When the board last answered; a tap asks again.
-  $('boardStamp').textContent = 'Board · ' + (board && S.assignAt ? clockLabel(S.assignAt) : S.assignLoading ? '…' : '—');
+  $('boardStamp').textContent = L('Board') + ' · ' + (board && S.assignAt ? clockLabel(S.assignAt) : S.assignLoading ? '…' : '—');
 
   var note = assignNote(a);
   var bar = $('jobsSrc');
@@ -2558,7 +2584,7 @@ function renderJobs(){
   var html = '';
   var today = isoLocal(), vs = (a && a.visits) || [];
   if (!a && S.assignLoading){
-    html = '<div class="jempty">Checking the board…</div>';
+    html = '<div class="jempty">' + esc(L('Checking the board…')) + '</div>';
   } else {
     // Today first, then Next up in date order; a three-day install that began
     // yesterday is today's. A visit that has ended sits at the bottom — it is
@@ -2574,23 +2600,22 @@ function renderJobs(){
     });
     order.sort();
     order.forEach(function(key){
-      if (key !== today && !/nextup/.test(html)) html += '<div class="k" id="nextup" style="margin-top:24px">Next up</div>';
+      if (key !== today && !/nextup/.test(html)) html += '<div class="k" id="nextup" style="margin-top:24px">' + esc(L('Next up')) + '</div>';
       html += '<div id="day-' + esc(key) + '"></div>' + days[key].map(visitCardHtml).join('');
     });
     if (!upcoming.length){
       if (a && a.source === 'board' && a.crew){
-        html += '<div class="jempty">Nothing booked for ' + esc(a.crew.name) +
-                ' in the next two weeks. If that is wrong, the office has not put it on the board yet.</div>';
+        html += '<div class="jempty">' + esc(Lf('Nothing booked for {who} in the next two weeks. If that is wrong, the office has not put it on the board yet.', { who: a.crew.name })) + '</div>';
       }
       var recent = (a && a.jobs) || [];
       html += recent.length ? recent.map(recentCardHtml).join('')
-                            : (html || past.length ? '' : '<div class="jempty">No assigned jobs yet.</div>');
+                            : (html || past.length ? '' : '<div class="jempty">' + esc(L('No assigned jobs yet.')) + '</div>');
     }
     if (past.length){
-      html += '<div class="dayhead" id="day-past"><span class="k">Ended</span><span class="dt">' + esc(fullDate(past[0].end)) + '</span></div>';
+      html += '<div class="dayhead" id="day-past"><span class="k">' + esc(L('Ended')) + '</span><span class="dt">' + esc(fullDate(past[0].end)) + '</span></div>';
       html += past.map(visitCardHtml).join('');
     }
-    if (board && S.assignAt) html += '<div class="foot" style="margin-top:14px">From the production board at ' + esc(clockLabel(S.assignAt)) + '. If a job is missing, the office hasn’t put it on the board yet.</div>';
+    if (board && S.assignAt) html += '<div class="foot" style="margin-top:14px">' + esc(Lf('From the production board at {t}. If a job is missing, the office hasn’t put it on the board yet.', { t: clockLabel(S.assignAt) })) + '</div>';
   }
   $('jobsList').innerHTML = html;
   renderWeekStrip(vs, today);
@@ -3025,16 +3050,16 @@ function checksCls(v){
    sign the site checks — it is the same door — but the place still shows:
    anybody on the crew may need to know it is in Bay 3. */
 function whereOf(w){
-  if (w.loaded) return w.where ? { l:'Loaded from', v:w.where } : { l:'', v:'On the truck', state:true };
-  if (w.staged) return w.where ? { l:'Staged at', v:w.where } : { l:'', v:'Staged', state:true };
-  if (w.pulled) return { l:'Off the shelf', v:'Not staged yet', state:true };
-  if (w.toWarehouse && !w.delivered) return { l:'Coming to the shop first', v:'Not at the shop yet', state:true };
-  if (w.toWarehouse) return { l:'At the shop', v:'Not pulled yet', state:true };
-  return { l:'', v:'Still on the shelf', state:true };
+  if (w.loaded) return w.where ? { l:L('Loaded from'), v:w.where } : { l:'', v:L('On the truck'), state:true };
+  if (w.staged) return w.where ? { l:L('Staged at'), v:w.where } : { l:'', v:L('Staged'), state:true };
+  if (w.pulled) return { l:L('Off the shelf'), v:L('Not staged yet'), state:true };
+  if (w.toWarehouse && !w.delivered) return { l:L('Coming to the shop first'), v:L('Not at the shop yet'), state:true };
+  if (w.toWarehouse) return { l:L('At the shop'), v:L('Not pulled yet'), state:true };
+  return { l:'', v:L('Still on the shelf'), state:true };
 }
 function warehouseState(w){
-  return w.loaded ? 'Loaded' : w.staged ? 'Staged' : w.pulled ? 'Pulled'
-    : w.toWarehouse ? (w.delivered ? 'At the shop' : 'Not delivered') : 'To pull';
+  return L(w.loaded ? 'Loaded' : w.staged ? 'Staged' : w.pulled ? 'Pulled'
+    : w.toWarehouse ? (w.delivered ? 'At the shop' : 'Not delivered') : 'To pull');
 }
 function warehousePanelHtml(v){
   var w = v.warehouse;
@@ -3042,30 +3067,30 @@ function warehousePanelHtml(v){
   var busy = mlBusy[v.jobId], on = !!w.loaded, p = whereOf(w);
   if (!on) delete mlConfirm[v.jobId];                 // nothing to take back
   var h = '<div class="jwh' + (on ? ' on' : '') + '">' +
-    '<div class="jwh-k"><span>From the DB warehouse</span><span class="st">' + esc(warehouseState(w)) + '</span></div>' +
+    '<div class="jwh-k"><span>' + esc(L('From the DB warehouse')) + '</span><span class="st">' + esc(warehouseState(w)) + '</span></div>' +
     '<div class="jwh-where">' + (p.l ? '<span class="l">' + esc(p.l) + '</span>' : '') +
       '<span class="v' + (p.state ? ' state' : '') + '">' + esc(p.v) + '</span></div>' +
     // The board's sentence, unless it only repeats the line above it
     // ("Staged at Bay 3" under STAGED AT · BAY 3 says nothing twice).
     (w.words && w.words.toLowerCase() !== p.v.toLowerCase() && w.words.toLowerCase() !== (p.l + ' ' + p.v).toLowerCase()
-      ? '<div class="jwh-w">' + esc(w.words) + '</div>' : '');
+      ? '<div class="jwh-w">' + esc(matEs(w.words)) + '</div>' : '');
   if (ckReadOnly()) return h + '</div>';
   if (on && mlConfirm[v.jobId] && !busy){
     // "Are you sure" before an undo. The words say what the undo does — the
     // board reads not loaded again and the office gets a note — and the two
     // answers are 44px cells in the same row the card already uses.
-    return h + '<div class="jnote jsure"><span class="k">Undo the load \u2014 are you sure?</span>' +
-      'The board will read not loaded for the crew again, and the office gets a note saying so.</div>' +
+    return h + '<div class="jnote jsure"><span class="k">' + esc(L('Undo the load \u2014 are you sure?')) + '</span>' +
+      esc(L('The board will read not loaded for the crew again, and the office gets a note saying so.')) + '</div>' +
       '<div class="jrow">' +
-      '<button class="jact" data-loaded-keep="' + esc(v.jobId) + '"><span class="a1">No, keep it</span><span class="a2">Still loaded</span></button>' +
-      '<button class="jact warn" data-loaded-undo="' + esc(v.jobId) + '"><span class="a1">Yes, undo it</span><span class="a2">Not loaded after all</span></button>' +
+      '<button class="jact" data-loaded-keep="' + esc(v.jobId) + '"><span class="a1">' + esc(L('No, keep it')) + '</span><span class="a2">' + esc(L('Still loaded')) + '</span></button>' +
+      '<button class="jact warn" data-loaded-undo="' + esc(v.jobId) + '"><span class="a1">' + esc(L('Yes, undo it')) + '</span><span class="a2">' + esc(L('Not loaded after all')) + '</span></button>' +
       '</div></div>';
   }
   // Two different sentences, not one sentence in two colours: the state has
   // to survive the sun and a colour-blind thumb. "Loaded for the crew" is
   // the checklist line's own name, which is what the green one says.
-  var label = busy ? 'Saving\u2026' : on ? 'Loaded for the crew' : 'Mark loaded for the crew';
-  var key = busy ? '' : on ? 'Tap to undo' : 'Tap when it\u2019s on the truck';
+  var label = L(busy ? 'Saving\u2026' : on ? 'Loaded for the crew' : 'Mark loaded for the crew');
+  var key = busy ? '' : L(on ? 'Tap to undo' : 'Tap when it\u2019s on the truck');
   return h + '<button class="jwh-btn' + (on ? ' on' : '') + '" data-loaded="' + esc(v.jobId) + '"' +
     (busy ? ' disabled' : '') + '><span class="t">' + esc(label) + '</span>' +
     (key ? '<span class="s">' + esc(key) + '</span>' : '') +
@@ -3119,7 +3144,7 @@ function saveLoaded(jobId, on){
 }
 
 function checksLineHtml(v){
-  var text = (v.checks && v.checks.taskId) ? (v.checks.words || '') : 'No checklist on this job yet';
+  var text = (v.checks && v.checks.taskId) ? (v.checks.words || '') : L('No checklist on this job yet');
   return '<div class="jck ' + checksCls(v) + '"><span class="dot"></span>' + esc(text) + '</div>';
 }
 /* A roof that ended and was never signed off — the sentence the owner is
@@ -3140,10 +3165,10 @@ function nudgeVisits(){
 }
 function nudgeText(v){
   var who = v.cust || jobTitle({ name: v.jobName }) || ('JT #' + (v.jobNum || ''));
-  if (v.end === isoLocal(new Date(Date.now() - 86400000))) return 'Yesterday’s roof at ' + who + ' isn’t signed off';
+  if (v.end === isoLocal(new Date(Date.now() - 86400000))) return Lf('Yesterday’s roof at {who} isn’t signed off', { who: who });
   var d = new Date(v.end + 'T12:00:00');
-  var when = isNaN(d) ? v.end : DOW3[d.getDay()] + ' ' + (d.getMonth()+1) + '/' + d.getDate();
-  return 'The roof at ' + who + ' from ' + when + ' isn’t signed off';
+  var when = isNaN(d) ? v.end : dow3(d) + ' ' + (d.getMonth()+1) + '/' + d.getDate();
+  return Lf('The roof at {who} from {when} isn’t signed off', { who: who, when: when });
 }
 /* One list, most pressing first: a log to send now (you just left, or handed
    over, or signed off), yesterday's roof unsigned, yesterday's log unsent. */
@@ -3158,21 +3183,21 @@ function nudgeItems(){
       // Say WHY it is asking (Carl, 20 Sep 2026): the handing-over group
       // finished, or the list was signed — not a question out of nowhere.
       var why = e.promptWhy || '';
-      var text = why === 'handover' ? 'You’ve handed over — send today’s log for ' + who + ' before you go?'
-               : why === 'signoff' ? 'Signed off — send today’s log for ' + who + '?'
-               : 'Send today’s log for ' + who + '?';
-      items.push({ kind: 'log-now', k: 'Day log', at: e.promptAt || e.at || 0, text: text, go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
+      var text = Lf(why === 'handover' ? 'You’ve handed over — send today’s log for {who} before you go?'
+               : why === 'signoff' ? 'Signed off — send today’s log for {who}?'
+               : 'Send today’s log for {who}?', { who: who });
+      items.push({ kind: 'log-now', k: L('Day log'), at: e.promptAt || e.at || 0, text: text, go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
     } else if (e.date === yday && dlHasContent(e)){
-      items.push({ kind: 'log-late', k: 'Day log', at: e.at || 0, text: 'Yesterday’s log for ' + who + ' wasn’t sent', go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
+      items.push({ kind: 'log-late', k: L('Day log'), at: e.at || 0, text: Lf('Yesterday’s log for {who} wasn’t sent', { who: who }), go: (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) });
     }
   }
   nudgeVisits().forEach(function(v){
-    items.push({ kind: 'unsigned', k: 'Site checks', at: 0, text: nudgeText(v), go: function(){ openChecks(v.checks.taskId); } });
+    items.push({ kind: 'unsigned', k: L('Site checks'), at: 0, text: nudgeText(v), go: function(){ openChecks(v.checks.taskId); } });
   });
   // Still on the clock from a day before (T2.19): first, above everything.
   if (canTab('job') && leftOvernight()){
     var b0 = new Date(S.open.startedAt);
-    items.push({ kind: 'left-open', k: 'Still on the clock', at: b0.getTime(), text: 'Since ' + dayWords(b0) + ' at ' + placeWord(S.job || S.open.job) + ' — when did you leave?', go: leftAsk });
+    items.push({ kind: 'left-open', k: L('Still on the clock'), at: b0.getTime(), text: Lf('Since {d} at {p} — when did you leave?', { d: dayWords(b0), p: pw(S.job || S.open.job) }), go: leftAsk });
   }
   // Most pressing kind first; within a kind, the most recent moment first —
   // the roof you just left, before the one you handed over this morning.
@@ -3193,7 +3218,7 @@ function renderNudge(){
     if (!mine.length) return;
     var it = mine[0];
     el.innerHTML = '<span style="flex:1;min-width:0"><span class="nk">' + esc(it.k) + '</span><span class="nt">' + esc(it.text) +
-      (mine.length > 1 ? ' · +' + (mine.length - 1) + ' more' : '') + '</span></span>' + CK_CHEV;
+      (mine.length > 1 ? ' · ' + esc(Lf('+{n} more', { n: mine.length - 1 })) : '') + '</span></span>' + CK_CHEV;
     el.onclick = it.go;
   });
 }
@@ -3208,16 +3233,46 @@ function openChecks(tid){
   var sc = $('vChecks').querySelector('.scroll');
   if (sc) sc.scrollTop = 0;
 }
+/* ---- a roof that takes more than a day (T2.24, 29 Oct 2026) ----
+   One checklist per job, and its ticks carry from day to day, so day 1 of a
+   three-day roof drew the last group — the one the sign-off lives in — as if
+   it were due that afternoon. Before the stay's last day that group is folded
+   and says when it comes: "On the last day — Fri Oct 31". It is never shut:
+   a tap still opens it, because a roof can finish early. The days are this
+   person's own visits on the job, the only stay the phone knows. */
+function ckStay(v){
+  var first = v.start || '', last = v.end || v.start || '';
+  ((S.assign && S.assign.visits) || []).forEach(function(x){
+    if (x.jobId !== v.jobId) return;
+    if (x.start && (!first || x.start < first)) first = x.start;
+    if ((x.end || x.start) > last) last = x.end || x.start;
+  });
+  return { first: first, last: last };
+}
+function ckLaterPhase(v){
+  var sl = ckValueLine('signedOff'), stay = ckStay(v), today = isoLocal();
+  if (!sl || !stay.first || !stay.last || stay.last <= stay.first || today >= stay.last) return '';
+  return sl.phase;
+}
+function lastDayWords(v){
+  var d = new Date(ckStay(v).last + 'T12:00:00');
+  return isNaN(d) ? L('On the last day') : Lf('On the last day — {d}', { d: dayWords(d) });
+}
 /* The first phase with anything unticked opens; the rest are one tap away.
-   All ticked: the last phase, where the sign-off lives. */
+   All ticked: the last phase, where the sign-off lives — unless that is the
+   last day's and the last day is still to come (T2.24). */
 function ckAutoOpen(v){
-  var sh = ckShape(), st = ckStateFor(v), open = {}, found = false;
+  var sh = ckShape(), st = ckStateFor(v), open = {}, found = false, later = ckLaterPhase(v);
   if (!sh) return open;
   sh.phases.forEach(function(p){
+    if (p.key === later) return;
     var any = ckLinesOf(p.key).some(function(l){ return l.value !== 'signedOff' && !st.done[l.key]; });
     if (any && !found){ open[p.key] = true; found = true; }
   });
-  if (!found && sh.phases.length) open[sh.phases[sh.phases.length - 1].key] = true;
+  if (!found){
+    var rest = sh.phases.filter(function(p){ return p.key !== later; });
+    if (rest.length) open[rest[rest.length - 1].key] = true;
+  }
   return open;
 }
 /* Ticking a phase's last line opens the next one that still has work. */
@@ -3227,13 +3282,14 @@ function ckOpenNextIfDone(v, key){
   var st = ckStateFor(v);
   var complete = function(pk){ return ckLinesOf(pk).every(function(l){ return l.value === 'signedOff' || !!st.done[l.key]; }); };
   if (!complete(line.phase)) return;
-  var idx = -1;
+  var idx = -1, later = ckLaterPhase(v);
   sh.phases.forEach(function(p, i){ if (p.key === line.phase) idx = i; });
   for (var i = idx + 1; i < sh.phases.length; i++){
+    if (sh.phases[i].key === later) continue;
     if (!complete(sh.phases[i].key)){ S.ckOpen[sh.phases[i].key] = true; return; }
   }
   var sl = ckValueLine('signedOff');
-  if (sl) S.ckOpen[sl.phase] = true;
+  if (sl && sl.phase !== later) S.ckOpen[sl.phase] = true;
 }
 
 function ckStatus(v){
@@ -3242,9 +3298,9 @@ function ckStatus(v){
   // In flight, or a save is a moment away (the debounce after a tap): "Saving…".
   // Dirty with a failure behind it: kept, and will retry — or the config
   // problem, in words. Clean: saved.
-  if (e.inflight || (e.dirty && !e.err)) return { cls: '', text: 'Saving…' };
-  if (e.dirty) return { cls: 'bad', text: (e.err !== 'retry' && e.err !== 'offline') ? e.err : 'Not saved — will retry' };
-  if (e.savedAt) return { cls: 'ok', text: 'Saved', tick: true };
+  if (e.inflight || (e.dirty && !e.err)) return { cls: '', text: L('Saving…') };
+  if (e.dirty) return { cls: 'bad', text: L((e.err !== 'retry' && e.err !== 'offline') ? e.err : 'Not saved — will retry') };
+  if (e.savedAt) return { cls: 'ok', text: L('Saved'), tick: true };
   return null;
 }
 function renderCkStatus(){
@@ -3259,7 +3315,7 @@ function renderChecks(){
   if (!v) return;
   var fresh = visitForChecks(S.checksTask);
   if (fresh) v = S.checksVisit = fresh;
-  $('ckK').textContent = 'Site checks' + (v.jobNum ? ' · JT #' + v.jobNum : '');
+  $('ckK').textContent = L('Site checks') + (v.jobNum ? ' · JT #' + v.jobNum : '');
   $('ckTitle').textContent = streetOf(v.address) || v.cust || jobTitle({ name: v.jobName }) || '—';
   var w = $('ckWords');
   w.className = 'jck ' + checksCls(v);
@@ -3267,7 +3323,7 @@ function renderChecks(){
   renderCkStatus();
   var ro = $('ckRo');
   ro.classList.toggle('hidden', !ckReadOnly());
-  ro.innerHTML = '<span>The site manager ticks these.</span>';
+  ro.innerHTML = '<span>' + esc(L('The site manager ticks these.')) + '</span>';
   // Never rebuild the rows under a finger typing a name — and never rebuild
   // them at all when nothing changed, so a background fetch landing between
   // a finger going down and coming up cannot swallow the tap.
@@ -3285,16 +3341,17 @@ function renderChecksAfterSave(){
 }
 function ckBodyHtml(v){
   var sh = ckShape();
-  if (!sh) return '<div class="jempty">The board hasn’t sent the checklist yet. Refresh My jobs, or ask the office to update the app’s API.</div>';
-  var st = ckStateFor(v), ro = ckReadOnly(), e = ckStore[v.checks.taskId], first = firstName();
+  if (!sh) return '<div class="jempty">' + esc(L('The board hasn’t sent the checklist yet. Refresh My jobs, or ask the office to update the app’s API.')) + '</div>';
+  var st = ckStateFor(v), ro = ckReadOnly(), e = ckStore[v.checks.taskId], first = firstName(), later = ckLaterPhase(v);
   return sh.phases.map(function(p){
     var lines = ckLinesOf(p.key);
     var total = lines.length, done = lines.filter(function(l){ return !!st.done[l.key]; }).length;
     var all = total > 0 && done === total, open = !!S.ckOpen[p.key];
-    var h = '<div class="ckphase' + (open ? ' open' : '') + (all ? ' all' : '') + '" data-phase="' + esc(p.key) + '">';
+    var held = p.key === later && !all, when = held ? lastDayWords(v) : (p.when ? sentenceCase(p.when) : '');
+    var h = '<div class="ckphase' + (open ? ' open' : '') + (all ? ' all' : '') + (held ? ' later' : '') + '" data-phase="' + esc(p.key) + '">';
     h += '<button class="ckph" data-toggle="' + esc(p.key) + '"><span class="t"><span class="l">' + esc(p.label) + '</span>' +
-         (p.when ? '<span class="w">' + esc(sentenceCase(p.when)) + '</span>' : '') + '</span>' +
-         '<span class="c tabular' + (all ? ' all' : '') + '">' + done + ' of ' + total + '</span>' + CK_CHEV + '</button>';
+         (when ? '<span class="w">' + esc(when) + '</span>' : '') + '</span>' +
+         '<span class="c tabular' + (all ? ' all' : '') + '">' + esc(Lf('{n} of {m}', { n: done, m: total })) + '</span>' + CK_CHEV + '</button>';
     h += '<div class="ckrows">';
     lines.forEach(function(l){
       if (l.value === 'signedOff') return;   // the signature is a button, below, not a box
@@ -3306,16 +3363,16 @@ function ckBodyHtml(v){
       h += '<div class="ckline' + (ro ? '' : ' pen') + '">' +
            '<button class="ckrow' + (on ? ' on' : '') + '" data-line="' + esc(l.key) + '"' + (ro ? ' disabled' : '') + '>' +
            '<span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(l.label) + '</span></button>' +
-           (ro ? '' : '<button class="cknote-pen' + (note ? ' has' : '') + '" data-note-add="' + esc(l.key) + '" aria-label="Note on this line">' + CK_PEN + '</button>') +
+           (ro ? '' : '<button class="cknote-pen' + (note ? ' has' : '') + '" data-note-add="' + esc(l.key) + '" aria-label="' + esc(L('Note on this line')) + '">' + CK_PEN + '</button>') +
            '</div>';
       if (!ro && (note || nopen)){
-        h += '<div class="cknote"><input class="cknote-in" data-note="' + esc(l.key) + '" placeholder="Your note on this line" autocomplete="off" maxlength="140" value="' + esc(note) + '"></div>';
+        h += '<div class="cknote"><input class="cknote-in" data-note="' + esc(l.key) + '" placeholder="' + esc(L('Your note on this line')) + '" autocomplete="off" maxlength="140" value="' + esc(note) + '"></div>';
       } else if (ro && note){
-        h += '<div class="cknote ro"><span class="nk">Note</span><span class="nt">' + esc(note) + '</span></div>';
+        h += '<div class="cknote ro"><span class="nk">' + esc(L('Note')) + '</span><span class="nt">' + esc(note) + '</span></div>';
       }
       if (l.value === 'magnetBy'){
         // The paper's "Who" is a real question, so the name is never prefilled.
-        h += '<div class="ckwho"><input id="ckWho" placeholder="who ran it?" autocomplete="off" maxlength="40" value="' + esc(st.magnetBy || '') + '"' + (ro ? ' disabled' : '') + '>' +
+        h += '<div class="ckwho"><input id="ckWho" placeholder="' + esc(L('who ran it?')) + '" autocomplete="off" maxlength="40" value="' + esc(st.magnetBy || '') + '"' + (ro ? ' disabled' : '') + '>' +
              (!ro && first ? '<button class="chipbtn" id="ckWhoMe" data-key="' + esc(l.key) + '">' + esc(first) + '</button>' : '') + '</div>';
       }
     });
@@ -3329,16 +3386,16 @@ function ckSignHtml(st, ro, e){
   var first = firstName();
   var h = '<div class="cksign">';
   if (e && e.signIntent === true && !st.signedOff){
-    h += '<div class="signed pending">' + CK_PEN + '<span class="st">Signing off…</span></div>' +
-         '<div class="pend">' + (e.inflight ? 'Saving to the job now.' : 'Not saved yet — it will send when the board can be reached.') + '</div>';
+    h += '<div class="signed pending">' + CK_PEN + '<span class="st">' + esc(L('Signing off…')) + '</span></div>' +
+         '<div class="pend">' + esc(L(e.inflight ? 'Saving to the job now.' : 'Not saved yet — it will send when the board can be reached.')) + '</div>';
   } else if (e && e.signIntent === false && st.signedOff){
-    h += '<div class="signed pending">' + CK_PEN + '<span class="st">Taking the signature off…</span></div>';
+    h += '<div class="signed pending">' + CK_PEN + '<span class="st">' + esc(L('Taking the signature off…')) + '</span></div>';
   } else if (st.signedOff){
     h += '<div class="signed">' + CK_TICK + '<span class="st">' + esc(label + ' ' + st.signedOff) + '</span></div>';
-    if (!ro) h += '<button class="unsign" id="ckUnsign">Unsign</button>';
+    if (!ro) h += '<button class="unsign" id="ckUnsign">' + esc(L('Unsign')) + '</button>';
   } else if (!ro){
-    h += '<button class="btn btn-go" id="ckSignBtn" style="min-height:88px;font-size:21px">' + CK_PEN + 'Sign off as ' + esc(first || 'me') + '</button>' +
-         '<div class="fine">Your name and today’s date go on the job. Ticks stay editable afterwards.</div>';
+    h += '<button class="btn btn-go" id="ckSignBtn" style="min-height:88px;font-size:21px">' + CK_PEN + esc(Lf('Sign off as {name}', { name: first || L('me') })) + '</button>' +
+         '<div class="fine">' + esc(L('Your name and today’s date go on the job. Ticks stay editable afterwards.')) + '</div>';
   } else {
     h += '<div class="pend">' + esc(label) + ' —</div>';
   }
@@ -3412,18 +3469,18 @@ function signoffHtml(){
   var missing = ckLines().filter(function(l){ return l.value !== 'signedOff' && !st.done[l.key]; });
   var h = '<div class="sheetpad">' +
     '<div class="promptbox' + (missing.length ? ' warn' : '') + '">' + CK_PEN +
-      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">Sign off' + (v.jobNum ? ' · JT #' + esc(v.jobNum) : '') + '</span>' +
-      '<span class="pt" style="display:block">Sign off as ' + esc(firstName() || 'me') + '</span></span></div>';
+      '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc(L('Sign off')) + (v.jobNum ? ' · JT #' + esc(v.jobNum) : '') + '</span>' +
+      '<span class="pt" style="display:block">' + esc(Lf('Sign off as {name}', { name: firstName() || L('me') })) + '</span></span></div>';
   if (missing.length){
-    h += '<div class="body">' + missing.length + (missing.length === 1 ? ' line' : ' lines') + ' not ticked — sign anyway?</div>' +
+    h += '<div class="body">' + esc(Lf(missing.length === 1 ? '{n} line not ticked — sign anyway?' : '{n} lines not ticked — sign anyway?', { n: missing.length })) + '</div>' +
          '<div class="ckmiss">' + missing.slice(0, 8).map(function(l){ return '<span class="m">· ' + esc(l.label) + '</span>'; }).join('') +
-         (missing.length > 8 ? '<span class="m">· and ' + (missing.length - 8) + ' more</span>' : '') + '</div>';
+         (missing.length > 8 ? '<span class="m">· ' + esc(Lf('and {n} more', { n: missing.length - 8 })) + '</span>' : '') + '</div>';
   } else {
-    h += '<div class="body">Everything is ticked. Your name and today’s date go on the job.</div>';
+    h += '<div class="body">' + esc(L('Everything is ticked. Your name and today’s date go on the job.')) + '</div>';
   }
   h += '<div class="yn">' +
-       '<button class="ynbtn" id="skNo"><span class="yb">No</span><span class="ys">Not yet</span></button>' +
-       '<button class="ynbtn yes" id="skYes"><span class="yb">Yes</span><span class="ys">Sign off</span></button></div>';
+       '<button class="ynbtn" id="skNo"><span class="yb">' + esc(L('No')) + '</span><span class="ys">' + esc(L('Not yet')) + '</span></button>' +
+       '<button class="ynbtn yes" id="skYes"><span class="yb">' + esc(L('Yes')) + '</span><span class="ys">' + esc(L('Sign off')) + '</span></button></div>';
   return h + '</div>';
 }
 function unsignHtml(){
@@ -3432,11 +3489,11 @@ function unsignHtml(){
   return '<div class="sheetpad">' +
     '<div class="promptbox warn">' + CK_PEN +
       '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc((ckValueLine('signedOff') || {}).label || 'Signed off:') + ' ' + esc(st.signedOff || '') + '</span>' +
-      '<span class="pt" style="display:block">Take the signature off?</span></span></div>' +
-    '<div class="body">The ticks stay as they are. Only the signature comes off, and you can sign again later.</div>' +
+      '<span class="pt" style="display:block">' + esc(L('Take the signature off?')) + '</span></span></div>' +
+    '<div class="body">' + esc(L('The ticks stay as they are. Only the signature comes off, and you can sign again later.')) + '</div>' +
     '<div class="yn">' +
-      '<button class="ynbtn" id="ukNo"><span class="yb">No</span><span class="ys">Keep it</span></button>' +
-      '<button class="ynbtn yes" id="ukYes"><span class="yb">Yes</span><span class="ys">Unsign</span></button></div>' +
+      '<button class="ynbtn" id="ukNo"><span class="yb">' + esc(L('No')) + '</span><span class="ys">' + esc(L('Keep it')) + '</span></button>' +
+      '<button class="ynbtn yes" id="ukYes"><span class="yb">' + esc(L('Yes')) + '</span><span class="ys">' + esc(L('Unsign')) + '</span></button></div>' +
     '</div>';
 }
 
@@ -3490,19 +3547,20 @@ function closeSheet(){
 
 function openSheet(kind, promptKind){
   S.sheet = kind; S.promptKind = promptKind || null;
-  var title = kind==='codes' ? (S.pendingJob ? 'Code at ' + (S.pendingJob.customer || streetOf(S.pendingJob.address) || 'the next job') : S.open && !onTravel() ? 'Change code' : 'What are you doing?')
-            : kind==='jobs' ? (S.open ? 'Move to which job?' : 'Pick a job')
-            : kind==='leave' ? 'Leaving ' + placeWord(S.job)
-            : kind==='moveHow' ? 'Still on the clock'
-            : kind==='break' ? 'How long a break?'
-            : kind==='signoff' ? 'Sign off'
-            : kind==='unsign' ? 'Unsign'
+  var title = kind==='codes' ? (S.pendingJob ? Lf('Code at {p}', { p: S.pendingJob.customer || streetOf(S.pendingJob.address) || L('the next job') }) : L(S.open && !onTravel() ? 'Change code' : 'What are you doing?'))
+            : kind==='jobs' ? L(S.open ? 'Move to which job?' : 'Pick a job')
+            : kind==='leave' ? Lf('Leaving {p}', { p: pw(S.job) })
+            : kind==='moveHow' ? L('Still on the clock')
+            : kind==='break' ? L('How long a break?')
+            : kind==='signoff' ? L('Sign off')
+            : kind==='unsign' ? L('Unsign')
             : kind==='coWhy' ? co('whyTitle')
-            : kind==='dest' ? 'Where are you going?'
-            : kind==='left' ? 'When did you leave?'
-            : kind==='roll' ? 'Before you roll out'
-            : kind==='forgot' ? 'Shop checks not done'
-            : kind==='travelCodes' ? 'No travel line at ' + ((S.travelTo && (S.travelTo.job.customer || streetOf(S.travelTo.job.address))) || 'that job')
+            : kind==='dest' ? L('Where are you going?')
+            : kind==='left' ? L('When did you leave?')
+            : kind==='earlier' ? L('When did you start?')
+            : kind==='roll' ? L('Before you roll out')
+            : kind==='forgot' ? L('Shop checks not done')
+            : kind==='travelCodes' ? Lf('No travel line at {p}', { p: (S.travelTo && (S.travelTo.job.customer || streetOf(S.travelTo.job.address))) || L('that job') })
             : '';
   $('sheetTitle').textContent = title;
   $('sheet').classList.toggle('tall', kind === 'jobs');
@@ -3516,6 +3574,7 @@ function openSheet(kind, promptKind){
                             : kind==='coWhy' ? coWhyHtml()
                             : kind==='dest' ? destHtml()
                             : kind==='left' ? leftHtml()
+                            : kind==='earlier' ? earlierHtml()
                             : kind==='roll' ? rollHtml()
                             : kind==='forgot' ? forgotHtml()
                             : kind==='travelCodes' ? travelCodesHtml()
@@ -3531,8 +3590,8 @@ function sheetCodes(){ return S.codes.filter(function(c){ return codeShown(c) &&
 function codesHtml(){
   var list = sheetCodes();
   if (!list.length) return '<div class="sheetpad"><div class="body">' +
-    ((S.extrasLoading || S.codesLoading) ? 'Loading this job&rsquo;s code list&hellip;'
-      : 'Nothing to clock into on this job. Ask the office to add the CLOCK IN ITEMS group to its budget.') +
+    ((S.extrasLoading || S.codesLoading) ? esc(L('Loading this job’s code list…'))
+      : esc(L('Nothing to clock into on this job. Ask the office to add the CLOCK IN ITEMS group to its budget.'))) +
     '</div></div>';
   var bySec = {};
   S.entries.forEach(function(e){
@@ -3546,16 +3605,16 @@ function codesHtml(){
     return '<button class="coderow' + (running?' on':'') + '" data-code="' + esc(c.id) + '">' +
       '<span class="cn tabular">' + esc(c.number||'') + '</span>' +
       '<span class="cname">' + esc(c.name) + '</span>' +
-      '<span class="cmeta">' + (running ? 'Running' : (banked ? hm(banked) : '')) + '</span></button>';
+      '<span class="cmeta">' + (running ? esc(L('Running')) : (banked ? hm(banked) : '')) + '</span></button>';
   };
   // Your codes first (T2.23): every job carries the same thirty clock-in
   // lines, and a crew member uses two or three of them. The rest are one
   // tap away. A short list, or nobody's codes yet, is shown whole.
   var mine = yourCodes(list), rest = list.filter(function(c){ return mine.indexOf(c) === -1; });
   if (!mine.length || rest.length <= 3) return list.map(row).join('');
-  var h = '<div class="codesk">Your codes</div>' + mine.map(row).join('');
-  if (!S.allCodes) return h + '<div class="sheetpad" style="padding-top:12px"><button class="btn btn-out" id="allCodes">All codes · ' + list.length + '</button></div>';
-  return h + '<div class="codesk">All codes</div>' + rest.map(row).join('');
+  var h = '<div class="codesk">' + esc(L('Your codes')) + '</div>' + mine.map(row).join('');
+  if (!S.allCodes) return h + '<div class="sheetpad" style="padding-top:12px"><button class="btn btn-out" id="allCodes">' + esc(L('All codes')) + ' · ' + list.length + '</button></div>';
+  return h + '<div class="codesk">' + esc(L('All codes')) + '</div>' + rest.map(row).join('');
 }
 function yourCodes(list){
   var out = [], name = function(x){ return String(x || '').trim().toLowerCase(); };
@@ -3568,11 +3627,11 @@ function yourCodes(list){
 }
 
 function jobsHtml(){
-  var html = '<div class="sheetstick"><input id="jobSearch" placeholder="Search jobs by name, number or customer" autocomplete="off"></div>';
+  var html = '<div class="sheetstick"><input id="jobSearch" placeholder="' + esc(L('Search jobs by name, number or customer')) + '" autocomplete="off"></div>';
   html += '<div class="sheetpad" style="padding-top:0"><div id="jobResults" style="display:flex;flex-direction:column;gap:12px">';
   html += S.jobOptions.map(jobRowHtml).join('') ||
-    '<div class="body">' + (S.extrasLoading ? 'Loading your recent jobs&hellip;'
-      : 'Search for the job you are on.') + '</div>';
+    '<div class="body">' + esc(L(S.extrasLoading ? 'Loading your recent jobs…'
+      : 'Search for the job you are on.')) + '</div>';
   html += '</div></div>';
   return html;
 }
@@ -3605,13 +3664,13 @@ function jobMatches(term){
 /* settled: false while the API is still to answer, true when it has, 'failed' when it could not. */
 function jobSearchDraw(term, settled){
   var box = $('jobResults'); if (!box || S.sheet !== 'jobs') return;
-  if (!term){ box.innerHTML = S.jobOptions.map(jobRowHtml).join('') || '<div class="body">Search for the job you are on.</div>'; wireSheet(); return; }
+  if (!term){ box.innerHTML = S.jobOptions.map(jobRowHtml).join('') || '<div class="body">' + esc(L('Search for the job you are on.')) + '</div>'; wireSheet(); return; }
   var local = jobMatches(term), server = SEARCH.memo[term] || null, seen = {}, rows = [];
   (server || []).concat(local).forEach(function(j){ if (!seen[j.id]){ seen[j.id] = 1; rows.push(j); } });
   var h = rows.map(jobRowHtml).join('');
-  if (!server && settled !== 'failed') h += '<div class="body" id="jobSearching" style="opacity:.75">' + (rows.length ? 'Searching JobTread for more…' : 'Searching JobTread…') + '</div>';
-  else if (!rows.length) h += '<div class="body">' + (settled === 'failed' ? 'Could not reach JobTread — nothing on this phone matches.' : 'No jobs match that.') + '</div>';
-  else if (settled === 'failed') h += '<div class="body" style="opacity:.75">JobTread did not answer — these are what this phone knows.</div>';
+  if (!server && settled !== 'failed') h += '<div class="body" id="jobSearching" style="opacity:.75">' + esc(L(rows.length ? 'Searching JobTread for more…' : 'Searching JobTread…')) + '</div>';
+  else if (!rows.length) h += '<div class="body">' + esc(L(settled === 'failed' ? 'Could not reach JobTread — nothing on this phone matches.' : 'No jobs match that.')) + '</div>';
+  else if (settled === 'failed') h += '<div class="body" style="opacity:.75">' + esc(L('JobTread did not answer — these are what this phone knows.')) + '</div>';
   box.innerHTML = h;
   wireSheet();
 }
@@ -3631,12 +3690,12 @@ function jobSearchAsk(term){
 function jobRowHtml(j){
   var on = S.job && S.job.id === j.id;
   return '<button class="jobrow' + (on?' on':'') + '" data-job="' + esc(j.id) + '">' +
-    '<span class="jd">' + (on ? 'Current job' : ('JT #' + esc(j.number||''))) + '</span>' +
+    '<span class="jd">' + (on ? esc(L('Current job')) : ('JT #' + esc(j.number||''))) + '</span>' +
     '<span class="ja">' + esc(streetOf(j.address) || jobTitle(j)) + '</span>' +
     '<span class="jm">' + esc([j.customer, cityOf(j.address), jobTitle(j)].filter(Boolean).join(' · ')) + '</span></button>';
 }
 
-/* Leave the site (T2.23, the Ops Director, 29 Oct 2026). "Crew members or
+/* Leave the site (T2.23, Carl, 29 Oct 2026). "Crew members or
    site managers may leave a site and go places like a store to get
    supplies, or to another site, or back to the shop, and back to the first
    site." Four ways out, each saying what it costs:
@@ -3649,41 +3708,40 @@ function jobRowHtml(j){
        is paid travel on this job's line
    Clock out (going home) is its own button. */
 function leaveHtml(){
-  var sm = logRequired(), done = (sm ? 'Today’s log, ' : '') + (sm ? 'the end photo' : 'End photo') + ', then the drive';
+  var sm = logRequired(), done = L(sm ? 'Today’s log, the end photo, then the drive' : 'End photo, then the drive');
   var row = function(mode, t, sub, icon, cls){ return '<button class="stoprow' + (cls ? ' ' + cls : '') + '" data-leave="' + mode + '"><span style="flex:1;min-width:0"><span class="st" style="display:block">' + esc(t) + '</span><span class="k9 ss' + (cls === 'warnsub' ? ' warn' : '') + '">' + esc(sub) + '</span></span>' + ico(icon, 22) + '</button>'; };
   return '<div class="sheetpad" style="gap:12px">' +
-    row('supply', 'Supply run · back here after', 'On this job’s travel line · no photo', 'truck') +
-    row('later', 'Another job · back here later', 'The drive · no photo — you’re coming back', 'truck') +
-    row('done-job', 'Another job · done here today', done, 'camera') +
-    row('done-shop', 'Back to the shop · done here today', done + ' back — paid travel', 'camera') +
-    '<div class="fine" style="text-align:center;margin-top:4px">Going home? Clock out instead.' + (sm ? ' Site managers send today’s log before leaving the site for the day.' : '') + '</div>' +
+    row('supply', L('Supply run · back here after'), L('On this job’s travel line · no photo'), 'truck') +
+    row('later', L('Another job · back here later'), L('The drive · no photo — you’re coming back'), 'truck') +
+    row('done-job', L('Another job · done here today'), done, 'camera') +
+    row('done-shop', L('Back to the shop · done here today'), done + L(' back — paid travel'), 'camera') +
+    '<div class="fine" style="text-align:center;margin-top:4px">' + esc(L('Going home? Clock out instead.') + (sm ? L(' Site managers send today’s log before leaving the site for the day.') : '')) + '</div>' +
   '</div>';
 }
 /* A job picked while still on the clock at another one, with no drive in
    between (a Close Out Start, Change job, Go here instead): what happened?
    Asked instead of an end photo of somewhere they are no longer. */
 function moveHowHtml(){
-  var to = S.pendingJob, here = placeWord(S.job), there = placeWord(to);
+  var to = S.pendingJob, here = pw(S.job), there = pw(to);
   var row = function(attr, t, sub, icon){ return '<button class="stoprow" ' + attr + '><span style="flex:1;min-width:0"><span class="st" style="display:block">' + esc(t) + '</span><span class="k9 ss">' + esc(sub) + '</span></span>' + ico(icon, 22) + '</button>'; };
-  return '<div class="sheetpad" style="gap:12px"><div class="body">You picked ' + esc(there) + '. The clock is still on ' + esc(here) + '.</div>' +
-    (atShop() ? row('data-move="drive"', 'Driving there now', 'The drive goes on ' + there + '’s travel line', 'truck')
-      : row('data-move="drive-later"', 'Driving there · back here later', 'The drive · no photo — you’re coming back', 'truck') +
-        row('data-move="drive"', 'Driving there · done here today', (logRequired() ? 'Today’s log, the end photo' : 'End photo') + ', then the drive', 'camera')) +
-    row('data-move="left"', 'Already there — I left ' + here + ' at…', 'Say when · no photo · your PM and the Ops Director are told', 'chev') +
-    row('data-move="wrong"', 'Wrong job — I was never at ' + here, 'The clock moves here now', 'chev') +
+  return '<div class="sheetpad" style="gap:12px"><div class="body">' + esc(Lf('You picked {there}. The clock is still on {here}.', { there: there, here: here })) + '</div>' +
+    (atShop() ? row('data-move="drive"', L('Driving there now'), Lf('The drive goes on {p}’s travel line', { p: there }), 'truck')
+      : row('data-move="drive-later"', L('Driving there · back here later'), L('The drive · no photo — you’re coming back'), 'truck') +
+        row('data-move="drive"', L('Driving there · done here today'), L(logRequired() ? 'Today’s log, the end photo, then the drive' : 'End photo, then the drive'), 'camera')) +
+    row('data-move="left"', Lf('Already there — I left {p} at…', { p: here }), L('Say when · no photo · your PM and the Ops Director are told'), 'chev') +
+    row('data-move="wrong"', Lf('Wrong job — I was never at {p}', { p: here }), L('The clock moves here now'), 'chev') +
   '</div>';
 }
 /* How long a break (T2.13): JobTread's own four lengths. Each tile says when
    the clock starts again — the same minute JobTread will use. */
 function breakHtml(){
-  var code = S.open && S.open.code, num = (code && code.number) || 'this code', now = Date.now();
+  var code = S.open && S.open.code, num = (code && code.number) || L('this code'), now = Date.now();
   return '<div class="sheetpad" style="gap:14px"><div class="brkgrid">' + BREAK_CHOICES.map(function(m){
     var back = new Date(now + m * 60000); back.setSeconds(0, 0);
     return '<button class="brkopt" data-brk="' + m + '"><span class="bt tabular">' + breakWords(m) + '</span>' +
-      '<span class="k9 bs">back ' + esc(clockLabel(back)) + '</span></button>';
+      '<span class="k9 bs">' + esc(Lf('back {t}', { t: clockLabel(back) })) + '</span></button>';
   }).join('') + '</div>' +
-  '<div class="fine" style="text-align:center">Your ' + esc(hmClock(code ? codeSecondsToday(code.id) : openSeconds())) + ' on ' + esc(num) +
-    ' is saved. The clock starts again by itself when the break ends — tap End break sooner if you’re back early.</div>' +
+  '<div class="fine" style="text-align:center">' + esc(Lf('Your {hm} on {num} is saved. The clock starts again by itself when the break ends — tap End break sooner if you’re back early.', { hm: hmClock(code ? codeSecondsToday(code.id) : openSeconds()), num: num })) + '</div>' +
   '</div>';
 }
 
@@ -3730,6 +3788,11 @@ function wireSheet(){
   });
   var lt = $('leftTime'); if (lt) lt.oninput = lt.onchange = function(){ S.leftPick = leftFromInput(lt.value); leftPaint(); };
   if ($('leftGo')) $('leftGo').onclick = leftGo;
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-earlier]'), function(b){
+    b.onclick = function(){ S.earlierPick = Number(b.getAttribute('data-earlier')); var tm = $('earlierTime'); if (tm) tm.value = ''; earlierPaint(); };
+  });
+  var et = $('earlierTime'); if (et) et.oninput = et.onchange = function(){ S.earlierPick = earlierFromInput(et.value); earlierPaint(); };
+  if ($('earlierGo')) $('earlierGo').onclick = earlierGo;
   [].forEach.call(document.querySelectorAll('#sheetBody [data-rline]'), function(b){
     b.onclick = function(){
       var v = visitForChecks(b.getAttribute('data-rtask')), key = b.getAttribute('data-rline');
@@ -3737,6 +3800,16 @@ function wireSheet(){
       ckTouch(v, function(st){ st.done[key] = !st.done[key]; });
       openSheet(S.sheet);
     };
+  });
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-rdline]'), function(b){
+    b.onclick = function(){
+      var j = b.getAttribute('data-rdjob'), key = b.getAttribute('data-rdline'), d = rollDay(j) || {};
+      rollSet(j, key, !d[key]);
+      openSheet(S.sheet);
+    };
+  });
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-rbring]'), function(inp){
+    inp.oninput = function(){ rollSet(inp.getAttribute('data-rbring'), 'bring', String(inp.value || '').slice(0, ROLL_BRING_MAX)); };
   });
   [].forEach.call(document.querySelectorAll('#sheetBody [data-rloaded]'), function(b){
     b.onclick = function(){ var p = saveLoaded(b.getAttribute('data-rloaded'), true); openSheet(S.sheet); if (p) p.then(function(){ if (S.sheet === 'roll') openSheet('roll'); }); };
@@ -3835,7 +3908,7 @@ function seedTodayJob(){
   if (S.jobPickedDay === today) return;
   if (tv.length === 1){
     pickJobObj(visitAsJob(tv[0]), true);
-    toast('Today’s job: ' + (tv[0].cust || tv[0].jobNum) + ' · from the board');
+    toast(Lf('Today’s job: {j} · from the board', { j: tv[0].cust || tv[0].jobNum }));
   }
 }
 
@@ -3872,7 +3945,7 @@ function busy(on, label){
   if (on){
     if (!WAIT.n){ WAIT.t0 = Date.now(); if (el){ $('waitS').textContent = ''; el.classList.add('on'); } WAIT.timer = setInterval(waitTick, 500); }
     WAIT.n++;
-    if (el && (label || WAIT.n === 1)) $('waitT').textContent = label || 'Working…';
+    if (el && (label || WAIT.n === 1)) $('waitT').textContent = L(label || 'Working…');
   } else {
     WAIT.n = Math.max(0, WAIT.n - 1);
     if (!WAIT.n){ if (el) el.classList.remove('on'); clearInterval(WAIT.timer); WAIT.timer = null; }
@@ -3881,7 +3954,7 @@ function busy(on, label){
 }
 function waitTick(){
   var s = Math.round((Date.now() - WAIT.t0) / 1000), el = $('waitS');
-  if (el) el.textContent = s >= 2 ? 'Still working · ' + s + 's' : '';
+  if (el) el.textContent = s >= 2 ? Lf('Still working · {s}s', { s: s }) : '';
 }
 /* The curtain for the life of one promise. */
 function waitFor(p, label){
@@ -3902,7 +3975,7 @@ function beginStart(){
   setTab('cam');
 }
 /* =========================================================
-   THE PHOTO RULE (T2.23, the Ops Director, 29 Oct 2026)
+   THE PHOTO RULE (T2.23, Carl, 29 Oct 2026)
    A start photo when you start work at a job site, an end photo when you
    leave it for the day — nothing in between, and never at the shop. The
    API asks the same questions of the same day (startPhotoOwed_ /
@@ -3940,8 +4013,9 @@ function beginEnd(kind){
   // comes next.
   if (onTravel()){ afterTravelEnd(kind); return; }
   // Leaving the shop for the day's roofs (T2.20): not before the yard.
-  if (atShop() && (kind === 'end-travel' || (kind === 'end-switch' && S.pendingJob)) && rollOwed().length){
-    S.rollNext = kind; setTab(S.coReturn ? 'co' : 'job'); openSheet('roll'); return;
+  if (atShop() && (kind === 'end-travel' || (kind === 'end-switch' && S.pendingJob))){
+    if (rollOwed().length){ S.rollNext = kind; setTab(S.coReturn ? 'co' : 'job'); openSheet('roll'); return; }
+    rollSendDaily();
   }
   // A job picked with no drive in between (T2.23): what happened, rather
   // than an end photo of somewhere they may no longer be.
@@ -4095,9 +4169,9 @@ function commitStart(item, rec){
         S.job = S.pendingJob; S.pendingJob = null; S.moving = false;
         S.dlJobId = S.job.id; S.jobPickedDay = isoLocal();
         if (prev && prev.id !== S.job.id) dlPromptFor(prev.id, 'switch');
-        toast('Now at ' + (S.job.customer || streetOf(S.job.address) || 'the next job') + ' · ' + codeLabel(code));
+        toast(Lf('Now at {p} · {code}', { p: S.job.customer || streetOf(S.job.address) || L('the next job'), code: codeLabel(code) }));
       } else {
-        toast((sw ? 'Now on ' : 'On the clock · ') + codeLabel(code));
+        toast(Lf(sw ? 'Now on {code}' : 'On the clock · {code}', { code: codeLabel(code) }));
       }
       // The morning clock-in away from the shop and the office (T2.23): the
       // API has told the PM and the Ops Director, and the phone says so.
@@ -4178,7 +4252,7 @@ function nextCodes(){
   setTab(S.coReturn ? 'co' : 'job');
   if (S.pendingJob){
     var j = S.pendingJob;
-    waitFor(loadCodes(j.id), 'Getting the codes at ' + (j.customer || streetOf(j.address) || 'the next job') + '…').then(function(codes){
+    waitFor(loadCodes(j.id), Lf('Getting the codes at {p}…', { p: j.customer || streetOf(j.address) || L('the next job') })).then(function(codes){
       if (!S.pendingJob || S.pendingJob.id !== j.id) return;
       S.codes = codes;
       openSheet('codes');
@@ -4243,7 +4317,7 @@ function afterTravelEnd(kind){
   // Arriving: the codes of the job the drive was to.
   var j = S.job;
   setTab(S.coReturn ? 'co' : 'job');
-  waitFor(loadCodes(j.id), 'Getting the codes at ' + placeWord(j) + '…').then(function(codes){
+  waitFor(loadCodes(j.id), Lf('Getting the codes at {p}…', { p: pw(j) })).then(function(codes){
     if (!S.job || S.job.id !== j.id) return;
     S.codes = codes;
     openSheet('codes');
@@ -4262,25 +4336,25 @@ function destHtml(){
   var rows = destChoices(), from = S.job;
   var row = function(attr, t, sub, icon, cls){ return '<button class="stoprow' + (cls ? ' ' + cls : '') + '" ' + attr + '><span style="flex:1;min-width:0"><span class="st" style="display:block">' + esc(t) + '</span><span class="k9 ss">' + esc(sub) + '</span></span>' + ico(icon, 22) + '</button>'; };
   var h = '<div class="sheetpad" style="gap:12px">';
-  h += rows.map(function(r){ return row('data-dest="' + esc(r.job.id) + '"', placeWord(r.job), [r.why, 'JT #' + (r.job.number || ''), streetOf(r.job.address)].filter(Boolean).join(' · '), 'truck'); }).join('');
-  h += row('id="destOther"', 'Another job', 'Search JobTread', 'chev');
-  if (from && !atShop()) h += row('id="destBack"', 'Back to the shop · end of the day', 'On ' + jobWord(from) + '’s travel line', 'chev', 'out');
-  h += '<div class="fine" style="text-align:center;margin-top:4px">The drive goes on the travel line of the job you are going to. When you get there, I’m here starts the work with its start photo.</div></div>';
+  h += rows.map(function(r){ return row('data-dest="' + esc(r.job.id) + '"', placeWord(r.job), [L(r.why), 'JT #' + (r.job.number || ''), streetOf(r.job.address)].filter(Boolean).join(' · '), 'truck'); }).join('');
+  h += row('id="destOther"', L('Another job'), L('Search JobTread'), 'chev');
+  if (from && !atShop()) h += row('id="destBack"', L('Back to the shop · end of the day'), Lf('On {j}’s travel line', { j: jobWord(from) }), 'chev', 'out');
+  h += '<div class="fine" style="text-align:center;margin-top:4px">' + esc(L('The drive goes on the travel line of the job you are going to. When you get there, I’m here starts the work with its start photo.')) + '</div></div>';
   return h;
 }
 function travelCodesHtml(){
   var t = S.travelTo; if (!t) return '';
   var list = t.codes.filter(codeShown);
-  return '<div class="sheetpad" style="gap:10px"><div class="body" style="margin-bottom:4px">This job has no Travel Related Labor line yet. Pick the line to drive on — the office can move it later.</div></div>' +
+  return '<div class="sheetpad" style="gap:10px"><div class="body" style="margin-bottom:4px">' + esc(L('This job has no Travel Related Labor line yet. Pick the line to drive on — the office can move it later.')) + '</div></div>' +
     (list.map(function(c){ return '<button class="coderow" data-tcode="' + esc(c.id) + '"><span class="cn tabular">' + esc(c.number || '') + '</span><span class="cname">' + esc(c.name) + '</span><span class="cmeta"></span></button>'; }).join('') ||
-     '<div class="sheetpad"><div class="body">Nothing to clock into on that job either. Ask the office to add the CLOCK IN ITEMS group to its budget.</div></div>');
+     '<div class="sheetpad"><div class="body">' + esc(L('Nothing to clock into on that job either. Ask the office to add the CLOCK IN ITEMS group to its budget.')) + '</div></div>');
 }
 /* The drive's line: the job's travel line when it has one; else Carl's
    "then and only then" — whatever the job has, asked. */
 function startTravelTo(job, back, opts){
   closeSheet();
   if (!job || !S.open) return;
-  waitFor(loadCodes(job.id), 'Getting the travel line' + (back ? '' : ' at ' + placeWord(job)) + '…').then(function(codes){
+  waitFor(loadCodes(job.id), back ? L('Getting the travel line…') : Lf('Getting the travel line at {p}…', { p: pw(job) })).then(function(codes){
     var t = (codes || []).filter(isTravelCode)[0];
     if (t){ commitTravel(job, t, back, codes, opts); return; }
     S.travelTo = { job: job, back: back, codes: codes || [], opts: opts || null };
@@ -4304,7 +4378,7 @@ function commitTravel(job, code, back, codes, opts){
       }
       S.leaveMode = null;
       savePrefs();
-      toast(supply ? 'Supply run · on ' + placeWord(job) + '’s travel line' : back ? 'Driving back · the drive is on ' + jobWord(prev) : 'Driving to ' + placeWord(job) + ' · on its travel line');
+      toast(supply ? Lf('Supply run · on {p}’s travel line', { p: pw(job) }) : back ? Lf('Driving back · the drive is on {j}', { j: jobWord(prev) }) : Lf('Driving to {p} · on its travel line', { p: pw(job) }));
       return refreshDay();
     }).catch(function(e){
       // The API wanted the end photo of the site after all.
@@ -4357,25 +4431,28 @@ function leftHtml(){
   if (!S.open) return '';
   var over = leftOvernight(), began = new Date(S.open.startedAt);
   var h = '<div class="sheetpad" style="gap:12px">';
-  h += '<div class="body">' + esc(placeWord(S.job || S.open.job)) + ' · on ' + esc(codeLabel(S.open.code)) + ' since ' + esc((over ? dayWords(began) + ' ' : '') + clockLabel(began)) + '. ' +
-       (over ? 'Still open from ' + esc(dayWords(began)) + ' — pick the time you left that day.' : 'Pick when you left, as near as you can.') + '</div>';
+  h += '<div class="body">' + esc(Lf('{p} · on {code} since {t}.', { p: placeWord(S.job || S.open.job), code: codeLabel(S.open.code), t: (over ? dayWords(began) + ' ' : '') + clockLabel(began) })) + ' ' +
+       esc(over ? Lf('Still open from {d} — pick the time you left that day.', { d: dayWords(began) }) : L('Pick when you left, as near as you can.')) + '</div>';
   if (!over) h += '<div class="brkgrid">' + leftChoices().map(function(t, i){
     var m = Math.round((Date.now() - t) / 60000);
-    return '<button class="brkopt" style="min-height:76px" data-leftat="' + t + '"><span class="bt" style="font-size:20px">' + esc(m < 1 ? 'Just now' : m < 60 ? m + ' min ago' : (m / 60) + (m === 60 ? ' hour ago' : ' hours ago')) + '</span><span class="k9 bs">' + esc(clockLabel(new Date(t))) + '</span></button>';
+    return '<button class="brkopt" style="min-height:76px" data-leftat="' + t + '"><span class="bt" style="font-size:20px">' + esc(m < 1 ? L('Just now') : Lf(m < 60 ? '{n} min ago' : m === 60 ? '{n} hour ago' : '{n} hours ago', { n: m < 60 ? m : m / 60 })) + '</span><span class="k9 bs">' + esc(clockLabel(new Date(t))) + '</span></button>';
   }).join('') + '</div>';
-  h += '<label class="k" for="leftTime" style="margin-top:4px">' + (over ? 'The time you left' : 'Another time') + '</label>' +
+  h += '<label class="k" for="leftTime" style="margin-top:4px">' + esc(L(over ? 'The time you left' : 'Another time')) + '</label>' +
        '<input id="leftTime" type="time" style="min-height:64px;font:700 22px/1 var(--head);padding:0 14px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);color:var(--fg)">';
-  h += '<button class="btn btn-go" id="leftGo" style="min-height:76px" disabled>Pick a time</button>';
-  h += '<div class="fine" id="leftFine" style="text-align:center">No end photo. The entry says when you left, and your PM and the Ops Director are told on the job.</div></div>';
+  h += '<button class="btn btn-go" id="leftGo" style="min-height:76px" disabled>' + esc(L('Pick a time')) + '</button>';
+  h += '<div class="fine" id="leftFine" style="text-align:center">' + esc(L('No end photo. The entry says when you left, and your PM and the Ops Director are told on the job.')) + '</div></div>';
   return h;
 }
-function dayWords(d){ return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getDate(); }
+function dayWords(d){
+  if (S.lang === 'es') return DOW_ES[d.getDay()] + ' ' + d.getDate() + ' ' + MON_ES[d.getMonth()];
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ' ' + d.getDate();
+}
 function leftPaint(){
   [].forEach.call(document.querySelectorAll('#sheetBody [data-leftat]'), function(b){ b.classList.toggle('on', Number(b.getAttribute('data-leftat')) === S.leftPick); });
   var go = $('leftGo'); if (!go) return;
   var ok = leftOk(S.leftPick);
   go.disabled = !ok;
-  go.textContent = ok ? 'I left at ' + clockLabel(new Date(S.leftPick)) : S.leftPick ? 'Not while you were on it' : 'Pick a time';
+  go.textContent = ok ? Lf('I left at {t}', { t: clockLabel(new Date(S.leftPick)) }) : L(S.leftPick ? 'Not while you were on it' : 'Pick a time');
 }
 function leftGo(){
   var t = S.leftPick, gate = S.leftGate;
@@ -4401,7 +4478,7 @@ function leftOut(iso, overnight, next){
       S.open = null; S.switching = null; S.pendingJob = null; S.moving = false;
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
-      toast('Clocked out at ' + clockLabel(new Date(iso)) + ' · your PM and the Ops Director are told');
+      toast(Lf('Clocked out at {t} · your PM and the Ops Director are told', { t: clockLabel(new Date(iso)) }));
       return refreshDay();
     }).catch(function(e){ if (S.pendingJob) cancelMove(); showErr(e); }).then(function(){
       busy(false);
@@ -4410,11 +4487,103 @@ function leftOut(iso, overnight, next){
       // Moving to another job when the question was asked: that job's
       // clock-in, its code and its start photo.
       if (ok && next){ S.job = next; S.dlJobId = next.id; S.jobPickedDay = isoLocal(); S.codes = []; savePrefs(); render();
-        waitFor(loadCodes(next.id), 'Getting the codes at ' + placeWord(next) + '…').then(function(codes){ S.codes = codes; openSheet('codes'); }).catch(function(e){ failed('getJobCodes', e); }); }
+        waitFor(loadCodes(next.id), Lf('Getting the codes at {p}…', { p: pw(next) })).then(function(codes){ S.codes = codes; openSheet('codes'); }).catch(function(e){ failed('getJobCodes', e); }); }
     });
   });
 }
 function leftAsk(){ if (!leftOvernight()) return; S.leftGate = 'overnight'; S.leftPick = 0; setTab('job'); openSheet('left'); }
+/* The evening push, "Still on the clock" (T2.24): straight to When did you
+   leave?, which clocks out at the time picked. Already off the clock, or on
+   a break, it is just the clock screen. */
+function openLeftFromPush(){
+  setTab('job');
+  if (!S.open || onBreakNow()){ render(); return; }
+  if (leftOvernight()){ leftAsk(); return; }
+  S.leftGate = 'end-out'; S.leftPick = 0;
+  openSheet('left');
+}
+
+/* =========================================================
+   STARTED EARLIER (T2.24, Carl 29 Oct 2026)
+   The mirror of Already left: clocked in late, the work began before it.
+   For the first hour after a clock-in from off the clock, the band carries
+   "Started earlier? Say when". The block's start moves back to the time
+   given — today, at most four hours, never over another block — its notes
+   say so, and the job's PM and the Ops Director are told, as Already left
+   tells them. A code change, a drive, a break: not a clock-in, not offered.
+   ========================================================= */
+var EARLIER_WINDOW_MS = 60 * 60 * 1000, EARLIER_MAX_MIN = 240, EARLIER_CHOICES = [15, 30, 45, 60, 90, 120];
+function earlierFloor(){
+  var o = S.open, floor = 0;
+  (S.entries || []).forEach(function(e){ if (!o || e.id === o.id) return; var t = Date.parse(e.endedAt || ''); if (!isNaN(t) && t > floor) floor = t; });
+  return floor;
+}
+function earlierBlock(){
+  var o = S.open;
+  if (!o || onBreakNow() || onTravel() || !o.job) return null;
+  var began = Date.parse(o.startedAt);
+  if (isNaN(began) || Date.now() - began > EARLIER_WINDOW_MS) return null;
+  if (/Started earlier —/.test(o.notes || '')) return null;
+  // Off the clock before it: anything else today ended a while before.
+  var floor = earlierFloor();
+  if (floor && began - floor < 3 * 60000) return null;
+  return o;
+}
+function earlierLow(){
+  var began = Date.parse(S.open.startedAt), day = new Date(began); day.setHours(0, 0, 0, 0);
+  return Math.max(earlierFloor(), began - EARLIER_MAX_MIN * 60000, day.getTime());
+}
+function earlierOk(t){ return !!earlierBlock() && t >= earlierLow() && t < Date.parse(S.open.startedAt); }
+/* Counted back from the clock-in's own minute — the one the sheet names —
+   so "15 min earlier" is 15 minutes before the time on the screen. */
+function earlierBase(){ var began = Date.parse(S.open.startedAt); return began - (began % 60000); }
+function earlierChoices(){
+  var base = earlierBase();
+  return EARLIER_CHOICES.map(function(m){ return base - m * 60000; }).filter(earlierOk);
+}
+function earlierFromInput(v){
+  var m = /^(\d\d):(\d\d)$/.exec(v || ''); if (!m || !S.open) return 0;
+  var d = new Date(S.open.startedAt); d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  return d.getTime();
+}
+function earlierHtml(){
+  if (!earlierBlock()) return '<div class="sheetpad"><div class="body">' + esc(L('This block can’t be moved from the phone any more — ask the office.')) + '</div></div>';
+  var began = new Date(S.open.startedAt), ch = earlierChoices();
+  var h = '<div class="sheetpad" style="gap:12px"><div class="body">' + esc(Lf('You clocked in at {t} on {code}. When did you start, as near as you can?', { t: clockLabel(began), code: codeLabel(S.open.code) })) + '</div>';
+  if (ch.length) h += '<div class="brkgrid">' + ch.map(function(t){
+    var m = Math.round((earlierBase() - t) / 60000);
+    return '<button class="brkopt" style="min-height:76px" data-earlier="' + t + '"><span class="bt" style="font-size:20px">' + esc(clockLabel(new Date(t))) + '</span><span class="k9 bs">' +
+           esc(Lf(m < 60 ? '{n} min earlier' : m === 60 ? '{n} hour earlier' : '{n} hours earlier', { n: m < 60 ? m : m / 60 })) + '</span></button>';
+  }).join('') + '</div>';
+  h += '<label class="k" for="earlierTime" style="margin-top:4px">' + esc(L('Another time')) + '</label>' +
+       '<input id="earlierTime" type="time" style="min-height:64px;font:700 22px/1 var(--head);padding:0 14px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);color:var(--fg)">';
+  h += '<button class="btn btn-go" id="earlierGo" style="min-height:76px" disabled>' + esc(L('Pick a time')) + '</button>';
+  h += '<div class="fine" style="text-align:center">' + esc(L('Today only, up to 4 hours back, and not over time already on the clock. The entry says so, and your PM and the Ops Director are told on the job.')) + '</div></div>';
+  return h;
+}
+function earlierPaint(){
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-earlier]'), function(b){ b.classList.toggle('on', Number(b.getAttribute('data-earlier')) === S.earlierPick); });
+  var go = $('earlierGo'); if (!go) return;
+  var ok = earlierOk(S.earlierPick);
+  go.disabled = !ok;
+  go.textContent = ok ? Lf('I started at {t}', { t: clockLabel(new Date(S.earlierPick)) }) : L(S.earlierPick ? (S.earlierPick >= Date.parse(S.open.startedAt) ? 'That’s after you clocked in' : 'Too far back for the phone') : 'Pick a time');
+}
+function earlierGo(){
+  var t = S.earlierPick;
+  if (!earlierOk(t)) return;
+  S.earlierPick = 0;
+  closeSheet();
+  busy(true, 'Moving your start…');
+  apiCall('startedEarlier', [new Date(t).toISOString()]).then(function(r){
+    if (S.open && r && r.id === S.open.id){
+      S.open.startedAt = r.startedAt;
+      S.open.notes = [S.open.notes || '', 'Started earlier — said they started at ' + clockLabel(new Date(t)) + '.'].filter(Boolean).join(' ');
+    }
+    savePrefs();
+    toast(Lf('Your block starts at {t} now · your PM and the Ops Director are told', { t: clockLabel(new Date(t)) }));
+    return refreshDay();
+  }).catch(function(e){ showErr(e); }).then(function(){ busy(false); render(); });
+}
 
 /* =========================================================
    BEFORE YOU ROLL OUT (T2.20, Carl 28 Oct 2026)
@@ -4437,13 +4606,78 @@ function leftAsk(){ if (!leftOvernight()) return; S.leftGate = 'overnight'; S.le
    read-only): the clock is payroll.
    ========================================================= */
 var ROLL_PHASE = 'yard';
+/* ---- every morning of a multi-day roof (T2.24, Carl 29 Oct 2026) ----
+   The yard lines are ticks on the JOB's checklist, so on day 2 of a three-day
+   roof they already read done and nothing asked again. Carl: tarps checked
+   every morning of a multi-day roof, "and any materials that need to be
+   brought". So from day 2 the morning asks two lines of its own — the
+   board's tarps line, and today's material with a box for what is going —
+   kept here per roof per day, written once on the checklist's own task when
+   the truck leaves, and carried in that day's log. Day 1 is unchanged: the
+   board's lines, ticked through the checklist. */
+var ROLL_KEY = 'dbtc_roll', ROLL_BRING_MAX = 140;
+var ROLL_TODAY_LINE = 'Material for today loaded — anything the crew needs brought';
+var rollStore = (function(){
+  var st = {}; try { st = JSON.parse(localStorage.getItem(ROLL_KEY) || '{}') || {}; } catch(e){ st = {}; }
+  var cut = addDaysLocal(isoLocal(), -3);
+  for (var k in st) if (String(k).slice(-10) < cut) delete st[k];
+  return st;
+})();
+function rollPersist(){ try { localStorage.setItem(ROLL_KEY, JSON.stringify(rollStore)); } catch(e){} }
+function rollDay(jobId, date){ return rollStore[jobId + '|' + (date || isoLocal())] || null; }
+function rollSet(jobId, field, val){
+  var k = jobId + '|' + isoLocal(), d = rollStore[k] || (rollStore[k] = {});
+  d[field] = val; rollPersist();
+}
+/* Day n of the stay, the board's way: day 1 is the first day whatever day it
+   is, and every weekday after it is one more. */
+function stayDayOf(first, iso){
+  var d = new Date(first + 'T12:00:00'), end = new Date(iso + 'T12:00:00'), n = 1;
+  if (isNaN(d) || isNaN(end) || end < d) return null;
+  for (d.setDate(d.getDate() + 1); d <= end; d.setDate(d.getDate() + 1)){ var w = d.getDay(); if (w !== 0 && w !== 6) n++; }
+  return n;
+}
+function rollDailyDue(v){
+  if (!v.checks || !v.checks.taskId || !ckLinesOf(ROLL_PHASE).length) return false;
+  var stay = ckStay(v), today = isoLocal();
+  return !!stay.first && today > stay.first && today <= (stay.last || today);
+}
+function rollDailyLines(){
+  var t = ckLinesOf(ROLL_PHASE).filter(function(l){ return l.key === 'tarps'; })[0];
+  return [{ key: 'tarps', label: t ? t.label : 'Tarps checked and loaded — four sound 20×40s with tie-downs' }, { key: 'today', label: ROLL_TODAY_LINE }];
+}
+/* Written down once per roof per morning, as the truck leaves. */
+function rollSendDaily(){
+  var today = isoLocal();
+  rollVisitsToday().filter(rollDailyDue).forEach(function(v){
+    var d = rollDay(v.jobId, today);
+    if (!d || d.sentAt) return;
+    var lines = rollDailyLines().filter(function(l){ return d[l.key]; }).map(function(l){ return l.label; });
+    if (!lines.length) return;
+    d.sentAt = Date.now(); rollPersist();
+    apiCall('rollChecked', [v.jobId, v.checks.taskId, jobLabelOf(v), stayDayOf(ckStay(v).first, today), lines, d.bring || ''], { lane: 'reads' })
+      .catch(function(e){ d.sentAt = 0; rollPersist(); failed('shop checks record', e, true); });
+  });
+}
+/* The same morning, in that day's log. */
+function rollForLog(jobId, date){
+  var d = rollDay(jobId, date);
+  if (!d) return null;
+  var lines = rollDailyLines().filter(function(l){ return d[l.key]; }).map(function(l){ return l.label; });
+  if (!lines.length) return null;
+  var v = visitByJob(jobId);
+  return { day: v ? stayDayOf(ckStay(v).first, date) : null, lines: lines, bring: d.bring || '' };
+}
 function rollVisitsToday(onlyJobId){
   var today = isoLocal();
   return ((S.assign && S.assign.visits) || []).filter(function(v){ return v.start && v.start <= today && (v.end || v.start) >= today && (!onlyJobId || v.jobId === onlyJobId); });
 }
 function rollMissing(v){
   var out = [];
-  if (v.checks && v.checks.taskId && ckShape()){
+  if (rollDailyDue(v)){
+    var d = rollDay(v.jobId) || {};
+    rollDailyLines().forEach(function(l){ if (!d[l.key]) out.push({ kind: 'daily', key: l.key, label: l.label }); });
+  } else if (v.checks && v.checks.taskId && ckShape()){
     var st = ckStateFor(v);
     ckLinesOf(ROLL_PHASE).forEach(function(l){ if (!st.done[l.key]) out.push({ kind: 'line', key: l.key, label: l.label }); });
   }
@@ -4457,33 +4691,43 @@ function rollOwed(onlyJobId){
 function rollListHtml(only){
   var all = rollVisitsToday(only).filter(function(v){ return (v.checks && v.checks.taskId && ckLinesOf(ROLL_PHASE).length) || v.warehouse; });
   return all.map(function(v){
-    var st = v.checks && v.checks.taskId ? ckStateFor(v) : null;
-    var h = '<div class="k" style="margin-top:6px">' + esc(jobLabelOf(v)) + (v.address ? ' · ' + esc(streetOf(v.address)) : '') + '</div>';
+    var daily = rollDailyDue(v), st = !daily && v.checks && v.checks.taskId ? ckStateFor(v) : null;
+    var h = '<div class="k" style="margin-top:6px">' + esc(jobLabelOf(v)) + (v.address ? ' · ' + esc(streetOf(v.address)) : '') +
+            (daily ? ' · ' + esc(Lf('day {n}', { n: stayDayOf(ckStay(v).first, isoLocal()) })) : '') + '</div>';
+    if (daily){
+      var d = rollDay(v.jobId) || {};
+      rollDailyLines().forEach(function(l){
+        h += '<button class="ckrow' + (d[l.key] ? ' on' : '') + '" data-rdjob="' + esc(v.jobId) + '" data-rdline="' + esc(l.key) + '"><span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(L(l.label)) + '</span></button>';
+      });
+      h += '<div class="cknote"><input class="cknote-in" data-rbring="' + esc(v.jobId) + '" placeholder="' + esc(L('What’s going today? (optional)')) + '" autocomplete="off" maxlength="' + ROLL_BRING_MAX + '" value="' + esc(d.bring || '') + '"></div>';
+    }
     if (st) ckLinesOf(ROLL_PHASE).forEach(function(l){
       var on = !!st.done[l.key];
       h += '<button class="ckrow' + (on ? ' on' : '') + '" data-rtask="' + esc(v.checks.taskId) + '" data-rline="' + esc(l.key) + '"><span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(l.label) + '</span></button>';
     });
-    if (v.warehouse){
+    // Day 1's load from the shop, once it is done, is not this morning's
+    // question: today's material is the line above.
+    if (v.warehouse && !(daily && v.warehouse.loaded)){
       var on2 = !!v.warehouse.loaded, busy2 = !!mlBusy[v.jobId];
       h += '<button class="ckrow' + (on2 ? ' on' : '') + '"' + (on2 || busy2 ? ' disabled' : ' data-rloaded="' + esc(v.jobId) + '"') + '><span class="box">' + CK_TICK + '</span><span class="lbl">' +
-           esc(busy2 ? 'Saving…' : 'Material loaded for the crew' + (v.warehouse.words ? ' · ' + v.warehouse.words : '')) + '</span></button>';
+           esc(busy2 ? L('Saving…') : L('Material loaded for the crew') + (v.warehouse.words ? ' · ' + v.warehouse.words : '')) + '</span></button>';
     }
     return h;
   }).join('');
 }
 function rollHtml(){
   var left = rollOwed().reduce(function(n, x){ return n + x.miss.length; }, 0);
-  return '<div class="sheetpad" style="gap:10px"><div class="body">Today’s roofs, before the truck leaves the shop. The drive starts once these are done.</div>' + rollListHtml() +
-    '<button class="btn btn-go" id="rollGo" style="min-height:76px;margin-top:6px"' + (left ? ' disabled' : '') + '>' + (left ? left + ' left to check' : 'All done · start the drive') + '</button>' +
-    '<button class="btn btn-out" id="rollLeft" style="min-height:52px;font-size:13px;color:var(--mut);border-color:var(--line)">Already left the shop? Say when</button></div>';
+  return '<div class="sheetpad" style="gap:10px"><div class="body">' + esc(L('Today’s roofs, before the truck leaves the shop. The drive starts once these are done.')) + '</div>' + rollListHtml() +
+    '<button class="btn btn-go" id="rollGo" style="min-height:76px;margin-top:6px"' + (left ? ' disabled' : '') + '>' + esc(left ? Lf('{n} left to check', { n: left }) : L('All done · start the drive')) + '</button>' +
+    '<button class="btn btn-out" id="rollLeft" style="min-height:52px;font-size:13px;color:var(--mut);border-color:var(--line)">' + esc(L('Already left the shop? Say when')) + '</button></div>';
 }
 function forgotHtml(){
   var x = rollOwed(S.rollFor)[0];
   if (!x) return '';
-  return '<div class="sheetpad" style="gap:10px"><div class="body">' + esc(jobLabelOf(x.v)) + ' rolled out without the shop checks done:</div>' +
-    x.miss.map(function(m){ return '<div class="trow"><span class="nm" style="text-transform:none;font-weight:600">' + esc(m.label) + '</span></div>'; }).join('') +
-    '<button class="btn btn-go" id="forgotGo" style="min-height:76px;margin-top:6px">Clock in · the PM and the Ops Director are told</button>' +
-    '<div class="fine" style="text-align:center">Next time, tick them at the shop — the drive waits for them there.</div></div>';
+  return '<div class="sheetpad" style="gap:10px"><div class="body">' + esc(Lf('{job} rolled out without the shop checks done:', { job: jobLabelOf(x.v) })) + '</div>' +
+    x.miss.map(function(m){ return '<div class="trow"><span class="nm" style="text-transform:none;font-weight:600">' + esc(L(m.label)) + '</span></div>'; }).join('') +
+    '<button class="btn btn-go" id="forgotGo" style="min-height:76px;margin-top:6px">' + esc(L('Clock in · the PM and the Ops Director are told')) + '</button>' +
+    '<div class="fine" style="text-align:center">' + esc(L('Next time, tick them at the shop — the drive waits for them there.')) + '</div></div>';
 }
 /* Told once per roof per day; never in the way if it does not go. */
 function rollForgot(jobId){
@@ -4502,7 +4746,7 @@ function arriveHere(){
   // Back from a supply run (T2.23): the code it left, no photo.
   if (supplyRun()){
     var j = S.job;
-    waitFor(S.codes.length ? Promise.resolve(S.codes) : loadCodes(j.id), 'Back at ' + placeWord(j) + '…').then(function(codes){
+    waitFor(S.codes.length ? Promise.resolve(S.codes) : loadCodes(j.id), Lf('Back at {p}…', { p: pw(j) })).then(function(codes){
       S.codes = codes || S.codes;
       var c = supplyReturn();
       S.switching = { endPhotoId: '', at: Date.now(), fromTravel: true };
@@ -4523,7 +4767,7 @@ function arriveHere(){
 function doBreak(minutes){
   var open = S.open;
   if (!open || onBreakNow() || BREAK_CHOICES.indexOf(minutes) === -1) return;
-  var sec = openSeconds(), code = open.code, num = (code && code.number) || 'the code';
+  var sec = openSeconds(), code = open.code, num = (code && code.number) || L('the code');
   busy(true, 'Starting your break…');
   withCoords(function(coords){
     apiCall('startBreak', [coords, minutes, S.lang]).then(function(r){
@@ -4531,11 +4775,11 @@ function doBreak(minutes){
       if (r && r.open && Date.parse(r.open.startedAt) > Date.now()){
         S.open = r.open;
         S.brk = { entryId: r.open.id, minutes: r.minutes || minutes, at: Date.now(), sec: sec, code: code, date: isoLocal() };
-        toast('On break · back at ' + clockLabel(r.open.startedAt) + ' · ' + hmClock(sec) + ' on ' + num + ' saved');
+        toast(Lf('On break · back at {t} · {hm} on {num} saved', { t: clockLabel(r.open.startedAt), hm: hmClock(sec), num: num }));
       } else {
         S.onBreak = { jobId: S.job ? S.job.id : (open.job && open.job.id), code: code, at: Date.now(), sec: sec, date: isoLocal() };
         S.open = null;
-        toast('On break · ' + hmClock(sec) + ' on ' + num + ' saved');
+        toast(Lf('On break · {hm} on {num} saved', { hm: hmClock(sec), num: num }));
       }
       savePrefs();
       return refreshDay();
@@ -4551,7 +4795,7 @@ function doEndBreak(){
     var since = S.open.startedAt, code = S.open.code;
     S.brk = null; savePrefs();
     apiCall('endBreak', [S.open.job && S.open.job.id, code && code.id, null]).catch(function(){});
-    toast('Back on · the clock restarted at ' + clockLabel(since));
+    toast(Lf('Back on · the clock restarted at {t}', { t: clockLabel(since) }));
     render();
     return;
   }
@@ -4562,7 +4806,7 @@ function doEndBreak(){
     apiCall('endBreak', [open.job && open.job.id, open.code && open.code.id, coords]).then(function(o){
       S.open = o; S.brk = null;
       savePrefs();
-      toast('Back on · ' + codeLabel((o && o.code) || open.code));
+      toast(Lf('Back on · {code}', { code: codeLabel((o && o.code) || open.code) }));
       return refreshDay();
     }).catch(showErr).then(function(){ busy(false); render(); });
   });
@@ -4577,7 +4821,7 @@ function doBackToWork(){
     apiCall('endBreak', [b.jobId, b.code.id, coords]).then(function(open){
       S.open = open; S.onBreak = null;
       savePrefs();
-      toast('Back on · ' + codeLabel(open.code || b.code));
+      toast(Lf('Back on · {code}', { code: codeLabel(open.code || b.code) }));
       return refreshDay();
     }).catch(showErr).then(function(){ busy(false); render(); });
   });
@@ -4618,7 +4862,7 @@ function breakCues(){
   var left = breakLeft(), seen = document.visibilityState === 'visible';
   if (!b.cue5 && left > 0 && left <= 300 && (b.minutes || 0) > 5){
     b.cue5 = true; savePrefs();
-    if (seen){ toast('Break ends in ' + Math.max(1, Math.round(left/60)) + ' min · back at ' + clockLabel(S.open.startedAt)); buzz(); }
+    if (seen){ toast(Lf('Break ends in {n} min · back at {t}', { n: Math.max(1, Math.round(left/60)), t: clockLabel(S.open.startedAt) })); buzz(); }
   }
   if (!b.cue0 && !onBreakNow()){
     b.cue0 = true; savePrefs();
@@ -4665,7 +4909,7 @@ function startCamera(){
     .catch(function(){ camFallback('Camera access is off. Turn it on in Settings, or tap to use the phone camera.'); });
 }
 function camFallback(msg){
-  $('camFbMsg').textContent = msg;
+  $('camFbMsg').textContent = L(msg);
   $('camFallback').style.display = 'flex';
 }
 function stopCamera(){
@@ -4769,7 +5013,7 @@ function galleryPicked(files){
         });
       }).catch(function(e){ failed('photos · from the phone', e); });
     });
-  }, Promise.resolve()).then(function(){ if (n > 1) toast(n + (S.lang === 'es' ? ' fotos agregadas' : ' photos added')); });
+  }, Promise.resolve()).then(function(){ if (n > 1) toast(Lf('{n} photos added', { n: n })); });
 }
 
 function settleAfterShot(tag){
@@ -5019,6 +5263,233 @@ var L10N = {
         tabs:{ job:'Reloj', jobs:'Mis trabajos', log:'Registro', co:'Close Out', people:'Personas' } }
 };
 function T(key){ return (L10N[S.lang] || L10N.en)[key]; }
+/* ---- the rest of the app in Spanish (T2.24, Carl 29 Oct 2026) ----
+   "Spanish stops at Close Out" — the Clock tab, its sheets and My jobs were
+   English only, and the same crews read Close Out in Spanish. One switch now
+   (EN / ES on the Clock and My jobs headers too), and every word on those
+   screens is looked up by its English: L('Clock out'), or Lf with the parts
+   that change, Lf('Driving to {p}', { p: … }). A word with no Spanish here
+   stays English rather than going blank. Only what the phone SHOWS changes:
+   notes, comments and logs still go to JobTread in English, and the board's
+   checklist lines arrive in the board's own words. */
+var ES = {};
+function esAdd(o){ for (var k in o) ES[k] = o[k]; }
+function L(en){ return S.lang === 'es' && Object.prototype.hasOwnProperty.call(ES, en) ? ES[en] : en; }
+function Lf(en, vars){
+  var s = L(en);
+  for (var k in (vars || {})) s = s.split('{' + k + '}').join(vars[k] == null ? '' : String(vars[k]));
+  // a el → al, de el → del, where a place word lands after a preposition.
+  if (S.lang === 'es') s = s.replace(/(^|[\s(])([Aa]|[Dd]e) el (?=[a-záéíóúñ])/g, function(_, pre, p){ return pre + (p.toLowerCase() === 'a' ? (p === 'A' ? 'Al' : 'al') : (p === 'De' ? 'Del' : 'del')) + ' '; });
+  return s;
+}
+/* Why Alberto was left alone, as the API says it (withPartner_). */
+function partnerWhy(w){
+  w = w || 'not where you were';
+  var m = /^on the clock at (.+)$/.exec(w);
+  return m && S.lang === 'es' ? 'en el reloj en ' + m[1] : L(w);
+}
+/* A place in the middle of a Spanish sentence: "el taller", "el trabajo". */
+function pw(j){ var w = placeWord(j); return S.lang === 'es' ? ({ 'The shop': 'el taller', 'the job': 'el trabajo' }[w] || w) : w; }
+/* The Clock tab. */
+esAdd({
+  'Working…': 'Trabajando…', 'Still working · {s}s': 'Sigue trabajando · {s}s',
+  'Started earlier? Say when': '¿Empezaste antes? Di a qué hora', 'Break': 'Descanso', 'Change code': 'Cambiar código',
+  'Clock out': 'Marcar salida', 'Take a photo': 'Tomar una foto', 'Photos through the day go in DB Cam.': 'Las fotos del día van en DB Cam.',
+  'Going somewhere else': 'Voy a otro lado', 'Clock out for the day': 'Marcar salida por hoy', 'Clock in': 'Marcar entrada',
+  'Code, then start photo': 'Código, luego foto de inicio', 'At the shop': 'En el taller', 'Morning clock-in · one tap': 'Entrada de la mañana · un toque',
+  'Other shop work': 'Otro trabajo en el taller', 'Today on this job': 'Hoy en este trabajo', 'Foreman view': 'Vista del capataz',
+  'Allow camera': 'Permitir la cámara', 'Tap to allow the camera.': 'Toca para permitir la cámara.',
+  'Start': 'Inicio', 'During': 'Durante', 'End': 'Final', 'No skip': 'No se salta',
+  'Crew': 'Cuadrilla', 'Site manager': 'Encargado', 'Service': 'Servicio', 'Operations': 'Operaciones', 'Manager': 'Gerente', 'Off': 'Sin acceso', 'Foreman': 'Capataz',
+  'No signal · {n} item queued': 'Sin señal · {n} pendiente', 'No signal · {n} items queued': 'Sin señal · {n} pendientes', 'No signal · nothing waiting': 'Sin señal · nada pendiente',
+  'Read-only build · hours are not posting yet': 'Versión de solo lectura · las horas todavía no se registran',
+  'Clock {name} in and out with you': 'Marcar entrada y salida de {name} contigo',
+  'Driving to': 'Manejando a', "Today's job": 'Trabajo de hoy', 'The shop': 'El taller', 'Pick a job': 'Escoge un trabajo',
+  'Morning clock-in, training and shop work': 'Entrada de la mañana, capacitación y trabajo de taller',
+  'Tap below to choose where you are working.': 'Toca abajo para escoger dónde estás trabajando.',
+  'End your break to change job': 'Termina tu descanso para cambiar de trabajo', 'Move to another job': 'Pasar a otro trabajo', 'Change job': 'Cambiar de trabajo',
+  'Booked today · which one are you at?': 'Agendados hoy · ¿en cuál estás?',
+  'Back to work': 'Volver al trabajo', 'End break': 'Terminar descanso', 'the code': 'el código', 'this code': 'este código',
+  'On break · back at {t}': 'En descanso · regresas a las {t}',
+  '{m}-minute break · started {t} · {hm} on {num} saved': 'Descanso de {m} minutos · empezó {t} · {hm} en {num} guardado',
+  'Break · started {t} · {hm} on {num} saved': 'Descanso · empezó {t} · {hm} en {num} guardado',
+  'Break taken in JobTread · the clock starts again on {num} at {t}': 'Descanso tomado en JobTread · el reloj vuelve a empezar en {num} a las {t}',
+  'A reminder comes 5 minutes before it ends, and one when it does. ': 'Llega un aviso 5 minutos antes de que termine, y otro cuando termine. ',
+  'Notifications are off on this phone — keep the app open for the reminders. ': 'Las notificaciones están apagadas en este teléfono — deja la app abierta para los avisos. ',
+  'The clock starts again by itself at {t}. Back early? End break starts it now.': 'El reloj vuelve a empezar solo a las {t}. ¿Regresaste antes? Terminar descanso lo empieza ya.',
+  'Break over · clock on since {t}': 'Se acabó el descanso · en el reloj desde las {t}',
+  'The clock started again by itself when your break ended.': 'El reloj volvió a empezar solo cuando terminó tu descanso.',
+  'Tap End break when you’re back. Clocking out from here takes an end photo — the clock is running.': 'Toca Terminar descanso cuando regreses. Marcar salida desde aquí pide foto final — el reloj está corriendo.',
+  'On break · {t}': 'En descanso · {t}', 'Back to work re-opens {num} · no start photo': 'Volver al trabajo reabre {num} · sin foto de inicio',
+  'Supply run · back to {p}': 'Por material · de regreso a {p}', 'Driving back · end of the day': 'Manejando de regreso · fin del día', 'Driving to {p}': 'Manejando a {p}',
+  'Since {t} · on {j}’s travel line': 'Desde las {t} · en la línea de viaje de {j}',
+  'When did the drive end?': '¿Cuándo terminó el viaje?', 'Back at {p}': 'De regreso en {p}', 'At the shop · shop work': 'En el taller · trabajo de taller',
+  'I’m back · start work': 'Ya regresé · empezar a trabajar', 'I’m here · start work': 'Ya llegué · empezar',
+  'Clock out · I’m back': 'Marcar salida · ya regresé', 'Clock out · done for the day': 'Marcar salida · terminé por hoy',
+  'The run is {p}’s travel time. Back at the job puts you on the same code again — no photo.': 'Ir por material es tiempo de viaje de {p}. De regreso en el trabajo vuelves al mismo código — sin foto.',
+  'The drive back is paid travel. Clocking out from a drive takes no photo.': 'El viaje de regreso es tiempo de viaje pagado. Marcar salida desde un viaje no pide foto.',
+  'Starting work there ends the drive. The drive itself takes no photo.': 'Empezar a trabajar allá termina el viaje. El viaje no pide foto.',
+  'On the clock': 'En el reloj', 'Started {t} with a start photo': 'Empezó a las {t} con foto de inicio', 'Started {t}': 'Empezó a las {t}',
+  '{n} photo on this code': '{n} foto en este código', '{n} photos on this code': '{n} fotos en este código',
+  'Leave the shop': 'Salir del taller', 'Leave the site': 'Salir de la obra',
+  'At the shop no photo is asked for.': 'En el taller no se pide foto.',
+  'A start photo when you start here, an end photo when you leave for the day — nothing in between.': 'Foto de inicio cuando empiezas aquí, foto final cuando te vas por hoy — nada en medio.',
+  'Nothing on the clock yet today.': 'Nada en el reloj hoy todavía.', 'Total today': 'Total de hoy',
+  '{n} on': '{n} trabajando', '{n} on break': '{n} en descanso', 'On break · back {t}': 'En descanso · regresa {t}',
+  'Nobody is on the clock right now.': 'Nadie está en el reloj ahorita.',
+  'No job': 'Sin trabajo', 'Not clocked in': 'Sin marcar entrada', '{n} today': '{n} hoy',
+  'Start photo · the clock starts when you shoot': 'Foto de inicio · el reloj empieza al tomarla',
+  'End photo of {p} · you clock out when you shoot': 'Foto final de {p} · marcas salida al tomarla',
+  'End photo of {p} · you start the drive when you shoot': 'Foto final de {p} · empiezas el viaje al tomarla',
+  'End photo of {p} · you switch when you shoot': 'Foto final de {p} · cambias al tomarla',
+  'Back': 'Atrás', 'Stay on': 'Seguir', 'From my photos': 'De mis fotos',
+  'Already left {p}? Say when — no photo': '¿Ya saliste de {p}? Di a qué hora — sin foto', 'Video': 'Video', 'Photo': 'Foto'
+});
+/* The sheets. */
+esAdd({
+  'Code at {p}': 'Código en {p}', 'the next job': 'el siguiente trabajo', 'What are you doing?': '¿Qué vas a hacer?',
+  'Move to which job?': '¿A qué trabajo te pasas?', 'Leaving {p}': 'Saliendo de {p}', 'Still on the clock': 'Sigues en el reloj',
+  'How long a break?': '¿Cuánto descanso?', 'Sign off': 'Firmar', 'Unsign': 'Quitar firma', 'Where are you going?': '¿A dónde vas?',
+  'When did you leave?': '¿Cuándo saliste?', 'When did you start?': '¿Cuándo empezaste?', 'Before you roll out': 'Antes de salir',
+  'Shop checks not done': 'Faltan las revisiones del taller', 'No travel line at {p}': 'No hay línea de viaje en {p}', 'that job': 'ese trabajo',
+  'Loading this job’s code list…': 'Cargando los códigos de este trabajo…',
+  'Nothing to clock into on this job. Ask the office to add the CLOCK IN ITEMS group to its budget.': 'No hay nada para marcar en este trabajo. Pide a la oficina que agregue el grupo CLOCK IN ITEMS a su presupuesto.',
+  'Running': 'Corriendo', 'Your codes': 'Tus códigos', 'All codes': 'Todos los códigos',
+  'Search jobs by name, number or customer': 'Buscar trabajos por nombre, número o cliente',
+  'Loading your recent jobs…': 'Cargando tus trabajos recientes…', 'Search for the job you are on.': 'Busca el trabajo en el que estás.',
+  'Searching JobTread for more…': 'Buscando más en JobTread…', 'Searching JobTread…': 'Buscando en JobTread…',
+  'Could not reach JobTread — nothing on this phone matches.': 'No se pudo conectar a JobTread — nada en este teléfono coincide.',
+  'No jobs match that.': 'Ningún trabajo coincide.', 'JobTread did not answer — these are what this phone knows.': 'JobTread no contestó — esto es lo que sabe este teléfono.',
+  'Current job': 'Trabajo actual',
+  'Today’s log, the end photo, then the drive': 'El registro de hoy, la foto final, luego el viaje', 'End photo, then the drive': 'Foto final, luego el viaje',
+  'Supply run · back here after': 'Ir por material · regreso aquí después', 'On this job’s travel line · no photo': 'En la línea de viaje de este trabajo · sin foto',
+  'Another job · back here later': 'Otro trabajo · regreso aquí más tarde', 'The drive · no photo — you’re coming back': 'El viaje · sin foto — vas a regresar',
+  'Another job · done here today': 'Otro trabajo · terminé aquí por hoy', 'Back to the shop · done here today': 'Al taller · terminé aquí por hoy',
+  ' back — paid travel': ' de regreso — viaje pagado', 'Going home? Clock out instead.': '¿Te vas a casa? Mejor marca salida.',
+  ' Site managers send today’s log before leaving the site for the day.': ' Los encargados de obra mandan el registro de hoy antes de dejar la obra por hoy.',
+  'You picked {there}. The clock is still on {here}.': 'Escogiste {there}. El reloj sigue en {here}.',
+  'Driving there now': 'Manejando para allá', 'The drive goes on {p}’s travel line': 'El viaje va en la línea de viaje de {p}',
+  'Driving there · back here later': 'Voy para allá · regreso aquí más tarde', 'Driving there · done here today': 'Voy para allá · terminé aquí por hoy',
+  'Already there — I left {p} at…': 'Ya estoy allá — salí de {p} a las…',
+  'Say when · no photo · your PM and the Ops Director are told': 'Di a qué hora · sin foto · se le avisa a tu PM y al Director de Operaciones',
+  'Wrong job — I was never at {p}': 'Trabajo equivocado — nunca estuve en {p}', 'The clock moves here now': 'El reloj se pasa aquí ahora',
+  'back {t}': 'regresas {t}',
+  'Your {hm} on {num} is saved. The clock starts again by itself when the break ends — tap End break sooner if you’re back early.': 'Tus {hm} en {num} quedan guardadas. El reloj vuelve a empezar solo cuando termine el descanso — toca Terminar descanso si regresas antes.',
+  'Booked today': 'Agendado hoy', 'Close Out today': 'Close Out hoy', 'Another job': 'Otro trabajo', 'Search JobTread': 'Buscar en JobTread',
+  'Back to the shop · end of the day': 'Al taller · fin del día', 'On {j}’s travel line': 'En la línea de viaje de {j}',
+  'The drive goes on the travel line of the job you are going to. When you get there, I’m here starts the work with its start photo.': 'El viaje va en la línea de viaje del trabajo al que vas. Al llegar, Ya llegué empieza el trabajo con su foto de inicio.',
+  'This job has no Travel Related Labor line yet. Pick the line to drive on — the office can move it later.': 'Este trabajo todavía no tiene línea de Travel Related Labor. Escoge la línea para el viaje — la oficina la puede cambiar después.',
+  'Nothing to clock into on that job either. Ask the office to add the CLOCK IN ITEMS group to its budget.': 'Tampoco hay nada para marcar en ese trabajo. Pide a la oficina que agregue el grupo CLOCK IN ITEMS a su presupuesto.',
+  '{p} · on {code} since {t}.': '{p} · en {code} desde {t}.',
+  'Still open from {d} — pick the time you left that day.': 'Sigue abierto desde el {d} — escoge la hora en que saliste ese día.',
+  'Pick when you left, as near as you can.': 'Escoge cuándo saliste, lo más cerca que puedas.',
+  'Just now': 'Ahorita', '{n} min ago': 'hace {n} min', '{n} hour ago': 'hace {n} hora', '{n} hours ago': 'hace {n} horas',
+  'The time you left': 'La hora en que saliste', 'Another time': 'Otra hora', 'Pick a time': 'Escoge una hora',
+  'No end photo. The entry says when you left, and your PM and the Ops Director are told on the job.': 'Sin foto final. El registro dice cuándo saliste, y se le avisa a tu PM y al Director de Operaciones en el trabajo.',
+  'I left at {t}': 'Salí a las {t}', 'Not while you were on it': 'No mientras estabas en eso',
+  'This block can’t be moved from the phone any more — ask the office.': 'Este bloque ya no se puede mover desde el teléfono — pregunta a la oficina.',
+  'You clocked in at {t} on {code}. When did you start, as near as you can?': 'Marcaste entrada a las {t} en {code}. ¿Cuándo empezaste, lo más cerca que puedas?',
+  '{n} min earlier': '{n} min antes', '{n} hour earlier': '{n} hora antes', '{n} hours earlier': '{n} horas antes',
+  'Today only, up to 4 hours back, and not over time already on the clock. The entry says so, and your PM and the Ops Director are told on the job.': 'Solo hoy, hasta 4 horas atrás, y no encima de tiempo ya marcado. El registro lo dice, y se le avisa a tu PM y al Director de Operaciones en el trabajo.',
+  'I started at {t}': 'Empecé a las {t}', 'That’s after you clocked in': 'Eso es después de que marcaste entrada', 'Too far back for the phone': 'Muy atrás para el teléfono',
+  'day {n}': 'día {n}', 'What’s going today? (optional)': '¿Qué se lleva hoy? (opcional)', 'Saving…': 'Guardando…',
+  'Material loaded for the crew': 'Material cargado para la cuadrilla',
+  'Material for today loaded — anything the crew needs brought': 'Material de hoy cargado — lo que la cuadrilla necesite',
+  'Tarps checked and loaded — four sound 20×40s with tie-downs': 'Lonas revisadas y cargadas — cuatro de 20×40 en buen estado con amarres',
+  'Tarps checked and loaded — four sound 20×40s with tie-downs, a torn one swapped out': 'Lonas revisadas y cargadas — cuatro de 20×40 en buen estado con amarres, cambiar la que esté rota',
+  'Dry-in supplies loaded for the planned section': 'Material para secar (dry-in) cargado para la sección planeada',
+  'Today’s roofs, before the truck leaves the shop. The drive starts once these are done.': 'Los techos de hoy, antes de que la troca salga del taller. El viaje empieza cuando esto esté listo.',
+  '{n} left to check': 'faltan {n} por revisar', 'All done · start the drive': 'Todo listo · empezar el viaje', 'Already left the shop? Say when': '¿Ya saliste del taller? Di a qué hora',
+  '{job} rolled out without the shop checks done:': '{job} salió sin las revisiones del taller:',
+  'Clock in · the PM and the Ops Director are told': 'Marcar entrada · se le avisa al PM y al Director de Operaciones',
+  'Next time, tick them at the shop — the drive waits for them there.': 'La próxima vez, márcalas en el taller — el viaje las espera ahí.',
+  'Sign off as {name}': 'Firmar como {name}', 'me': 'yo', '{n} line not ticked — sign anyway?': '{n} línea sin marcar — ¿firmar de todos modos?',
+  '{n} lines not ticked — sign anyway?': '{n} líneas sin marcar — ¿firmar de todos modos?', 'and {n} more': 'y {n} más',
+  'Everything is ticked. Your name and today’s date go on the job.': 'Todo está marcado. Tu nombre y la fecha de hoy van en el trabajo.',
+  'No': 'No', 'Yes': 'Sí', 'Not yet': 'Todavía no', 'Take the signature off?': '¿Quitar la firma?',
+  'The ticks stay as they are. Only the signature comes off, and you can sign again later.': 'Las marcas se quedan como están. Solo se quita la firma, y puedes firmar otra vez después.',
+  'Keep it': 'Dejarla'
+});
+/* What the clock says while it works, and after. */
+esAdd({
+  'Clocking in…': 'Marcando entrada…', 'Clocking out…': 'Marcando salida…', 'Switching…': 'Cambiando…',
+  'Starting the supply run…': 'Saliendo por material…', 'Starting the drive…': 'Empezando el viaje…', 'Getting the travel line…': 'Buscando la línea de viaje…',
+  'Getting the travel line at {p}…': 'Buscando la línea de viaje en {p}…', 'Getting the codes at {p}…': 'Buscando los códigos en {p}…', 'Back at {p}…': 'De regreso en {p}…',
+  'Back on the clock…': 'De vuelta en el reloj…', 'Ending your break…': 'Terminando tu descanso…', 'Moving your start…': 'Moviendo tu hora de inicio…', 'Starting your break…': 'Empezando tu descanso…',
+  'Pick a job first': 'Primero escoge un trabajo', 'Today’s job: {j} · from the board': 'Trabajo de hoy: {j} · del tablero',
+  'Now at {p} · {code}': 'Ahora en {p} · {code}', 'Now on {code}': 'Ahora en {code}', 'On the clock · {code}': 'En el reloj · {code}',
+  'No location from the phone · your PM and the Ops Director are told': 'El teléfono no dio ubicación · se le avisa a tu PM y al Director de Operaciones',
+  'Not at the shop or the office · your PM and the Ops Director are told': 'No estás en el taller ni en la oficina · se le avisa a tu PM y al Director de Operaciones',
+  'Clocked out · sent to JobTread': 'Salida marcada · enviado a JobTread', 'Clocked out · the drive is saved': 'Salida marcada · el viaje quedó guardado',
+  'Clocked out · the rest of your break is off the clock': 'Salida marcada · el resto de tu descanso queda fuera del reloj',
+  'Supply run · on {p}’s travel line': 'Por material · en la línea de viaje de {p}', 'Driving back · the drive is on {j}': 'Manejando de regreso · el viaje va en {j}',
+  'Driving to {p} · on its travel line': 'Manejando a {p} · en su línea de viaje',
+  'Clocked out at {t} · your PM and the Ops Director are told': 'Salida marcada a las {t} · se le avisa a tu PM y al Director de Operaciones',
+  'Your block starts at {t} now · your PM and the Ops Director are told': 'Tu bloque ahora empieza a las {t} · se le avisa a tu PM y al Director de Operaciones',
+  'On break · back at {t} · {hm} on {num} saved': 'En descanso · regresas a las {t} · {hm} en {num} guardado', 'On break · {hm} on {num} saved': 'En descanso · {hm} en {num} guardado',
+  'Back on · the clock restarted at {t}': 'De vuelta · el reloj volvió a empezar a las {t}', 'Back on · {code}': 'De vuelta · {code}',
+  'Break ends in {n} min · back at {t}': 'El descanso termina en {n} min · regresas a las {t}', 'Break’s over — the clock is running. Tap End break.': 'Se acabó el descanso — el reloj está corriendo. Toca Terminar descanso.',
+  'Read-only build — nothing was posted': 'Versión de solo lectura — no se registró nada',
+  '{name} was not changed — {why}': 'No se cambió a {name} — {why}', 'not where you were': 'no estaba donde tú',
+  'not on the clock': 'no está en el reloj', 'JobTread did not say where they are': 'JobTread no dijo dónde está',
+  'Video needs the live camera': 'El video necesita la cámara en vivo', 'This phone can’t record video in the browser': 'Este teléfono no puede grabar video en el navegador',
+  'Could not start recording': 'No se pudo empezar a grabar', '{n} photos added': '{n} fotos agregadas',
+  'Add to Home Screen to get photo reminders': 'Agrega la app a la pantalla de inicio para recibir avisos de fotos',
+  'Checking for a new version…': 'Buscando una versión nueva…', 'Installing the new version…': 'Instalando la versión nueva…',
+  'Connected': 'Conectado', 'The API is slow — trying again in {s}s': 'El API está lento — reintentando en {s}s',
+  'That checklist is not on your list any more': 'Esa lista ya no está entre las tuyas', 'Asking for permission…': 'Pidiendo permiso…'
+});
+/* My jobs, the warehouse panel, the nudges and the checks screen. */
+esAdd({
+  '{n} days': '{n} días', 'Yesterday': 'Ayer', 'ended': 'terminó', 'You’re here · day {n} of {m}': 'Estás aquí · día {n} de {m}', 'You’re here': 'Estás aquí',
+  'Tomorrow': 'Mañana', 'Today': 'Hoy', 'Recent': 'Reciente',
+  'Could not reach the board just now — this is the schedule as of {t}.': 'No se pudo conectar al tablero ahorita — este es el horario de las {t}.',
+  'No crew is linked to your account yet — ask the office. Showing jobs you have recently clocked into.': 'Todavía no hay cuadrilla ligada a tu cuenta — pregunta a la oficina. Mostrando trabajos donde marcaste entrada hace poco.',
+  'The production board is not connected yet. Showing jobs you have recently clocked into.': 'El tablero de producción todavía no está conectado. Mostrando trabajos donde marcaste entrada hace poco.',
+  'Still waiting on the board after {s} seconds. Showing jobs you have recently clocked into — this list will replace itself if the answer arrives.': 'Esperando al tablero después de {s} segundos. Mostrando trabajos donde marcaste entrada hace poco — la lista se cambia sola si llega la respuesta.',
+  'Could not reach the production board. Showing jobs you have recently clocked into.': 'No se pudo conectar al tablero de producción. Mostrando trabajos donde marcaste entrada hace poco.',
+  'Material on site': 'Material en la obra', 'Loaded for the crew': 'Cargado para la cuadrilla', 'Material ordered': 'Material pedido',
+  'Material due today — not confirmed': 'El material llega hoy — sin confirmar', 'Ordered — drop booked, not on site yet': 'Pedido — entrega agendada, todavía no está en la obra',
+  'Ordered — coming to the shop first': 'Pedido — llega primero al taller', 'Due at the shop today — not confirmed': 'Llega al taller hoy — sin confirmar',
+  'Ordered — no drop date yet': 'Pedido — sin fecha de entrega todavía', 'Pulled — not staged yet': 'Sacado — todavía sin apartar',
+  'At the shop — not pulled yet': 'En el taller — todavía sin sacar', 'At the shop — not staged yet': 'En el taller — todavía sin apartar', 'Pull from shop': 'Sacar del taller',
+  'PART ORDER — check first': 'PEDIDO INCOMPLETO — revisa primero', 'NOTHING ORDERED — check first': 'NADA PEDIDO — revisa primero',
+  'Directions': 'Cómo llegar', 'Log sent · {t}': 'Registro enviado · {t}', 'Log not sent': 'Registro sin enviar', 'Tap to do it': 'Toca para hacerlo',
+  'Go here instead': 'Ir aquí mejor', 'Moves the clock': 'Mueve el reloj', 'with {who}': 'con {who}', 'From the office': 'De la oficina', 'Site checks': 'Revisiones de obra',
+  'My jobs': 'Mis trabajos', 'Board': 'Tablero', 'Checking the board…': 'Consultando el tablero…', 'Next up': 'Lo que sigue',
+  'Nothing booked for {who} in the next two weeks. If that is wrong, the office has not put it on the board yet.': 'Nada agendado para {who} en las próximas dos semanas. Si eso está mal, la oficina todavía no lo pone en el tablero.',
+  'No assigned jobs yet.': 'Todavía no hay trabajos asignados.', 'Ended': 'Terminados',
+  'From the production board at {t}. If a job is missing, the office hasn’t put it on the board yet.': 'Del tablero de producción a las {t}. Si falta un trabajo, la oficina todavía no lo pone en el tablero.',
+  'Loaded from': 'Cargado de', 'On the truck': 'En la troca', 'Staged at': 'Apartado en', 'Staged': 'Apartado', 'Off the shelf': 'Fuera del estante',
+  'Not staged yet': 'Todavía sin apartar', 'Coming to the shop first': 'Llega primero al taller', 'Not at the shop yet': 'Todavía no está en el taller',
+  'Not pulled yet': 'Todavía sin sacar', 'Still on the shelf': 'Sigue en el estante', 'Loaded': 'Cargado', 'Pulled': 'Sacado', 'Not delivered': 'Sin entregar', 'To pull': 'Por sacar',
+  'From the DB warehouse': 'De la bodega de DB', 'Undo the load \u2014 are you sure?': 'Deshacer la carga — ¿seguro?',
+  'The board will read not loaded for the crew again, and the office gets a note saying so.': 'El tablero va a decir otra vez que no está cargado, y la oficina recibe una nota.',
+  'No, keep it': 'No, dejarlo', 'Still loaded': 'Sigue cargado', 'Yes, undo it': 'Sí, deshacerlo', 'Not loaded after all': 'Al final no se cargó',
+  'Mark loaded for the crew': 'Marcar cargado para la cuadrilla', 'Tap to undo': 'Toca para deshacer', 'Tap when it\u2019s on the truck': 'Toca cuando esté en la troca',
+  'No checklist on this job yet': 'Todavía no hay lista en este trabajo',
+  'Yesterday’s roof at {who} isn’t signed off': 'El techo de ayer en {who} no está firmado', 'The roof at {who} from {when} isn’t signed off': 'El techo en {who} del {when} no está firmado',
+  'You’ve handed over — send today’s log for {who} before you go?': 'Ya entregaste — ¿mandas el registro de hoy de {who} antes de irte?',
+  'Signed off — send today’s log for {who}?': 'Firmado — ¿mandas el registro de hoy de {who}?', 'Send today’s log for {who}?': '¿Mandas el registro de hoy de {who}?',
+  'Yesterday’s log for {who} wasn’t sent': 'El registro de ayer de {who} no se mandó', 'Day log': 'Registro',
+  'Since {d} at {p} — when did you leave?': 'Desde el {d} en {p} — ¿cuándo saliste?', '+{n} more': '+{n} más',
+  'On the last day': 'El último día', 'On the last day — {d}': 'El último día — {d}',
+  'Saved': 'Guardado', 'Not saved — will retry': 'Sin guardar — se reintenta', 'The site manager ticks these.': 'El encargado de obra marca estas.',
+  'The board hasn’t sent the checklist yet. Refresh My jobs, or ask the office to update the app’s API.': 'El tablero todavía no manda la lista. Actualiza Mis trabajos, o pide a la oficina que actualice el API de la app.',
+  '{n} of {m}': '{n} de {m}', 'Note on this line': 'Nota en esta línea', 'Your note on this line': 'Tu nota en esta línea', 'Note': 'Nota', 'who ran it?': '¿quién lo pasó?',
+  'Signing off…': 'Firmando…', 'Saving to the job now.': 'Guardando en el trabajo ahorita.', 'Not saved yet — it will send when the board can be reached.': 'Todavía sin guardar — se manda cuando se pueda conectar al tablero.',
+  'Taking the signature off…': 'Quitando la firma…', 'Your name and today’s date go on the job. Ticks stay editable afterwards.': 'Tu nombre y la fecha de hoy van en el trabajo. Las marcas se pueden cambiar después.'
+});
+/* Words that arrive as values: the camera, a check that did not save,
+   where a drive can go. */
+esAdd({
+  'This browser cannot open the camera. Tap to use the phone camera instead.': 'Este navegador no puede abrir la cámara. Toca para usar la cámara del teléfono.',
+  'Camera access is off. Turn it on in Settings, or tap to use the phone camera.': 'El acceso a la cámara está apagado. Actívalo en Ajustes, o toca para usar la cámara del teléfono.',
+  'Not saved — the board rejected the app’s key. Ask the office.': 'Sin guardar — el tablero rechazó la llave de la app. Pregunta a la oficina.',
+  'Not saved — the board isn’t connected to this app yet.': 'Sin guardar — el tablero todavía no está conectado a esta app.',
+  'Not saved — no JobTread user is linked to you.': 'Sin guardar — no hay usuario de JobTread ligado a ti.'
+});
+/* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
   var d = new Date(date + 'T12:00:00');
@@ -5032,6 +5503,9 @@ function renderLang(){
     if (l && t) l.textContent = t;
   });
   [].forEach.call(document.querySelectorAll('[data-lang]'), function(b){ b.classList.toggle('on', b.getAttribute('data-lang') === S.lang); });
+  // Words no render function writes: they carry their English in data-l.
+  [].forEach.call(document.querySelectorAll('[data-l]'), function(el){ el.textContent = L(el.getAttribute('data-l')); });
+  document.documentElement.lang = S.lang === 'es' ? 'es' : 'en';
 }
 /* ---- JobTread's own daily-log fields, as the questions ----
    The office keeps the fields on the daily log in JobTread — Material
@@ -5284,7 +5758,8 @@ function dlPayload(e){
     photosPending: e.photosPending || 0,
     photosFailed: e.photosFailed || 0,
     hours: e.date === isoLocal() ? hoursFor(e.jobId) : [],
-    checks: checksFor(e.jobId)
+    checks: checksFor(e.jobId),
+    roll: rollForLog(e.jobId, e.date)
   };
 }
 function dlQueueSend(jobId, date){
@@ -6026,7 +6501,7 @@ function bootStart(lastJob, attempt){
     failed('boot', e);
     if (attempt < BOOT_RETRY_MS.length && !(e && e.answered)){
       var ms = BOOT_RETRY_MS[attempt];
-      toast('The API is slow — trying again in ' + Math.round(ms / 1000) + 's', true);
+      toast(Lf('The API is slow — trying again in {s}s', { s: Math.round(ms / 1000) }), true);
       setTimeout(function(){ if (!S.me) bootStart(lastJob, attempt + 1); }, ms);
     }
   });
@@ -6087,7 +6562,7 @@ function viewBarHtml(){
 /* The same header as the Clock's, on the screens that have one of their own. */
 function hdrHtml(){
   return '<div class="hdrL"><img src="app-icon-192.png" alt="DB Crew"><div style="min-width:0"><div class="hdrT">DB Crew</div>' +
-         '<div class="hdrW">' + esc(meNow() ? (meNow().name + ' · ' + roleWords()) : '') + '</div></div></div>' +
+         '<div class="hdrW">' + esc(meNow() ? (meNow().name + ' · ' + L(roleWords())) : '') + '</div></div></div>' +
          '<button class="sunbtn" aria-label="Toggle sun mode"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.6v2.4M12 20v2.4M1.6 12H4M20 12h2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7"/></svg></button>';
 }
 function renderRoleChrome(){
@@ -7695,7 +8170,13 @@ function renderPeople(){
 /* ---- wiring ---- */
 $('sunBtn').onclick = function(){ S.sun = !S.sun; savePrefs(); render(); };
 [].forEach.call(document.querySelectorAll('[data-lang]'), function(b){
-  b.onclick = function(){ S.lang = b.getAttribute('data-lang') === 'es' ? 'es' : 'en'; S.langSet = true; savePrefs(); coOnLang(); render(); };
+  b.onclick = function(){
+    var was = S.lang;
+    S.lang = b.getAttribute('data-lang') === 'es' ? 'es' : 'en'; S.langSet = true; savePrefs(); coOnLang(); render();
+    // The clock's pushes follow the switch (T2.24): the language rides on the
+    // device's registration, so a changed one registers again.
+    if (was !== S.lang && pushState === 'on') enablePush();
+  };
 });
 $('coBack').onclick = coBack;
 $('coStamp').onclick = function(){ coLoadQueue(true); };
@@ -7750,6 +8231,7 @@ $('breakBtn').onclick = function(){ openSheet('break'); };
 $('codeBtn').onclick = function(){ openSheet('codes'); };
 $('leaveBtn').onclick = function(){ if (atShop()){ leaveGo('from-shop'); return; } openSheet('leave'); };
 $('outBtn').onclick = function(){ leaveGo('out'); };
+$('earlierBtn').onclick = function(){ if (!earlierBlock()) { render(); return; } S.earlierPick = 0; openSheet('earlier'); };
 $('backBtn').onclick = doEndBreak;
 $('breakOutBtn').onclick = doBreakOut;
 $('camBack').onclick = camBack;
@@ -7919,6 +8401,7 @@ if ('serviceWorker' in navigator){
     var m = ev.data || {};
     if (m.kind === 'open-before-photo'){ S.capture = 'before'; S.returnToClock = true; setTab('cam'); }
     else if (m.kind === 'open-tab' && /^(jobs|log|job|co|people)$/.test(m.tab)) setTab(m.tab);
+    else if (m.kind === 'open-left') openLeftFromPush();
   });
 }
 

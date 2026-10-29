@@ -176,6 +176,15 @@ as material standing on the job. It renders the board's text as it arrives now
 (the tick is still stripped: the self-hosted face draws U+2713 as a radical
 sign). Do not put a rewrite back.
 
+**In Spanish (T2.24) each line has one Spanish line of its own** — `matEs()` in
+`index.html`, keyed by the board's exact text (*Ordered — no drop date yet* →
+*Pedido — sin fecha de entrega todavía*, *Staged at Bay 3 — not loaded* →
+*Apartado en Bay 3 — sin cargar*). It is a translation, one for one, never two
+states folded into one sentence, and a line the phone has no Spanish for is
+shown in English exactly as the board sent it. So a new or reworded line here
+reads in English on a phone set to Spanish until the app learns it — add its
+Spanish to the `ES` table there in the same change.
+
 `days` is *m*. Day *n* of *m* is computed in this app from `start` vs today —
 the board must **not** expand one row per calendar day. A three-day install is
 one visit.

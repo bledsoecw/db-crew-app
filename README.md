@@ -736,6 +736,90 @@ skipped), `dev/daylog-test.mjs` (the log before a move, then the move) and
 take new options and an older script still asks for every photo), then
 `firebase deploy --only hosting`.
 
+**A roof that takes more than a day, every morning's roll-out, Spanish
+everywhere, and a forgotten clock-in or clock-out** (T2.24, Carl 29 Oct 2026,
+phase 2 of his review — *"tarps checked every morning of a multi-day roof, and
+any materials that need to be brought"*, *"the Ops Director is told"*, and the
+Spanish that stopped at Close Out):
+
+- **The last day's group waits for the last day.** One checklist per job, and
+  its ticks carry from day to day, so day 1 of a three-day roof drew *Before
+  the crew leaves for good* — the group the sign-off lives in — as if it were
+  due that afternoon. Before the stay's last day that group is drawn dashed,
+  folded, and says when it comes: *On the last day — Fri Oct 31*. It is never
+  shut: a tap still opens it, because a roof can finish early. Finishing the
+  group before it does not open it. The stay is this person's own visits on
+  the job (the earliest start to the latest end); on the last day the group is
+  the board's own again.
+- **Every morning of a multi-day roof asks at the shop.** The yard lines are
+  ticks on the job's checklist, so on day 2 they already read done and Before
+  you roll out let the truck go. From day 2 the morning asks two lines of its
+  own — the board's tarps line, and **Material for today loaded — anything the
+  crew needs brought** with a box for what is going (*Two rolls of ice &
+  water, drip edge*, up to 140 characters). They are kept on the phone per
+  roof per day, never written onto the board's list (the board's ticks stay
+  day 1's), and the moment the truck leaves one comment goes on the
+  checklist's own task: *🚚 Shop checks before rolling out, day 2 (Thursday,
+  Oct 30): Tarps checked and loaded · Material for today loaded — bringing:
+  Two rolls of ice & water, drip edge. Tyler B., 6:40a — sent from DB Crew.*
+  (`rollChecked`). That day's log carries the same line under SITE CHECKS
+  (*Before rolling out (day 2): …*). Day 1's warehouse *Material loaded* is not asked
+  again. Going straight to the roof on day 2 without them is T2.20's forgot
+  path: in all the same, and the PM and the Ops Director are told which lines
+  were not done. Day *n* is the board's count: day 1 is the first day, and
+  every weekday after it is one more.
+- **Started earlier? Say when.** The mirror of Already left: clocked in late,
+  the work began before it. For the first hour after a clock-in from off the
+  clock, the band carries **Started earlier? Say when**. The sheet offers 15,
+  30 and 45 minutes, 1, 1.5 and 2 hours before the clock-in's own minute, or
+  a time typed in: today only, at most four hours back, never over another
+  block. The block's start moves back (`startedEarlier`, `updateTimeEntry
+  { startedAt }`), its notes say *Started earlier — said they started at
+  6:45a, clocked in from DB Crew at 7:02a*, and one comment goes on the job to
+  its PM and the Ops Director, as Already left does: *⏱ Tyler B. clocked in at
+  7:02a on 04MA Masonry Labor and says they started at 6:45a — the block
+  starts at 6:45a now. Sent from DB Crew.* A code change, a drive, a break, a block opened over an
+  hour ago, or one already moved is not offered it. Yahir's box carries
+  Alberto's block with his (`PARTNER_FNS`).
+- **Still on the clock at 7pm: a push that opens Already left.** A forgotten
+  clock-out was only caught the next morning (one entry on 28 Oct ran 13 h 15
+  m). From `EVENING_NUDGE_HOUR` (7pm unless the Script Property says another
+  hour, 12–23) the five-minute sweep sends one push per block that began
+  today and is still running: *Since 7:02a at Webster Foundation on 04MA
+  Masonry Labor — left already? Tap to say when, and the clock stops then* (a
+  drive reads *Driving since…*). The tap opens the app on **When did you
+  leave?**, which clocks out at the time picked; already off the clock it is
+  just the Clock tab. Once per block; a break's waiting block is not one.
+- **Spanish across the app.** EN / ES sits on the Clock and My jobs headers as
+  well as the Day log and Close Out, one switch for all of it, remembered on
+  the phone; the service crew still open in Spanish until they choose. The
+  Clock tab, every sheet (codes, jobs, Leave the site, Still on the clock,
+  breaks, Where are you going?, When did you leave?, When did you start?,
+  Before you roll out, sign off), the toasts and the wait curtain, My jobs and
+  the checklist screen's own words are looked up by their English (`L('Clock
+  out')`, `Lf('Driving to {p}', …)` in `index.html`); a word with no Spanish
+  stays English rather than going blank. The board's material line is
+  translated one line for one (*Ordered — no drop date yet* → *Pedido — sin
+  fecha de entrega todavía*), never two states merged into one sentence; a
+  line the phone has no Spanish for is shown as the board sent it. What goes
+  to JobTread — notes, comments, logs — stays English, and the board's
+  checklist lines and the office's notes arrive in their own words. The
+  phone's language rides on its push registration, so the evening push and
+  the missing-start-photo push come in Spanish to a phone set to Spanish;
+  flipping the switch registers again.
+
+`apps-script/code-test.mjs` (the day count, the roll-out comment and the log
+line, Started earlier and its limits, the evening push in both languages),
+`dev/checks-test.mjs` (the fold before, on and after the last day),
+`dev/clock-test.mjs` (day 2's roll-out and its forgot path, Started earlier
+end to end, the evening link) and the new `dev/spanish-test.mjs` (the switch
+on both headers, the Clock tab, the sheets and My jobs in Spanish and back,
+the service crew's default, and every English literal handed to `L` or `Lf`
+having its Spanish — a new sentence without one fails there by name) walk it.
+**Needs:** the Apps Script first (`rollChecked` and `startedEarlier` are new
+doors, `registerPushToken` takes the language), then `firebase deploy --only
+hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

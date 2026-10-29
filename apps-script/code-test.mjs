@@ -65,6 +65,14 @@ t('addDays_ backward', sandbox.addDays_('2026-09-14', -30), '2026-08-15');
 t('addDays_ across month', sandbox.addDays_('2026-08-31', 1), '2026-09-01');
 t('addDays_ across DST (US fall back Nov 1 2026)', sandbox.addDays_('2026-10-31', 2), '2026-11-02');
 
+// ---- T2.24: day n of m is counted in working days, the board's way ----
+// 30 Oct 2026 is a Friday: day 1 the Friday, the weekend counts for nothing,
+// so the Monday is day 2 and the Tuesday day 3.
+t('stayDayOf_: a Friday start, its Friday, Monday and Tuesday',
+  ['2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02', '2026-11-03'].map(d => sandbox.stayDayOf_('2026-10-30', d)), [1, 1, 1, 2, 3]);
+t('…a Saturday start is day 1 on its Saturday, day 2 on the Monday', [sandbox.stayDayOf_('2026-10-31', '2026-10-31'), sandbox.stayDayOf_('2026-10-31', '2026-11-02')], [1, 2]);
+t('shapeVisit_: Fri–Tue, three days on site, reads day 2 on the Monday', (({ dayOf, today }) => [dayOf, today])(sandbox.shapeVisit_({ start: '2026-10-30', end: '2026-11-03', days: 3 }, '2026-11-02')), [2, true]);
+
 // ---- not configured -> fallback, no fetch ----
 props = {}; cacheStore = {}; fetched = [];
 sandbox.getJobOptions = () => [{ id:'j1', name:'x', number:'1' }];
@@ -865,6 +873,42 @@ props.PUSH_ENABLED = 'false';
 t('push off -> nothing runs', sandbox.sweepSchedulePushes().skipped, 'PUSH_ENABLED is not true');
 sandbox.__hour = null;
 
+// ---- T2.24: still on the clock in the evening — one push, the tap is Already left ----
+{
+  props.PUSH_ENABLED = 'true'; pushes = [];
+  fetchImpl = route({});
+  const P = sandbox.PropertiesService.getScriptProperties();
+  const blk = (id, startedAt, extra) => ({ id, startedAt, minutes: 0, notes: '', user: { id: 'u1', name: 'Tyler B.' },
+    job: { id: 'j1', name: '260890 Webster_Foundation', number: '26-0890' }, costItem: { id: 'ci1', name: 'Masonry Labor', costCode: { number: '04MA' } }, ...extra });
+  const open = [blk('te_on', new Date(Date.now() - 60e3).toISOString()),
+    blk('te_brk', new Date(Date.now() + 20 * 60e3).toISOString()),
+    blk('te_old', new Date(Date.now() - 30 * 3600e3).toISOString())];
+  sandbox.__hour = 18;
+  let ev = sandbox.sweepEveningLeft_(open, P);
+  t('before seven: nothing', [ev.sent, pushes.length], [0, 0]);
+  sandbox.__hour = 20;
+  ev = sandbox.sweepEveningLeft_(open, P);
+  t('after seven: one push, for the block that began today and is running', [ev.sent, pushes.length, pushes[0] && pushes[0].data.timeEntryId], [1, 1, 'te_on']);
+  t('…in words, and the tap opens Already left', [pushes[0].notification.title, /^Since \d+:\d\d[ap] at Webster Foundation on 04MA Masonry Labor — left already\? Tap to say when, and the clock stops then\.$/.test(pushes[0].notification.body),
+    pushes[0].data.kind, pushes[0].data.tag, pushes[0].webpush.fcmOptions.link], ['Still on the clock', true, 'left-open', 'dbtc-left', 'https://db-time-clock.web.app/?left=1']);
+  ev = sandbox.sweepEveningLeft_(open, P);
+  t('…and only once for that block', [ev.sent, pushes.length], [0, 1]);
+  ev = sandbox.sweepEveningLeft_([blk('te_drv', new Date(Date.now() - 60e3).toISOString(), { notes: 'Drive back · end of the day · from 26-0890 Webster' })], P);
+  t('a drive back left running: the words say driving', [ev.sent, /^Driving since \d+:\d\d[ap] — back already\? Tap to say when/.test(pushes[1].notification.body)], [1, true]);
+  t('the token remembers the phone’s language, English unless it said es', JSON.parse(props['pt_u1']).lang, 'en');
+  sandbox.registerPushToken(ME, 'tok-1', 'ios', 'es');
+  ev = sandbox.sweepEveningLeft_([blk('te_es', new Date(Date.now() - 60e3).toISOString())], P);
+  t('a phone set to Spanish gets the push in Spanish', [ev.sent, pushes[2].notification.title, /^Desde las \d+:\d\d[ap] en Webster Foundation · 04MA Masonry Labor — ¿ya saliste\? Toca para decir a qué hora/.test(pushes[2].notification.body)],
+    [1, 'Sigues en el reloj', true]);
+  sandbox.registerPushToken(ME, 'tok-1', 'ios');
+  props.EVENING_NUDGE_HOUR = '21';
+  t('EVENING_NUDGE_HOUR moves it', sandbox.sweepEveningLeft_([blk('te_x', new Date(Date.now() - 60e3).toISOString())], P).sent, 0);
+  delete props.EVENING_NUDGE_HOUR;
+  sandbox.cleanupNudgeMarkers_(P, { te_on: true });
+  t('closed blocks lose their evening marker; open ones keep it', [!!props.evening_te_on, !!props.evening_te_drv], [true, false]);
+  sandbox.__hour = null; props.PUSH_ENABLED = 'false';
+}
+
 // ---- the story shape (T1.14): one story, JobTread's own fields as answered on the phone ----
 // The phone sends the story and the timestamped lines the PM was told (the
 // log's notes), the org's daily-log fields it asked — by id, as JobTread takes
@@ -1241,6 +1285,24 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   const rf = writes.find(w => w[0] === 'comment')[1];
   t('rolled out without the shop checks: the PM and the Ops Director, with what was missing', [rf.targetId, rf.assignees, /^📋 Tyler B\. started at 26-1490 Courtney without the shop checks done before rolling out: Tarps checked and loaded · Material loaded for the crew\. Clocked in at \d+:\d\d[ap]\.$/.test(rf.message)],
     ['j9', [{ membershipId: 'm_dave' }, { membershipId: 'm_carl' }], true]);
+  // T2.24: day 2 of a multi-day roof — the morning's shop checks are written
+  // once, on the checklist's own task, a record nobody is assigned to.
+  writes.length = 0;
+  const viaTask = fetchImpl;
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.task) return { code: 200, body: JSON.stringify({ task: { id: q.task.$.id, job: { id: q.task.$.id === 't_other' ? 'j_other' : 'j9' } } }) };
+    return viaTask(url, opts); };
+  sandbox.rollChecked(ME, 'j9', 't9roof', '26-1490 Courtney', 2, ['Tarps checked and loaded — four sound 20×40s', 'Material for today loaded — anything the crew needs brought'], '  Two rolls of\nice & water ');
+  const rc = writes.find(w => w[0] === 'comment')[1];
+  t('day 2 shop checks: on the checklist task, nobody assigned, the day, the lines and what is going',
+    [rc.targetType, rc.targetId, 'assignees' in rc, /^🚚 Shop checks before rolling out, day 2 \(\w{3} \w{3} \d+\): Tarps checked and loaded · Material for today loaded — bringing: Two rolls of ice & water\. Tyler B\., \d+:\d\d[ap] — sent from DB Crew\.$/.test(rc.message)],
+    ['task', 't9roof', false, true]);
+  t('…a task on another job is refused, and nothing more is written', [/not on this job/.test(refusedBy(() => sandbox.rollChecked(ME, 'j9', 't_other', 'x', 2, ['Tarps'], ''))), writes.length], [true, 1]);
+  t('…nothing ticked is refused', /Nothing was ticked/.test(refusedBy(() => sandbox.rollChecked(ME, 'j9', 't9roof', 'x', 2, [], ''))), true);
+  fetchImpl = viaTask;
+  t('…and the day\'s log says it under SITE CHECKS', sandbox.dailyLogTail_(ME, { checks: { words: 'Roof open — 2 of 5 checked' },
+    roll: { day: 2, lines: ['Tarps checked and loaded — four sound', 'Material for today loaded — anything'], bring: 'Drip edge' } }).slice(0, 3),
+    ['SITE CHECKS', 'Roof open — 2 of 5 checked', 'Before rolling out (day 2): Tarps checked and loaded · Material for today loaded — bringing: Drip edge']);
   // T2.23: the shop owes no photo, and the first clock-in of the day there is
   // checked against the shop and the office: away, or no location, the PM of
   // today's job (else the shop's job) and the Ops Director are told.
@@ -1347,6 +1409,46 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   props.PARTNERS_JSON = '{}';
   t('PARTNERS_JSON set to {} partners nobody', sandbox.partnersMap_(), {});
   delete props.PARTNERS_JSON;
+  fetchImpl = () => ({ code: 200, body: '{}' });
+}
+
+// ---- T2.24: started earlier than the clock-in ----
+// The block just opened moves back to the time given, its notes say so, the
+// job's PM and the Ops Director are told — and only within its bounds.
+{
+  props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+  const began = new Date(Date.now() - 10 * 60e3).toISOString();
+  let openNow = { id: 'te7', startedAt: began, minutes: 10, notes: '', job: { id: 'j9', name: '261490 Courtney_Roof', number: '26-1490', location: {} }, costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1', name: 'Roofing' } } };
+  let day = [];
+  const writes = [];
+  const MEM2 = { 'Dave Elick': 'm_dave', 'Carl Bledsoe': 'm_carl' };
+  fetchImpl = route({ people: PEOPLE,
+    member: (q) => { const id = MEM2[q.organization.memberships.$.where[1]]; return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes: id ? [{ id }] : [] } } }) }; },
+    comment: (q) => { writes.push(['comment', q.createComment.$]); return { code: 200, body: '{"createComment":{"createdComment":{"id":"c9"}}}' }; },
+    entries: (q) => { const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+      return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' ? (openNow ? [openNow] : []) : k === 'day' ? day.concat(openNow ? [openNow] : []) : [] } } }) }; } });
+  const viaRoute = fetchImpl;
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.updateTimeEntry) { writes.push(['update', q.updateTimeEntry.$]); return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    return viaRoute(url, opts); };
+  const ago = (min) => new Date(Date.parse(began) - min * 60e3).toISOString();
+  t('started earlier: not after the clock-in', /not before you clocked in/.test(refusedBy(() => sandbox.startedEarlier(ME, new Date(Date.parse(began) + 60e3).toISOString()))), true);
+  t('…not more than four hours back', /more than 4 hours/.test(refusedBy(() => sandbox.startedEarlier(ME, ago(4 * 60 + 5)))), true);
+  day = [{ id: 'te6', startedAt: ago(120), endedAt: ago(20), minutes: 100, notes: '', job: { id: 'j1', name: 'Webster', number: '26-0890', location: {} }, costItem: { id: 'ci3', name: 'Crew Labor', costCode: { number: '01GR', name: 'Crew Labor' } } }];
+  t('…not over another block of the day', /on the clock until/.test(refusedBy(() => sandbox.startedEarlier(ME, ago(45)))), true);
+  t('…and nothing was written for any of them', writes.length, 0);
+  const r = sandbox.startedEarlier(ME, ago(15));
+  const up = writes.find(w => w[0] === 'update')[1], note = writes.find(w => w[0] === 'comment')[1];
+  t('the block starts when they said, and its notes say so', [up.id, up.startedAt, /^Started earlier — said they started at \d+:\d\d[ap], clocked in from DB Crew at \d+:\d\d[ap]\.$/.test(up.notes), r.startedAt],
+    ['te7', ago(15), true, ago(15)]);
+  t('…and the PM and the Ops Director get it on the job', [note.targetType, note.targetId, note.assignees, /^⏱ Tyler B\. clocked in at \d+:\d\d[ap] on 07TM-1 Roofing and says they started at \d+:\d\d[ap] — the block starts at /.test(note.message)],
+    ['job', 'j9', [{ membershipId: 'm_dave' }, { membershipId: 'm_carl' }], true]);
+  writes.length = 0;
+  openNow = { ...openNow, startedAt: new Date(Date.now() - 75 * 60e3).toISOString() };
+  t('…a block that began over an hour ago is the office\'s', /over an hour ago/.test(refusedBy(() => sandbox.startedEarlier(ME, new Date(Date.now() - 100 * 60e3).toISOString()))), true);
+  openNow = { ...openNow, startedAt: began, notes: 'Drive to 26-1490 Courtney · from the shop', costItem: { id: 'tr9', name: 'Travel Related Labor', costCode: { number: '01GR-9', name: 'Travel' } } };
+  t('…a drive is Already left\'s', /A drive starts when you leave/.test(refusedBy(() => sandbox.startedEarlier(ME, ago(10)))), true);
+  t('…and the phone may ask for the partner too', sandbox.PARTNER_FNS.startedEarlier, 1);
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
 

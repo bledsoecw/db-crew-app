@@ -105,3 +105,30 @@ regeneration, Linux only.
 - The board renamed its checklist the same day (`bledsoecw/DB_Production_Board`,
   branch `claude/zealous-hopper-j7xy98`, not merged to `main` by the session —
   `main` is production there). `shopText` on the phone covers the gap.
+
+## Phase 2 (T2.24, 29 Oct 2026) — what the README does not say
+
+- **Spanish is a lookup by the English, not a second copy of the screens.**
+  `L('Clock out')` and `Lf('Driving to {p}', { p })` in `index.html`; the
+  Spanish lives in the `esAdd({...})` blocks beside `L10N`. English output is
+  byte-identical to before (Lf in English only fills the `{}`), which is why no
+  English test changed. Static words carry `data-l` and `renderLang()` fills
+  them; never put `data-l` on an element a render function also writes, or the
+  two fight. `pw(j)` is placeWord for the middle of a Spanish sentence ("el
+  taller"), and Lf contracts *a el* / *de el*. `dev/spanish-test.mjs` reads the
+  whole file for every literal handed to `L`/`Lf` and fails on one with no
+  Spanish — add the Spanish in the same change as the sentence.
+- **The service crew open in Spanish, so their English expectations moved.**
+  `closeout-test` (the header role, the partner toast) and `signin-test` (the
+  reopened header) now expect *Servicio* and the Spanish toast; that is the
+  rule (`appRole === 'service'` and no choice made → `es`), not a regression.
+- **The training video is now further out of date**: on top of T2.23, Yahir's
+  phone (service) now opens on a Spanish Clock tab and Spanish sheets, so the
+  recorder has to set the language for each cut (English narration, English or
+  Spanish subtitles) rather than inherit the default, and the subtitles name
+  buttons by the words on screen. Re-recorded in phase 3.
+- **Not translated on purpose**: what goes to JobTread (notes, comments, logs),
+  the board's checklist lines and phase names, the office's crew notes, server
+  error messages, Diagnostics, the sign-in gate and People. The schedule pushes
+  ("Tomorrow", "Schedule changed") are still English; the evening push and the
+  missing-start-photo push follow the language the phone registered with.

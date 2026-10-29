@@ -501,10 +501,17 @@
       if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to start work at this job.');
       return HANDLERS.__open(jobId, costItemId, opts && opts.notes);
     },
-    // Rolled out without the yard done (T2.20): the PM and Carl are told.
+    // Rolled out without the shop checks done (T2.20): the PM and the Ops
+    // Director are told.
     rollForgot: function (jobId, jobLabel, missing) {
       (window.__ROLL = window.__ROLL || []).push({ jobId: jobId, jobLabel: jobLabel, missing: missing });
       return { ok: true, assigned: ['Dave Elick', 'Carl Bledsoe'] };
+    },
+    // The morning's shop checks on a multi-day roof (T2.24), written on the
+    // checklist's own task.
+    rollChecked: function (jobId, taskId, jobLabel, day, lines, bring) {
+      (window.__ROLLDAY = window.__ROLLDAY || []).push({ jobId: jobId, taskId: taskId, jobLabel: jobLabel, day: day, lines: lines, bring: bring });
+      return { ok: true, id: 'c' + window.__ROLLDAY.length };
     },
     // Left the site without clocking out (T2.19): the block ends at the time
     // given, no photo; then out, the drive from then, or the work from now
@@ -533,6 +540,19 @@
         ST.open = add(plan.jobId, plan.costItemId, now, null);
       }
       return { ok: true, open: ST.open, entries: ST.entries };
+    },
+    // Started earlier (T2.24): the block just opened moves back, its notes
+    // say so; the API's bounds, as the API words them.
+    startedEarlier: function (startedAt) {
+      (window.__CLOCK = window.__CLOCK || []).push(['startedEarlier', startedAt]);
+      if (!ST.open || Date.parse(ST.open.startedAt) > Date.now()) throw new Error('You are not on the clock.');
+      var at = Date.parse(startedAt), began = Date.parse(ST.open.startedAt);
+      if (!(at < began)) throw new Error('That is not before you clocked in.');
+      if (began - at > 4 * 3600e3) throw new Error('That is more than 4 hours before you clocked in — ask the office to fix the day.');
+      ST.open.startedAt = new Date(at).toISOString();
+      ST.open.notes = ((ST.open.notes || '') + ' Started earlier — said they started earlier.').trim();
+      (window.__NOTES = window.__NOTES || []).push({ kind: 'earlier', jobId: ST.open.job && ST.open.job.id, at: startedAt });
+      return { ok: true, id: ST.open.id, startedAt: ST.open.startedAt, notice: { ok: true } };
     },
     // The drive (T2.18): from work it carries the end photo of what is left;
     // from a drive nothing. Opens on the line named, saying where to.

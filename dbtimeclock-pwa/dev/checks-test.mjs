@@ -35,6 +35,7 @@ async function boot(flags = {}) {
   });
   await page.addInitScript(`window.__MOCK_FOREMAN=false;window.__MOCK_READONLY=false;
     window.__MOCK_NOTMANAGER=${!!flags.notManager};window.__MOCK_PUTFAIL=${!!flags.putFail};window.__MOCK_SLOWPUT=${flags.slowPut || 0};`);
+  if (flags.init) await page.addInitScript(flags.init);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1300);
@@ -233,6 +234,44 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   check('a tap during a save rides the next one', [p.length, p[0].checks.done.homeowner, p[1].checks.done.address, p[1].checks.done.homeowner], [2, false, true, true]);
   check('both still ticked on screen', await page.locator('.ckrow.on').count(), 2);
   check('and settled', await txt(page, '#ckSave'), 'Saved');
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- T2.24: a roof that takes more than a day ----
+// One checklist per job, its ticks carried from day to day: before the stay's
+// last day the group the sign-off lives in is folded and says when it comes.
+const stay = (from, to) => `window.__MOCK_FIX={visits:function(h){return [{ taskId:'t2', jobId:'j2', jobNum:'26-1045', jobName:'261045 Lucas_Roof',
+  start:h.isoAdd(${from}), end:h.isoAdd(${to}), days:3, dayOf:2, today:true, crewNote:'', cust:'Lucas', city:'Van Wert',
+  address:'812 S Washington St, Van Wert, OH 45891, USA', status:'Production', jtype:'Roofing', material:{ text:'Pull from shop', cls:'warn' },
+  warehouse:null, checks:h.checksFor('t2roof'), alongside:'Platinum', pm:'Dave Elick', reps:[] }];}};`;
+const dayWords = (d) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()] + ' ' + d.getDate();
+{
+  const { ctx, page, errs } = await boot({ init: stay(-1, 1) });
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await tap(page, '[data-checks="t2roof"]', 500);
+  const tmw = new Date(); tmw.setDate(tmw.getDate() + 1);
+  check('day 2 of 3: the last day\'s group is folded and says when it comes',
+    [await cls(page, '.ckphase[data-phase="finished"]'), await txt(page, '.ckphase[data-phase="finished"] .w')],
+    ['ckphase later', 'On the last day — ' + dayWords(tmw)]);
+  check('…the others are as they were', [await cls(page, '.ckphase[data-phase="before"]'), await txt(page, '.ckphase[data-phase="handover"] .w')],
+    ['ckphase open', 'Only if you leave before the crew does']);
+  // Finishing the handover group would open the next group with work in it —
+  // not the last day's, before the last day.
+  await tap(page, '.ckphase[data-phase="handover"] .ckph', 200);
+  for (const k of ['tearoff', 'shingles', 'tarped', 'special', 'matcheck', 'photos1', 'pm']) await tap(page, `.ckrow[data-line="${k}"]`, 60);
+  check('…finishing the group before it does not open it', /open/.test(await cls(page, '.ckphase[data-phase="finished"]')), false);
+  await tap(page, '.ckphase[data-phase="finished"] .ckph', 200);
+  check('…a tap still opens it: a roof can finish early', [/open/.test(await cls(page, '.ckphase[data-phase="finished"]')), await page.locator('#ckSignBtn').count()], [true, 1]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  const { ctx, page, errs } = await boot({ init: stay(-2, 0) });
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await tap(page, '[data-checks="t2roof"]', 500);
+  check('the last day: the group is the board\'s own again', [await cls(page, '.ckphase[data-phase="finished"]'), await txt(page, '.ckphase[data-phase="finished"] .w')],
+    ['ckphase', 'The last day']);
   check('no page errors', errs, []);
   await ctx.close();
 }

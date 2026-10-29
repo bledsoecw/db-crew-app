@@ -95,7 +95,7 @@ const allErrs = [];
     check(`${role}: the tabs`, await visibleTabs(page), want);
     if (role === 'service') {
       check('service: Spanish first on this phone', await page.evaluate(() => S.lang), 'es');
-      check('service: the header names the role', await txt(page, '#hdrW'), 'Alberto Gonzalez · Service');
+      check('service: the header names the role — in Spanish, the service crew\'s first language (T2.24)', await txt(page, '#hdrW'), 'Alberto Gonzalez · Servicio');
       // A crew member's card never sends them to a Day log they do not have.
       check('service: no day-log tab, no log nudge', await page.evaluate(() => nudgeItems().filter((i) => /^log/.test(i.kind)).length), 0);
     }
@@ -547,7 +547,7 @@ const allErrs = [];
     await page.evaluate(() => { S.partnerOn = true; savePrefs(); coRender(); });
     await tap(page, '[data-costart="co-hartman"]', 900); await tap(page, '[data-code="ci2"]', 500); await shoot(page); await settle(page);
     await page.waitForTimeout(1900);
-    check('Alberto elsewhere: Yahir is in, and the phone says Alberto was not moved', [await page.evaluate(() => !!S.open), await txt(page, '#toast')], [true, 'Alberto Gonzalez was not changed — on the clock at 26-0890 · 04MA']);
+    check('Alberto elsewhere: Yahir is in, and the phone says Alberto was not moved', [await page.evaluate(() => !!S.open), await txt(page, '#toast')], [true, 'No se cambió a Alberto Gonzalez — en el reloj en 26-0890 · 04MA']);
     allErrs.push(...errs); await ctx.close(); }
 }
 

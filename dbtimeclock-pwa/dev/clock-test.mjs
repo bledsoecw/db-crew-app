@@ -531,6 +531,68 @@ for (const [away, words] of [['far', 'Not at the shop or the office · your PM a
   await ctx.close();
 }
 
+// ---- T2.24: started earlier — a forgotten clock-in, fixed as you clock in ----
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_FIX={entries:function(){return [];}};');
+  check('off the clock: nothing to move', await page.locator('#earlierBtn').isVisible(), false);
+  await tap(page, '#clockIn', 300);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 600);
+  await shoot(page); await settle(page);
+  check('just clocked in from off the clock: the band offers it', [await page.locator('#earlierBtn').isVisible(), await txt(page, '#earlierBtn')], [true, 'Started earlier? Say when']);
+  await tap(page, '#earlierBtn', 400);
+  const began = await page.evaluate(() => Date.parse(S.open.startedAt));
+  const t15 = began - (began % 60e3) - 15 * 60e3;
+  check('…counted back from the minute the sheet names: whole minutes and hours', await page.locator('#sheetBody [data-earlier] .bs').allTextContents(), ['15 min earlier', '30 min earlier', '45 min earlier', '1 hour earlier', '1.5 hours earlier', '2 hours earlier']);
+  check('…When did you start? — times before the clock-in, nothing after', [await page.evaluate(() => S.sheet), await txt(page, '#sheetTitle'), await page.evaluate(() => Number(document.querySelector('#sheetBody [data-earlier]').getAttribute('data-earlier'))), await page.locator('#earlierGo').isDisabled()],
+    ['earlier', 'When did you start?', t15, true]);
+  const after = await page.evaluate(() => { const d = new Date(Date.now() + 10 * 60e3); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); });
+  await page.fill('#earlierTime', after);
+  check('…a time after the clock-in is refused on the button', [await page.locator('#earlierGo').isDisabled(), await txt(page, '#earlierGo')], [true, 'That’s after you clocked in']);
+  await tap(page, '#sheetBody [data-earlier]', 200);
+  await tap(page, '#earlierGo', 900);
+  const c = (await calls(page)).slice(-1)[0];
+  check('…one call, the block starts then, the PM and the Ops Director told', [c[0], Date.parse(c[1]) === t15, await page.evaluate(() => Date.parse(S.open.startedAt)) === t15, await txt(page, '#toast span'), await page.evaluate(() => (window.__NOTES || []).filter((n) => n.kind === 'earlier').length)],
+    ['startedEarlier', true, true, 'Your block starts at ' + await page.evaluate((t) => clockLabel(new Date(t)), t15) + ' now · your PM and the Ops Director are told', 1]);
+  check('…and once is enough: the link goes', await page.locator('#earlierBtn').isVisible(), false);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // A code change is not a clock-in: nothing offered on the block after it.
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_FIX={entries:function(){return [];}};');
+  await tap(page, '#shopBtn', 400); await settle(page);
+  check('the morning clock-in at the shop offers it too', await page.locator('#earlierBtn').isVisible(), true);
+  await tap(page, '#codeBtn', 400); await tap(page, '.coderow:has-text("Training")', 600); await settle(page);
+  check('…a code change after it does not', [(await st(page)).code, await page.locator('#earlierBtn').isVisible()], ['99TM-2', false]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- T2.24: the evening push — Still on the clock — opens When did you leave? ----
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  await page.goto(APP_URL + '?left=1', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  check('the push\'s link: When did you leave?, clocking out, and the address bar clean', [await page.evaluate(() => [S.tab, S.sheet, S.leftGate, location.search]), await txt(page, '#sheetTitle')],
+    [['job', 'left', 'end-out', ''], 'When did you leave?']);
+  await tap(page, '#sheetBody [data-leftat]:nth-child(2)', 200);
+  await tap(page, '#leftGo', 900);
+  const c = (await calls(page)).slice(-1)[0];
+  check('…out at the time picked, no photo', [c[0], c[2], await page.evaluate(() => !!S.open)], ['leftSite', 'out', false]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // The tap with the app already open: the worker's message, the same sheet.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  await page.evaluate(() => { setTab('jobs'); openLeftFromPush(); });
+  check('…from an open app, the same', await page.evaluate(() => [S.tab, S.sheet, S.leftGate]), ['job', 'left', 'end-out']);
+  await page.evaluate(() => { closeSheet(); S.open = null; openLeftFromPush(); });
+  check('…already off the clock: just the clock screen', await page.evaluate(() => [S.tab, S.sheet]), ['job', null]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 // ---- T2.19: already left the job — say when, no photo ----
 {
   // A move with no drive (T2.23): they are at Lucas now — Already there.
@@ -624,6 +686,51 @@ for (const [away, words] of [['far', 'Not at the shop or the office · your PM a
   check('the yard ticks went to the board in one save', await page.evaluate(() => (window.__PUTS || []).map((p) => [p.taskId, p.checks.done.tarps, p.checks.done.dryin])), [['t2roof', true, true]]);
   await tap(page, '#rollGo', 500);
   check('…then Where are you going? — no photo at the shop', await page.evaluate(() => [S.tab, S.clockGate, S.sheet]), ['job', null, 'dest']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+// ---- T2.24: day 2 of a multi-day roof — the shop checks every morning ----
+// Lucas from yesterday to tomorrow, its yard lines ticked on day 1 and its
+// shop material loaded: the morning still asks the tarps and today's material.
+const DAY2 = `window.__MOCK_FIX={checks:function(b){return { t2roof: b(['tarps','dryin']) };},visits:function(h){return [{ taskId:'t2', jobId:'j2', jobNum:'26-1045', jobName:'261045 Lucas_Roof',
+  start:h.isoAdd(-1), end:h.isoAdd(1), days:3, dayOf:2, today:true, crewNote:'', cust:'Lucas', city:'Van Wert',
+  address:'812 S Washington St, Van Wert, OH 45891, USA', status:'Production', jtype:'Roofing', material:{ text:'Loaded for the crew', cls:'good' },
+  warehouse:{ delivered:false, pulled:true, staged:true, where:'Bay 3', loaded:true, toWarehouse:false, words:'Loaded for the crew' },
+  checks:h.checksFor('t2roof'), alongside:'Platinum', pm:'Dave Elick', reps:[] }];}};`;
+const stayDay = (() => { const s = new Date(); s.setDate(s.getDate() - 1); const e = new Date(); let n = 1; const d = new Date(s); d.setDate(d.getDate() + 1); for (; d <= e; d.setDate(d.getDate() + 1)) if (d.getDay() % 6) n++; return n; })();
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_YARD=true;' + DAY2);
+  await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
+  await tap(page, '#shopBtn', 400); await settle(page);
+  await tap(page, '#leaveBtn', 500);
+  check('day 2: Before you roll out asks again, though day 1 ticked the yard lines', [await page.evaluate(() => S.sheet), await txt(page, '#sheetBody .k'),
+    (await page.locator('#sheetBody .ckrow .lbl').allTextContents()).map((t) => t.split(' — ')[0])],
+    ['roll', '26-1045 Lucas · 812 S Washington St · day ' + stayDay, ['Tarps checked and loaded', 'Material for today loaded']]);
+  check('…and the drive waits for them', await txt(page, '#rollGo'), '2 left to check');
+  await tap(page, '[data-rdline="tarps"]', 200); await tap(page, '[data-rdline="today"]', 200);
+  await page.fill('[data-rbring="j2"]', 'Two rolls of ice & water, drip edge');
+  check('…ticked here, kept for today, nothing sent to the board\'s list', [await txt(page, '#rollGo'), await page.evaluate(() => (window.__PUTS || []).length),
+    await page.evaluate(() => { const d = rollDay('j2'); return [d.tarps, d.today, d.bring]; })], ['All done · start the drive', 0, [true, true, 'Two rolls of ice & water, drip edge']]);
+  await tap(page, '#rollGo', 900);
+  check('…the truck leaves: written once on the checklist\'s task, the day and what is going',
+    await page.evaluate(() => (window.__ROLLDAY || []).map((r) => [r.jobId, r.taskId, r.day, r.lines.map((l) => l.split(' — ')[0]), r.bring])),
+    [['j2', 't2roof', stayDay, ['Tarps checked and loaded', 'Material for today loaded'], 'Two rolls of ice & water, drip edge']]);
+  check('…then Where are you going?', await page.evaluate(() => S.sheet), 'dest');
+  check('…and the day\'s log carries it', await page.evaluate(() => { const r = rollForLog('j2', isoLocal()); return [r.day, r.lines.length, r.bring]; }), [stayDay, 2, 'Two rolls of ice & water, drip edge']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Day 2, straight to the roof without the shop checks: in all the same, told.
+  const { ctx, page, errs } = await boot('window.__MOCK_YARD=true;' + DAY2);
+  await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
+  await page.evaluate(() => { pickJobObj(visitAsJob(S.assign.visits.filter((v) => v.jobId === 'j2')[0]), false); });
+  await page.waitForTimeout(400);
+  await tap(page, '#clockIn', 400); await tap(page, '.coderow:has-text("Crew Labor")', 500);
+  check('day 2 at the roof, no shop checks today: say so', [await page.evaluate(() => S.sheet), (await page.locator('#sheetBody .trow .nm').allTextContents()).map((t) => t.split(' — ')[0])],
+    ['forgot', ['Tarps checked and loaded', 'Material for today loaded']]);
+  await tap(page, '#forgotGo', 500); await shoot(page); await settle(page);
+  check('…clocked in, and told once with the two lines', await page.evaluate(() => (window.__ROLL || []).map((r) => [r.jobId, r.missing.length])), [['j2', 2]]);
   check('no page errors', errs, []);
   await ctx.close();
 }

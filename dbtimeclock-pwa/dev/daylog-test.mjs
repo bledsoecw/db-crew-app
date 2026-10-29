@@ -333,7 +333,7 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
 {
   const { ctx, page, errs } = await boot();
   await tap(page, '.tab[data-tab="log"]', 500);
-  await tap(page, '[data-lang="es"]', 400);
+  await tap(page, '#langTog [data-lang="es"]', 400);
   check('Spanish: the header, the badge, the questions, the buttons, the tabs',
     [await txt(page, '#logK'), await txt(page, '#syncBadge'), await page.locator('.dlh').allTextContents(), await txt(page, '#dlTalk'), await txt(page, '#dlType'), await page.locator('[data-yn]').allTextContents(), await txt(page, '#dlReview'), await txt(page, '#dlNormal'), await page.locator('#tabs .tab:not(.hidden) .tl').allTextContents()],
     ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Hubo retrasos?', '¿Alguien lastimado o casi?', '¿Recogiste o recibiste material?', '¿Quién más estuvo en el sitio? · toca lo que aplique'], 'Grabar', 'Escribir', ['Sí', 'No', 'Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
@@ -346,7 +346,7 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   await page.waitForTimeout(1500);
   check('the language is remembered', await page.locator('#tabs .tab:not(.hidden) .tl').allTextContents(), ['Reloj', 'Mis trabajos', 'Registro']);
   await tap(page, '.tab[data-tab="log"]', 400);
-  await tap(page, '[data-lang="en"]', 300);
+  await tap(page, '#langTog [data-lang="en"]', 300);
   check('...and switches back', await page.locator('#tabs .tab:not(.hidden) .tl').allTextContents(), ['Clock', 'My jobs', 'Day log']);
   check('no page errors', errs, []);
   await ctx.close();
