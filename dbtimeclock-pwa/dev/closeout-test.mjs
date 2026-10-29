@@ -41,7 +41,7 @@ async function boot(flags = {}) {
     errs.push(m.text());
   });
   await page.addInitScript(`window.__MOCK_ROLE=${JSON.stringify(flags.role || 'siteManager')};window.__MOCK_CO_PHOTO409=${!!flags.photo409};
-    window.__MOCK_CO_REJECT=${!!flags.reject};window.__MOCK_CO_DOWN=${!!flags.down};window.__MOCK_CO_UNSET=${!!flags.unset};window.__MOCK_CO_AREAS=${!!flags.areas};window.__MOCK_CO_DAYS=${!!flags.days};`);
+    window.__MOCK_CO_REJECT=${!!flags.reject};window.__MOCK_CO_DOWN=${!!flags.down};window.__MOCK_CO_UNSET=${!!flags.unset};window.__MOCK_CO_AREAS=${!!flags.areas};window.__MOCK_CO_DAYS=${!!flags.days};window.__MOCK_CO_AREA_FORMS=${!!flags.areaForms};`);
   if (flags.fix) await page.addInitScript(flags.fix);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
@@ -52,6 +52,19 @@ const tap = async (page, sel, ms = 300) => { await page.locator(sel).first().cli
 const txt = async (page, sel) => (await page.locator(sel).first().textContent()).replace(/\s+/g, ' ').trim();
 const visibleTabs = (page) => page.evaluate(() => [...document.querySelectorAll('#tabs .tab')].filter((b) => !b.classList.contains('hidden')).map((b) => b.getAttribute('data-tab')));
 const calls = (page) => page.evaluate(() => (window.__CO || []).map((c) => JSON.parse(JSON.stringify(c))));
+// T2.27: an inspection's site photos (four, required) and final notes, put on
+// the phone the way the camera would — the blob in IndexedDB, the tile on screen.
+const seedSite = (page, jobId, area, n = 4, note = 'Site left clean, magnet run twice.') => page.evaluate(async ([jobId, area, n, note]) => {
+  const target = area ? { kind: 'area', jobId, area } : { kind: 'visit', jobId };
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.getContext('2d').fillRect(0, 0, 16, 16);
+    const b = await new Promise((r) => c.toBlob(r, 'image/jpeg'));
+    await coAddPhoto(target, new File([b], 'site' + i + '.jpg', { type: 'image/jpeg' }));
+  }
+  const v = coVisit(jobId);
+  if (note != null) { if (area) coAreaV(v, area).note = note; else { v.fin = v.fin || {}; v.fin.note = note; } }
+  coPersist(); coRender();
+}, [jobId, area || null, n, note]);
 const addPhoto = async (page, sel) => {
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator(sel).first().click()]);
   await chooser.setFiles({ name: 'shot.jpg', mimeType: 'image/jpeg', buffer: JPEG });
@@ -150,7 +163,7 @@ const allErrs = [];
   check('the badges say what each is', await page.evaluate(() => [...document.querySelectorAll('#coBody .jcard')].map((c) => c.querySelector('.badge').textContent)), ['Inspección final', 'Reparaciones · 2']);
   await tap(page, '[data-cojob="co-hartman"]', 800);
   // Blocked, not disabled (T2.12): a tap says what is left.
-  check('the job home: four tiles and a blocked send', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]) .es')].map((e) => e.textContent), document.getElementById('coReview').classList.contains('blocked')]), [['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita', 'Trabajo vendido'], true]);
+  check('the job home: the lists, problems, site photos, final notes, and a blocked send', await page.evaluate(() => [[...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]):not([data-cotellpm]) .es')].map((e) => e.textContent), document.getElementById('coReview').classList.contains('blocked')]), [['Inspección', 'Limpieza', 'Problemas', 'Fotos de la obra', 'Notas finales', 'Trabajo vendido'], true]);
   await tap(page, '[data-coscreen="inspect"]', 500);
   check('eight lines, three answers each', await page.evaluate(() => [document.querySelectorAll('#coBody .ans').length, [...document.querySelectorAll('#coBody .ans')][0].querySelectorAll('button').length]), [8, 3]);
   for (let i = 0; i < 8; i++) if (i !== 3) await tap(page, `.ans[data-key="${['22PdEQfPnVqh','22PdEQfPnVqi','22PdEQfPnVqj','22PdEQfPnVqk','22PdEQfPnVqm','22PdEQfPnVqn','22PdEQfPnVqp','22PdEQfPnVqq'][i]}"] .ok`, 120);
@@ -171,18 +184,44 @@ const allErrs = [];
   await tap(page, '#coNext', 500);
   check('next: the cleanup', await txt(page, '#coK'), 'Limpieza · JT #26-0418');
   for (const k of ['22PdEQhB6rSR', '22PdEQhB6rSS', '22PdEQhB6rST', '22PdEQhB6rSU', '22PdEQhB6rSV']) await tap(page, `.ans[data-key="${k}"] .ok`, 120);
+  // T2.27: after the last list, the site photos — at least four, required — then the final notes.
   await tap(page, '#coNext', 500);
-  check('the job home: everything in, send enabled', await page.evaluate(() => [document.getElementById('coReview').disabled, [...document.querySelectorAll('#coBody .jtile .cnt')].map((c) => c.textContent)]), [false, ['8 de 8', '5 de 5', '1', '—', '1']]);
+  check('next: the site photos, four required', [await txt(page, '#coK'), await txt(page, '#coPhotosLeft'), await page.locator('#coBody [data-cophoto]').count(), await page.locator('#coBody [data-cogallery]').count()], ['Fotos de la obra · JT #26-0418', '0 / 4', 1, 1]);
+  await seedSite(page, 'co-hartman', null, 4, null);
+  check('…four in', await txt(page, '#coPhotosLeft'), '4 / 4');
+  await tap(page, '#coNext', 500);
+  check('next: the final notes, required, said or typed', [await txt(page, '#coK'), await page.locator('#coFinalRec').count(), await page.locator('#coFinalType').count()], ['Notas finales · JT #26-0418', 1, 1]);
+  await page.locator('#coFinal').fill('Todo limpio, el cliente contento');
+  await page.locator('#coFinal').blur(); await page.waitForTimeout(700);
+  check('…the final notes get their English for the office', [await page.evaluate(() => coVisit('co-hartman').fin.noteEn), await txt(page, '#coBody .rvstory .rt')], ['EN: Todo limpio, el cliente contento', 'EN: Todo limpio, el cliente contento']);
+  await page.evaluate(() => coGo('job')); await page.waitForTimeout(300);
+  check('the job home: everything in, send enabled', await page.evaluate(() => [document.getElementById('coReview').classList.contains('blocked'), [...document.querySelectorAll('#coBody .jtile .cnt')].map((c) => c.textContent)]), [false, ['8 de 8', '5 de 5', '1', '4 / 4', '✓', '1']]);
   await tap(page, '#coReview', 500);
-  check('review: what will be said', await page.evaluate(() => [...document.querySelectorAll('#coBody .rvrow .rv')].map((c) => c.textContent)), ['7 bien · 1 falla', '5 de 5', '1 reportados', '0']);
-  await tap(page, '#coSend', 2500);
+  // T2.27: the review is cards — each part, shut until tapped, with Edit.
+  check('review: a card for each part, saying what it holds', await page.evaluate(() => [...document.querySelectorAll('#coBody .rvc-head')].map((h) => [h.querySelector('.rvc-t').textContent, h.querySelector('.rvc-s').textContent])),
+    [['Inspección', '7 Bien · 1 Falla'], ['Limpieza', '5 Bien'], ['Problemas', '1'], ['Fotos de la obra', '4 / 4'], ['Notas finales', '✓']]);
+  await tap(page, '[data-rvtoggle="sec:inspection"]', 300);
+  check('…a card opens on every line and its answer, with Edit', [await page.locator('#coBody .rvc.open .rvi').count(), await page.locator('#coBody .rvc.open .rvi .a.fix').count(), await txt(page, '#coBody .rvc.open .rvc-edit')], [8, 1, 'Editar ›']);
+  await tap(page, '[data-rvtoggle="final"]', 300);
+  check('…the final notes as said, and in English', await page.locator('#coBody [data-rvtoggle="final"] + .rvc-body .rvc-note').allTextContents(), ['Todo limpio, el cliente contento', 'Nota en inglés para la oficinaEN: Todo limpio, el cliente contento']);
+  await tap(page, '[data-rvtoggle="photos"]', 300);
+  check('…the photos as thumbnails', await page.locator('#coBody [data-rvtoggle="photos"] + .rvc-body .rvc-thumbs span').count(), 4);
+  await tap(page, '#coBody [data-rvtoggle="final"] + .rvc-body .rvc-edit', 400);
+  check('…Edit goes back to that part', await page.evaluate(() => CO.screen), 'final');
+  await page.evaluate(() => coGo('send')); await page.waitForTimeout(300);
+  await tap(page, '#coSend', 3500);
   const sent = await calls(page);
-  check('the outbox delivers in order: the report, its photo, the close', sent.filter((c) => c.fn !== 'coTranslate').map((c) => c.fn), ['coReport', 'coPhoto', 'coClose']);
-  check('the report carries the English note, the line and where', [sent[1].report.englishNote, sent[1].report.itemKey, sent[1].report.location, sent[1].report.fixedOnSite, sent[1].report.heardText], ['EN: La bota del tubo de atrás está rota, le entra agua', '22PdEQfPnVqk', 'Back', false, 'La bota del tubo de atrás está rota, le entra agua']);
-  check('the photo names its report and the line', [sent[2].photo.label, sent[2].photo.reportRef === sent[1].ref, sent[2].photo.itemKey, /^data:image\/jpeg;base64,/.test(sent[2].photo.imageBase64)], ['REPORT', true, '22PdEQfPnVqk', true]);
-  check('the close carries both lists, the finding and the problem count', [Object.keys(sent[3].visit.answers.inspection).length, Object.keys(sent[3].visit.answers.cleanup).length, sent[3].visit.findings.length, sent[3].visit.problemsReported, sent[3].visit.answers.inspection['22PdEQfPnVqk']], [8, 5, 1, 1, 'ACTION']);
-  check('every item carried its own client reference', sent.filter((c) => c.ref).map((c) => /^[A-Za-z0-9._-]{1,64}$/.test(c.ref)), [true, true, true]);
+  check('the outbox delivers in order: the report, its photo, the site photos, the close', sent.filter((c) => c.fn !== 'coTranslate').map((c) => c.fn + (c.photo ? ':' + c.photo.label : '')),
+    ['coReport', 'coPhoto:REPORT', 'coPhoto:INSPECTION', 'coPhoto:INSPECTION', 'coPhoto:INSPECTION', 'coPhoto:INSPECTION', 'coClose']);
+  check('the close carries the final notes, in English and as said', sent.filter((c) => c.fn === 'coClose')[0].visit.notes.final, 'EN: Todo limpio, el cliente contento\n\n(Todo limpio, el cliente contento)');
+  const ds = sent.filter((c) => c.fn !== 'coTranslate');
+  check('the report carries the English note, the line and where', [ds[0].report.englishNote, ds[0].report.itemKey, ds[0].report.location, ds[0].report.fixedOnSite, ds[0].report.heardText], ['EN: La bota del tubo de atrás está rota, le entra agua', '22PdEQfPnVqk', 'Back', false, 'La bota del tubo de atrás está rota, le entra agua']);
+  check('the photo names its report and the line', [ds[1].photo.label, ds[1].photo.reportRef === ds[0].ref, ds[1].photo.itemKey, /^data:image\/jpeg;base64,/.test(ds[1].photo.imageBase64)], ['REPORT', true, '22PdEQfPnVqk', true]);
+  const closeSent = sent.filter((c) => c.fn === 'coClose')[0];
+  check('the close carries both lists, the finding and the problem count', [Object.keys(closeSent.visit.answers.inspection).length, Object.keys(closeSent.visit.answers.cleanup).length, closeSent.visit.findings.length, closeSent.visit.problemsReported, closeSent.visit.answers.inspection['22PdEQfPnVqk']], [8, 5, 1, 1, 'ACTION']);
+  check('every item carried its own client reference', sent.filter((c) => c.ref).map((c) => /^[A-Za-z0-9._-]{1,64}$/.test(c.ref)), [true, true, true, true, true, true, true]);
   check('the phone says it went, and where the job moved', await page.evaluate(() => [CO.screen, document.querySelector('#coBody .hero .ss').textContent]), ['send', 'El trabajo pasó a Punch List']);
+  check('…and the way on is the list, said so (T2.27)', [await txt(page, '#coBackQueue'), await page.locator('[data-conextarea],[data-coroof]').count()], ['Regresar a mi lista ›', 0]);
   check('the phone\'s copy is cleared for the next visit', await page.evaluate(() => { const v = coVisit('co-hartman'); return [Object.keys(v.answers.inspection).length, v.reports.length, v.photos.length, v.sentAt > 0]; }), [0, 0, 0, true]);
   allErrs.push(...errs);
   await ctx.close();
@@ -200,7 +239,7 @@ const allErrs = [];
   const { ctx, page, errs } = await boot({ role: 'service', fix: 'window.__MOCK_CO_FORM=' + JSON.stringify(FORM) + ';' });
   await tap(page, '.tab[data-tab="co"]', 900);
   await tap(page, '[data-cojob="co-hartman"]', 800);
-  check('the served form\'s sections are the tiles, in its words', await page.evaluate(() => [...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]) .es')].map((e) => e.textContent).slice(0, 3)), ['Revisión', 'Limpieza', 'Recorrido']);
+  check('the served form\'s sections are the tiles, in its words', await page.evaluate(() => [...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]):not([data-cotellpm]) .es')].map((e) => e.textContent).slice(0, 3)), ['Revisión', 'Limpieza', 'Recorrido']);
   await tap(page, '[data-coscreen="inspect"]', 500);
   check('…its items, its words, and the count is its own', [await page.locator('#coBody .ans').count(), await txt(page, '#coBody .ckq .es'), await txt(page, '#coK')], [2, 'Tejas parejas (nuevo)', 'Revisión · JT #26-0418']);
   for (const k of ['i1', 'i2']) await tap(page, `.ans[data-key="${k}"] .ok`, 120);
@@ -210,8 +249,11 @@ const allErrs = [];
   check('Next walks every section, the third included', await txt(page, '#coK'), 'Recorrido · JT #26-0418');
   await tap(page, '.ans[data-key="w1"] .ok', 120);
   await tap(page, '#coNext', 400);
+  check('…and after the last section, the site photos', await page.evaluate(() => CO.screen), 'photos');
+  await seedSite(page, 'co-hartman', null);
+  await page.evaluate(() => coGo('job')); await page.waitForTimeout(300);
   await tap(page, '#coReview', 500);
-  await tap(page, '#coSend', 2500);
+  await tap(page, '#coSend', 3000);
   const close = (await calls(page)).filter((c) => c.fn === 'coClose')[0];
   check('the close names the form and carries the answers by section', [close && close.visit.form, close && Object.keys(close.visit.answers), close && close.visit.answers.walk.w1], ['roof', ['inspection', 'cleanup', 'walk'], 'OK']);
   check('the served form is kept for a phone with no signal', await page.evaluate(() => JSON.parse(localStorage.getItem('dbtc_co_forms')).roof.sections.length), 3);
@@ -231,8 +273,9 @@ const allErrs = [];
     v.reports.push({ ref: 'rfix1', itemKey: '', itemN: '', location: 'front', locationText: '', locationWords: 'Front', note: 'Gutter loose', noteEn: 'Gutter loose', fixed: false, photos: [], saved: true, at: Date.now() });
     coPersist(); coRender();
   });
+  await seedSite(page, 'co-hartman', null);
   await tap(page, '#coReview', 400);
-  await tap(page, '#coSend', 2500);
+  await tap(page, '#coSend', 3500);
   check('a refused report is kept as rejected with the reason, the close still goes', await page.evaluate(() => CO.outbox.map((it) => [it.kind, it.status, it.err])), [['report', 'rejected', 'location and englishNote are required']]);
   check('…and the screen says so', await page.evaluate(() => [...document.querySelectorAll('#coBody .obrow .st')].map((s) => s.textContent)), ['rechazado']);
   const closeCalls = (await calls(page)).filter((c) => c.fn === 'coClose');
@@ -278,12 +321,19 @@ const allErrs = [];
   await tap(page, '[data-corepair="pt1"]', 500);
   check('one repair: what to do, the after photo required, Terminado off', await page.evaluate(() => [document.querySelector('#coBody .rvstory .rt').textContent.slice(0, 12), document.querySelectorAll('.phbig.empty').length, document.getElementById('coDone').disabled]), ['ES: Rear slo', 2, true]);
   check('…not the last open repair, so the button is plain Terminado', await txt(page, '#coDone'), 'Terminado');
-  await addPhoto(page, '.phbig.need');
-  check('the after photo unlocks Terminado', await page.evaluate(() => [document.querySelectorAll('.phbig.empty').length, document.getElementById('coDone').disabled]), [1, false]);
+  // T2.27: the before photo and a note are required as well as the after.
+  check('…the before photo is required too, and Terminado says what is missing', [await page.locator('.phbig.need').count(), await txt(page, '#coDone + .foot')], [2, 'Falta: foto de antes · foto de después · una nota']);
+  await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-okafor').before.pt1, null, { timeout: 10000 });
+  await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-okafor').after.pt1, null, { timeout: 10000 });
+  check('both photos, no note yet: still off', await page.evaluate(() => [document.querySelectorAll('.phbig.empty').length, document.getElementById('coDone').disabled]), [0, true]);
+  check('More photos: the camera and the phone\'s own photos', await page.locator('#coBody [data-cophoto*="more"], #coBody [data-cogallery*="more"]').count(), 2);
+  await addPhoto(page, '#coBody [data-cophoto*="more"]'); await page.waitForFunction(() => (coVisit('co-okafor').repairMore.pt1 || []).length === 1, null, { timeout: 10000 });
   await page.locator('#coRepairNote').fill('Bota nueva y sellada');
+  check('…the note unlocks Terminado', await page.evaluate(() => document.getElementById('coDone').disabled), false);
   await tap(page, '#coDone', 2500);
   const done = (await calls(page)).filter((c) => c.fn === 'coPhoto' || c.fn === 'coComplete');
-  check('the after photo goes on the task, then the completion with the note', done.map((c) => c.fn === 'coPhoto' ? [c.fn, c.photo.label, c.photo.taskId] : [c.fn, c.taskId, c.note]), [['coPhoto', 'AFTER', 'pt1'], ['coComplete', 'pt1', 'Bota nueva y sellada']]);
+  check('the before and after go on the task, then the completion with the note in English and as said', done.map((c) => c.fn === 'coPhoto' ? [c.fn, c.photo.label, c.photo.taskId] : [c.fn, c.taskId, c.note]),
+    [['coPhoto', 'BEFORE', 'pt1'], ['coPhoto', 'AFTER', 'pt1'], ['coPhoto', 'REPAIR', 'pt1'], ['coComplete', 'pt1', 'Bota nueva y sellada']]);
   check('back on the list, the repair reads done', await page.evaluate(() => [CO.screen, [...document.querySelectorAll('#coBody .rep')].filter((r) => r.classList.contains('done')).length]), ['repairs', 1]);
   // T2.8.2: the LAST repair moves the job to PM Review by itself (the
   // server's rule), and the job screen then says whose turn it is — no
@@ -291,8 +341,10 @@ const allErrs = [];
   // had to do (Carl, 25-0001, 13 Oct 2026).
   await tap(page, '[data-corepair="pt2"]', 500);
   // T2.8.3: the last open repair on the job says what pressing it does.
-  check('the last open repair: the button says it sends the job to the PM', [await txt(page, '#coDone'), (await txt(page, '#coBody .foot')).startsWith('Es la última reparación del trabajo.')], ['Terminar y mandar al PM', true]);
-  await addPhoto(page, '.phbig.need');
+  await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-okafor').before.pt2, null, { timeout: 10000 });
+  await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-okafor').after.pt2, null, { timeout: 10000 });
+  await page.locator('#coRepairNote').fill('Downspout reconnected'); await page.locator('#coRepairNote').blur(); await page.waitForTimeout(600);
+  check('the last open repair: the button says it sends the job to the PM', [await txt(page, '#coDone'), (await txt(page, '#coDone + .foot')).startsWith('Es la última reparación del trabajo.')], ['Terminar y mandar al PM', true]);
   await tap(page, '#coDone', 2500);
   check('…and once the server moves the job, the list says so, with the time', await page.evaluate(() => [CO.screen, !!document.getElementById('coRepairsSent'), document.querySelector('#coRepairsSent .sl').textContent, document.querySelector('#coRepairsSent .ss').textContent]),
     ['repairs', true, 'Reparaciones listas', 'Mandado al PM para revisar. No queda nada para el equipo en este trabajo.']);
@@ -336,12 +388,12 @@ const allErrs = [];
   // A visit already started on this phone keeps its checklists and its send,
   // and the card says why they are still there.
   await page.evaluate(() => { var v = coVisit('co-bell'); v.answers.inspection[CO_INSPECT[0].key] = CO_ANS.OK; coPersist(); coRender(); }); await page.waitForTimeout(300);
-  check('…unless a visit was started here: the checklists and the send stay', await screen(), { waiting: true, tiles: ['inspect', 'cleanup', 'problems', 'photos'], send: true });
+  check('…unless a visit was started here: the checklists and the send stay', await screen(), { waiting: true, tiles: ['inspect', 'cleanup', 'problems', 'photos', 'final'], send: true });
   check('…and the card says it moves nothing', (await page.locator('#coBody .rvstory .rt').nth(1).textContent()).startsWith('An inspection was started on this phone'), true);
   // Final Inspection is untouched: the checklists and the send are the job.
   await page.evaluate(() => coGo('queue')); await page.waitForTimeout(300);
   await tap(page, '[data-cojob="co-reyes"]', 900);
-  check('ops on a Final Inspection job: the four checklists and the send', await screen(), { waiting: false, tiles: ['inspect', 'cleanup', 'problems', 'photos'], send: true });
+  check('ops on a Final Inspection job: the four checklists and the send', await screen(), { waiting: false, tiles: ['inspect', 'cleanup', 'problems', 'photos', 'final'], send: true });
   check('…headed Inspection', await txt(page, '#coK'), 'Inspection · JT #26-0421');
   allErrs.push(...errs);
   await ctx.close();
@@ -382,10 +434,11 @@ const allErrs = [];
   check('…with no date on it: refused too', [a[0], a[1], a[2].startsWith('That photo has no date on it')], [false, true, true]);
   await pickFrom(page, '#coBody .phrow2 [data-cogallery]:nth-child(2)', [exifJpeg('2026:10:12 14:10:05')]);
   a = await afterNow();
-  check('…taken after: kept, Done unlocks, the note goes', [a[0], a[1], a[2]], [true, false, '']);
+  check('…taken after: kept, the note under it goes; Done waits on the before photo and a note (T2.27)', [a[0], a[1], a[2]], [true, true, '']);
   check('…and the tile says it came from the phone, and when', await txt(page, '#coBody .phbig .src'), 'Phone · ' + await page.evaluate((iso) => phoneWhenLong(iso), taken));
   await pickFrom(page, '#coBody .phrow2 [data-cogallery]', [JPEG]);
   check('a BEFORE photo with no date is fine — it shows the problem, not the fix', await page.evaluate(() => [!!coVisit('co-okafor').before.pt1, coVisit('co-okafor').before.pt1.takenAt]), [true, null]);
+  await page.locator('#coRepairNote').fill('Sealed'); await page.locator('#coRepairNote').blur(); await page.waitForTimeout(600);
   await tap(page, '#coDone', 2500);
   const sent = (await calls(page)).filter((c) => c.fn === 'coPhoto').map((c) => [c.photo.label, c.photo.source, c.photo.takenAt || null]);
   check('both go to the repair marked as from the phone, the after with its time', sent, [['BEFORE', 'phone', null], ['AFTER', 'phone', taken]]);
@@ -437,10 +490,12 @@ const allErrs = [];
   check('Start while on the clock here: the job opens, no second entry, no sheet', [await clockCalls(page), await page.evaluate(() => [CO.screen, CO.jobId, S.sheet, S.coReturn])], [[['clockIn', 'co-hartman', 'ci2']], ['job', 'co-hartman', null, null]]);
 
   // The send, with the clock running: the row that offers the Stop sheet.
-  await page.evaluate(() => { const v = coVisit('co-hartman'); CO_INSPECT.forEach((i) => { v.answers.inspection[i.key] = 'OK'; }); CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = 'OK'; }); coPersist(); coGo('send'); });
+  await page.evaluate(() => { const v = coVisit('co-hartman'); CO_INSPECT.forEach((i) => { v.answers.inspection[i.key] = 'OK'; }); CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = 'OK'; }); coPersist(); });
+  await seedSite(page, 'co-hartman', null);
+  await page.evaluate(() => coGo('send'));
   await page.waitForTimeout(300);
   check('before the send: the button, no clock row', await page.evaluate(() => [!!document.getElementById('coSend'), !!document.querySelector('[data-coclock]')]), [true, false]);
-  await tap(page, '#coSend', 2500);
+  await tap(page, '#coSend', 3500);
   check('after the send: the clock row names the running code', await page.evaluate(() => { const b = document.querySelector('[data-coclock]'); return [!!b, !!b && b.querySelector('.es').textContent.indexOf('01GR Crew Labor') !== -1, !!CO.receipt]; }), [true, true, true]);
   await tap(page, '[data-coclock]', 400);
   check('…and it opens the clock, with its four buttons (T2.23)', await page.evaluate(() => [S.tab, S.sheet, !document.getElementById('runStack').classList.contains('hidden')]), ['job', null, true]);
@@ -493,7 +548,7 @@ const allErrs = [];
   await tap(page, '[data-costart="co-okafor"]', 900);
   check('Start on a service call: the service code without asking (not the warranty one, never travel), the start photo', await page.evaluate(() => [S.tab, S.clockGate, S.gateCode && S.gateCode.id, S.sheet, S.coReturn]), ['cam', 'start', 'ci3', null, 'co-okafor']);
   await shoot(page); await settle(page);
-  check('…clocked in on the repair job and back on its Close Out screen', [await clockCalls(page), await page.evaluate(() => [S.tab, CO.screen, CO.jobId])], [[['clockIn', 'co-okafor', 'ci3']], ['co', 'job', 'co-okafor']]);
+  check('…clocked in on the repair job and straight onto its repairs (T2.27)', [await clockCalls(page), await page.evaluate(() => [S.tab, CO.screen, CO.jobId])], [[['clockIn', 'co-okafor', 'ci3']], ['co', 'repairs', 'co-okafor']]);
   check('…on the clock here, the job screen offers no second clock-in', await page.evaluate(() => !!document.querySelector('[data-coclockhere]')), false);
   await page.evaluate(() => { CO.screen = 'queue'; CO.jobId = null; CO.job = null; coRender(); });
   await page.waitForTimeout(300);
@@ -547,6 +602,21 @@ const allErrs = [];
   await shoot(page); await settle(page);
   check('…the arrival is one switch with the start photo only, and back on its Close Out screen', [(await page.evaluate(() => (window.__CLOCK || []).slice(-1)[0])).slice(0, 4), await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.open.code.id])],
     [['switchCode', 'co-hartman', 'ci1', null], ['co', 'job', 'co-hartman', 'ci1']]);
+  // T2.27: the Clock tab's I'm here is the same arrival — no going back to
+  // Close Out for Start. Driving on to the repairs at Okafor:
+  await page.evaluate(() => { setTab('job'); });
+  check('on the clock at a Close Out job, the Clock tab has one tap back into it', [await page.locator('#coJump').isVisible(), await txt(page, '#coJump')], [true, 'Abrir la inspección en Close Out ›']);
+  await tap(page, '#leaveBtn', 400); await tap(page, '[data-leave="done-job"]', 500); await shoot(page);
+  await page.waitForFunction(() => S.sheet === 'dest', null, { timeout: 10000 });
+  await page.evaluate(() => startTravelTo(coClockJob(coJobById('co-okafor')), false)); await settle(page);
+  await page.evaluate(() => { setTab('job'); }); await page.waitForTimeout(300);
+  check('driving to the repairs: the Clock tab says what I\'m here starts', [await txt(page, '#arriveBtn'), await txt(page, '#stopFoot')],
+    ['Ya llegué · empezar las reparaciones', 'Ya llegué termina el viaje: el código del trabajo, la foto de inicio, y luego directo a Close Out.']);
+  await tap(page, '#arriveBtn', 1200);
+  check('…tapped: the repairs\' own code needs no asking — the start photo, on the way back to Close Out', await page.evaluate(() => [S.sheet, S.tab, S.clockGate, S.gateCode && S.gateCode.id, S.coReturn]), [null, 'cam', 'start', 'ci3', 'co-okafor']);
+  await shoot(page); await settle(page);
+  check('…and the start photo lands on the repairs, not the Clock tab', [(await page.evaluate(() => (window.__CLOCK || []).slice(-1)[0])).slice(0, 3), await page.evaluate(() => [S.tab, CO.screen, CO.jobId])],
+    [['switchCode', 'co-okafor', 'ci3'], ['co', 'repairs', 'co-okafor']]);
   allErrs.push(...errs);
   await ctx.close();
 }
@@ -568,7 +638,7 @@ const allErrs = [];
   await tap(page, '[data-code="ci2"]', 500); await shoot(page); await settle(page);
   check('…and the clock-in goes for Alberto too', await page.evaluate(() => [(window.__PARTNER || []), (window.__CLOCK || []).slice(-1)[0].slice(0, 2)]), [['clockIn'], ['clockIn', 'co-hartman']]);
   await page.evaluate(() => { S.partnerOn = false; savePrefs(); });
-  await page.evaluate(() => { setTab('job'); }); await tap(page, '#outBtn', 500); await shoot(page); await settle(page);
+  await page.evaluate(() => { setTab('job'); }); await tap(page, '#outBtn', 500); await tap(page, '#sheetBody [data-leave="out"]', 500); await shoot(page); await settle(page);
   check('box off: the clock-out is Yahir\'s alone', await page.evaluate(() => [(window.__PARTNER || []), (window.__CLOCK || []).slice(-1)[0][0]]), [['clockIn'], 'clockOut']);
   check('the clock tab has the same box', await page.evaluate(() => !document.getElementById('partnerBtn').classList.contains('hidden')), true);
   allErrs.push(...errs); await ctx.close();
@@ -588,14 +658,16 @@ const allErrs = [];
   await tap(page, '.tab[data-tab="co"]', 900);
   // One roof on its own reads exactly as before: no list of areas, the four tiles.
   await tap(page, '[data-cojob="co-hartman"]', 800);
-  check('one roof: no area list, the four tiles', await page.evaluate(() => [!!document.getElementById('coAreas'), [...document.querySelectorAll('#coBody .jcard .jtile:not([data-coclockhere]) .es')].map((e) => e.textContent)]),
-    [false, ['Inspección', 'Limpieza', 'Problemas', 'Fotos de la visita']]);
+  check('one roof: no area list, the roof\'s tiles', await page.evaluate(() => [!!document.getElementById('coAreas'), [...document.querySelectorAll('#coBody .jcard .jtile:not([data-coclockhere]):not([data-cotellpm]) .es')].map((e) => e.textContent)]),
+    [false, ['Inspección', 'Limpieza', 'Problemas', 'Fotos de la obra', 'Notas finales']]);
   // A draft nobody saved never goes (it has no note, and the server would refuse it).
   await page.evaluate(() => { const v = coVisit('co-hartman'); CO_INSPECT.forEach((i) => { v.answers.inspection[i.key] = 'OK'; }); CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = 'OK'; });
-    v.reports.push({ ref: 'rdraft', itemKey: '', itemN: '', area: '', location: '', locationText: '', locationWords: '', note: '', noteEn: '', fixed: false, photos: [], saved: false, at: Date.now() }); coPersist(); coGo('send'); });
+    v.reports.push({ ref: 'rdraft', itemKey: '', itemN: '', area: '', location: '', locationText: '', locationWords: '', note: '', noteEn: '', fixed: false, photos: [], saved: false, at: Date.now() }); coPersist(); });
+  await seedSite(page, 'co-hartman', null);
+  await page.evaluate(() => coGo('send'));
   await page.waitForTimeout(300);
-  await tap(page, '#coSend', 2500);
-  check('the roof send: no unsaved draft, just the close', (await calls(page)).map((c) => c.fn), ['coClose']);
+  await tap(page, '#coSend', 3500);
+  check('the roof send: no unsaved draft, just the site photos and the close', (await calls(page)).map((c) => c.fn), ['coPhoto', 'coPhoto', 'coPhoto', 'coPhoto', 'coClose']);
   check('the receipt names who it went to and where the board put the job', await txt(page, '#coReceipt .ss'), 'Enviado a Dave Elick · El trabajo pasó a PM Review');
   await page.evaluate(() => { CO.receipt = null; CO.screen = 'queue'; CO.jobId = null; CO.job = null; coRender(); });
   await page.waitForTimeout(300);
@@ -605,7 +677,7 @@ const allErrs = [];
   const masonRows = await areaRows();
   check('two areas: the roof inspected with its repair, the gutters booked for Alberto', [masonRows[0], masonRows[1][0], /^Agendada .+ · Alberto$/.test(masonRows[1][1])],
     [['Techo de tejas', 'Revisada · 1 reparación pendiente'], 'Canales', true]);
-  check('the roof is done: no checklist, no Review & send; the gutters and the repairs are the tiles', await page.evaluate(() => [!!document.querySelector('[data-coscreen="inspect"]'), !!document.getElementById('coReview'), [...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]) .es')].map((e) => e.textContent)]),
+  check('the roof is done: no checklist, no Review & send; the gutters and the repairs are the tiles', await page.evaluate(() => [!!document.querySelector('[data-coscreen="inspect"]'), !!document.getElementById('coReview'), [...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]):not([data-cotellpm]) .es')].map((e) => e.textContent)]),
     [false, false, ['Canales', 'Reparaciones']]);
   await tap(page, '[data-coarea="gutters"]', 500);
   // T2.15: the gutters' Start puts the clock on this job, as Start on a card
@@ -620,10 +692,10 @@ const allErrs = [];
   await tap(page, '#coBack', 600);
   await tap(page, '[data-coarea="gutters"]', 500);
   check('…and on the clock here, the gutters simply open', await page.evaluate(() => [(window.__CLOCK || []).length, CO.screen, S.sheet, S.coReturn]), [1, 'area', null, null]);
-  check('the gutters: notes and photos, named in the header, the send waits on a photo', await page.evaluate(() => [CO.screen, document.getElementById('coK').textContent, document.getElementById('coTitle').textContent, document.getElementById('coAreaSend').disabled]),
+  check('the gutters: notes and photos, named in the header, the send waits on the photos and the note', await page.evaluate(() => [CO.screen, document.getElementById('coK').textContent, document.getElementById('coTitle').textContent, document.getElementById('coAreaSend').disabled]),
     ['area', 'Inspección · JT #26-0502', 'Canales', true]);
-  await addPhoto(page, '#coBody [data-cophoto]');
-  check('a photo lands on the area and unlocks the send', await page.evaluate(() => [coVisit('co-mason').areas.gutters.photos.length, document.getElementById('coAreaSend').disabled]), [1, false]);
+  await seedSite(page, 'co-mason', 'gutters', 4, null);
+  check('four photos, no note: still waiting, and it says on what', await page.evaluate(() => [coVisit('co-mason').areas.gutters.photos.length, document.getElementById('coAreaSend').disabled, document.querySelector('#coAreaSend + .foot').textContent]), [4, true, 'Falta: nota']);
   await page.locator('#coAreaNote').fill('El bajante del noreste está flojo');
   await page.locator('#coAreaNote').blur();
   await page.waitForTimeout(700);
@@ -657,21 +729,24 @@ const allErrs = [];
   check('saved: back on the gutters, the problem listed there and not on the roof', await page.evaluate(() => [CO.screen, document.querySelectorAll('#coBody [data-cofrom="area"]').length, coRoofReports(coVisit('co-mason')).length]), ['area', 1, 0]);
   await tap(page, '#coAreaSend', 3000);
   const ac = (await calls(page)).filter((c) => c.jobId === 'co-mason' && c.fn !== 'coTranslate');
-  check('the area send in order: the finding, its photo, the area photo, the close', ac.map((c) => c.fn + (c.photo ? ':' + c.photo.label : '')), ['coReport', 'coPhoto:REPORT', 'coPhoto:INSPECTION', 'coCloseArea']);
-  check('every item names the gutters', [ac[0].report.area, ac[1].photo.area, ac[2].photo.area, ac[3].body.area], ['gutters', 'gutters', 'gutters', 'gutters']);
+  check('the area send in order: the finding, its photo, the area photos, the close', ac.map((c) => c.fn + (c.photo ? ':' + c.photo.label : '')), ['coReport', 'coPhoto:REPORT', 'coPhoto:INSPECTION', 'coPhoto:INSPECTION', 'coPhoto:INSPECTION', 'coPhoto:INSPECTION', 'coCloseArea']);
+  check('every item names the gutters', [ac[0].report.area, ac[1].photo.area, ac[2].photo.area, ac[6].body.area], ['gutters', 'gutters', 'gutters', 'gutters']);
   check('the finding reads in English, located by its area', [ac[0].report.englishNote, ac[0].report.location], ['EN: Falta un tornillo en el codo', 'Gutters']);
-  check('the close carries the English note with what was said, and the problem count', [ac[3].body.notes, ac[3].body.problemsReported], ['EN: El bajante del noreste está flojo\n\n(El bajante del noreste está flojo)', 1]);
+  check('the close carries the English note with what was said, and the problem count', [ac[6].body.notes, ac[6].body.problemsReported], ['EN: El bajante del noreste está flojo\n\n(El bajante del noreste está flojo)', 1]);
   check('the receipt: the gutters went to Neal, the board moved the job', [await txt(page, '#coReceipt .sl'), await txt(page, '#coReceipt .ss')], ['Enviado a JobTread · Canales', 'Enviado a Neal Deitemeyer · El trabajo pasó a Punch List']);
   check('the phone\'s copy of the gutters is cleared', await page.evaluate(() => { const v = coVisit('co-mason'); return [v.areas.gutters.photos.length, v.areas.gutters.note, v.reports.length]; }), [0, '', 0]);
-  await tap(page, '#coAreaBack', 900);
+  check('…nothing else of theirs on this job: the way on is the list', [await page.locator('[data-conextarea],[data-coroof]').count(), await txt(page, '#coBackQueue')], [0, 'Regresar a mi lista ›']);
+  await page.evaluate(() => { CO.receipt = null; coGo('job'); }); await page.waitForTimeout(900);
   const after = await areaRows();
   check('back on the job: the gutters read inspected, and are not offered again', [after[1], await page.evaluate(() => !!document.querySelector('[data-coarea="gutters"]'))], [['Canales', 'Revisada · 1 reparación pendiente'], false]);
   // The last repair on ONE area sends that area to its PM; the job goes on.
   await tap(page, '[data-coscreen="repairs"]', 700);
   check('the repair says which area it is for', await txt(page, '#coBody .rep .en'), 'Techo de tejas · ES: Counter-flashing lifted on the left side of the chimney.');
   await tap(page, '[data-corepair="pt9"]', 500);
+  await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-mason').before.pt9, null, { timeout: 10000 });
+  await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-mason').after.pt9, null, { timeout: 10000 });
+  await page.locator('#coRepairNote').fill('Counter-flashing reset'); await page.locator('#coRepairNote').blur(); await page.waitForTimeout(600);
   check('the last repair on the roof says so, not that the job moves', [await txt(page, '#coDone'), /^Es la última reparación en el techo de tejas\./.test(await txt(page, '#coBody > .foot:last-child'))], ['Terminar y mandar al PM', true]);
-  await addPhoto(page, '.phbig.need');
   await tap(page, '#coDone', 2500);
   check('…finished: the roof\'s repairs went to Dave', [await txt(page, '#coRepairsSent .sl'), await txt(page, '#coRepairsSent .ss')], ['Reparaciones listas en el techo de tejas', 'Enviado a Dave Elick.']);
   // A job still in production offers no roof checklist until the roof is booked.
@@ -758,6 +833,7 @@ const allErrs = [];
     CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = CO_ANS.OK; });
     v.sending = true; delete v.sendingAt; coPersist(); coRender();
   });
+  await seedSite(page, 'co-hartman', null);
   check('a stale send mark: the button looks off but is no dead control', await page.evaluate(() => {
     const b = document.getElementById('coReview');
     return [b.classList.contains('blocked'), b.disabled, getComputedStyle(b).pointerEvents !== 'none', b.getBoundingClientRect().height >= 44];
@@ -765,7 +841,6 @@ const allErrs = [];
   await tap(page, '#coReview', 500);
   check('…a tap says why, in a popup', await page.evaluate(() => [S.sheet, document.getElementById('sheetTitle').textContent,
     [...document.querySelectorAll('#sheetBody .jtile .es')].map((e) => e.textContent)]), ['coWhy', 'Antes de enviar', ['Tu último envío de este trabajo todavía está saliendo']]);
-  check('…and says the visit photos never hold it up', await txt(page, '#sheetBody .foot'), 'Las fotos de la visita son opcionales — no detienen el envío.');
   await page.evaluate(() => closeSheet());
   // The outbox read clears a mark with no close behind it.
   await page.evaluate(() => coRefreshOutbox().then(coRender));
@@ -803,6 +878,82 @@ const allErrs = [];
   check('the Fix row opens that item\'s report', await page.evaluate(() => [S.sheet, CO.screen, coVisit('co-hartman').reports[CO.reportIdx].itemKey === CO_INSPECT[2].key]), [null, 'report', true]);
   check('no horizontal scroll at phone width', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   allErrs.push(...errs);
+  await ctx.close();
+}
+
+// ---- T2.27: the gutters' own checklist, and the next inspection one tap on ----
+{
+  const { ctx, page, errs } = await boot({ role: 'service', areas: true, areaForms: true });
+  await tap(page, '.tab[data-tab="co"]', 900);
+  await tap(page, '[data-cojob="co-mason"]', 900);
+  check('a job with a roof and its gutters to inspect: the roof\'s tiles, and the gutters as a checklist', await page.evaluate(() => [
+    [...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]):not([data-cotellpm]) .es')].map((e) => e.textContent), document.querySelector('[data-coarea="gutters"] .en').textContent.indexOf('lista de revisión') !== -1]),
+    [['Inspección', 'Limpieza', 'Problemas', 'Fotos de la obra', 'Notas finales', 'Canales'], true]);
+  // The roof first.
+  await page.evaluate(() => { const v = coVisit('co-mason'); CO_INSPECT.forEach((i) => { v.answers.inspection[i.key] = 'OK'; }); CO_CLEAN.forEach((i) => { v.answers.cleanup[i.key] = 'OK'; }); coPersist(); coRender(); });
+  await seedSite(page, 'co-mason', null);
+  await tap(page, '#coReview', 500); await tap(page, '#coSend', 3500);
+  check('the roof sent: the next is the gutters, one tap', [await txt(page, '[data-conextarea="gutters"]'), await txt(page, '#coBackQueue')], ['Siguiente: inspección de los canales ›', 'Regresar a mi lista ›']);
+  await tap(page, '[data-conextarea="gutters"]', 600);
+  check('…straight onto the gutters, their own tiles', await page.evaluate(() => [CO.screen, CO.areaKey, CO.ctxArea, document.getElementById('coTitle').textContent,
+    [...document.querySelectorAll('#coBody .jtile .es')].map((e) => e.textContent)]),
+    ['area', 'gutters', 'gutters', 'Canales', ['Inspección', 'Limpieza', 'Problemas', 'Fotos de la obra', 'Notas finales']]);
+  await tap(page, '[data-coscreen="inspect"]', 500);
+  check('the gutters\' inspection: its eight items, in Spanish, named for the gutters', [await page.locator('#coBody .ans').count(), await txt(page, '#coBody .ckq .n'), await txt(page, '#coBody .ckq .es'), await txt(page, '#coTitle')],
+    [8, 'G1', 'Canales derechos y con caída a las bajantes', 'Canales']);
+  for (const k of ['gut-pitch', 'gut-hang', 'gut-seal', 'gut-edge', 'gut-down', 'gut-guard', 'gut-look', 'gut-water']) await tap(page, `.ans[data-key="${k}"] .ok`, 100);
+  await page.locator('#coListNote').fill('Todo sellado');
+  await tap(page, '#coNext', 400);
+  check('…then its cleanup', [await page.locator('#coBody .ans').count(), await txt(page, '#coBody .ckq .n')], [3, 'GC1']);
+  for (const k of ['gut-c-scrap', 'gut-c-mag', 'gut-c-dmg']) await tap(page, `.ans[data-key="${k}"] .ok`, 100);
+  await tap(page, '#coNext', 400);
+  check('…then its site photos', [await page.evaluate(() => CO.screen), await txt(page, '#coPhotosLeft')], ['photos', '0 / 4']);
+  await seedSite(page, 'co-mason', 'gutters', 4, null);
+  await tap(page, '#coNext', 400);
+  await page.locator('#coFinal').fill('Los canales y las bajantes quedaron bien');
+  await page.locator('#coFinal').blur(); await page.waitForTimeout(700);
+  await tap(page, '#coNext', 600);
+  check('…and its review, cards for the gutters', await page.evaluate(() => [CO.screen, [...document.querySelectorAll('#coBody .rvc-head')].map((h) => [h.querySelector('.rvc-t').textContent, h.querySelector('.rvc-s').textContent])]),
+    ['send', [['Inspección', '8 Bien'], ['Limpieza', '3 Bien'], ['Problemas', '0'], ['Fotos de la obra', '4 / 4'], ['Notas finales', '✓']]]);
+  await tap(page, '#coSend', 3500);
+  const close = (await calls(page)).filter((c) => c.fn === 'coCloseArea')[0];
+  check('the gutters\' close: their form, the answers by section, the section note, the final notes in English and as said',
+    [close.body.area, close.body.form, Object.keys(close.body.answers.inspection).length, Object.keys(close.body.answers.cleanup).length, close.body.sectionNotes, close.body.notes, close.body.findings],
+    ['gutters', 'gutters', 8, 3, { inspection: 'Todo sellado' }, 'EN: Los canales y las bajantes quedaron bien\n\n(Los canales y las bajantes quedaron bien)', []]);
+  check('…the receipt on the gutters, and nothing more of theirs here: the list', [await page.evaluate(() => CO.screen), await page.locator('#coReceipt').count(), await page.locator('[data-conextarea],[data-coroof]').count(), await txt(page, '#coBackQueue')], ['area', 1, 0, 'Regresar a mi lista ›']);
+  await tap(page, '#coBackQueue', 600);
+  check('Back to my list goes to the list', await page.evaluate(() => [CO.screen, CO.jobId]), ['queue', null]);
+  // A crew with only one inspection on a job goes straight into it.
+  check('one inspection theirs on the job: that one; two: the job', await page.evaluate(() => {
+    const day = isoLocal(), areas = (mineRoof) => [{ key: 'shingle', line: true, form: 'roof', mine: mineRoof, inspected: false, assigneeNames: ['X'], inspectionDate: day }, { key: 'gutters', line: false, form: 'gutters', mine: true, inspected: false, assigneeNames: ['Y'], inspectionDate: day }];
+    const one = coOnlyArea({ status: 'Final Inspection', areas: areas(false) }, coVisit('x-one')), two = coOnlyArea({ status: 'Final Inspection', areas: areas(true) }, coVisit('x-two'));
+    return [one && one.key, two];
+  }), ['gutters', null]);
+  check('no horizontal scroll at phone width', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- T2.27: back where they were on the next open; today's jobs on the phone ----
+{
+  const { ctx, page, errs } = await boot({ role: 'service', days: true });
+  await page.waitForTimeout(600);
+  await tap(page, '[data-cojob="co-okafor"]', 900);
+  await tap(page, '[data-coscreen="repairs"]', 700);
+  await tap(page, '[data-corepair="pt1"]', 600);
+  await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(2000);
+  check('closed and opened again: back on the same repair', await page.evaluate(() => [S.tab, CO.screen, CO.jobId, CO.taskId, !!document.getElementById('coDone')]), ['co', 'repair', 'co-okafor', 'pt1', true]);
+  await page.waitForFunction(() => !CO.prefetching, null, { timeout: 15000 }); await page.waitForTimeout(300);
+  const cached = await page.evaluate(() => Object.keys(localStorage).filter((k) => /^dbtc_co_job_/.test(k)).map((k) => k.slice(12)).sort());
+  const wanted = await page.evaluate(() => { const t = isoLocal(), tm = isoLocal(new Date(Date.now() + 86400000)); return CO.jobs.filter((j) => j.mine && [t, tm, CO_EARLIER].indexOf(coJobDay(j, t)) !== -1).map((j) => j.id).sort(); });
+  check('today\'s and tomorrow\'s jobs are on the phone, so they open with no signal', [wanted.length > 1, wanted.every((id) => cached.indexOf(id) !== -1)], [true, true]);
+  // No signal: a job never opened by hand still opens, from the copy.
+  const other = wanted.filter((id) => id !== 'co-okafor')[0];
+  await page.evaluate(() => { window.__MOCK_CO_DOWN = true; S.online = false; });
+  await page.evaluate(() => coGo('queue')); await page.waitForTimeout(300);
+  await page.evaluate((id) => coOpenJob(id), other); await page.waitForTimeout(1200);
+  check('…no signal: it opens from the copy', await page.evaluate((id) => [CO.screen, CO.job && CO.job.id], other), ['job', other]);
+  check('no page errors', errs, []);
   await ctx.close();
 }
 

@@ -199,3 +199,34 @@ regeneration, Linux only.
 - **The mock's `crewLead`** follows `FX.crewLead` (the video names Jeremiah on
   the watertight line); unset it is what it was.
 
+
+## T2.27 (29 Oct 2026) — what the README does not say
+
+- **The training videos are out of date again, and Carl said not to remake
+  them yet** ("Do not recreate videos yet"). They show the old Leave sheet,
+  Clock out at the job, the drive-back buttons, an optional before photo and
+  note on a repair, visit photos optional, no final notes, the old Review &
+  send, *Close Out ›* after a send, and gutters as notes and photos. Re-record
+  once this round is signed off.
+- **`coCtx()` is the one inspection** — the roof's (`CO.ctxArea` null) or a
+  work area's with its own checklist (`CO.ctxArea` the area's key). The list
+  screens, Problems, the site photos, the final notes, Review & send and the
+  blockers all read it, so the gutters' checklist is the roof's screens with
+  its answers in `v.areas[key].answers`. `coGo('job')` clears it, `coGo('area')`
+  sets it when the area has a form the phone holds; a form it does not hold
+  reads as notes and photos. The final notes live in `v.fin` for the roof and
+  in the area's `note` for an area (the old notes area's "what you saw").
+- **Review & send still opens *Before you send* while anything is left** —
+  the T2.12 list with a row per missing thing. The cards are only reached
+  once nothing is; Send re-checks.
+- **Two vocab sets, two collisions to avoid.** `L()`/`Lf()` with `esAdd` for
+  the clock and the log, `co()` with `coAdd({en,es})` for Close Out. A
+  `coAdd` key that already exists in `CO_L10N` silently replaces it —
+  `reviewSub` did, and the PM Review card read "Tap a card to open it".
+- **`dbtc_where` stops saving before the sign-out wipe** (`S.whereReady`),
+  or the page's own leaving writes it back for the next person.
+- **The Trades Onsite list in JobTread has no Gutter Crew, Siding Crew or PM**
+  (read live, 29 Oct). The phone sends those as the list's Other plus words
+  (`fieldText`), and the server drops any option not on the list anyway.
+  Adding the three options to the field in JobTread is Carl's call; nothing
+  here changes when he does.

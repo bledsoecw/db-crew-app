@@ -152,9 +152,14 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await page.locator('#dlStory').fill('Tear-off and dry-in, north side shingled.');
   check('the questions are JobTread\'s own daily-log fields: delays and hurt first, then the rest in the office\'s order', await page.locator('.dlh').allTextContents(),
     ['How did today go?', 'Any delays?', 'Anyone hurt or a close call?', 'Any material pickups or deliveries?', 'Who else was on site? · tap all that fit']);
-  check('a pick list carries the list\'s own options', await page.locator('[data-opt="22PC7jNshbiK"]').allTextContents(),
-    ['Carpentry', 'Concrete', 'Electrical', 'Engineering', 'Excavation', 'Foundation', 'Framing', 'HVAC', 'Masonry', 'Mechanical', 'Painting', 'Plumbing', 'Roofing', 'Tile', 'Other', 'Production Manager', 'Site Manager', 'Sales Rep']);
+  // Who else was on site (T2.27): five always there, the rest of the list behind Other.
+  const TR = '[data-opt="22PC7jNshbiK"],[data-xopt="22PC7jNshbiK"],[data-odrawer="22PC7jNshbiK"]';
+  check('who else: Gutter Crew, Siding Crew, Sales Rep, PM and Other, the rest hidden', [await page.locator(TR).allTextContents(), await page.locator('.dlother').count()],
+    [['Gutter Crew', 'Siding Crew', 'Sales Rep', 'PM', 'Other'], 0]);
   await tap(page, '[data-yn="f:22PC7jNSGzEb"][data-v="0"]', 200);
+  await tap(page, '[data-odrawer="22PC7jNshbiK"]', 300);
+  check('...Other opens the rest of JobTread\'s list and a box for someone not on it', [await page.locator('.dlother [data-opt="22PC7jNshbiK"]').allTextContents(), await page.locator('.dlother [data-said]').getAttribute('placeholder')],
+    [['Carpentry', 'Concrete', 'Electrical', 'Engineering', 'Excavation', 'Foundation', 'Framing', 'HVAC', 'Masonry', 'Mechanical', 'Painting', 'Plumbing', 'Roofing', 'Tile', 'Production Manager', 'Site Manager'], 'Someone not listed? Type who']);
   await tap(page, '[data-opt="22PC7jNshbiK"][data-val="Roofing"]', 200);
   await tap(page, '[data-opt="22PC7jNshbiK"][data-val="Site Manager"]', 200);
   await tap(page, '[data-yn="f:22PC7jQ6BkBC"][data-v="1"]', 300);
@@ -354,6 +359,9 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   check('...the placeholder too', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n')[0], 'Toca aquí y escribe, o usa Grabar');
   await tap(page, '[data-yn="f:22PC7jQ6BkBC"][data-v="1"]', 300);
   check('...and the reasons, to the eye', await page.locator('[data-opt="22PLhdEgfHXF"]').allTextContents(), ['Clima', 'Falta gente', 'Falta material', 'Otro']);
+  check('...the five who-else buttons, in Spanish', await page.locator('[data-opt="22PC7jNshbiK"],[data-xopt="22PC7jNshbiK"],[data-odrawer="22PC7jNshbiK"]').allTextContents(),
+    ['Cuadrilla de canales', 'Cuadrilla de siding', 'Vendedor', 'PM', 'Otro']);
+  await tap(page, '[data-odrawer="22PC7jNshbiK"]', 300);
   check('...a trade too, while the value stays JobTread\'s', [await txt(page, '[data-opt="22PC7jNshbiK"][data-val="Roofing"]'), await page.locator('[data-opt="22PC7jNshbiK"][data-val="Roofing"]').count()], ['Techado', 1]);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
@@ -575,6 +583,38 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   const logs = await grab(page, '__LOGS');
   check('the log carries it as gone, not as coming', [logs[0].photosPending, logs[0].photosFailed], [0, 1]);
   check('...and the sent card says to take it again', /1 photo never uploaded and is gone from this phone/.test(await txt(page, '.sentcard .ss')), true);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- T2.27: what held you up, and who JobTread's list does not carry ----
+{
+  const { ctx, page, errs } = await boot({}, '');
+  await tap(page, '.tab[data-tab="log"]', 500);
+  await page.locator('#dlStory').fill('Siding side done.');
+  await tap(page, '[data-yn="f:22PC7jQ6BkBC"][data-v="1"]', 300);
+  check('no box until Other is picked', await page.locator('[data-said="22PLhdEgfHXF"]').count(), 0);
+  await tap(page, '[data-opt="22PLhdEgfHXF"][data-val="Other"]', 300);
+  check('Other on the delays opens a box for what held them up', await page.locator('[data-said="22PLhdEgfHXF"]').getAttribute('placeholder'), 'What held you up? Type it here');
+  await page.locator('[data-said="22PLhdEgfHXF"]').fill('Waited two hours on the dumpster');
+  await page.locator('[data-said="22PLhdEgfHXF"]').blur(); await page.waitForTimeout(500);
+  await tap(page, '[data-xopt="22PC7jNshbiK"][data-val="Gutter Crew"]', 200);
+  await tap(page, '[data-xopt="22PC7jNshbiK"][data-val="PM"]', 200);
+  await tap(page, '[data-opt="22PC7jNshbiK"][data-val="Sales Rep"]', 200);
+  await tap(page, '[data-odrawer="22PC7jNshbiK"]', 300);
+  await page.locator('[data-said="22PC7jNshbiK"]').fill('the electrician');
+  await page.locator('[data-said="22PC7jNshbiK"]').blur(); await page.waitForTimeout(500);
+  check('the picks show as picked, and Other counts what is under it', [await page.locator('[data-xopt].on, [data-opt="22PC7jNshbiK"].on').allTextContents(), await txt(page, '[data-odrawer="22PC7jNshbiK"]')],
+    [['Gutter Crew', 'Sales Rep', 'PM'], 'Other · 1']);
+  await tap(page, '[data-yn="safety"][data-v="0"]', 300);
+  await tap(page, '#dlReview', 500);
+  check('the review says it all', await page.locator('.rvrow .rv').allTextContents().then(v => v.slice(2)),
+    ['Yes · Other — Waited two hours on the dumpster', 'None', '—', 'Sales Rep, Gutter Crew, PM, the electrician']);
+  await tap(page, '#dlSend', 1500);
+  const L = (await grab(page, '__LOGS'))[0] || {};
+  check('JobTread gets its own values, Other ticked; the words ride beside them', [L.fields, { '22PLhdEgfHXF': L.fieldText['22PLhdEgfHXF'], '22PC7jNshbiK': L.fieldText['22PC7jNshbiK'] }],
+    [{ '22PC7jQ6BkBC': true, '22PLhdEgfHXF': ['Other'], '22PC7jNshbiK': ['Sales Rep', 'Other'] },
+     { '22PLhdEgfHXF': 'Waited two hours on the dumpster', '22PC7jNshbiK': 'Gutter Crew · PM · the electrician' }]);
   check('no page errors', errs, []);
   await ctx.close();
 }

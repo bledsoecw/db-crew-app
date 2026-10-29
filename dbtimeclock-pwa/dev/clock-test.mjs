@@ -94,12 +94,19 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   s = await st(page);
   check('...and back to the clock after the shot', [s.tab, s.photos.length, await page.evaluate(() => fileDescription({ tag: 'during', entryId: 'x', codeLabel: '' }))], ['job', 2, '#DURING #TE:x']);
 
-  // Leave the site (T2.23): four ways out, each saying what it costs.
+  // Leave the site (T2.23, regrouped T2.27): two groups that look different —
+  // done here for today (back to the shop first, the green one) and coming
+  // back here today (dashed) — each choice saying what it costs.
   await tap(page, '#leaveBtn', 400);
-  check('Leave the site: four rows and the fine print', [await txt(page, '#sheetTitle'), await page.locator('.stoprow .st').allTextContents(), await page.locator('.stoprow .ss').allTextContents(), await txt(page, '#sheetBody .fine')],
-    ['Leaving Noah Webster', ['Supply run · back here after', 'Another job · back here later', 'Another job · done here today', 'Back to the shop · done here today'],
-     ['On this job’s travel line · no photo', 'The drive · no photo — you’re coming back', 'Today’s log, the end photo, then the drive', 'Today’s log, the end photo, then the drive back — paid travel'],
-     'Going home? Clock out instead. Site managers send today’s log before leaving the site for the day.']);
+  check('Leave the site: two groups, four choices, and the fine print', [await txt(page, '#sheetTitle'), await page.locator('#sheetBody .lvhead').allTextContents(),
+    await page.locator('#sheetBody .lvbtn').evaluateAll(b => b.map(x => [x.getAttribute('data-leave'), x.className.replace('lvbtn ', ''), x.querySelector('.t').textContent, x.querySelector('.s').textContent])),
+    await txt(page, '#sheetBody .fine')],
+    ['Leaving Noah Webster', ['Done here for today', 'Coming back here today'],
+     [['done-shop', 'main', 'Back to the shop', 'Today’s log and a site photo first · then the drive back, on the clock'],
+      ['done-job', 'done', 'On to another job', 'Today’s log and a site photo first · then the drive there'],
+      ['supply', 'back', 'Supply run', 'The store or the shop for material · no photo'],
+      ['later', 'back', 'Quick trip to another job', 'The drive · no photo · back here after']],
+     'Going straight home from here? Use Clock out.']);
   await tap(page, '#sheetClose', 300);
 
   // a break (T2.13): pick how long; JobTread's shape — the block ends, the
@@ -138,9 +145,14 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   const sw = (await calls(page)).slice(-1)[0];
   check('…no camera: one switch with no photo ids, and the clock on the new code', [s.tab, s.gate, s.code, sw, s.photos.length], ['job', null, '02ST-1', ['switchCode', 'j_2841', 'ci5', null, null, null], before]);
 
-  // Clock out (T2.23): a site manager sends today's log first, on site;
-  // then the end photo of the site clocks out.
+  // Clock out on a site (T2.27) asks first: back to the shop, the usual,
+  // or out here going home.
   await tap(page, '#outBtn', 600);
+  check('Clock out on a site: back to the shop, or out here', [await txt(page, '#sheetTitle'), await page.locator('#sheetBody [data-leave]').evaluateAll(b => b.map(x => x.getAttribute('data-leave'))),
+    await txt(page, '#sheetBody .lvbtn.main .t')], ['End of the day', ['done-shop', 'out'], 'Back to the shop']);
+  // Out here (T2.23): a site manager sends today's log first, on site;
+  // then the end photo of the site clocks out.
+  await tap(page, '#sheetBody [data-leave="out"]', 600);
   s = await st(page);
   check('Clock out: the Day log first, saying why', [s.tab, s.gate, await txt(page, '.promptbox .pe'), await txt(page, '.promptbox .pt'), (await calls(page)).slice(-1)[0][0]],
     ['log', null, 'Leaving Noah Webster for the day', 'Send today’s log first', 'switchCode']);
@@ -532,10 +544,14 @@ for (const [away, words] of [['far', 'Not at the shop or the office · your PM a
   await shoot(page); await settle(page);
   c = (await calls(page)).slice(-1)[0];
   check('the drive back is paid travel on the job just left', [c[0], c[1], c[2], typeof c[3], c[4], c[5], await txt(page, '#band .lbl'), await txt(page, '#arriveBtn'), await txt(page, '#travelOut'), await page.locator('#travelElse').isVisible()],
-    ['startTravel', 'j_2841', 'ci11', 'string', 'Drive back · end of the day · from 26-0890 Noah Webster', true, 'Driving back · end of the day', 'At the shop · shop work', 'Clock out · I’m back', false]);
+    ['startTravel', 'j_2841', 'ci11', 'string', 'Drive back · end of the day · from 26-0890 Noah Webster', true, 'Driving back · end of the day', 'Shop work first', 'At the shop · clock out', false]);
+  check('…at the shop the clock-out is the big green one, shop work the outline under it (T2.27)', await page.evaluate(() => [$('travelOut').className, getComputedStyle($('travelOut')).order, $('arriveBtn').className]),
+    ['btn btn-go', '-1', 'btn btn-out']);
+  await page.evaluate(() => { window.__MOCK_AWAY_OUT = true; });
   await tap(page, '#travelOut', 300); await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
   c = (await calls(page)).slice(-1)[0];
   check('Clock out from the drive: no photo, and the logs already went', [c, await page.evaluate(() => [!!S.open, S.tab])], [['clockOut', null], [false, 'job']]);
+  check('…out away from the shop: the phone says the PM and the Ops Director are told', await txt(page, '#toast span'), 'Clocked out away from the shop · your PM and the Ops Director are told');
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -647,7 +663,7 @@ for (const [away, words] of [['far', 'Not at the shop or the office · your PM a
   // The end of the day, gone home without clocking out: the log first, then
   // the end-photo camera's way round.
   const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
-  await tap(page, '#outBtn', 500); await tap(page, '#dlNormal', 900);
+  await tap(page, '#outBtn', 500); await tap(page, '#sheetBody [data-leave="out"]', 500); await tap(page, '#dlNormal', 900);
   check('the camera of the clock-out offers the way round', [await page.evaluate(() => S.clockGate), await txt(page, '#leftBtn')], ['end-out', 'Already left Noah Webster? Say when — no photo']);
   await tap(page, '#leftBtn', 500);
   await tap(page, '[data-leftat]:has-text("15 min ago")', 200);
@@ -825,7 +841,7 @@ const stayDay = (() => { const s = new Date(); s.setDate(s.getDate() - 1); const
   await tap(page, '#leftBtn', 500); await tap(page, '[data-leftat]:has-text("15 min ago")', 200); await tap(page, '#leftGo', 500);
   await tap(page, '#sheetClose', 300);
   check('out of Where are you going?: nothing carried', await page.evaluate(() => [S.sheet, S.switching, S.travelPick, !!S.open]), [null, null, false, true]);
-  await tap(page, '#outBtn', 500); await shoot(page);
+  await tap(page, '#outBtn', 500); await tap(page, '#sheetBody [data-leave="out"]', 500); await shoot(page);
   await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
   check('…the clock-out is an ordinary one, with its photo', (await calls(page)).slice(-1)[0][0], 'clockOut');
   check('no page errors', errs, []);
@@ -875,6 +891,25 @@ const stayDay = (() => { const s = new Date(); s.setDate(s.getDate() - 1); const
   const c = (await calls(page)).slice(-1)[0];
   const y = new Date(); y.setDate(y.getDate() - 1); y.setHours(17, 5, 0, 0);
   check('…the drive ends at 5:05p yesterday', [c[0], c[2], Date.parse(c[1]) === y.getTime()], ['leftSite', 'out', true]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- T2.27: Tell the PM, from the Clock tab, by text ----
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  check('on a job: Take a photo and Tell the PM side by side', [await page.locator('#tpmBtn').isVisible(), await txt(page, '#tpmBtn')], [true, 'Tell the PM']);
+  await tap(page, '#tpmBtn', 400);
+  check('…a sheet with a box, Record and Type, and Send', [await txt(page, '#sheetTitle'), await page.locator('#tpmText').count(), await txt(page, '#tpmRec'), await txt(page, '#tpmSend')], ['Tell the PM', 1, 'Record', 'Send it to the PM']);
+  await tap(page, '#tpmSend', 300);
+  check('…nothing to send keeps the sheet open', await page.evaluate(() => S.sheet), 'tellpm');
+  await page.fill('#tpmText', 'Need two more bundles of ridge cap');
+  await tap(page, '#tpmSend', 900);
+  check('…sent: the note and the text, and the toast says who was texted', [await page.evaluate(() => [S.sheet, window.__TEXTS]), await txt(page, '#toast span')],
+    [[null, [{ jobId: 'j_2841', text: 'Need two more bundles of ridge cap' }]], 'Texted Neal Deitemeyer']);
+  await page.evaluate(() => { window.__MOCK_NO_TEXT = true; });
+  await tap(page, '#tpmBtn', 300); await page.fill('#tpmText', 'Call me'); await tap(page, '#tpmSend', 900);
+  check('…no text from the board: it says the note is on the job, and why', await txt(page, '#toast span'), 'On the job for Neal Deitemeyer in JobTread — no text: DB Text isn\'t set up on this deployment');
   check('no page errors', errs, []);
   await ctx.close();
 }

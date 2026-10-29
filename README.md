@@ -914,6 +914,78 @@ the English screens are byte-identical; what goes to JobTread is still
 English. `dev/spanish-test.mjs` walks the leaving prompt and the review in
 Spanish. **Needs:** `firebase deploy --only hosting` only.
 
+**Off Carl's notes on the second cut** (T2.27, 29 Oct 2026). *"Lets get all
+these fixes and anything else you find along the way to make the app
+intuitive and easy to use and understand."*
+
+- **Leaving reads as two groups.** *Done here for today* — **Back to the
+  shop**, the one green button ("99% they are"), and *On to another job* —
+  and *Coming back here today*, dashed: *Supply run* and *Quick trip to
+  another job*. Each says what it costs (site photo first, the log first for a
+  site manager, or no photo).
+- **The end of the day is the drive back, then the clock-out at the shop.**
+  Clock out on a site asks first: *Back to the shop* (the site photo, the
+  drive back on the clock) or *Clock out here · going home*. On the drive back
+  the big green button is *At the shop · clock out*, *Shop work first* the
+  outline under it. **Every clock-out away from the shop and the office** —
+  Monroe St or Bonnewitz Ave, the morning's 400 m (`SHOP_RADIUS_M`) — is a
+  comment on the job just left, assigned to its PM and the Ops Director
+  (`eveningCheck_`, the morning check turned round), and the toast says so. A
+  site manager still sends today's log before leaving the site.
+- **Tell the PM, from anywhere, by text.** Beside *Take a photo* on the Clock
+  tab and on every Close Out job: say or type it, *Send it to the PM*. It is
+  the same note on the job as before, assigned to the PM, and now a text
+  through the board (`POST /api/crew/tell-pm`, DB Text, Operations'
+  staff-texts switch — in Test it reaches the test person). The day log's
+  *Tell the PM now* texts too. The toast says who was texted, or why not.
+- **The day log.** Delays → *Other* opens a box for what held them up. *Who
+  else was on site?* shows **Gutter Crew, Siding Crew, Sales Rep, PM and
+  Other**; JobTread's other trades and a box for anyone not listed open under
+  Other. JobTread's Trades Onsite list has no Gutter Crew, Siding Crew or PM,
+  so those (and anything typed) go as the list's *Other* with the words in the
+  log — *Trades Onsite: Sales Rep, Other — Gutter Crew · PM* (`fieldText`).
+  Add them to the list in JobTread and they become real picks by themselves.
+- **A repair needs its before photo and a note.** The note is said or typed
+  (Record / Type) with its English for the office under it; *More photos*
+  takes any number from the camera or the phone's own photos (sent as
+  `REPAIR`, linked to the repair's done message). *Done* says what is missing.
+- **The app opens where it was left** — the tab, and in Close Out the job and
+  the repair, area or report — the same day (`dbtc_where`); the camera and
+  the sheets are not put back. **Today's and tomorrow's Close Out jobs are
+  fetched behind the list**, so a job never opened before still opens with no
+  signal.
+- **One arrival.** Driving to a Close Out job, *I'm here · start the
+  inspection* (or *the repairs*) on the Clock tab is the same arrival as
+  Start on its card: the code, the start photo, then straight into the work.
+  On the clock at a Close Out job, *Open the inspection in Close Out ›* sits
+  under the band. Start on a repair job lands on its repairs.
+- **A final inspection needs its site photos and final notes.** At least four
+  photos of how the site was left (`CO_SITE_PHOTOS_MIN`), and final notes,
+  said or typed, with their English. The roof's, the gutters' and the
+  siding's alike; *Before you send* names what is left.
+- **Review & send is cards** — each section with every line and its answer,
+  the problems with their notes and photos, the site photos as thumbnails,
+  the final notes as said and in English — each shut until tapped, each with
+  *Edit ›* back to that part.
+- **Several work areas.** After a send, *Next: Gutters inspection ›* when
+  another of theirs on the job is still open, else *Back to my list ›* (the
+  old *Close Out ›* went to the list by a back arrow). A crew with only one
+  inspection on a job goes straight into it.
+- **The gutters and the siding have their own checklists** (DB CheckOut's
+  `GUTTERS_FORM` / `SIDING_FORM`, written onto the area's own inspection task,
+  shown on the board's Review sheet). A second roof — metal or low slope that
+  is not the line's — is still notes and photos, now with four photos and the
+  note required.
+
+`dev/clock-test.mjs`, `dev/daylog-test.mjs`, `dev/closeout-test.mjs`,
+`dev/signout-test.mjs` and `apps-script/code-test.mjs` walk it. **Needs:** the
+Apps Script (`clockOut` checks where, `tellPm` texts through the board,
+`sendDailyLog` takes `fieldText`), `firebase deploy --only hosting`, the
+board's `main` (the tell-pm door, the checklist on the Review sheet) and DB
+CheckOut's `main` (the gutters' and the siding's forms, `REPAIR` photos, final
+notes). The phone works with either side old: an older CheckOut sends gutters
+as notes and photos, an older board answers no text.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

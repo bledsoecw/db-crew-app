@@ -988,6 +988,16 @@ t('the notes: the PM line with its time, the story, every answer by name, the ho
   [true, true, true, true, true, true, true, true, true, true]);
 t('...and none of the old sections', /WHAT GOT DONE|CONDITION WHEN I LEFT|PROBLEMS|LOG FIELDS/.test(sdl.notes), false);
 t('a delay pings the feed, naming the fields', [r.flag, r.commented, r.fields, /Anticipated Delays: Yes · Delay Reason: Weather, Short Labor/.test(jtCalls.find(c => c[0] === 'comment')[1].message)], ['fields', true, 4, true]);
+// T2.27: Gutter Crew, Siding Crew, PM and the words typed under Other are not
+// on JobTread's lists — they ride the list's Other, as words in the log.
+freshDay();
+r = sandbox.sendDailyLog(ME, { ...STORY, fields: { '22PC7jNshbiK': ['Sales Rep', 'Other'], '22PC7jQ6BkBC': true, '22PLhdEgfHXF': ['Other'] },
+  fieldText: { '22PC7jNshbiK': 'Gutter Crew · PM · the  electrician\nfor the fan', '22PLhdEgfHXF': 'Waited two hours on the dumpster' } });
+const xdl = jtCalls.find(c => c[0] === 'dailyLog')[1];
+t('Other words: the list\'s own values on the log, the words beside them in the notes, and the delay\'s words in the ping',
+  [xdl.customFieldValues, ['Trades Onsite: Sales Rep, Other — Gutter Crew · PM · the electrician for the fan', 'Delay Reason: Other — Waited two hours on the dumpster'].map(x => xdl.notes.indexOf(x) > -1),
+   /Delay Reason: Other — Waited two hours on the dumpster/.test(jtCalls.find(c => c[0] === 'comment')[1].message)],
+  [{ '22PC7jNshbiK': ['Sales Rep', 'Other'], '22PC7jQ6BkBC': true, '22PLhdEgfHXF': ['Other'] }, [true, true], true]);
 freshDay();
 r = sandbox.sendDailyLog(ME, { ...STORY, fields: { '22PC7jNSGzEb': false, '22PC7jQ6BkBC': false }, story: 'Normal day, nothing to report.', lines: [] });
 const ndl = jtCalls.find(c => c[0] === 'dailyLog')[1];
@@ -1045,6 +1055,19 @@ fetchImpl = STORY_ROUTE();
 jtCalls.length = 0;
 r = sandbox.tellPm(ME, 'j9', 'Need drip edge now');
 t('tellPm is a comment on the job, signed, assigned to the PM', [jtCalls[0][1].targetType, jtCalls[0][1].message, jtCalls[0][1].assignees, r.assigned], ['job', 'Tyler B.: Need drip edge now', [{ membershipId: 'm_dave' }], ['Dave Elick']]);
+// T2.27: and a text to the PM, through the board, best effort.
+{
+  const viaStory = fetchImpl; let asked = null;
+  fetchImpl = (url, opts) => /\/api\/crew\/tell-pm$/.test(url) ? (asked = { url, auth: opts.headers.Authorization, body: JSON.parse(opts.payload) }, { code: 200, body: '{"sent":true,"to":"Dave Elick"}' }) : viaStory(url, opts);
+  jtCalls.length = 0;
+  r = sandbox.tellPm(ME, 'j9', 'Need drip edge now');
+  t('...and the board texts the PM: who asked, which job, the words', [asked && asked.auth, asked && asked.body, r.text], ['Bearer s3cret', { membershipId: 'm1', jobId: 'j9', text: 'Need drip edge now' }, { sent: true, to: 'Dave Elick', redirectedTo: null, why: '' }]);
+  fetchImpl = (url, opts) => /\/api\/crew\/tell-pm$/.test(url) ? { code: 502, body: '{"error":"JobTread read failed"}' } : viaStory(url, opts);
+  jtCalls.length = 0;
+  r = sandbox.tellPm(ME, 'j9', 'Need drip edge now');
+  t('...a board that cannot text still leaves the note on the job', [jtCalls.length, r.ok, r.text], [1, true, { sent: false, why: 'JobTread read failed' }]);
+  fetchImpl = viaStory;
+}
 
 // ---- the photo gates, server side ----
 // The shutter commits on the phone, so a clock-in carries its start photo's
@@ -1379,6 +1402,20 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   sandbox.clockIn(ME, SHOP, 'sh1', null, '');
   t('OPS_DIRECTOR names who that is', ((writes.find(w => w[0] === 'comment') || [])[1] || {}).assignees, [{ membershipId: 'm_dave' }]);
   delete props.OPS_DIRECTOR;
+  // T2.27: the clock-out, the other way round — at the shop nothing is said;
+  // anywhere else the PM of the job just left and the Ops Director are told.
+  writes.length = 0;
+  r = sandbox.clockOut(ME, { lat: 40.8779, lng: -84.5871 }, '');
+  t('clocked out at the shop: nothing said', [writes.filter(w => w[0] === 'close').length, writes.filter(w => w[0] === 'comment').length, r.evening && r.evening.ok], [1, 0, true]);
+  openNow = ONSITE; writes.length = 0;
+  r = sandbox.clockOut(ME, { lat: 40.9, lng: -84.4 }, 'ph_end');
+  const ev = (writes.find(w => w[0] === 'comment') || [])[1] || {};
+  t('clocked out ten miles off, from the roof: the PM of that job and the Ops Director are told',
+    [ev.targetId, ev.assignees, r.evening.ok, /^📍 Tyler B\. clocked out for the day at \d+:\d\d[ap] about [\d.]+ miles from the (shop on Monroe St|office on Bonnewitz Ave) — not at the shop or the office \(last on 07TM-1 Roofing\)\. Sent from DB Crew\.$/.test(ev.message || '')],
+    ['j9', [{ membershipId: 'm_dave' }, { membershipId: 'm_carl' }], false, true]);
+  writes.length = 0;
+  r = sandbox.clockOut(ME, null, 'ph_end');
+  t('…no location from the phone is told the same way', [/with no location from the phone/.test(((writes.find(w => w[0] === 'comment') || [])[1] || {}).message || ''), r.evening.where], [true, 'with no location from the phone']);
   openNow = ONSITE;
   // The review's findings (28 Oct): the phone cannot quiet the notice or add
   // names to it; nothing carries a night into a drive; the drive's line is

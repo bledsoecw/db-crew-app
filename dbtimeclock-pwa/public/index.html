@@ -136,6 +136,9 @@ button[disabled]{cursor:default}
 .cbtn.leave{border-color:var(--nav);background:var(--nav);color:#fff}
 .cbtn.out{border-color:var(--stop);background:var(--stop);color:var(--stopfg)}
 #photoBtn{gap:11px}
+.clkrow2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.clkrow2 .btn{font-size:15px;letter-spacing:.5px;gap:9px}
+.clkrow2.one{grid-template-columns:1fr}
 #photoNote{font:400 12px/1.4 var(--sans);color:var(--lab);text-align:center;margin-top:-2px}
 .codesk{font:600 10px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--lab);padding:14px 18px 8px}
 #band.paused .dot{animation:none;background:var(--warn)}
@@ -256,6 +259,25 @@ button[disabled]{cursor:default}
 .stoprow .ss{margin-top:5px;display:block;color:var(--lab)}
 .stoprow .ss.warn{color:var(--warn)}
 .stoprow .ss.sun{color:#ffd84d}
+/* Leaving (T2.27, Carl 29 Oct 2026: "these options all blend in together"):
+   two groups that look different — done here for today (solid, Back to the
+   shop the one green button) and coming back here today (dashed, quieter). */
+.dlother{margin-top:10px;padding:12px;border:1px dashed var(--line2);border-radius:8px}
+.dlother .whychips{margin-top:0}
+.dlsaid{margin-top:10px}
+.lvhead{display:flex;align-items:center;gap:8px;font:600 11px/1 var(--mono);letter-spacing:1.4px;text-transform:uppercase;color:var(--acc);margin-top:2px}
+.lvhead.back{color:var(--lab);margin-top:16px}
+.lvbtn{width:100%;min-height:84px;display:flex;align-items:center;gap:16px;padding:14px 18px;border-radius:8px;text-align:left;border:2px solid var(--line2);background:var(--surf);color:var(--fg)}
+.lvbtn .lvt{flex:1;min-width:0}
+.lvbtn .t{display:block;font:800 20px/1.1 var(--head);letter-spacing:.3px;text-transform:uppercase}
+.lvbtn .s{display:block;margin-top:6px;font:500 13.5px/1.35 var(--sans);opacity:.82}
+.lvbtn.main{background:var(--go);border-color:var(--go);color:var(--goink);min-height:100px}
+.lvbtn.main .t{font-size:23px}
+.lvbtn.done{border-color:var(--nav)}
+.lvbtn.back{border-style:dashed;min-height:72px;color:var(--mut)}
+.lvbtn.back .t{font-size:17px;color:var(--fg)}
+.lvbtn.quiet{min-height:72px}
+.lvbtn.quiet .t{font-size:17px}
 /* T2.13: how long a break — four big tiles, the length in words a thumb can't miss */
 .brkgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .brkopt.on{border-color:var(--go);background:var(--total)}
@@ -538,6 +560,26 @@ button[disabled]{cursor:default}
 .rvrow .rv.up{text-transform:uppercase}
 .rvstory{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .rvstory .rt{font:400 15px/1.45 var(--sans);color:var(--fg);white-space:pre-wrap;word-break:break-word}
+/* Review & send as cards (T2.27): one a part, shut until tapped, each with Edit. */
+.rvc{margin-top:10px;border:1px solid var(--line);border-radius:8px;background:var(--surf);overflow:hidden}
+.rvc-head{width:100%;min-height:64px;display:flex;align-items:center;gap:12px;padding:12px 16px;text-align:left;color:var(--fg)}
+.rvc-head .rvc-t{flex:1;min-width:0;font:700 16px/1.2 var(--head);text-transform:uppercase;letter-spacing:.3px}
+.rvc-head .rvc-s{font:600 12px/1.3 var(--mono);letter-spacing:.6px;text-transform:uppercase;color:var(--lab);text-align:right}
+.rvc-head .rvc-s.warn{color:var(--ckamber)}
+.rvc-head .rvc-s.good{color:var(--acc)}
+.rvc-body{border-top:1px solid var(--line);padding:6px 16px 14px}
+.rvi{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line)}
+.rvi:last-of-type{border-bottom:0}
+.rvi .n{width:34px;flex:none;font:600 12px/1.4 var(--mono);color:var(--lab)}
+.rvi .l{flex:1;min-width:0;font:400 14.5px/1.4 var(--sans);color:var(--fg)}
+.rvi .a{flex:none;font:700 12px/1.4 var(--mono);letter-spacing:.6px;text-transform:uppercase}
+.rvi .a.ok{color:var(--acc)} .rvi .a.na{color:var(--lab)} .rvi .a.fix{color:var(--ckamber)} .rvi .a.no{color:var(--rec)}
+.rvc-note{margin-top:8px;font:400 14.5px/1.45 var(--sans);color:var(--fg);white-space:pre-wrap;word-break:break-word}
+.rvc-note .k9{display:block;margin-bottom:4px}
+.rvc-thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.rvc-thumbs span{width:72px;height:72px;border-radius:6px;background-size:cover;background-position:center;border:1px solid var(--line)}
+.rvc-edit{margin-top:12px;min-height:48px;padding:0 16px;border-radius:6px;border:2px solid var(--line2);font:700 14px/1 var(--head);letter-spacing:.5px;text-transform:uppercase;color:var(--fg)}
+.rvc-rep{display:block;width:100%;text-align:left;padding:10px 0;border-bottom:1px dashed var(--line);color:var(--fg)}
 .rvfoot{font:400 14px/1.45 var(--sans);color:var(--mut);margin-top:12px}
 .sentcard{margin-top:8px;background:var(--band);border-radius:8px;padding:22px 18px;display:flex;flex-direction:column;gap:12px;color:#fff}
 .sentcard .sl{display:flex;align-items:center;gap:10px;font:600 11px/1 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:#7ef08a}
@@ -741,6 +783,7 @@ button[disabled]{cursor:default}
             <div id="bandSub"></div>
             <button id="earlierBtn" class="hidden" data-l="Started earlier? Say when">Started earlier? Say when</button>
           </div>
+          <button class="btn btn-nav hidden" id="coJump" style="margin-top:14px;min-height:64px"></button>
           <div class="stack" id="runStack">
             <div class="clkgrid">
               <button class="cbtn" id="breakBtn"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 0 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></svg><span data-l="Break">Break</span></button>
@@ -748,10 +791,16 @@ button[disabled]{cursor:default}
               <button class="cbtn leave" id="leaveBtn"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><span id="leaveLbl">Leave the site</span></button>
               <button class="cbtn out" id="outBtn"><svg width="26" height="26" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg><span data-l="Clock out">Clock out</span></button>
             </div>
-            <button class="btn btn-out" id="photoBtn">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
-              <span data-l="Take a photo">Take a photo</span>
-            </button>
+            <div class="clkrow2">
+              <button class="btn btn-out" id="photoBtn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/></svg>
+                <span data-l="Take a photo">Take a photo</span>
+              </button>
+              <button class="btn btn-out" id="tpmBtn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span data-l="Tell the PM">Tell the PM</span>
+              </button>
+            </div>
             <div id="photoNote" data-l="Photos through the day go in DB Cam.">Photos through the day go in DB Cam.</div>
           </div>
           <div class="stack hidden" id="travelStack">
@@ -1040,7 +1089,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.26 (2026-10-29)';
+var APP_BUILD = 'T2.27 (2026-10-29)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1911,6 +1960,7 @@ function renderClock(){
   $('clockIn').style.opacity = S.job ? 1 : .45;
   var drive = on && onTravel();
   $('runStack').classList.toggle('hidden', !on || drive);
+  $('coJump').classList.add('hidden');
   $('travelStack').classList.toggle('hidden', !drive);
   $('stopFoot').classList.toggle('hidden', !on);
   $('breakStack').classList.toggle('hidden', !brk);
@@ -1964,13 +2014,22 @@ function renderClock(){
     $('bandSub').textContent = Lf('Since {t} · on {j}’s travel line', { t: clockLabel(S.open.startedAt), j: jobWord(S.job) });
     var stale = leftOvernight();
     var rc = sup ? supplyReturn() : null;
-    $('arriveBtn').textContent = stale ? L('When did the drive end?') : sup ? Lf('Back at {p}', { p: pw(S.job) }) + (rc ? ' · ' + (rc.name || rc.number) : '') : L(back ? (S.shop ? 'At the shop · shop work' : 'I’m back · start work') : 'I’m here · start work');
+    var coa = !stale && !sup && !back ? coArrival(S.job) : '';
+    $('arriveBtn').textContent = stale ? L('When did the drive end?') : sup ? Lf('Back at {p}', { p: pw(S.job) }) + (rc ? ' · ' + (rc.name || rc.number) : '') : L(back ? (S.shop ? 'Shop work first' : 'I’m back · start work') : coa === 'repairs' ? 'I’m here · start the repairs' : coa === 'inspect' ? 'I’m here · start the inspection' : 'I’m here · start work');
     $('arriveBtn').classList.toggle('hidden', back && !S.shop && !stale);
     $('travelElse').classList.toggle('hidden', back);
-    $('travelOut').textContent = L(back ? 'Clock out · I’m back' : 'Clock out · done for the day');
+    // The drive back ends at the shop with the clock-out (T2.27, Carl: "then
+    // at the shop they can clock out"): that is the big green button, and
+    // shop work first is the outline under it.
+    var outMain = back && !stale;
+    $('travelOut').textContent = L(back ? 'At the shop · clock out' : 'Clock out · done for the day');
+    $('travelOut').className = outMain ? 'btn btn-go' : 'btn btn-out';
+    $('travelOut').style.cssText = outMain ? 'min-height:88px;font-size:20px;order:-1' : 'min-height:60px;font-size:15px;letter-spacing:.6px;color:var(--mut)';
+    $('arriveBtn').className = outMain ? 'btn btn-out' : 'btn btn-go';
+    $('arriveBtn').style.cssText = outMain ? 'min-height:60px;font-size:15px;letter-spacing:.6px' : 'min-height:88px;font-size:20px';
     $('stopFoot').textContent = sup ? Lf('The run is {p}’s travel time. Back at the job puts you on the same code again — no photo.', { p: pw(S.job) })
-      : L(back ? 'The drive back is paid travel. Clocking out from a drive takes no photo.'
-             : 'Starting work there ends the drive. The drive itself takes no photo.');
+      : L(back ? 'The drive back is paid travel. Clock out when you get to the shop — no photo. Clocking out anywhere else tells your PM and the Ops Director.'
+             : coa ? 'I’m here ends the drive: the job’s code, the start photo, then straight into Close Out.' : 'Starting work there ends the drive. The drive itself takes no photo.');
     return;
   }
   $('band').querySelector('.lbl').textContent = L('On the clock');
@@ -1981,6 +2040,13 @@ function renderClock(){
   $('bandSub').textContent = Lf(hasTag('before') ? 'Started {t} with a start photo' : 'Started {t}', { t: clockLabel(S.open.startedAt) }) +
                              ' · ' + Lf(n === 1 ? '{n} photo on this code' : '{n} photos on this code', { n: n });
   $('leaveLbl').textContent = L(atShop() ? 'Leave the shop' : 'Leave the site');
+  // On the clock at a Close Out job (T2.27): one tap back into its work.
+  var cja = !atShop() ? coArrival(S.job) : '';
+  $('coJump').classList.toggle('hidden', !cja);
+  if (cja) $('coJump').textContent = L(cja === 'repairs' ? 'Open the repairs in Close Out ›' : 'Open the inspection in Close Out ›');
+  // Tell the PM (T2.27) is about a job; the shop has no PM to tell.
+  $('tpmBtn').classList.toggle('hidden', atShop());
+  $('tpmBtn').parentNode.classList.toggle('one', atShop());
   $('earlierBtn').classList.toggle('hidden', !earlierBlock());
   $('stopFoot').textContent = L(atShop() ? 'At the shop no photo is asked for.'
     : 'A start photo when you start here, an end photo when you leave for the day — nothing in between.');
@@ -2208,6 +2274,9 @@ function waitingToSend(){
   return n;
 }
 function wipePhoneState(){
+  // Where-you-were (T2.27) stops saving first, or the page's own leaving
+  // writes it back for the next person.
+  S.whereReady = false;
   authClear();
   try {
     var keys = [];
@@ -2734,6 +2803,8 @@ var ICONS = {
   send: '<path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
   chev: '<polyline points="9 18 15 12 9 6"/>',
   chevl: '<polyline points="15 18 9 12 15 6"/>',
+  chevd: '<polyline points="6 9 12 15 18 9"/>',
+  chevu: '<polyline points="6 15 12 9 18 15"/>',
   check: '<polyline points="20 6 9 17 4 12"/>',
   camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.2"/>',
   alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
@@ -2742,6 +2813,10 @@ var ICONS = {
   nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  home: '<path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/>',
+  cart: '<circle cx="9" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/><path d="M2 3h3l2.6 12.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.6L21 7H6.2"/>',
+  ret: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>',
+  msg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 };
 function ico(name, size, sw){
   return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (sw || 2.2) +
@@ -3790,6 +3865,68 @@ function unsignHtml(){
 /* =========================================================
    TABS + SHEET
    ========================================================= */
+/* Where you were (T2.27, Carl 29 Oct 2026): "make sure they can get back to
+   the repair page easily, like if the close the app or minimize it to take
+   photos with their camera, when they open the app it goes back to the
+   portion of the app they were last at." The tab, and inside it what was
+   open — the Close Out screen and the job, repair, area or report it is
+   about; the day log's job; the checklist — kept on the phone for the day
+   and put back on the next open. The camera and the sheets are not: a photo
+   half taken is gone, and the clock under the camera is where it hands back. */
+var WHERE_KEY = 'dbtc_where', WHERE_MAX_MS = 12 * 3600 * 1000;
+function whereSave(){
+  // Not until the boot has read it back: the boot's own first tab would
+  // otherwise overwrite where they were.
+  if (!S.whereReady || S.whereRestoring) return;
+  try {
+    var t = S.tab === 'cam' || S.tab === 'diag' ? 'job' : S.tab;
+    var w = { at: Date.now(), day: isoLocal(), tab: t };
+    if (t === 'co') w.co = { screen: CO.screen, jobId: CO.jobId || null, taskId: CO.taskId || null, areaKey: CO.areaKey || null, ctxArea: CO.ctxArea || null, reportIdx: CO.reportIdx == null ? null : CO.reportIdx, reportFrom: CO.reportFrom || null };
+    if (t === 'log') w.log = { jobId: S.dlJobId || null, date: S.dlDate || null };
+    if (t === 'checks') w.checks = { kind: S.checksKind || 'site', task: S.checksTask || null };
+    localStorage.setItem(WHERE_KEY, JSON.stringify(w));
+  } catch(e){}
+}
+function whereLoad(){
+  try { var w = JSON.parse(localStorage.getItem(WHERE_KEY) || 'null'); if (w && w.day === isoLocal() && Date.now() - w.at < WHERE_MAX_MS) return w; } catch(e){}
+  return null;
+}
+/* Back where they were, as far as the phone still knows it; anything it no
+   longer knows (a repair since closed, a checklist gone) falls back a step. */
+function whereRestore(){
+  var w = whereLoad();
+  if (!w || !w.tab || w.tab === 'job') return false;
+  S.whereRestoring = true;
+  try {
+    if (w.tab === 'co' && canTab('co')){
+      var c = w.co || {}, sc = c.screen || 'queue';
+      setTab('co');
+      if (c.jobId && sc !== 'queue'){
+        CO.jobId = c.jobId; CO.taskId = c.taskId || null; CO.areaKey = c.areaKey || null; CO.reportFrom = c.reportFrom || null;
+        CO.reportIdx = c.reportIdx == null ? null : c.reportIdx;
+        coRestoreJob(c.jobId); coLoadJob(c.jobId);
+        var v = coVisit(c.jobId);
+        if (sc === 'report' && !(CO.reportIdx != null && v.reports[CO.reportIdx])) sc = 'job';
+        if (sc === 'repair' && !CO.taskId) sc = 'repairs';
+        if (sc === 'area' && !CO.areaKey) sc = 'job';
+        if (sc === 'send') sc = 'job';
+        coGo(sc);
+        if (c.ctxArea && sc !== 'job' && sc !== 'area'){ CO.ctxArea = c.ctxArea; coRender(); }
+      } else coGo('queue');
+      return true;
+    }
+    if (w.tab === 'log' && canTab('log') && w.log && w.log.jobId){ openLog(w.log.jobId, w.log.date || isoLocal()); return true; }
+    if (w.tab === 'checks' && w.checks && w.checks.task){
+      if (w.checks.kind === 'prestart' && prVisit(w.checks.task)){ openPrestart(w.checks.task); return true; }
+      if (w.checks.kind !== 'prestart' && visitForChecks(w.checks.task)){ openChecks(w.checks.task); return true; }
+      if (canTab('jobs')){ setTab('jobs'); return true; }
+      return false;
+    }
+    if ((w.tab === 'jobs' || w.tab === 'people') && canTab(w.tab)){ setTab(w.tab); return true; }
+    return false;
+  } catch(e){ return false; }
+  finally { S.whereRestoring = false; S.whereReady = true; whereSave(); }
+}
 function setTab(t){
   // A tab the role does not have falls back to the clock (T2.0) — a push
   // or a saved pref can still name one.
@@ -3812,6 +3949,7 @@ function setTab(t){
   $('vPeople').classList.toggle('on', t==='people');
   if (t === 'co'){ coLoadQueue(false); coRefreshOutbox().then(coRender); }
   if (t === 'people') peopleLoad(false);
+  whereSave();
   // First visit to the tab fetches; after that the refresh button is explicit.
   if (t === 'jobs' && !S.assign && !S.assignLoading) loadAssignments();
   // The checklist is a screen inside My jobs, so that tab stays lit. The
@@ -3832,6 +3970,7 @@ function closeSheet(){
   if (S.sheet === 'left' && S.leftGate){ if (S.pendingJob) cancelMove(); S.leftGate = null; S.leftPick = 0; }
   // …and out of Before you roll out: still at the shop (T2.20).
   if (S.sheet === 'roll' && S.rollNext){ if (S.pendingJob) cancelMove(); S.rollNext = null; }
+  if (S.sheet === 'tellpm' && dlRec.taId === 'tpmText') dlRecStop();
   S.sheet = null; S.promptKind = null; $('scrim').classList.remove('on');
 }
 
@@ -3840,6 +3979,8 @@ function openSheet(kind, promptKind){
   var title = kind==='codes' ? (S.pendingJob ? Lf('Code at {p}', { p: S.pendingJob.customer || streetOf(S.pendingJob.address) || L('the next job') }) : L(S.open && !onTravel() ? 'Change code' : 'What are you doing?'))
             : kind==='jobs' ? L(S.open ? 'Move to which job?' : 'Pick a job')
             : kind==='leave' ? Lf('Leaving {p}', { p: pw(S.job) })
+            : kind==='outhow' ? L('End of the day')
+            : kind==='tellpm' ? L('Tell the PM')
             : kind==='moveHow' ? L('Still on the clock')
             : kind==='break' ? L('How long a break?')
             : kind==='signoff' ? L('Sign off')
@@ -3857,6 +3998,8 @@ function openSheet(kind, promptKind){
   $('sheetBody').innerHTML = kind==='codes' ? codesHtml()
                             : kind==='jobs' ? jobsHtml()
                             : kind==='leave' ? leaveHtml()
+                            : kind==='outhow' ? outHowHtml()
+                            : kind==='tellpm' ? tellPmHtml()
                             : kind==='moveHow' ? moveHowHtml()
                             : kind==='break' ? breakHtml()
                             : kind==='signoff' ? signoffHtml()
@@ -4002,24 +4145,49 @@ function jobRowHtml(j){
 /* Leave the site (T2.23, Carl, 29 Oct 2026). "Crew members or
    site managers may leave a site and go places like a store to get
    supplies, or to another site, or back to the shop, and back to the first
-   site." Four ways out, each saying what it costs:
-     a supply run, back here after — this job's travel line, no photo; one
-       tap back puts the same code on again
-     another job, back here later  — the drive, no photo, no log
-     another job, done here today  — today's log (site managers), the end
-       photo of the site, then the drive
-     back to the shop, done today  — the same, then the drive back, which
-       is paid travel on this job's line
-   Clock out (going home) is its own button. */
+   site." Four ways out, in two groups that look different (T2.27, Carl:
+   "these options all blend in together and can be confusing"):
+     done here for today
+       back to the shop   — today's log (site managers), the site photo,
+                            then the drive back, paid travel on this job's
+                            line. "99% they are" (Carl), so it is the one
+                            green button, first.
+       on to another job  — the same, then the drive there
+     coming back here today
+       supply run         — this job's travel line, no photo; one tap back
+                            puts the same code on again
+       quick trip         — the drive to another job, no photo, no log
+   Clock out (going straight home) is its own button. */
+function lvBtn(mode, t, sub, icon, cls){
+  return '<button class="lvbtn ' + cls + '" data-leave="' + mode + '">' + ico(icon, 30) +
+    '<span class="lvt"><span class="t">' + esc(t) + '</span><span class="s">' + esc(sub) + '</span></span></button>';
+}
+function lvPhotoFirst(){ return L(logRequired() ? 'Today’s log and a site photo first' : 'Site photo first'); }
 function leaveHtml(){
-  var sm = logRequired(), done = L(sm ? 'Today’s log, the end photo, then the drive' : 'End photo, then the drive');
-  var row = function(mode, t, sub, icon, cls){ return '<button class="stoprow' + (cls ? ' ' + cls : '') + '" data-leave="' + mode + '"><span style="flex:1;min-width:0"><span class="st" style="display:block">' + esc(t) + '</span><span class="k9 ss' + (cls === 'warnsub' ? ' warn' : '') + '">' + esc(sub) + '</span></span>' + ico(icon, 22) + '</button>'; };
-  return '<div class="sheetpad" style="gap:12px">' +
-    row('supply', L('Supply run · back here after'), L('On this job’s travel line · no photo'), 'truck') +
-    row('later', L('Another job · back here later'), L('The drive · no photo — you’re coming back'), 'truck') +
-    row('done-job', L('Another job · done here today'), done, 'camera') +
-    row('done-shop', L('Back to the shop · done here today'), done + L(' back — paid travel'), 'camera') +
-    '<div class="fine" style="text-align:center;margin-top:4px">' + esc(L('Going home? Clock out instead.') + (sm ? L(' Site managers send today’s log before leaving the site for the day.') : '')) + '</div>' +
+  var first = lvPhotoFirst();
+  return '<div class="sheetpad" style="gap:10px">' +
+    '<div class="lvhead">' + ico('check', 18) + esc(L('Done here for today')) + '</div>' +
+    lvBtn('done-shop', L('Back to the shop'), first + L(' · then the drive back, on the clock'), 'home', 'main') +
+    lvBtn('done-job', L('On to another job'), first + L(' · then the drive there'), 'chev', 'done') +
+    '<div class="lvhead back">' + ico('ret', 18) + esc(L('Coming back here today')) + '</div>' +
+    lvBtn('supply', L('Supply run'), L('The store or the shop for material · no photo'), 'cart', 'back') +
+    lvBtn('later', L('Quick trip to another job'), L('The drive · no photo · back here after'), 'truck', 'back') +
+    '<div class="fine" style="text-align:center;margin-top:6px">' + esc(L('Going straight home from here? Use Clock out.')) + '</div>' +
+  '</div>';
+}
+/* Clock out at a job site (T2.27, Carl 29 Oct 2026): "if they are heading
+   back to the shop, which 99% they are, they should be on the clock or
+   travel back to the shop. but before leaving they should have to take a
+   site photo. then at the shop they can clock out." So Clock out on a site
+   asks which: the drive back (the usual — clock out at the shop), or out
+   here, going home — which the server tells the PM and the Ops Director
+   about, as every clock-out away from the shop and the office. */
+function outHowHtml(){
+  var first = lvPhotoFirst();
+  return '<div class="sheetpad" style="gap:10px">' +
+    '<div class="body">' + esc(L('Most days the drive back to the shop is on the clock — clock out when you get there.')) + '</div>' +
+    lvBtn('done-shop', L('Back to the shop'), first + L(' · then the drive back, on the clock'), 'home', 'main') +
+    lvBtn('out', L('Clock out here · going home'), first + L(' · your PM and the Ops Director are told you clocked out away from the shop'), 'stop', 'quiet') +
   '</div>';
 }
 /* A job picked while still on the clock at another one, with no drive in
@@ -4035,6 +4203,44 @@ function moveHowHtml(){
     row('data-move="left"', Lf('Already there — I left {p} at…', { p: here }), L('Say when · no photo · your PM and the Ops Director are told'), 'chev') +
     row('data-move="wrong"', Lf('Wrong job — I was never at {p}', { p: here }), L('The clock moves here now'), 'chev') +
   '</div>';
+}
+/* Tell the PM (T2.27, Carl 29 Oct 2026): "I want the 'Tell the pm button'
+   to be available also outside of the send todays log, and have it text the
+   PM". From the Clock tab on a job and from a Close Out job: what they say
+   or type goes to the job's PM as a text (the board, DB Text) and as a note
+   on the job in JobTread, assigned to the PM. The day log's own Tell the PM
+   now does the same with the words in its story box. */
+function tellPmJob(){ return S.tellPmJob || S.job; }
+function tellPmHtml(){
+  var j = tellPmJob();
+  return '<div class="sheetpad" style="gap:12px">' +
+    '<div class="body">' + esc(Lf('A text to the PM of {p}, and a note on the job in JobTread.', { p: pw(j) })) + '</div>' +
+    '<div class="story has"><textarea id="tpmText" rows="3" maxlength="480" placeholder="' + esc(L('What does the PM need to know?')) + '">' + esc(S.tellPmDraft || '') + '</textarea></div>' +
+    '<div class="reccap hidden" data-reccap="tpmText"></div>' +
+    '<div class="talkrow">' + recBtnHtml('tpmText', 'tpmRec') + '<button class="talkbtn type" id="tpmType">' + ico('keyboard', 22) + esc(T('type')) + '</button></div>' +
+    '<button class="btn btn-go" id="tpmSend" style="min-height:72px">' + ico('send', 22) + esc(L('Send it to the PM')) + '</button>' +
+  '</div>';
+}
+function tellPmOpen(job){ S.tellPmJob = job || S.job; if (!S.tellPmJob) return; openSheet('tellpm'); }
+function tellPmSend(){
+  var j = tellPmJob(), ta = $('tpmText'), text = String(ta ? ta.value : S.tellPmDraft || '').trim();
+  if (!j || !text){ if (ta) ta.focus(); return; }
+  if (dlRec.taId === 'tpmText') dlRecStop();
+  S.tellPmDraft = '';
+  closeSheet();
+  toast('Sending to the PM…');
+  apiCall('tellPm', [j.id, text]).then(function(r){
+    toast(tellPmWords(r), !(r && r.text && r.text.sent));
+  }).catch(function(err){
+    S.tellPmDraft = text;
+    toast(err && err.readOnly ? 'Read-only build — nothing was sent' : 'Could not reach the office now — your words are kept, try again', true);
+  });
+}
+/* What the toast says: who was texted, or that it went to JobTread only and why. */
+function tellPmWords(r){
+  var tx = r && r.text, to = (tx && tx.to) || (r && r.assigned && r.assigned[0]) || L('the office');
+  if (tx && tx.sent) return tx.redirectedTo ? Lf('Texted {who} — test, meant for {pm}', { who: tx.redirectedTo, pm: to }) : Lf('Texted {who}', { who: to });
+  return Lf('On the job for {who} in JobTread — no text: {why}', { who: to, why: (tx && tx.why) || L('the board did not answer') });
 }
 /* How long a break (T2.13): JobTread's own four lengths. Each tile says when
    the clock starts again — the same minute JobTread will use. */
@@ -4073,6 +4279,13 @@ function wireSheet(){
     };
   }
   if ($('allCodes')) $('allCodes').onclick = function(){ S.allCodes = true; openSheet('codes'); };
+  if ($('tpmText')){
+    var tpm = $('tpmText');
+    tpm.oninput = function(){ S.tellPmDraft = tpm.value; autoGrow(tpm); };
+    $('tpmRec').onclick = function(){ dlRecToggle('tpmText'); };
+    $('tpmType').onclick = function(){ tpm.focus(); };
+    $('tpmSend').onclick = tellPmSend;
+  }
   [].forEach.call(document.querySelectorAll('#sheetBody [data-leave]'), function(b){
     b.onclick = function(){ leaveGo(b.getAttribute('data-leave')); };
   });
@@ -4133,7 +4346,7 @@ function wireSheet(){
     b.onclick = function(){ closeSheet(); coGo(b.getAttribute('data-cowhy')); };
   });
   [].forEach.call(document.querySelectorAll('#sheetBody [data-cowhyreport]'), function(b){
-    b.onclick = function(){ closeSheet(); coStartReport(b.getAttribute('data-cowhyreport'), 'job'); };
+    b.onclick = function(){ closeSheet(); coStartReport(b.getAttribute('data-cowhyreport'), CO.ctxArea ? 'area' : 'job', CO.ctxArea || undefined); };
   });
 }
 
@@ -4436,9 +4649,19 @@ function clockFlowDone(){
     setTab('co');
     // A work area's Start hands back to that area, still open under the flow.
     if (area && CO.jobId === back && CO.job){ CO.areaKey = area; coGo('area'); return; }
-    coOpenJob(back); return;
+    coLandJob(back); return;
   }
   setTab('job');
+}
+/* Into the job's work (T2.27): the repairs list for a repair job, the one
+   area that is theirs on a job with several (coOnlyArea), else the job. */
+function coLandJob(jobId){
+  coOpenJob(jobId);
+  var j = CO.job || coJobById(jobId);
+  if (!j) return;
+  if (coKindOf(j) === 'repairs'){ if (S.lang === 'es' && CO.job) coTranslateTasks(CO.job); coGo('repairs'); return; }
+  var one = typeof coOnlyArea === 'function' ? coOnlyArea(j, coVisit(jobId)) : null;
+  if (one && one.form !== 'roof'){ CO.areaKey = one.key; coGo('area'); }
 }
 
 /* The start photo opens the entry — a clock-in, or the switch it completes
@@ -4518,13 +4741,20 @@ function commitOut(item, rec){
       S.open = null; S.clockGate = null; S.onBreak = null; S.switching = null;
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
-      toast('Clocked out · sent to JobTread');
+      outToast(r, 'Clocked out · sent to JobTread');
       return refreshDay();
     }).catch(function(e){ if (!rec && photoRefused(e, 'end-out')) return 'camera'; S.clockGate = null; showErr(e); }).then(function(v){
       busy(false);
       if (v !== 'camera') landAfterOut(job);
     });
   });
+}
+/* Out away from the shop and the office (T2.27): the server has told the PM
+   and the Ops Director, so the phone says so instead of the plain receipt. */
+function outToast(r, plain){
+  var ev = r && r.evening;
+  if (ev && ev.ok === false && !ev.quiet) toast(ev.where && /no location/.test(ev.where) ? 'Clocked out · no location from the phone · your PM and the Ops Director are told' : 'Clocked out away from the shop · your PM and the Ops Director are told', true);
+  else toast(plain);
 }
 /* Clocked out: the Day log, with the nudge, if today's log is still to go. */
 function landAfterOut(job){
@@ -4700,7 +4930,7 @@ function doTravelOut(){
       S.open = null; S.switching = null;
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
-      toast('Clocked out · the drive is saved');
+      outToast(r, 'Clocked out · the drive is saved');
       return refreshDay();
     }).catch(showErr).then(function(){ busy(false); landAfterOut(job); });
   });
@@ -5044,9 +5274,25 @@ function rollForgot(jobId){
 
 /* I'm here: the job's code and its start photo. Back at the shop at the end
    of the day: the shop's list. */
+/* Driving to a Close Out job (T2.27, Carl 29 Oct 2026): "Having to go back
+   and forth between clock screen and close out screen is way to confusing
+   … the next screen has a great big 'Im here Start Work', but the training
+   video shows they have to go back to close out screen and click start for
+   the repair." So I'm here on the Clock tab and Start on the job's card are
+   one arrival: the job's code, its start photo, and then straight into the
+   inspection or the repairs on Close Out. */
+function coArrival(job){
+  if (!job || !canTab('co')) return '';
+  coRestoreQueue();
+  var j = coJobById(job.id);
+  if (!j) return '';
+  var k = coKindOf(j);
+  return k === 'repairs' ? 'repairs' : k === 'inspect' ? 'inspect' : '';
+}
 function arriveHere(){
   if (!onTravel()) return;
   if (leftOvernight()){ leftAsk(); return; }
+  if (!supplyRun() && !travelBack() && coArrival(S.job)){ coClockHere(S.job.id); return; }
   // Back from a supply run (T2.23): the code it left, no photo.
   if (supplyRun()){
     var j = S.job;
@@ -5144,7 +5390,7 @@ function doBreakOut(){
         S.open = null; S.brk = null; S.onBreak = null;
         if (r && r.entries) S.entries = r.entries;
         savePrefs();
-        toast('Clocked out · the rest of your break is off the clock');
+        outToast(r, 'Clocked out · the rest of your break is off the clock');
         busy(false);
         landAfterOut(job);
         return refreshDay();
@@ -5838,6 +6084,51 @@ esAdd({
   'What did you forget?': '¿Qué se te olvidó?', 'Forgot something? Add a line': '¿Se te olvidó algo? Agrega una línea',
   'Anything you add now goes on the same log with the time.': 'Lo que agregues ahora va en el mismo registro con la hora.'
 });
+/* T2.27 (29 Oct 2026): the round off Carl's notes on the second cut. */
+esAdd({
+  'Today’s log and a site photo first': 'Primero el registro de hoy y una foto de la obra',
+  'Site photo first': 'Primero una foto de la obra',
+  'Done here for today': 'Terminé aquí por hoy',
+  'Back to the shop': 'Regresar al taller',
+  ' · then the drive back, on the clock': ' · luego el viaje de regreso, en el reloj',
+  'On to another job': 'A otro trabajo',
+  ' · then the drive there': ' · luego el viaje para allá',
+  'Coming back here today': 'Regreso aquí hoy',
+  'Supply run': 'Ir por material',
+  'The store or the shop for material · no photo': 'A la tienda o al taller por material · sin foto',
+  'Quick trip to another job': 'Una vuelta a otro trabajo',
+  'The drive · no photo · back here after': 'El viaje · sin foto · regresas aquí después',
+  'Going straight home from here? Use Clock out.': '¿Te vas directo a casa? Usa Marcar salida.',
+  'Most days the drive back to the shop is on the clock — clock out when you get there.': 'Casi siempre el viaje de regreso al taller va en el reloj — marca salida cuando llegues.',
+  'Clock out here · going home': 'Marcar salida aquí · me voy a casa',
+  ' · your PM and the Ops Director are told you clocked out away from the shop': ' · se le avisa a tu PM y al Director de Operaciones que marcaste salida fuera del taller',
+  'End of the day': 'Fin del día',
+  'Clocked out · no location from the phone · your PM and the Ops Director are told': 'Salida marcada · el teléfono no dio ubicación · se le avisa a tu PM y al Director de Operaciones',
+  'Clocked out away from the shop · your PM and the Ops Director are told': 'Salida marcada fuera del taller · se le avisa a tu PM y al Director de Operaciones',
+  'Shop work first': 'Primero trabajo en el taller',
+  'At the shop · clock out': 'En el taller · marcar salida',
+  'The drive back is paid travel. Clock out when you get to the shop — no photo. Clocking out anywhere else tells your PM and the Ops Director.': 'El viaje de regreso es viaje pagado. Marca salida cuando llegues al taller — sin foto. Si marcas salida en otro lugar se le avisa a tu PM y al Director de Operaciones.',
+  'What held you up? Type it here': '¿Qué te atrasó? Escríbelo aquí',
+  'Someone not listed? Type who': '¿Alguien que no está en la lista? Escribe quién',
+  'Tell the PM': 'Avisar al PM',
+  'A text to the PM of {p}, and a note on the job in JobTread.': 'Un mensaje de texto al PM de {p}, y una nota en el trabajo en JobTread.',
+  'What does the PM need to know?': '¿Qué necesita saber el PM?',
+  'Send it to the PM': 'Mandárselo al PM',
+  'Sending to the PM…': 'Mandando al PM…',
+  'Read-only build — nothing was sent': 'Versión de solo lectura — no se mandó nada',
+  'Could not reach the office now — your words are kept, try again': 'No se pudo comunicar con la oficina — tus palabras quedan guardadas, intenta otra vez',
+  'Texted {who} — test, meant for {pm}': 'Mensaje a {who} — prueba, era para {pm}',
+  'Texted {who}': 'Mensaje enviado a {who}',
+  'On the job for {who} in JobTread — no text: {why}': 'Quedó en el trabajo para {who} en JobTread — sin mensaje de texto: {why}',
+  'the board did not answer': 'el tablero no contestó',
+  'the office': 'la oficina',
+  'Texts what you just said to the PM this minute. Today’s log still goes when you hit Send.': 'Le manda un mensaje al PM con lo que acabas de decir en este momento. El registro de hoy se manda de todos modos cuando lo envíes.',
+  'I’m here · start the repairs': 'Ya llegué · empezar las reparaciones',
+  'I’m here · start the inspection': 'Ya llegué · empezar la inspección',
+  'I’m here ends the drive: the job’s code, the start photo, then straight into Close Out.': 'Ya llegué termina el viaje: el código del trabajo, la foto de inicio, y luego directo a Close Out.',
+  'Open the repairs in Close Out ›': 'Abrir las reparaciones en Close Out ›',
+  'Open the inspection in Close Out ›': 'Abrir la inspección en Close Out ›'
+}); /* T2.27-ES */
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
@@ -5891,6 +6182,31 @@ var OPTION_ES = { 'Weather':'Clima', 'Short Labor':'Falta gente', 'Short Materia
   'Foundation':'Cimentación', 'Framing':'Estructura', 'HVAC':'HVAC', 'Masonry':'Albañilería', 'Mechanical':'Mecánico', 'Painting':'Pintura',
   'Plumbing':'Plomería', 'Roofing':'Techado', 'Tile':'Azulejo', 'Production Manager':'Gerente de producción', 'Site Manager':'Encargado de sitio', 'Sales Rep':'Vendedor' };
 function optionLabel(o){ return (S.lang === 'es' && OPTION_ES[o]) || o; }
+/* Who else was on site (T2.27, Carl 29 Oct 2026): "The Buttons that should
+   be visible all the time are Gutter Crew, Siding Crew, Sales Rep, PM, and
+   Other" — the rest of JobTread's list, and a box for someone not on it,
+   behind Other. JobTread's Trades Onsite list has no Gutter Crew, Siding
+   Crew or PM (read live the same day), and the server only ever writes the
+   list's own options, so a pick the list does not carry goes as its Other
+   with the words beside it in the log (`extra`, `said`, `fieldText` on the
+   payload). Once the office adds one to the list in JobTread, it is a real
+   pick by itself — matched by name, nothing here changes. */
+var TRADES_RE = /trades?\s*on\s*site/i;
+var TRADES_VISIBLE = ['Gutter Crew', 'Siding Crew', 'Sales Rep', 'PM'];
+var TRADES_ES = { 'Gutter Crew': 'Cuadrilla de canales', 'Siding Crew': 'Cuadrilla de siding', 'PM': 'PM' };
+var DL_SAID_MAX = 160;
+function dlIsTrades(f){ return !!f && TRADES_RE.test(String(f.name || '')); }
+function dlOtherOpt(f){ return ((f && f.options) || []).filter(function(o){ return /^other$/i.test(o); })[0] || null; }
+function dlExtra(d, id){ return ((d && d.extra) || {})[id] || []; }
+function dlSaid(d, id){ return String(((d && d.said) || {})[id] || ''); }
+function dlTradesSplit(f){
+  var opts = f.options || [], low = {};
+  opts.forEach(function(o){ low[String(o).toLowerCase()] = o; });
+  var vis = TRADES_VISIBLE.map(function(label){ return { label: label, opt: low[label.toLowerCase()] || null }; });
+  var shown = vis.filter(function(x){ return x.opt; }).map(function(x){ return x.opt; });
+  return { vis: vis, rest: opts.filter(function(o){ return shown.indexOf(o) === -1 && !/^other$/i.test(o); }) };
+}
+function tradeLabel(t){ return S.lang === 'es' ? (TRADES_ES[t] || OPTION_ES[t] || t) : t; }
 /* The questions: "Any delays?" and "Anyone hurt or a close call?" first,
    under the story — the two the log is built around — then the rest of
    JobTread's fields in the office's order: every yes/no field and every
@@ -5924,6 +6240,12 @@ function dlAnyYes(d){
   if (d.safety === true) return true;
   var f = d.fields || {};
   for (var id in f){ if (f[id] === true || (Array.isArray(f[id]) && f[id].length)) return true; }
+  return dlHasExtras(d);
+}
+function dlHasExtras(d){
+  var x = (d && d.extra) || {}, said = (d && d.said) || {};
+  for (var a in x){ if ((x[a] || []).length) return true; }
+  for (var b in said){ if (String(said[b] || '').trim()) return true; }
   return false;
 }
 function dlAnswered(d){
@@ -5931,7 +6253,7 @@ function dlAnswered(d){
   if (d.safety != null) return true;
   var f = d.fields || {};
   for (var id in f){ if (f[id] === true || f[id] === false || (Array.isArray(f[id]) && f[id].length)) return true; }
-  return false;
+  return dlHasExtras(d);
 }
 
 function dlHasContent(e){
@@ -6016,8 +6338,35 @@ function dlAnswerField(jobId, date, id, val){
   if (!e || e.sent) return;
   var f = {}; for (var k in (e.fields || {})) f[k] = e.fields[k];
   f[id] = val;
-  if (val === false) dlQuestions().forEach(function(q){ if (q.field && q.field.id === id && q.reason) delete f[q.reason.id]; });
+  if (val === false) dlQuestions().forEach(function(q){
+    if (q.field && q.field.id === id && q.reason){ delete f[q.reason.id]; if (e.said) delete e.said[q.reason.id]; }
+  });
   dlSet(jobId, date, 'fields', f);
+}
+/* A pick JobTread's list does not carry, a typed answer, and whether Other is open (T2.27). */
+function dlToggleExtra(jobId, date, id, label){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  e.extra = e.extra || {};
+  var list = (e.extra[id] || []).slice(), i = list.indexOf(label);
+  if (i !== -1) list.splice(i, 1); else list.push(label);
+  if (list.length) e.extra[id] = list; else delete e.extra[id];
+  e.seq = (e.seq || 0) + 1; dlPersist();
+}
+function dlSaySaid(jobId, date, id, text){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  e.said = e.said || {};
+  text = String(text || '').slice(0, DL_SAID_MAX);
+  if (text.trim()) e.said[id] = text; else delete e.said[id];
+  e.seq = (e.seq || 0) + 1; dlPersist();
+}
+function dlToggleDrawer(jobId, date, id){
+  var e = dlTouch(jobId, date, dlInfoFor(jobId));
+  if (!e || e.sent) return;
+  e.drawer = e.drawer || {};
+  e.drawer[id] = !e.drawer[id];
+  dlPersist();
 }
 /* One option on a pick list: tap to pick, tap again to un-pick; a list that
    takes one answer swaps it. */
@@ -6085,11 +6434,33 @@ function dlFieldsOut(e){
     if (f[id] === true || f[id] === false) out[id] = f[id];
     else if (Array.isArray(f[id]) && f[id].length) out[id] = f[id].slice();
   }
+  // A pick the list does not carry, or words typed under Other, ticks the
+  // list's own Other (T2.27); the words go beside it (dlFieldText).
+  var said = dlFieldText(e);
+  for (var k in said){
+    var o = dlOtherOpt(logFieldById(k));
+    if (!o) continue;
+    var list = (out[k] || []).slice();
+    if (list.indexOf(o) === -1) list.push(o);
+    out[k] = list;
+  }
+  return out;
+}
+function dlFieldText(e){
+  var out = {}, x = (e && e.extra) || {}, said = (e && e.said) || {}, ids = {};
+  for (var a in x) ids[a] = 1;
+  for (var b in said) ids[b] = 1;
+  for (var id in ids){
+    var parts = (x[id] || []).slice(), t = String(said[id] || '').replace(/\s+/g, ' ').trim();
+    if (t) parts.push(t);
+    if (parts.length) out[id] = parts.join(' · ');
+  }
   return out;
 }
 function dlFieldNames(e){
-  var out = {}, f = e.fields || {};
+  var out = {}, f = dlFieldsOut(e), t = dlFieldText(e);
   for (var id in f){ var def = logFieldById(id); if (def) out[id] = def.name; }
+  for (var k in t){ var d2 = logFieldById(k); if (d2) out[k] = d2.name; }
   return out;
 }
 function dlPayload(e){
@@ -6099,6 +6470,7 @@ function dlPayload(e){
     story: String(e.story || '').trim(),
     lines: (e.lines || []).map(function(l){ return { time: l.time, text: l.text, pmTold: !!l.pmTold }; }),
     fields: dlFieldsOut(e),
+    fieldText: dlFieldText(e),
     fieldNames: dlFieldNames(e),
     safety: e.safety == null ? null : !!e.safety,
     alert: e.alert ? { kind: e.alert.kind || '', hurt: e.alert.hurt == null ? null : !!e.alert.hurt, text: e.alert.text || '',
@@ -6313,7 +6685,7 @@ function dlBodyHtml(cur, e, date){
        '<button class="talkbtn type" id="dlType">' + ico('keyboard', 24) + esc(T('type')) + '</button></div>';
   h += '<div class="pmrow' + (hasText ? '' : ' hidden') + '" id="dlPmRow"><div style="flex:1;min-width:0">' +
        '<div class="pt1">' + esc(L('Something the PM needs right now?')) + '</div>' +
-       '<div class="pt2">' + esc(L('Sends what you just said to the PM this minute. Today’s log still goes when you hit Send.')) + '</div></div>' +
+       '<div class="pt2">' + esc(L('Texts what you just said to the PM this minute. Today’s log still goes when you hit Send.')) + '</div></div>' +
        '<button class="pmbtn" id="dlTellPm">' + esc(L('Tell the PM now')) + '</button></div>';
   // 2. JobTread's own questions: delays, then "Anyone hurt or a close
   // call?" — amber, the one warning voice — then the rest in the office's order.
@@ -6339,12 +6711,36 @@ function dlQuestionHtml(q, d, cur, date){
     var v = dlBoolAnswer(d, f.id);
     h += '<div class="dlh">' + esc(fieldQuestion(f)) + '</div>' + ynRowHtml('f:' + f.id, v, false);
     if (v === true && q.reason){
-      h += '<div class="k" style="margin-top:14px">' + esc(fieldQuestion(q.reason)) + '</div>' + optChipsHtml(q.reason, d) +
-           '<div style="margin-top:8px;font:400 14px/1.4 var(--sans);color:var(--mut)">' + esc(T('rest')) + '</div>';
+      h += '<div class="k" style="margin-top:14px">' + esc(fieldQuestion(q.reason)) + '</div>' + optChipsHtml(q.reason, d);
+      // Other opens a box for what held them up (T2.27).
+      var oth = dlOtherOpt(q.reason);
+      if (oth && dlPicked(d, q.reason.id).indexOf(oth) !== -1)
+        h += '<input class="cknote-in dlsaid" data-said="' + esc(q.reason.id) + '" placeholder="' + esc(L('What held you up? Type it here')) + '" maxlength="' + DL_SAID_MAX + '" value="' + esc(dlSaid(d, q.reason.id)) + '">';
+      h += '<div style="margin-top:8px;font:400 14px/1.4 var(--sans);color:var(--mut)">' + esc(T('rest')) + '</div>';
     }
     return h;
   }
-  return '<div class="dlh">' + esc(fieldQuestion(f)) + '</div>' + optChipsHtml(f, d);
+  return '<div class="dlh">' + esc(fieldQuestion(f)) + '</div>' + (dlIsTrades(f) ? tradesChipsHtml(f, d) : optChipsHtml(f, d));
+}
+/* Gutter Crew, Siding Crew, Sales Rep, PM, Other; the rest of the list and a
+   box for anyone not on it open under Other, and stay open while they hold
+   an answer. */
+function tradesChipsHtml(f, d){
+  var sp = dlTradesSplit(f), picked = dlPicked(d, f.id), extra = dlExtra(d, f.id), said = dlSaid(d, f.id);
+  var restOn = sp.rest.filter(function(o){ return picked.indexOf(o) !== -1; }).length;
+  var open = !!(((d && d.drawer) || {})[f.id]) || restOn > 0 || !!said.trim();
+  var h = '<div class="whychips">' + sp.vis.map(function(x){
+    var on = x.opt ? picked.indexOf(x.opt) !== -1 : extra.indexOf(x.label) !== -1;
+    return '<button class="whychip' + (on ? ' on' : '') + '" ' + (x.opt ? 'data-opt="' + esc(f.id) + '"' : 'data-xopt="' + esc(f.id) + '"') + ' data-val="' + esc(x.opt || x.label) + '">' + esc(tradeLabel(x.label)) + '</button>';
+  }).join('') +
+  '<button class="whychip other' + (open ? ' on' : '') + '" data-odrawer="' + esc(f.id) + '">' + esc(L('Other')) + (restOn || said.trim() ? ' · ' + (restOn + (said.trim() ? 1 : 0)) : '') + '</button></div>';
+  if (open){
+    h += '<div class="dlother">' + (sp.rest.length ? '<div class="whychips">' + sp.rest.map(function(o){
+      return '<button class="whychip' + (picked.indexOf(o) !== -1 ? ' on' : '') + '" data-opt="' + esc(f.id) + '" data-val="' + esc(o) + '">' + esc(optionLabel(o)) + '</button>';
+    }).join('') + '</div>' : '') +
+    '<input class="cknote-in dlsaid" data-said="' + esc(f.id) + '" placeholder="' + esc(L('Someone not listed? Type who')) + '" maxlength="' + DL_SAID_MAX + '" value="' + esc(said) + '"></div>';
+  }
+  return h;
 }
 function optChipsHtml(f, d){
   var picked = dlPicked(d, f.id);
@@ -6451,11 +6847,12 @@ function dlRowsHtml(cur, d, date, short){
 function dlAnswerWords(q, d){
   if (q.kind === 'safety') return d.safety === true ? T('yes') + (d.alert && d.alert.kind ? ' · ' + alertKindLabel(d.alert.kind) : '') : d.safety === false ? L('None') : '—';
   if (q.kind === 'bool'){
-    var v = dlBoolAnswer(d, q.field.id), why = q.reason ? dlPicked(d, q.reason.id) : [];
-    return v === true ? T('yes') + (why.length ? ' · ' + why.map(optionLabel).join(', ') : '') : v === false ? T('no') : '—';
+    var v = dlBoolAnswer(d, q.field.id), why = q.reason ? dlPicked(d, q.reason.id) : [], ws = q.reason ? dlSaid(d, q.reason.id).trim() : '';
+    return v === true ? T('yes') + (why.length ? ' · ' + why.map(optionLabel).join(', ') : '') + (ws ? ' — ' + ws : '') : v === false ? T('no') : '—';
   }
-  var picked = dlPicked(d, q.field.id);
-  return picked.length ? picked.map(optionLabel).join(', ') : '—';
+  var picked = dlPicked(d, q.field.id).map(optionLabel).concat(dlExtra(d, q.field.id).map(tradeLabel)), said = dlSaid(d, q.field.id).trim();
+  if (said) picked.push(said);
+  return picked.length ? picked.join(', ') : '—';
 }
 function alertKindLabel(kind){ var w = { fall:'Fall', cut:'Cut', heat:'Heat', close:'Close call', other:'Other' }[kind]; return w ? L(w) : kind; }
 function dlReviewHtml(cur, d, date){
@@ -6638,8 +7035,8 @@ function dlTellPm(jobId, date){
   if (ta) ta.value = '';
   renderDayLog();
   apiCall('tellPm', [jobId, text]).then(function(r){
-    line.pmTold = true; line.to = (r && r.assigned && r.assigned[0]) || 'the office';
-    dlPersist(); toast('Sent to ' + line.to); renderDayLog();
+    line.pmTold = true; line.to = (r && r.text && r.text.to) || (r && r.assigned && r.assigned[0]) || 'the office';
+    dlPersist(); toast(tellPmWords(r), !(r && r.text && r.text.sent)); renderDayLog();
   }).catch(function(err){
     dlPersist();
     toast(err && err.readOnly ? 'Read-only build — it stays in the log' : 'Could not reach the office now — it stays in the log', true);
@@ -6654,7 +7051,7 @@ function dlNormalDay(jobId, date){
   // Every yes/no field is No, nothing is picked, no incident.
   var f = {};
   dlQuestions().forEach(function(q){ if (q.kind === 'bool') f[q.field.id] = false; });
-  e.fields = f; e.safety = false; e.story = 'Normal day, nothing to report.'; e.seq = (e.seq || 0) + 1;
+  e.fields = f; e.extra = {}; e.said = {}; e.safety = false; e.story = 'Normal day, nothing to report.'; e.seq = (e.seq || 0) + 1;
   dlPersist();
   dlQueueSend(jobId, date);
   render();
@@ -6687,6 +7084,17 @@ function wireDayLog(cur, date){
   });
   [].forEach.call(body.querySelectorAll('[data-opt]'), function(b){
     b.onclick = function(){ dlToggleOption(cur.id, date, b.getAttribute('data-opt'), b.getAttribute('data-val')); renderDayLog(); };
+  });
+  [].forEach.call(body.querySelectorAll('[data-xopt]'), function(b){
+    b.onclick = function(){ dlToggleExtra(cur.id, date, b.getAttribute('data-xopt'), b.getAttribute('data-val')); renderDayLog(); };
+  });
+  [].forEach.call(body.querySelectorAll('[data-odrawer]'), function(b){
+    b.onclick = function(){ dlToggleDrawer(cur.id, date, b.getAttribute('data-odrawer')); renderDayLog(); };
+  });
+  // Typed words keep the box while typing; the Other count catches up on the way out.
+  [].forEach.call(body.querySelectorAll('[data-said]'), function(inp){
+    inp.oninput = function(){ dlSaySaid(cur.id, date, inp.getAttribute('data-said'), inp.value); };
+    inp.onchange = function(){ dlSaySaid(cur.id, date, inp.getAttribute('data-said'), inp.value); coAfterTap(renderDayLog); };
   });
   if ($('dlReview')) $('dlReview').onclick = function(){
     S.dlReview = true; renderDayLog();
@@ -6776,7 +7184,9 @@ function start(){
   restoreAssign();   // last known schedule on screen at once; refresh behind it
   applyTheme();
   setTab('job');
-  if (S.meSeen) landHome();   // the service crew is on Close Out before the API answers
+  // Back where they were (T2.27); otherwise the service crew is on Close
+  // Out before the API answers.
+  if (S.meSeen) landWhere();
 
   // Only what the clock screen cannot be drawn without: am I on the clock, on
   // what job, what have I logged today. Three Pave calls at most, so this
@@ -6784,7 +7194,7 @@ function start(){
   // list, the job picker and the crew block follow in loadExtras().
   bootStart(lastJob, 0).then(function(){
     S.booted = true;
-    landHome();            // the service crew opens on Close Out (T2.4)
+    landWhere();           // where they were, else the service crew opens on Close Out (T2.4)
     seedTodayJob();        // from the schedule already on the phone, if any
     render();
     pump();
@@ -6834,7 +7244,7 @@ function bootStart(lastJob, attempt){
     if (attempt > 0){
       // The late start: what the first attempt would have set in motion.
       S.booted = true;
-      landHome();
+      landWhere();
       seedTodayJob();
       render();
       loadExtras();
@@ -6885,6 +7295,16 @@ function roleTabs(){ return TABS_BY_ROLE[effRole()] || TABS_BY_ROLE.crew; }
    Carl 6 Oct 2026): the service crew's work is Close Out, so that is where
    they land. A tab tapped before the answer came, or a push deep link
    (handleShootParam runs after this), is left alone. */
+/* Where the app opens: back where they were today (T2.27) the first time
+   the phone knows who they are, else home. A tab tapped meanwhile wins. */
+function landWhere(){
+  if (!S.whereReady){
+    var ok = !S.tabTouched && whereRestore();
+    S.whereReady = true;
+    if (ok) return;
+  }
+  landHome();
+}
 function landHome(){
   if (S.tabTouched || S.tab !== 'job') return;
   if (effRole() === 'service' && canTab('co')) setTab('co');
@@ -7011,7 +7431,41 @@ function coSecLabel(sec){ return S.lang === 'es' ? (sec.label.es || sec.label.en
 function coSecLabel2(sec){ return S.lang === 'es' ? (sec.label.en || '') : (sec.label.es || ''); }
 /* The screen a section opens on — the roof's two keep the names they had. */
 function coSecScreen(sec){ return sec.key === 'inspection' ? 'inspect' : sec.key === 'cleanup' ? 'cleanup' : 'sec:' + sec.key; }
-function coSecOfScreen(sc, jobId){ return coSecs(jobId).filter(function(x){ return coSecScreen(x) === sc; })[0] || null; }
+/* One inspection, wherever it is (T2.27). The roof's checklist sits on the
+   job; the gutters' and the siding's own checklists (Carl, 29 Oct 2026:
+   "create check lists for gutter and siding final inspections") sit on
+   their work area, with the same screens: the sections, Problems, the site
+   photos, the final notes, and Review & send. `CO.ctxArea` names the area
+   being inspected — null is the roof's (or the only) inspection. A form the
+   phone does not have reads as notes and photos, as an area did before. */
+var CO_SITE_PHOTOS_MIN = 4;
+function coAreaForm(j, a){
+  if (!a || !a.form || a.form === 'roof' || a.form === 'notes') return null;
+  if (j && j.forms && coFormOk(j.forms[a.form])) return j.forms[a.form];
+  return coFormOk(coFormsSeen[a.form]) ? coFormsSeen[a.form] : null;
+}
+function coCtx(){
+  var jobId = CO.jobId, j = CO.job || coJobById(jobId), v = coVisit(jobId), key = CO.ctxArea;
+  if (key && j){
+    var a = coAreaByKey(j, key), f = coAreaForm(j, a);
+    if (f){
+      var av = coAreaV(v, key); av.answers = av.answers || {}; av.notes = av.notes || {};
+      return { area: key, a: a, form: f, answers: av.answers, notes: av.notes, photos: av.photos, reports: coAreaReports(v, key), fin: av,
+               target: { kind: 'area', jobId: jobId, area: key }, home: 'area' };
+    }
+  }
+  v.notes = v.notes || {}; v.fin = v.fin || { note: '' };
+  return { area: null, a: null, form: coForm(jobId), answers: v.answers, notes: v.notes, photos: v.photos, reports: coRoofReports(v), fin: v.fin,
+           target: { kind: 'visit', jobId: jobId }, home: 'job' };
+}
+function coCountA(answers, items, which){ var a = answers[which] || {}; return items.filter(function(i){ return !!a[i.key]; }).length; }
+function coCtxFixes(ctx, sec){
+  var out = [];
+  (sec ? [sec] : ctx.form.sections).forEach(function(x){ var a = ctx.answers[x.key] || {}; x.items.forEach(function(i){ if (a[i.key] === CO_ANS.FIX) out.push(i); }); });
+  return out;
+}
+function coCtxUnreported(ctx){ return coCtxFixes(ctx).filter(function(i){ return !ctx.reports.some(function(r){ return r.itemKey === i.key; }); }); }
+function coSecOfScreen(sc){ return coCtx().form.sections.filter(function(x){ return coSecScreen(x) === sc; })[0] || null; }
 function coFormDone(v, jobId){ return coSecs(jobId).reduce(function(n, x){ return n + coCount(v, x.items, x.key); }, 0); }
 function coFormTotal(jobId){ return coSecs(jobId).reduce(function(n, x){ return n + x.items.length; }, 0); }
 var CO_ANS = { OK: 'OK', NA: 'N/A', FIX: 'ACTION' };
@@ -7092,6 +7546,40 @@ var CO_L10N = {
 };
 function co(k){ return (CO_L10N[S.lang] || CO_L10N.en)[k] || CO_L10N.en[k] || k; }
 function co2(k){ return (CO_L10N[S.lang === 'es' ? 'en' : 'es'])[k] || ''; }
+/* More of the vocabulary, in both languages (T2.27). */
+function coAdd(o){ ['en', 'es'].forEach(function(l){ for (var k in o[l]) CO_L10N[l][k] = o[l][k]; }); }
+coAdd({
+  en: { tellPm: 'Tell the PM', tellPmSub: 'a text to the PM, and a note on the job' },
+  es: { tellPm: 'Avisar al PM', tellPmSub: 'un mensaje de texto al PM, y una nota en el trabajo' }
+});
+coAdd({
+  en: { beforeSub: 'Required — before you start', doneSubAll: 'Missing', repairNoteK: 'What you did', repairNotePh: 'Say or type what you fixed', morePhotos: 'More photos', morePhotosSub: 'optional · during the repair, the materials, anything worth showing',
+        needBefore: 'before photo', needAfter: 'after photo', needNote: 'a note' },
+  es: { beforeSub: 'Obligatoria — antes de empezar', doneSubAll: 'Falta', repairNoteK: 'Lo que hiciste', repairNotePh: 'Di o escribe lo que arreglaste', morePhotos: 'Más fotos', morePhotosSub: 'opcional · durante la reparación, el material, lo que valga la pena mostrar',
+        needBefore: 'foto de antes', needAfter: 'foto de después', needNote: 'una nota' }
+});
+coAdd({
+  en: { sitePhotos: 'Site photos', sitePhotosSub: 'how the site was left — front, back, both sides, the driveway and the beds', atLeast: 'at least {n}',
+        finalNotes: 'Final notes', finalNotesSub: 'how you left it, and anything the PM should know', finalNotesPh: 'Say or type how the job was left',
+        needPhotos: 'site photos ({n} of {m})', needFinal: 'final notes',
+        whyPhotos2: 'Take {n} more photos of the site', whyPhotos2Sub: 'front, back, both sides — so the PM can see it was left clean',
+        whyFinal: 'Your final notes', whyFinalSub: 'how the job was left — say it or type it',
+        edit: 'Edit', reviewK: 'Look it over, then send', rvSub: 'Tap a card to open it — Edit takes you back to that part.',
+        cardOk: 'OK', cardNa: 'N/A', cardFix: 'Fix', noNote: 'No note', photosN: 'photos', problemsNone: 'No problems reported',
+        nextArea: 'Next: {area} inspection ›', backToList: 'Back to my list ›', yours: 'Your inspections on this job', areaChecklist: 'checklist',
+        fixedOnSite: 'fixed on site', needsReturn: 'needs a return', noPhotosYet: 'No photos yet',
+        areaHintList: 'Go through its checklist, take the site photos and say your final notes. The PM reviews it on the board.' },
+  es: { sitePhotos: 'Fotos de la obra', sitePhotosSub: 'cómo quedó la obra — frente, atrás, los dos lados, la entrada y las jardineras', atLeast: 'mínimo {n}',
+        finalNotes: 'Notas finales', finalNotesSub: 'cómo lo dejaste, y lo que el PM deba saber', finalNotesPh: 'Di o escribe cómo quedó el trabajo',
+        needPhotos: 'fotos de la obra ({n} de {m})', needFinal: 'notas finales',
+        whyPhotos2: 'Toma {n} fotos más de la obra', whyPhotos2Sub: 'frente, atrás, los dos lados — para que el PM vea que quedó limpio',
+        whyFinal: 'Tus notas finales', whyFinalSub: 'cómo quedó el trabajo — dilo o escríbelo',
+        edit: 'Editar', reviewK: 'Revísalo, y luego mándalo', rvSub: 'Toca una tarjeta para abrirla — Editar te regresa a esa parte.',
+        cardOk: 'Bien', cardNa: 'N/A', cardFix: 'Falla', noNote: 'Sin nota', photosN: 'fotos', problemsNone: 'Ningún problema reportado',
+        nextArea: 'Siguiente: inspección de {area} ›', backToList: 'Regresar a mi lista ›', yours: 'Tus inspecciones en este trabajo', areaChecklist: 'lista de revisión',
+        fixedOnSite: 'arreglado en el lugar', needsReturn: 'falta regresar', noPhotosYet: 'Sin fotos todavía',
+        areaHintList: 'Revisa su lista, toma las fotos de la obra y di tus notas finales. El PM lo revisa en el tablero.' }
+}); /* CO-T227 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -7107,6 +7595,7 @@ function coVisit(jobId){
   var v = coStore.visits[jobId];
   if (!v){ v = coStore.visits[jobId] = { answers: { inspection: {}, cleanup: {} }, notes: { inspection: '', cleanup: '' }, reports: [], photos: [], before: {}, after: {}, repairNote: {}, doneTasks: {}, sentAt: 0, startedAt: Date.now() }; coPersist(); }
   v.reports = v.reports || []; v.photos = v.photos || []; v.before = v.before || {}; v.after = v.after || {}; v.repairNote = v.repairNote || {}; v.doneTasks = v.doneTasks || {};
+  v.repairMore = v.repairMore || {}; v.repairEn = v.repairEn || {};
   return v;
 }
 function coCount(v, items, which){ var a = v.answers[which] || {}; return items.filter(function(i){ return !!a[i.key]; }).length; }
@@ -7115,38 +7604,53 @@ function coFixes(v, sec){
   (sec ? [sec] : coSecs()).forEach(function(x){ var a = v.answers[x.key] || {}; x.items.forEach(function(i){ if (a[i.key] === CO_ANS.FIX) out.push(i); }); });
   return out;
 }
+/* An item, on whichever form it is — the roof's, or an area's (T2.27). */
 function coItemByKey(k){
-  var all = []; coSecs().forEach(function(x){ all = all.concat(x.items); });
-  return all.filter(function(i){ return i.key === k; })[0] || CO_INSPECT.concat(CO_CLEAN).filter(function(i){ return i.key === k; })[0] || null;
+  if (!k) return null;
+  var forms = [coCtx().form, coForm()];
+  for (var fk in coFormsSeen) forms.push(coFormsSeen[fk]);
+  forms.push(CO_FORM_ROOF);
+  for (var i = 0; i < forms.length; i++){
+    var f = forms[i]; if (!coFormOk(f)) continue;
+    for (var x = 0; x < f.sections.length; x++){ var hit = f.sections[x].items.filter(function(it){ return it.key === k; })[0]; if (hit) return hit; }
+  }
+  return null;
 }
 /* What is still missing before the one send: a complete list on each side,
-   and a report for every line marked Falla. */
-function coMissing(v){
+   a report for every line marked Falla, and since T2.27 the site photos
+   (Carl: "Photos on the final inspection are not optional, must have
+   substantial photos to show cleanliness of the site") and the final notes
+   ("end notes are required also and can have recording option"). */
+function coMissingCtx(ctx){
   var m = [];
-  coSecs().forEach(function(x){ var left = x.items.length - coCount(v, x.items, x.key); if (left > 0) m.push(coSecLabel(x).toLowerCase() + ' (' + left + ')'); });
-  var unreported = coFixes(v).filter(function(i){ return !v.reports.some(function(r){ return r.itemKey === i.key && r.saved; }); });
+  ctx.form.sections.forEach(function(x){ var left = x.items.length - coCountA(ctx.answers, x.items, x.key); if (left > 0) m.push(coSecLabel(x).toLowerCase() + ' (' + left + ')'); });
+  var unreported = coCtxUnreported(ctx);
   if (unreported.length) m.push(co('fixK').split(' ·')[0].toLowerCase() + ' ' + unreported.map(function(i){ return i.n; }).join(', '));
+  if (ctx.photos.length < CO_SITE_PHOTOS_MIN) m.push(co('needPhotos').replace('{n}', ctx.photos.length).replace('{m}', CO_SITE_PHOTOS_MIN));
+  if (!String(ctx.fin.note || '').trim()) m.push(co('needFinal'));
   return m;
 }
-/* Everything standing between the crew and the roof's send, each with
-   where to go to deal with it (T2.12, Carl 26 Oct 2026: "the button is
-   greyed out … there is nothing to let me know"). The lists and their
-   reports are coMissing's; the other is a send of this job's still in the
-   outbox — on its way, or refused and waiting on the crew — because a
+function coMissing(v){ return coMissingCtx(coCtx()); }
+/* Everything standing between the crew and the send, each with where to go
+   to deal with it (T2.12, Carl 26 Oct 2026: "the button is greyed out …
+   there is nothing to let me know"). Also a send of this inspection's still
+   in the outbox — on its way, or refused and waiting on the crew — because a
    second send beside it would write the visit twice. */
-function coBlockers(jobId, v){
-  var out = [], close = (CO.outbox || []).filter(function(it){ return it.jobId === jobId && it.kind === 'close'; })[0];
+function coBlockersCtx(ctx){
+  var out = [], jobId = CO.jobId, v = coVisit(jobId);
+  var close = (CO.outbox || []).filter(function(it){ return it.jobId === jobId && (ctx.area ? it.kind === 'area' && it.area === ctx.area : it.kind === 'close'); })[0];
   if (close && close.status === 'rejected') out.push({ go: 'send', t: co('whyRefused'), s: close.err || co('whyRefusedSub') });
-  else if (close || v.sending) out.push({ go: 'send', t: co('whyGoing'), s: co('whyGoingSub') });
-  coSecs(jobId).forEach(function(x){
-    var left = x.items.length - coCount(v, x.items, x.key);
+  else if (close || (!ctx.area && v.sending)) out.push({ go: 'send', t: co('whyGoing'), s: co('whyGoingSub') });
+  ctx.form.sections.forEach(function(x){
+    var left = x.items.length - coCountA(ctx.answers, x.items, x.key);
     if (left > 0) out.push({ go: coSecScreen(x), t: coSecLabel(x) + ' · ' + left + ' ' + co('whyLeft'), s: co('whyAnswer') });
   });
-  coFixes(v).filter(function(i){ return !v.reports.some(function(r){ return r.itemKey === i.key && r.saved; }); }).forEach(function(i){
-    out.push({ report: i.key, t: co('whyFix') + ' ' + i.n, s: coLabel(i) });
-  });
+  coCtxUnreported(ctx).forEach(function(i){ out.push({ report: i.key, t: co('whyFix') + ' ' + i.n, s: coLabel(i) }); });
+  if (ctx.photos.length < CO_SITE_PHOTOS_MIN) out.push({ go: 'photos', t: co('whyPhotos2').replace('{n}', CO_SITE_PHOTOS_MIN - ctx.photos.length), s: co('whyPhotos2Sub') });
+  if (!String(ctx.fin.note || '').trim()) out.push({ go: 'final', t: co('whyFinal'), s: co('whyFinalSub') });
   return out;
 }
+function coBlockers(jobId, v){ return coBlockersCtx(coCtx()); }
 /* A visit is "sending" only while its close is in the outbox. The mark was
    cleared on one road only — the close landing — so a close refused and
    then taken off, or an outbox the phone lost (site data cleared, the app
@@ -7166,13 +7670,13 @@ function coHealSending(){
   if (changed) coPersist();
 }
 function coWhyHtml(){
-  var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), list = j ? coBlockers(j.id, v) : [];
+  var j = CO.job || coJobById(CO.jobId), list = j ? coBlockersCtx(coCtx()) : [];
   var h = '<div class="sheetpad"><div class="body" style="margin-bottom:12px">' + esc(co('whyIntro')) + '</div><div class="jcard" style="margin-top:0">';
   h += list.map(function(b){
     var at = b.report ? ' data-cowhyreport="' + esc(b.report) + '"' : ' data-cowhy="' + esc(b.go) + '"';
     return '<button class="jtile"' + at + '><span class="bi"><span class="es">' + esc(b.t) + '</span><span class="en">' + esc(b.s) + '</span></span>' + CK_CHEV + '</button>';
   }).join('');
-  return h + '</div><div class="foot" style="text-align:left;margin-top:12px">' + esc(co('whyPhotos')) + '</div></div>';
+  return h + '</div></div>';
 }
 function coJobById(id){ return (CO.jobs || []).filter(function(j){ return j.id === id; })[0] || null; }
 function coJobLabel(j){ return j ? (streetOf(j.address) || jobTitle({ name: j.name }) || j.number || '—') : '—'; }
@@ -7255,7 +7759,7 @@ function coAreasSummaryHtml(j, v){
 }
 function coAreaTile(j, v, a){
   var av = coAreaGet(v, a.key), n = av ? av.photos.length : 0, pend = coOutboxFor(j.id).filter(function(it){ return it.area === a.key; }).length;
-  var sub = [coAreaName2(a), co('areaNotes'), a.inspectionDate ? coDay(a.inspectionDate) : ''].filter(Boolean).join(' · ');
+  var sub = [coAreaName2(a), co(coAreaForm(j, a) ? 'areaChecklist' : 'areaNotes'), a.inspectionDate ? coDay(a.inspectionDate) : ''].filter(Boolean).join(' · ');
   return '<button class="jtile" data-coarea="' + esc(a.key) + '"><span class="bi"><span class="es">' + esc(coAreaName(a)) + '</span><span class="en">' + esc(sub) + '</span></span>' +
          '<span class="cnt tabular' + (pend || n ? ' warn' : '') + '">' + esc(pend ? co('queued') : n ? n + ' ' + co('photo').toLowerCase() : co('start')) + '</span>' + CK_CHEV + '</button>';
 }
@@ -7273,6 +7777,7 @@ function coLoadQueue(force){
       CO.jobs = r.body; CO.jobsAt = Date.now(); CO.jobsSource = 'live';
       try { localStorage.setItem(CO_QUEUE_KEY, JSON.stringify({ at: CO.jobsAt, jobs: CO.jobs })); } catch(e){}
       coPrefetchCodes();
+      setTimeout(coPrefetchJobs, 1500);
     } else {
       CO.reason = r.reason || ('http-' + r.status);
       CO.err = (r.body && r.body.error) || '';
@@ -7322,6 +7827,35 @@ function coPrefetchCodes(){
   if (!canTab('job')) return;
   (CO.jobs || []).filter(function(j){ return j.mine && (coKindOf(j) === 'inspect' || coKindOf(j) === 'repairs') && !codesCached(j.id); }).slice(0, 6)
     .forEach(function(j){ loadCodes(j.id, true).catch(function(){}); });
+}
+/* Today's and tomorrow's Close Out jobs, fetched behind the list (T2.27,
+   Carl: "cache as much data as possible for the jobs and screens for the day
+   they are on, so if the reception is bad, they still can open the job and
+   do work"). Each lands in the same copy a job opened by hand leaves, so a
+   job never opened before still opens with no signal; the checklists, the
+   photos and the outbox were already the phone's. One at a time on the reads
+   lane, behind anything the crew asked for. */
+var CO_PREFETCH_MAX = 8, CO_PREFETCH_STALE_MS = 30 * 60 * 1000;
+function coPrefetchJobs(){
+  if (CO.prefetching || !S.online) return;
+  var today = isoLocal(), tomorrow = isoLocal(new Date(Date.now() + 86400000));
+  var fresh = function(id){ try { var j = JSON.parse(localStorage.getItem('dbtc_co_job_' + id) || 'null'); return j && j._at && Date.now() - j._at < CO_PREFETCH_STALE_MS; } catch(e){ return false; } };
+  var ids = (CO.jobs || []).filter(function(j){ if (!j.mine) return false; var d = coJobDay(j, today); return d === today || d === tomorrow || d === CO_EARLIER; })
+    .map(function(j){ return j.id; }).filter(function(id){ return id !== CO.jobId && !fresh(id); }).slice(0, CO_PREFETCH_MAX);
+  if (!ids.length) return;
+  CO.prefetching = true;
+  var next = function(){
+    var id = ids.shift();
+    if (!id || !S.online){ CO.prefetching = false; return; }
+    apiCall('coJob', [id], { lane: 'reads', timeout: 40000 }).then(function(r){
+      if (r && r.status === 200 && r.body && r.body.id){
+        r.body._at = Date.now();
+        coAdoptForms(r.body.forms);
+        try { localStorage.setItem('dbtc_co_job_' + id, JSON.stringify(r.body)); } catch(e){}
+      }
+    }).catch(function(){}).then(next);
+  };
+  next();
 }
 function coOpenJob(jobId){
   CO.jobId = jobId; CO.job = null; CO.screen = 'job'; CO.receipt = null; CO.repairsSent = null;
@@ -7430,6 +7964,12 @@ function coClockHereHtml(j){
 function coClockCount(){ return onBreakNow() ? countdown(breakLeft()) : hmClock(openSeconds()); }
 function coGo(screen){
   CO.screen = screen;
+  // The job screen is the roof's inspection; an area's screen is that
+  // area's when it has its own checklist (T2.27). Everything else keeps it.
+  if (screen === 'job' || screen === 'queue') CO.ctxArea = null;
+  else if (screen === 'area'){ var cj = CO.job || coJobById(CO.jobId), ca = cj && coAreaByKey(cj, CO.areaKey); CO.ctxArea = ca && coAreaForm(cj, ca) ? ca.key : null; }
+  if (screen === 'send') CO.rvOpen = {};
+  whereSave();
   var sc = $('vCo').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
   if (dlRec.want && /^co/.test(dlRec.taId || '')) dlRecStop();
   coRender();
@@ -7437,9 +7977,10 @@ function coGo(screen){
 function coBack(){
   var s = CO.screen;
   if (s === 'job' || s === 'queue'){ CO.screen = 'queue'; CO.jobId = null; CO.job = null; coLoadQueue(false); }
-  else if (s === 'report'){ CO.reportIdx = null; CO.screen = CO.reportFrom || 'job'; }
+  else if (s === 'report'){ CO.reportIdx = null; CO.screen = CO.reportFrom || (CO.ctxArea ? 'area' : 'job'); }
   else if (s === 'repair'){ CO.screen = 'repairs'; CO.taskId = null; }
-  else CO.screen = 'job';
+  else if (s === 'area') CO.screen = 'job';
+  else CO.screen = CO.ctxArea ? 'area' : 'job';
   coGo(CO.screen);
 }
 
@@ -7618,6 +8159,7 @@ function coAddPhoto(target, file, origin){
     else if (target.kind === 'area') coAreaV(v, target.area).photos.push(rec);
     else if (target.kind === 'before') v.before[target.taskId] = rec;
     else if (target.kind === 'after') v.after[target.taskId] = rec;
+    else if (target.kind === 'more'){ (v.repairMore[target.taskId] = v.repairMore[target.taskId] || []).push(rec); }
     coPersist(); coRender();
   }).catch(function(e){ failed('close out · photo', e); });
 }
@@ -7625,7 +8167,7 @@ function coAddPhoto(target, file, origin){
    photos fits (a problem, the visit), one where only one belongs. */
 function coPickPhotos(target){
   CO.photoFor = target;
-  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit' || target.kind === 'area'; g.value = ''; g.click();
+  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit' || target.kind === 'area' || target.kind === 'more'; g.value = ''; g.click();
 }
 /* An AFTER photo is the proof the repair was done (Carl, 13 Oct 2026): one
    taken before the repair was asked for cannot show the fix, and one with no
@@ -7659,6 +8201,7 @@ function coRemovePhoto(target, id){
   else if (target.kind === 'area'){ var av = coAreaV(v, target.area); av.photos = av.photos.filter(function(p){ return p.id !== id; }); }
   else if (target.kind === 'before') delete v.before[target.taskId];
   else if (target.kind === 'after') delete v.after[target.taskId];
+  else if (target.kind === 'more') v.repairMore[target.taskId] = (v.repairMore[target.taskId] || []).filter(function(p){ return p.id !== id; });
   coPhotoDel(id); coPersist(); coRender();
 }
 function coPhotoPut(rec){ return idb().then(function(db){ return new Promise(function(res, rej){ var t = db.transaction('cophotos', 'readwrite'); t.objectStore('cophotos').put(rec); t.oncomplete = res; t.onerror = function(){ rej(t.error); }; }); }); }
@@ -7799,6 +8342,14 @@ function coReportItems(v, jobId, keep, items, area){
   });
 }
 function coSendVisit(jobId){
+  var v = coVisit(jobId), fin = v.fin = v.fin || { note: '' }, said = String(fin.note || '').trim();
+  // The final notes wait a few seconds for their English, as an area's do.
+  var wait = S.online && said && !(fin.noteSrc === said && fin.noteEn)
+    ? Promise.race([coToEnglish(fin), new Promise(function(res){ setTimeout(res, 8000); })]) : Promise.resolve();
+  v.sending = true; v.sendingAt = Date.now(); coPersist(); coRender();
+  return wait.then(function(){ coSendVisitNow(jobId); });
+}
+function coSendVisitNow(jobId){
   var v = coVisit(jobId), items = [], ref = 'co' + uid(), roof = coRoofReports(v);
   coReportItems(v, jobId, function(r){ return !r.area; }, items, null);
   v.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('visitPhotos'), payload: coPayload({ label: 'INSPECTION' }, p) }); });
@@ -7806,6 +8357,8 @@ function coSendVisit(jobId){
   var problems = roof.filter(function(r){ return !r.fixed; }).length;
   var form = coForm(jobId), answers = {}, notes = {};
   form.sections.forEach(function(x){ answers[x.key] = v.answers[x.key] || {}; notes[x.key] = (v.notes && v.notes[x.key]) || undefined; });
+  var fin = v.fin || {}, fsaid = String(fin.note || '').trim(), fen = fin.noteSrc === fsaid && fin.noteEn ? fin.noteEn.trim() : fsaid;
+  notes.final = fen && fsaid && fen !== fsaid ? fen + '\n\n(' + fsaid + ')' : (fen || undefined);
   items.push({ id: ref, kind: 'close', jobId: jobId, label: form.sections.map(coSecLabel).join(' + '),
                payload: { form: form.key, answers: answers, notes: notes, findings: findings, problemsReported: problems } });
   v.sending = true; v.sendingAt = Date.now(); coPersist();
@@ -7827,20 +8380,39 @@ function coSendArea(jobId, key){
     av.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, area: key, photoId: p.id, label: name + ' · ' + co('photo'), payload: coPayload({ label: 'INSPECTION', area: key }, p) }); });
     var said = (av.note || '').trim(), en = (av.noteSrc === said && av.noteEn) ? av.noteEn.trim() : said;
     var notes = en && said && en !== said ? en + '\n\n(' + said + ')' : en;
-    items.push({ id: ref, kind: 'area', jobId: jobId, area: key, label: name + ' · ' + co('inspection'),
-                 payload: { area: key, notes: notes || undefined, problemsReported: coAreaReports(v, key).filter(function(r){ return !r.fixed; }).length } });
+    var payload = { area: key, notes: notes || undefined, problemsReported: coAreaReports(v, key).filter(function(r){ return !r.fixed; }).length };
+    // The gutters' and the siding's own checklist (T2.27): its answers by
+    // section, each section's note and the findings, as the roof's close.
+    var f = a && coAreaForm(j, a);
+    if (f){
+      av.answers = av.answers || {}; av.notes = av.notes || {};
+      payload.form = f.key; payload.answers = {}; payload.sectionNotes = {};
+      f.sections.forEach(function(x){ payload.answers[x.key] = av.answers[x.key] || {}; if (String(av.notes[x.key] || '').trim()) payload.sectionNotes[x.key] = av.notes[x.key]; });
+      payload.findings = coAreaReports(v, key).filter(function(r){ return r.itemKey; }).map(function(r){ return { itemKey: r.itemKey, fixedOnSite: !!r.fixed, location: r.locationWords || '', note: (r.noteEn || r.note || '').trim(), photos: (r.photos || []).length }; });
+    }
+    items.push({ id: ref, kind: 'area', jobId: jobId, area: key, label: name + ' · ' + co('inspection'), payload: payload });
     coPersist();
     return coEnqueue(items).then(function(){ CO.areaSending = null; coGo('area'); });
   }).catch(function(e){ CO.areaSending = null; failed('close out · send', e); coRender(); });
 }
 function coFinishRepair(jobId, taskId){
-  var v = coVisit(jobId), items = [], ref = 'cr' + uid();
-  if (v.before[taskId]) items.push({ id: ref + '.b', kind: 'photo', jobId: jobId, photoId: v.before[taskId].id, label: co('before'), payload: coPayload({ label: 'BEFORE', taskId: taskId }, v.before[taskId]) });
-  if (v.after[taskId]) items.push({ id: ref + '.a', kind: 'photo', jobId: jobId, photoId: v.after[taskId].id, label: co('after'), payload: coPayload({ label: 'AFTER', taskId: taskId }, v.after[taskId]) });
-  var j = CO.job || coJobById(jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === taskId; })[0];
-  items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, repairArea: (t && t.area) || undefined, label: co('repairDone'), payload: { note: (v.repairNote[taskId] || '').trim() } });
-  v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; coPersist();
-  coEnqueue(items).then(function(){ toast(co('repairDone')); coGo('repairs'); });
+  var v = coVisit(jobId), en = coRepairEn(v, taskId), said = (en.note || '').trim();
+  // The note waits a few seconds for its English, as an area's does; no
+  // signal, it goes as written.
+  var wait = S.online && said && !(en.noteSrc === said && en.noteEn)
+    ? Promise.race([coToEnglish(en), new Promise(function(res){ setTimeout(res, 8000); })]) : Promise.resolve();
+  return wait.then(function(){
+    var items = [], ref = 'cr' + uid();
+    if (v.before[taskId]) items.push({ id: ref + '.b', kind: 'photo', jobId: jobId, photoId: v.before[taskId].id, label: co('before'), payload: coPayload({ label: 'BEFORE', taskId: taskId }, v.before[taskId]) });
+    if (v.after[taskId]) items.push({ id: ref + '.a', kind: 'photo', jobId: jobId, photoId: v.after[taskId].id, label: co('after'), payload: coPayload({ label: 'AFTER', taskId: taskId }, v.after[taskId]) });
+    (v.repairMore[taskId] || []).forEach(function(p, i){ items.push({ id: ref + '.m' + i, kind: 'photo', jobId: jobId, photoId: p.id, label: co('morePhotos'), payload: coPayload({ label: 'REPAIR', taskId: taskId }, p) }); });
+    var j = CO.job || coJobById(jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === taskId; })[0];
+    var eng = (en.noteSrc === said && en.noteEn) ? en.noteEn.trim() : said;
+    var note = eng && said && eng !== said ? eng + '\n\n(' + said + ')' : eng;
+    items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, repairArea: (t && t.area) || undefined, label: co('repairDone'), payload: { note: note } });
+    v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; coPersist();
+    return coEnqueue(items).then(function(){ toast(co('repairDone')); coGo('repairs'); });
+  });
 }
 
 /* ---- the screens ---- */
@@ -8012,6 +8584,8 @@ function coJobHtml(){
     // "Anything below starts a new visit" is only true with the checklist below.
     h += '<div class="rvcard" style="margin-top:0"><div class="rvstory"><span class="rk">' + esc(co('sent')) + ' · ' + esc(clockLabel(v.sentAt)) + '</span><span class="rt">' + esc(co('sentSub')) + '</span></div></div>';
   }
+  // Tell the PM, from any Close Out job (T2.27).
+  h += '<div class="jcard"><button class="jtile" data-cotellpm="1"><span class="bi"><span class="es">' + esc(co('tellPm')) + '</span><span class="en">' + esc(co('tellPmSub')) + '</span></span>' + ico('msg', 22) + '</button></div>';
   var pending = coOutboxFor(j.id);
   if (pending.length) h += coOutboxLine(j.id);
   if (k !== 'review' && !(CO.receipt && CO.receipt.jobId === j.id)) h += coClockHereHtml(j);
@@ -8031,17 +8605,15 @@ function coJobHtml(){
          (started ? '<span class="rt" style="margin-top:8px;color:var(--ckamber)">' + esc(co('reviewStarted')) + '</span>' : '') + '</div></div>';
   }
   if (multi) h += coAreasSummaryHtml(j, v);
+  var ctx = coCtx();
   if (roofOpen || started){
     if (multi && line) h += '<div class="k" style="margin-top:14px">' + esc(coAreaName(line)) + ' · ' + esc(co('areaRoofList')) + '</div>';
-    h += '<div class="jcard"' + (multi && line ? ' style="margin-top:6px"' : '') + '>' +
-      secs.map(function(x){ var c = coCount(v, x.items, x.key), n = x.items.length;
-        return coTile(coSecScreen(x), coSecLabel(x), coSecLabel2(x) + ' · ' + n + ' ' + co('points'), c + ' ' + co('of') + ' ' + n, c === n ? 'all' : c ? 'warn' : ''); }).join('') +
-      coTile('problems', co('problems'), co2('problems') + ' · ' + co('optional') + ' · ' + co('withPhoto'), roofReps.length ? String(roofReps.length) : '—', roofReps.length ? 'warn' : '') +
-      coTile('photos', co('visitPhotos'), co2('visitPhotos') + ' · ' + co('visitPhotosSub'), v.photos.length ? String(v.photos.length) : '—', '') + '</div>';
+    h += '<div class="jcard"' + (multi && line ? ' style="margin-top:6px"' : '') + '>' + coCtxTilesHtml(ctx) + '</div>';
   }
-  // The gutters and the siding: one tile each, while it is the crew's to
-  // inspect or this phone has started on it.
-  var notesAreas = areas.filter(function(a){ return a.form === 'notes' && (coAreaIsOpen(j, v, a) || coAreaStarted(v, a.key) || coOutboxFor(j.id).some(function(it){ return it.area === a.key; })); });
+  // The other work areas — the gutters, the siding (each its own checklist
+  // since T2.27), a second roof (notes and photos): one tile each, while it
+  // is the crew's to inspect or this phone has started on it.
+  var notesAreas = areas.filter(function(a){ return !a.line && (coAreaIsOpen(j, v, a) || coAreaStarted(v, a.key) || coOutboxFor(j.id).some(function(it){ return it.area === a.key; })); });
   if (notesAreas.length) h += '<div class="jcard">' + notesAreas.map(function(a){ return coAreaTile(j, v, a); }).join('') + '</div>';
   var tasks = j.punchTasks || [];
   if (tasks.length || k === 'repairs'){
@@ -8049,13 +8621,44 @@ function coJobHtml(){
     h += '<div class="jcard">' + coTile('repairs', co('repairs'), co2('repairs') + (j.openPunchTotal != null ? ' · ' + (tasks.length - open) + ' ' + co('of') + ' ' + tasks.length + ' ' + co('ready') : ''), open ? String(open) : (tasks.length ? '✓' : '—'), open ? 'warn' : 'all') + '</div>';
   }
   if (j.soldScope && j.soldScope.length) h += coScopeHtml(j);
-  if (roofOpen || started){
-    // Never a dead grey button: blocked, it still answers — with the list of
-    // what is left (coWhyHtml) — and the line under it says so.
-    var miss = coMissing(v), blocked = coBlockers(j.id, v).length > 0;
-    h += '<button class="btn btn-go sendbig' + (blocked ? ' blocked' : '') + '" id="coReview" aria-describedby="coReviewFoot">' + esc(co('review') + (multi && line ? ' · ' + coAreaName(line) : '')) + '</button>';
-    h += '<div class="foot" id="coReviewFoot">' + (blocked ? esc((miss.length ? co('missing') + ': ' + miss.join(' · ') : co('whyGoing')) + ' — ' + co('whyTap')) : esc(co('checkSendSub'))) + '</div>';
-  }
+  if (roofOpen || started) h += coReviewBtnHtml(ctx, multi && line ? coAreaName(line) : '');
+  return h;
+}
+/* The tiles of one inspection (T2.27): its sections, Problems, the site
+   photos (at least four, required) and the final notes (required). */
+function coCtxTilesHtml(ctx){
+  var reps = ctx.reports.length, ph = ctx.photos.length, fin = String(ctx.fin.note || '').trim();
+  return ctx.form.sections.map(function(x){ var c = coCountA(ctx.answers, x.items, x.key), n = x.items.length;
+      return coTile(coSecScreen(x), coSecLabel(x), coSecLabel2(x) + ' · ' + n + ' ' + co('points'), c + ' ' + co('of') + ' ' + n, c === n ? 'all' : c ? 'warn' : ''); }).join('') +
+    coTile('problems', co('problems'), co2('problems') + ' · ' + co('optional') + ' · ' + co('withPhoto'), reps ? String(reps) : '—', reps ? 'warn' : '') +
+    coTile('photos', co('sitePhotos'), co('atLeast').replace('{n}', CO_SITE_PHOTOS_MIN) + ' · ' + co('required'), ph + ' / ' + CO_SITE_PHOTOS_MIN, ph >= CO_SITE_PHOTOS_MIN ? 'all' : ph ? 'warn' : '') +
+    coTile('final', co('finalNotes'), co('finalNotesSub') + ' · ' + co('required'), fin ? '✓' : '—', fin ? 'all' : '');
+}
+/* The Review & send button and the line under it: never a dead grey
+   button — blocked, it still answers with the list of what is left. */
+function coReviewBtnHtml(ctx, label){
+  var miss = coMissingCtx(ctx), blocked = coBlockersCtx(ctx).length > 0;
+  return '<button class="btn btn-go sendbig' + (blocked ? ' blocked' : '') + '" id="coReview" aria-describedby="coReviewFoot">' + esc(co('review') + (label ? ' · ' + label : '')) + '</button>' +
+         '<div class="foot" id="coReviewFoot">' + (blocked ? esc((miss.length ? co('missing') + ': ' + miss.join(' · ') : co('whyGoing')) + ' — ' + co('whyTap')) : esc(co('checkSendSub'))) + '</div>';
+}
+/* After a send (T2.27, Carl: "you click close out and it goes to another
+   screen, then … click the back arrow, then click on the job. this is for
+   multiple trades on one job needing inspections"): the next inspection on
+   this job that is theirs, one tap away, and the list. */
+function coOpenInspections(j, v){
+  var areas = coAreas(j), anyMine = areas.some(function(a){ return a.mine; });
+  return areas.filter(function(a){
+    if (anyMine && !a.mine) return false;
+    if (a.line && a.form === 'roof') return coRoofOpen(j, v);
+    return coAreaIsOpen(j, v, a);
+  });
+}
+function coOnlyArea(j, v){ var l = coOpenInspections(j, v); return l.length === 1 ? l[0] : null; }
+function coAfterSendHtml(j){
+  var v = coVisit(j.id), next = coOpenInspections(j, v)[0], h = '';
+  if (next) h += '<button class="btn btn-go sendbig" ' + (next.line && next.form === 'roof' ? 'data-coroof="1"' : 'data-conextarea="' + esc(next.key) + '"') + ' style="margin-top:18px">' +
+                 esc(co('nextArea').replace('{area}', S.lang === 'es' ? coAreaThe(next) : coAreaName(next))) + '</button>';
+  h += '<button class="btn btn-nav" id="coBackQueue" style="margin-top:12px">' + esc(co('backToList')) + '</button>';
   return h;
 }
 function coScopeHtml(j){
@@ -8081,27 +8684,27 @@ function coScopeToggle(j){
   coRender();
 }
 function coListHtml(which){
-  var secs = coSecs(), si = 0;
+  var ctx = coCtx(), secs = ctx.form.sections, si = 0;
   secs.forEach(function(x, i){ if (x.key === which) si = i; });
-  var sec = secs[si], v = coVisit(CO.jobId), items = sec.items, a = v.answers[which] || {}, h = '<div class="ckphase open" style="margin-top:0">';
+  var sec = secs[si], items = sec.items, a = ctx.answers[which] || {}, h = '<div class="ckphase open" style="margin-top:0">';
   items.forEach(function(it, i){
     var cur = a[it.key] || '';
     h += '<div class="ckq' + (i ? '' : ' first') + '"><span class="n">' + esc(it.n) + '</span><div class="bi"><span class="es">' + esc(coLabel(it)) + '</span><span class="en">' + esc(coLabel2(it)) + '</span></div></div>';
-    h += '<div class="ans" data-key="' + esc(it.key) + '" data-which="' + which + '">' +
+    h += '<div class="ans" data-key="' + esc(it.key) + '" data-which="' + esc(which) + '">' +
          '<button class="ok' + (cur === CO_ANS.OK ? ' on' : '') + '" data-ans="OK">' + esc(co('ok')) + '<span class="s">' + esc(co2('ok')) + '</span></button>' +
          '<button class="na' + (cur === CO_ANS.NA ? ' on' : '') + '" data-ans="NA">N/A<span class="s">' + esc(co('naSub')) + '</span></button>' +
          '<button class="fix' + (cur === CO_ANS.FIX ? ' on' : '') + '" data-ans="FIX">' + esc(co('fix')) + '<span class="s">' + esc(co('fixSub')) + '</span></button></div>';
     if (cur === CO_ANS.FIX){
-      var rep = v.reports.filter(function(r){ return r.itemKey === it.key && r.saved; })[0];
+      var rep = ctx.reports.filter(function(r){ return r.itemKey === it.key; })[0];
       h += '<button class="nudge" style="min-height:60px" data-coreport="' + esc(it.key) + '"><span style="flex:1;min-width:0"><span class="nk">' + esc(co('fixK')) + ' ' + esc(it.n) + '</span><span class="nt">' +
            (rep ? esc(co('reportSaved')) + ' · ' + (rep.photos || []).length + ' ' + esc(co('photo').toLowerCase()) + ' ›' : esc(co('fixNudge'))) + '</span></span></button>';
     }
   });
   h += '</div>';
-  var nk = which, nextSec = secs[si + 1];
-  v.notes = v.notes || {};
-  h += '<div class="story has" style="margin-top:14px"><textarea id="coListNote" data-notes="' + esc(nk) + '" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.notes[nk] || '') + '</textarea></div>';
-  h += '<button class="btn btn-nav" id="coNext" data-next="' + esc(nextSec ? coSecScreen(nextSec) : 'job') + '" style="margin-top:16px">' + esc(co('next') + ': ' + (nextSec ? coSecLabel(nextSec) : co('review')) + ' ›') + '</button>';
+  var nextSec = secs[si + 1];
+  h += '<div class="story has" style="margin-top:14px"><textarea id="coListNote" data-notes="' + esc(which) + '" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(ctx.notes[which] || '') + '</textarea></div>';
+  // After the last section: the site photos, then the final notes, then the review.
+  h += '<button class="btn btn-nav" id="coNext" data-next="' + esc(nextSec ? coSecScreen(nextSec) : 'photos') + '" style="margin-top:16px">' + esc(co('next') + ': ' + (nextSec ? coSecLabel(nextSec) : co('sitePhotos')) + ' ›') + '</button>';
   return h;
 }
 function coWhereChips(r){
@@ -8133,8 +8736,8 @@ function coReportHtml(){
   return h;
 }
 function coProblemsHtml(){
-  var v = coVisit(CO.jobId), h = '<div class="foot" style="text-align:left;margin-top:4px">' + esc(co('problemsHint')) + '</div>';
-  var saved = v.reports.map(function(r, i){ return { r: r, i: i }; }).filter(function(x){ return x.r.saved && !x.r.area; });
+  var ctx = coCtx(), v = coVisit(CO.jobId), h = '<div class="foot" style="text-align:left;margin-top:4px">' + esc(co('problemsHint')) + '</div>';
+  var saved = v.reports.map(function(r, i){ return { r: r, i: i }; }).filter(function(x){ return x.r.saved && (ctx.area ? x.r.area === ctx.area : !x.r.area); });
   if (saved.length){
     h += '<div class="jcard">' + saved.map(function(x){ var r = x.r, it = coItemByKey(r.itemKey);
       return '<button class="rep" data-coedit="' + x.i + '"><span class="dot">' + (r.sentAt ? CK_TICK_SM : '›') + '</span><span class="bi"><span class="es">' + esc(it ? (it.n + ' · ' + coLabel(it)) : (r.locationWords || co('problems'))) + '</span><span class="en">' + esc((r.noteEn || r.note || '').slice(0, 90)) + (r.fixed ? ' · ' + esc(co('fixed')) : '') + ' · ' + (r.photos || []).length + ' ' + esc(co('photo').toLowerCase()) + '</span></span></button>'; }).join('') + '</div>';
@@ -8142,12 +8745,31 @@ function coProblemsHtml(){
   h += '<button class="btn btn-nav" id="coNewReport" style="margin-top:14px">' + esc(co('newReport')) + '</button>';
   return h;
 }
+/* The site photos (T2.27): at least four of how it was left — the PM reads
+   cleanliness off them. The camera, or the phone's own photos. */
 function coPhotosHtml(){
-  var v = coVisit(CO.jobId), target = JSON.stringify({ kind: 'visit', jobId: CO.jobId });
-  return '<div class="foot" style="text-align:left;margin-top:4px">' + esc(co('photosHint')) + '</div><div class="photos">' +
-    v.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
-    '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(v.photos.length ? co('anotherPhoto') : co('photo')) + '</button>' +
-    '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
+  var ctx = coCtx(), target = JSON.stringify(ctx.target), n = ctx.photos.length, left = Math.max(0, CO_SITE_PHOTOS_MIN - n);
+  return '<div class="k" style="margin-top:6px">' + esc(co('sitePhotos')) + ' — <span style="color:var(--ckamber)">' + esc(co('atLeast').replace('{n}', CO_SITE_PHOTOS_MIN) + ' · ' + co('required')) + '</span></div>' +
+    '<div class="foot" style="text-align:left;margin-top:6px">' + esc(co('sitePhotosSub')) + '</div><div class="photos">' +
+    ctx.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+    '<button class="ph add' + (left ? ' need' : '') + '" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(n ? co('anotherPhoto') : co('photo')) + '</button>' +
+    '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>' +
+    '<div class="foot" id="coPhotosLeft" style="text-align:left;margin-top:10px' + (left ? ';color:var(--ckamber)' : '') + '">' + esc(n + ' / ' + CO_SITE_PHOTOS_MIN) + '</div>' +
+    '<button class="btn btn-nav" id="coNext" data-next="final" style="margin-top:16px">' + esc(co('next') + ': ' + co('finalNotes') + ' ›') + '</button>';
+}
+/* The final notes (T2.27): required, said or typed, with the English for
+   the office under them as a problem report's note has. */
+function coFinalHtml(){
+  var ctx = coCtx(), f = ctx.fin, note = f.note || '', h = '';
+  h += '<div class="k" style="margin-top:6px">' + esc(co('finalNotes')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span></div>';
+  h += '<div class="foot" style="text-align:left;margin-top:6px">' + esc(co('finalNotesSub')) + '</div>';
+  h += '<div class="talkrow" style="margin-top:12px">' + recBtnHtml('coFinal', 'coFinalRec') + '<button class="talkbtn type" id="coFinalType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
+  h += '<div class="story' + (note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coFinal" placeholder="' + esc(co('finalNotesPh')) + '" rows="4">' + esc(note) + '</textarea></div>';
+  h += '<div class="reccap hidden" data-reccap="coFinal"></div>';
+  if (note.trim() && f.noteSrc === note.trim() && (f.noteEnBusy || (f.noteEn && f.noteEn !== note.trim())))
+    h += '<div class="rvcard" style="margin-top:10px"><div class="rvstory"><span class="rk">' + esc(co('englishNote')) + '</span><span class="rt">' + esc(f.noteEnBusy ? co('translating') : f.noteEn) + '</span></div></div>';
+  h += '<button class="btn btn-go sendbig" id="coNext" data-next="review" style="margin-top:18px">' + esc(co('review')) + ' ›</button>';
+  return h;
 }
 /* "Sent", with who the server tagged and where the Production Board put the
    job — the phone never guesses either. A job with areas that did not move
@@ -8160,40 +8782,72 @@ function coReceiptHtml(rc, j){
   return '<div class="hero" id="coReceipt" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('sent') + (a ? ' · ' + coAreaName(a) : '')) + '</span><span class="st">' + esc(clockLabel(rc.at)) + '</span>' +
          '<span class="ss">' + esc(lines.length ? lines.join(' · ') : co('sentSub')) + '</span></div>';
 }
+/* One card of the review (T2.27, Carl: "I want a review and send but I
+   cant really see anything, like I want to review my notes I spoke or
+   typed, photos I took, and a way to go back if I want to edit anything
+   before sending … under different cards"). Shut until tapped, so the
+   screen is a list of what will go, not an endless scroll. */
+function coRvCard(key, title, summary, cls, body, editTo){
+  var open = !!(CO.rvOpen && CO.rvOpen[key]);
+  return '<div class="rvc' + (open ? ' open' : '') + '"><button class="rvc-head" data-rvtoggle="' + esc(key) + '" aria-expanded="' + open + '"><span class="rvc-t">' + esc(title) + '</span>' +
+         '<span class="rvc-s' + (cls ? ' ' + cls : '') + '">' + esc(summary) + '</span>' + ico(open ? 'chevu' : 'chevd', 20) + '</button>' +
+         (open ? '<div class="rvc-body">' + body + (editTo ? '<button class="rvc-edit" data-rvedit="' + esc(editTo) + '">' + esc(co('edit')) + ' ›</button>' : '') + '</div>' : '') + '</div>';
+}
+function coRvThumbs(list){ return list.length ? '<div class="rvc-thumbs">' + list.map(function(p){ return '<span style="background-image:url(' + p.thumb + ')"></span>'; }).join('') + '</div>' : ''; }
+function coRvSaid(o){
+  var said = String((o && o.note) || '').trim(), en = o && o.noteSrc === said && o.noteEn ? o.noteEn.trim() : '';
+  if (!said) return '<div class="rvc-note" style="color:var(--mut)">' + esc(co('noNote')) + '</div>';
+  return '<div class="rvc-note">' + esc(said) + '</div>' + (en && en !== said ? '<div class="rvc-note"><span class="k9">' + esc(co('englishNote')) + '</span>' + esc(en) + '</div>' : '');
+}
+function coReviewCardsHtml(ctx){
+  var v = coVisit(CO.jobId), h = '';
+  ctx.form.sections.forEach(function(x){
+    var a = ctx.answers[x.key] || {}, c = coCountA(ctx.answers, x.items, x.key), fx = coCtxFixes(ctx, x).length, na = x.items.filter(function(i){ return a[i.key] === CO_ANS.NA; }).length;
+    var sum = c < x.items.length ? c + ' ' + co('of') + ' ' + x.items.length : [(c - fx - na) + ' ' + co('cardOk'), na ? na + ' ' + co('cardNa') : '', fx ? fx + ' ' + co('cardFix') : ''].filter(Boolean).join(' · ');
+    var body = x.items.map(function(i){
+      var ans = a[i.key], cls = ans === CO_ANS.OK ? 'ok' : ans === CO_ANS.NA ? 'na' : ans === CO_ANS.FIX ? 'fix' : 'no', w = ans === CO_ANS.OK ? co('cardOk') : ans === CO_ANS.NA ? co('cardNa') : ans === CO_ANS.FIX ? co('cardFix') : '—';
+      return '<div class="rvi"><span class="n">' + esc(i.n) + '</span><span class="l">' + esc(coLabel(i)) + '</span><span class="a ' + cls + '">' + esc(w) + '</span></div>';
+    }).join('') + (String(ctx.notes[x.key] || '').trim() ? '<div class="rvc-note"><span class="k9">' + esc(co('note')) + '</span>' + esc(ctx.notes[x.key]) + '</div>' : '');
+    h += coRvCard('sec:' + x.key, coSecLabel(x), sum, c < x.items.length ? 'warn' : fx ? 'warn' : 'good', body, coSecScreen(x));
+  });
+  var reps = v.reports.map(function(r, i){ return { r: r, i: i }; }).filter(function(o){ return o.r.saved && (ctx.area ? o.r.area === ctx.area : !o.r.area); });
+  h += coRvCard('problems', co('problems'), String(reps.length), reps.some(function(o){ return !o.r.fixed; }) ? 'warn' : '',
+    reps.length ? reps.map(function(o){ var r = o.r, it = coItemByKey(r.itemKey);
+      return '<button class="rvc-rep" data-coedit="' + o.i + '" data-cofrom="send"><div class="rvi" style="border:0;padding:0"><span class="n">' + esc(it ? it.n : '!') + '</span><span class="l">' + esc(it ? coLabel(it) : (r.locationWords || co('problems'))) + '</span><span class="a ' + (r.fixed ? 'ok' : 'fix') + '">' + esc(co(r.fixed ? 'fixedOnSite' : 'needsReturn')) + '</span></div>' +
+             coRvSaid(r) + coRvThumbs(r.photos || []) + '</button>'; }).join('') : '<div class="rvc-note" style="color:var(--mut)">' + esc(co('problemsNone')) + '</div>', 'problems');
+  var ph = ctx.photos.length;
+  h += coRvCard('photos', co('sitePhotos'), ph + ' / ' + CO_SITE_PHOTOS_MIN, ph >= CO_SITE_PHOTOS_MIN ? 'good' : 'warn', ph ? coRvThumbs(ctx.photos) : '<div class="rvc-note" style="color:var(--mut)">' + esc(co('noPhotosYet')) + '</div>', 'photos');
+  var fin = String(ctx.fin.note || '').trim();
+  h += coRvCard('final', co('finalNotes'), fin ? '✓' : '—', fin ? 'good' : 'warn', coRvSaid(ctx.fin), 'final');
+  return h;
+}
 function coSendHtml(){
-  // A work area's own send is followed on its own screen.
-  var v = coVisit(CO.jobId), j = CO.job || coJobById(CO.jobId), items = coOutboxFor(CO.jobId).filter(function(it){ return !it.area; }), h = '';
-  var fixes = coFixes(v).length;
-  var done = CO.receipt && CO.receipt.jobId === CO.jobId;
+  var ctx = coCtx(), v = coVisit(CO.jobId), j = CO.job || coJobById(CO.jobId), h = '';
+  var items = coOutboxFor(CO.jobId).filter(function(it){ return ctx.area ? it.area === ctx.area : !it.area; });
+  // The roof's receipt is here; an area's is on its own screen.
+  var done = !ctx.area && CO.receipt && CO.receipt.jobId === CO.jobId && !CO.receipt.area;
   if (done){
     h += coReceiptHtml(CO.receipt, j);
     // A refused item beside a landed close is still the crew's to see:
     // the close went, the report it was about did not.
     if (items.length) h += coOutboxHtml();
     h += coClockCardHtml();
-    h += '<button class="btn btn-nav" id="coBackQueue" style="margin-top:18px">' + esc(co('tab')) + ' ›</button>';
-    return h;
+    return h + (j ? coAfterSendHtml(j) : '');
   }
-  if (v.sending || items.length){
+  if ((!ctx.area && v.sending) || items.length || (ctx.area && CO.areaSending === ctx.area)){
     var bad = items.filter(function(it){ return it.status === 'rejected'; });
     h += '<div class="hero' + (bad.length ? ' warn' : '') + '" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(bad.length ? co('rejected') : co('sending')) + '</span><span class="st">' + items.length + ' ' + esc(co('queued').toLowerCase()) + '</span><span class="ss">' + esc(co('offline')) + '</span></div>';
     h += coOutboxHtml();
     h += coClockCardHtml();
     return h;
   }
-  h += '<div class="hero" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('allDone')) + '</span><span class="st">' + esc(co('checkSend')) + '</span><span class="ss">' + esc(co('checkSendSub')) + '</span></div>';
-  var secs = coSecs();
-  h += '<div class="rvcard">' + secs.map(function(x, i){
-         var c = coCount(v, x.items, x.key), fx = coFixes(v, x).length;
-         // The first section reads by its answers, the rest by how many are done — as the roof always read.
-         return '<div class="rvrow"><span class="rk">' + esc(coSecLabel(x)) + '</span><span class="rv" style="color:var(--acc)">' +
-           (i === 0 ? (c - fx) + ' ' + esc(co('ok').toLowerCase()) + (fx ? ' · ' + fx + ' ' + esc(co('fix').toLowerCase()) : '') : c + ' ' + esc(co('of')) + ' ' + x.items.length) + '</span></div>';
-       }).join('') +
-       '<div class="rvrow"><span class="rk">' + esc(co('problems')) + '</span><span class="rv">' + coRoofReports(v).length + ' ' + esc(co('reportedN')) + '</span></div>' +
-       '<div class="rvrow"><span class="rk">' + esc(co('visitPhotos')) + '</span><span class="rv">' + v.photos.length + '</span></div>' +
-       '<div class="rvstory"><span class="rk">' + esc(co('whatNext')) + ' · ' + esc(co('whatNextSub')) + '</span><span class="rt">' + esc(coWhatNext(j, coRoofReports(v).some(function(r){ return !r.fixed; }))) + '</span></div></div>';
-  h += '<button class="btn btn-go sendbig" id="coSend">' + esc(co('finishSend')) + '</button>';
-  h += '<div class="foot">' + esc(co('offline')) + '</div>';
+  h += '<div class="hero" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('reviewK')) + '</span><span class="st">' + esc(ctx.area && ctx.a ? coAreaName(ctx.a) : co('checkSend')) + '</span><span class="ss">' + esc(co('rvSub')) + '</span></div>';
+  h += coReviewCardsHtml(ctx);
+  var problems = ctx.reports.some(function(r){ return !r.fixed; });
+  h += '<div class="rvcard"><div class="rvstory"><span class="rk">' + esc(co('whatNext')) + ' · ' + esc(co('whatNextSub')) + '</span><span class="rt">' + esc(coWhatNext(j, problems)) + '</span></div></div>';
+  var blocked = coBlockersCtx(ctx).filter(function(b){ return b.go !== 'send'; }).length > 0;
+  h += '<button class="btn btn-go sendbig' + (blocked ? ' blocked' : '') + '" id="coSend">' + esc(co('finishSend')) + '</button>';
+  h += '<div class="foot">' + esc(blocked ? co('missing') + ': ' + coMissingCtx(ctx).join(' · ') : co('offline')) + '</div>';
   return h;
 }
 /* After the send, where the job goes: on a job with work areas the board
@@ -8250,27 +8904,52 @@ function coRepairsHtml(){
   h += '<div class="foot" style="margin-top:14px">' + esc(co('beforeAfter')) + '<br>' + esc(co(multi ? 'lastClosesAreas' : 'lastCloses')) + '</div>';
   return h;
 }
+/* One repair (T2.27, Carl 29 Oct 2026): "Before photo is mandatory. Must
+   have notes, and add the record option like in other part of app to speak
+   the notes, and need to be able to add more photos to the repair, so a way
+   to take photos from there, or add from their photo album on their phone."
+   So: the before and after photos, both required; what was done, said or
+   typed, required, with its English for the office under it as the problem
+   reports have; and any more photos, from the camera or the phone's own
+   photos. Done waits on all three and says which is missing. */
+function coRepairEn(v, tid){ var o = v.repairEn[tid] = v.repairEn[tid] || {}; o.note = v.repairNote[tid] || ''; return o; }
+function coRepairMissing(v, tid){
+  return [v.before[tid] ? '' : co('needBefore'), v.after[tid] ? '' : co('needAfter'), (v.repairNote[tid] || '').trim() ? '' : co('needNote')].filter(Boolean);
+}
 function coRepairHtml(){
   var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0];
   if (!t) return '<div class="jempty">' + esc(co('loading')) + '</div>';
-  var tb = JSON.stringify({ kind: 'before', jobId: CO.jobId, taskId: t.id }), ta = JSON.stringify({ kind: 'after', jobId: CO.jobId, taskId: t.id }), b = v.before[t.id], a = v.after[t.id], h = '';
+  var tb = JSON.stringify({ kind: 'before', jobId: CO.jobId, taskId: t.id }), ta = JSON.stringify({ kind: 'after', jobId: CO.jobId, taskId: t.id }), tm = JSON.stringify({ kind: 'more', jobId: CO.jobId, taskId: t.id });
+  var b = v.before[t.id], a = v.after[t.id], more = v.repairMore[t.id] || [], h = '';
   h += '<div class="rvcard" style="margin-top:4px"><div class="rvstory"><span class="rk">' + esc(co('whatToDo')) + ' · ' + esc(co('whatToDoSub')) + '</span><span class="rt">' + esc(es(t.description) || es(coTaskName(t))) + '</span>' +
        (S.lang === 'es' && CO.trans[t.description || t.name] ? '<span class="small-note" style="font:400 13px/1.4 var(--sans);color:var(--mut)">' + esc(co('autoTranslated')) + '</span>' : '') + '</div>' +
        (t.endDate ? '<div class="rvrow"><span class="rk">' + esc(co('assignedBy')) + '</span><span class="rv">' + esc(coDay(t.endDate)) + '</span></div>' : '') + '</div>';
   h += '<div class="photos" style="margin-top:14px">' +
        (b ? '<button class="phbig" style="background-image:url(' + b.thumb + ')" data-corm="' + esc(b.id) + '" data-target=\'' + esc(tb) + '\'><span class="tag">' + esc(co('before')) + '</span>' + coBigSrc(b) + '</button>'
-          : '<button class="phbig empty" data-cophoto=\'' + esc(tb) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('before')) + '</span><span class="s">' + esc(co('beforeSub')) + '</span></button>') +
+          : '<button class="phbig empty need" data-cophoto=\'' + esc(tb) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('before')) + '</span><span class="s">' + esc(co('beforeSub')) + '</span></button>') +
        (a ? '<button class="phbig" style="background-image:url(' + a.thumb + ')" data-corm="' + esc(a.id) + '" data-target=\'' + esc(ta) + '\'><span class="tag">' + esc(co('after')) + '</span>' + coBigSrc(a) + '</button>'
           : '<button class="phbig empty need" data-cophoto=\'' + esc(ta) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('after')) + '</span><span class="s">' + esc(co('afterSub')) + '</span></button>') + '</div>';
   // From my photos, under whichever slot is still empty (T2.9).
   if (!b || !a) h += '<div class="phrow2">' + (b ? '<span></span>' : '<button class="galsm" data-cogallery=\'' + esc(tb) + '\'>' + ico('image', 18) + esc(co('fromPhone')) + '</button>') +
                       (a ? '<span></span>' : '<button class="galsm" data-cogallery=\'' + esc(ta) + '\'>' + ico('image', 18) + esc(co('fromPhone')) + '</button>') + '</div>';
   if (CO.photoNote && CO.photoNote.taskId === t.id && !a) h += '<div class="foot" id="coPhotoNote" style="text-align:left;color:var(--ckamber);margin-top:10px">' + esc(CO.photoNote.text) + '</div>';
-  h += '<div class="story' + (v.repairNote[t.id] ? ' has' : '') + '" style="margin-top:14px"><textarea id="coRepairNote" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.repairNote[t.id] || '') + '</textarea></div>';
-  var can = !!a, last = coIsLastRepair(j, v, t.id), ta = coMultiArea(j) && t.area ? coAreaByKey(j, t.area) : null;
-  var lastSub = ta ? co('doneLastAreaSub').replace('{the}', coAreaThe(ta)) : co('doneLastSub');
-  h += '<button class="ctaBig" id="coDone" style="margin-top:18px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co(last ? 'doneLast' : 'done')) + '</button>';
-  h += '<div class="foot">' + esc(last ? lastSub + (can ? '' : ' ' + co('doneSub') + '.') : can ? co('pmChecks') : co('doneSub')) + '</div>';
+  // What was done: said or typed, required.
+  var note = v.repairNote[t.id] || '', en = v.repairEn[t.id] || {};
+  h += '<div class="k" style="margin-top:22px">' + esc(co('repairNoteK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span></div>';
+  h += '<div class="talkrow">' + recBtnHtml('coRepairNote', 'coRepairRec') + '<button class="talkbtn type" id="coRepairType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
+  h += '<div class="story' + (note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coRepairNote" placeholder="' + esc(co('repairNotePh')) + '" rows="3">' + esc(note) + '</textarea></div>';
+  h += '<div class="reccap hidden" data-reccap="coRepairNote"></div>';
+  if (note.trim() && en.noteSrc === note.trim() && en.noteEn && en.noteEn !== note.trim())
+    h += '<div class="rvcard" style="margin-top:10px"><div class="rvstory"><span class="rk">' + esc(co('englishNote')) + '</span><span class="rt">' + esc(en.noteEnBusy ? co('translating') : en.noteEn) + '</span></div></div>';
+  // More photos: during the repair, the material — the camera or the phone's own.
+  h += '<div class="k" style="margin-top:22px">' + esc(co('morePhotos')) + ' · <span style="text-transform:none;letter-spacing:0">' + esc(co('morePhotosSub')) + '</span></div>';
+  h += '<div class="photos">' + more.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(tm) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+       '<button class="ph add" data-cophoto=\'' + esc(tm) + '\'>' + ico('camera', 26) + esc(more.length ? co('anotherPhoto') : co('photo')) + '</button>' +
+       '<button class="ph add gal" data-cogallery=\'' + esc(tm) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
+  var miss = coRepairMissing(v, t.id), can = !miss.length, last = coIsLastRepair(j, v, t.id), tar = coMultiArea(j) && t.area ? coAreaByKey(j, t.area) : null;
+  var lastSub = tar ? co('doneLastAreaSub').replace('{the}', coAreaThe(tar)) : co('doneLastSub');
+  h += '<button class="ctaBig" id="coDone" style="margin-top:22px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co(last ? 'doneLast' : 'done')) + '</button>';
+  h += '<div class="foot">' + esc(can ? (last ? lastSub : co('pmChecks')) : co('doneSubAll') + ': ' + miss.join(' · ')) + '</div>';
   return h;
 }
 
@@ -8286,8 +8965,7 @@ function coAreaHtml(){
     h += coReceiptHtml(CO.receipt, j);
     if (items.length) h += coOutboxHtml();
     h += coClockCardHtml();
-    h += '<button class="btn btn-nav" id="coAreaBack" style="margin-top:18px">' + esc(co('areaBack')) + ' ›</button>';
-    return h;
+    return h + coAfterSendHtml(j);
   }
   if (items.length){
     var bad = items.filter(function(it){ return it.status === 'rejected'; });
@@ -8298,13 +8976,21 @@ function coAreaHtml(){
   if (a.inspectionDate || who.length) h += '<div class="rvcard" style="margin-top:4px">' +
     (a.inspectionDate ? '<div class="rvrow short"><span class="rk">' + esc(co('areaBooked')) + '</span><span class="rv">' + esc(coDay(a.inspectionDate)) + '</span></div>' : '') +
     (who.length ? '<div class="rvrow short"><span class="rk">' + esc(co('assignedTo')) + '</span><span class="rv" style="font-size:14px">' + esc(who.join(', ')) + '</span></div>' : '') + '</div>';
+  // The gutters' and the siding's own checklist (T2.27): the same tiles and
+  // the same Review & send as the roof's, for this area.
+  if (coAreaForm(j, a)){
+    var ctx = coCtx();
+    h += '<div class="foot" style="text-align:left;margin-top:12px">' + esc(co('areaHintList')) + '</div>';
+    h += '<div class="jcard">' + coCtxTilesHtml(ctx) + '</div>';
+    return h + coReviewBtnHtml(ctx, coAreaName(a));
+  }
   h += '<div class="foot" style="text-align:left;margin-top:12px">' + esc(co('areaHint')) + '</div>';
   var target = JSON.stringify({ kind: 'area', jobId: j.id, area: a.key });
-  h += '<div class="k" style="margin-top:14px">' + esc(co('areaPhotosK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('areaPhotosK').toLowerCase()) + '</div>';
+  h += '<div class="k" style="margin-top:14px">' + esc(co('areaPhotosK')) + ' — <span style="color:var(--ckamber)">' + esc(co('atLeast').replace('{n}', CO_SITE_PHOTOS_MIN) + ' · ' + co('required')) + '</span> · ' + esc(co2('areaPhotosK').toLowerCase()) + '</div>';
   h += '<div class="photos">' + av.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
        '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(av.photos.length ? co('anotherPhoto') : co('photo')) + '</button>' +
        '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
-  h += '<div class="k" style="margin-top:22px">' + esc(co('areaNoteK')) + ' · ' + esc(co('optional')) + ' · ' + esc(co2('areaNoteK').toLowerCase()) + '</div>';
+  h += '<div class="k" style="margin-top:22px">' + esc(co('areaNoteK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('areaNoteK').toLowerCase()) + '</div>';
   h += '<div class="talkrow">' + recBtnHtml('coAreaNote', 'coAreaRec') + '<button class="talkbtn type" id="coAreaType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
   h += '<div class="story' + (av.note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coAreaNote" placeholder="' + esc(co('note')) + '" rows="3">' + esc(av.note || '') + '</textarea></div>';
   h += '<div class="reccap hidden" data-reccap="coAreaNote"></div>';
@@ -8314,9 +9000,9 @@ function coAreaHtml(){
   if (reps.length) h += '<div class="jcard" style="margin-top:6px">' + reps.map(function(x){ var r = x.r;
     return '<button class="rep" data-coedit="' + x.i + '" data-cofrom="area"><span class="dot">›</span><span class="bi"><span class="es">' + esc(r.locationWords || co('problems')) + '</span><span class="en">' + esc((r.noteEn || r.note || '').slice(0, 90)) + (r.fixed ? ' · ' + esc(co('fixed')) : '') + ' · ' + (r.photos || []).length + ' ' + esc(co('photo').toLowerCase()) + '</span></span></button>'; }).join('') + '</div>';
   h += '<button class="btn btn-nav" id="coAreaReport" style="margin-top:10px">' + esc(reps.length ? co('newReport') : co('reportOne')) + '</button>';
-  var busy = CO.areaSending === a.key, can = av.photos.length > 0 && !busy;
+  var busy = CO.areaSending === a.key, noteOk = !!String(av.note || '').trim(), photoOk = av.photos.length >= CO_SITE_PHOTOS_MIN, can = photoOk && noteOk && !busy;
   h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coAreaSend" style="margin-top:22px"' + (can ? '' : ' disabled') + '>' + esc(busy ? co('sending') : co('finishSend')) + '</button>';
-  h += '<div class="foot">' + esc(can ? coWhatNext(j, reps.some(function(x){ return !x.r.fixed; })) : co('missing') + ': ' + co('photo').toLowerCase()) + '</div>';
+  h += '<div class="foot">' + esc(can || busy ? coWhatNext(j, reps.some(function(x){ return !x.r.fixed; })) : co('missing') + ': ' + [photoOk ? '' : co('needPhotos').replace('{n}', av.photos.length).replace('{m}', CO_SITE_PHOTOS_MIN), noteOk ? '' : co('note').toLowerCase()].filter(Boolean).join(' · ')) + '</div>';
   return h;
 }
 
@@ -8330,7 +9016,7 @@ function coAreaHtml(){
 function coAfterTap(fn){ setTimeout(fn, 260); }
 
 /* ---- drawing the one view ---- */
-var CO_HEADS = { job: 'inspection', area: 'inspection', problems: 'problems', photos: 'visitPhotos', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
+var CO_HEADS = { job: 'inspection', area: 'inspection', problems: 'problems', photos: 'sitePhotos', final: 'finalNotes', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
 function coRender(){
   if (S.tab !== 'co') return;
   var sc = CO.screen, j = CO.job || coJobById(CO.jobId), queue = sc === 'queue';
@@ -8358,6 +9044,7 @@ function coRender(){
     if (sc === 'job' && j){ var jk = coKindOf(j); if (jk === 'repairs') kw = co('repairs'); else if (jk === 'review') kw = co('pmReview'); }
     if (sc === 'report'){ var r = coVisit(CO.jobId).reports[CO.reportIdx], it = r && coItemByKey(r.itemKey), ra = r && r.area && j ? coAreaByKey(j, r.area) : null; kw = co('problems') + (it ? ' · ' + co('fixK').split(' ·')[1].trim() + ' ' + it.n : ''); label = it ? coLabel(it).split(/[,—]/)[0] : ra ? coAreaName(ra) : label; }
     if (sc === 'area'){ var aa = j && coAreaByKey(j, CO.areaKey); label = aa ? coAreaName(aa) : label; }
+    else if (CO.ctxArea && j && sc !== 'job' && sc !== 'report'){ var ca2 = coAreaByKey(j, CO.ctxArea); if (ca2) label = coAreaName(ca2); }
     if (sc === 'repair'){ var t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0]; label = t ? es(coTaskName(t)) : label; }
     $('coK').textContent = kw + (j && j.number ? ' · JT #' + j.number : '');
     $('coTitle').textContent = label;
@@ -8378,7 +9065,7 @@ function coRender(){
   }
   var stSec = !queue && coSecOfScreen(sc);
   if (stSec){
-    var v = coVisit(CO.jobId), items = stSec.items, cnt = coCount(v, items, stSec.key), fx = coFixes(v, stSec).length;
+    var sctx = coCtx(), items = stSec.items, cnt = coCountA(sctx.answers, items, stSec.key), fx = coCtxFixes(sctx, stSec).length;
     $('coState').classList.remove('hidden');
     $('coState').innerHTML = '<span class="jck ' + (cnt === items.length && !fx ? 'green' : cnt ? 'amber' : 'none') + '"><span class="dot"></span>' + cnt + ' ' + esc(co('of')) + ' ' + items.length + (fx ? ' — ' + fx + ' ' + esc(fx === 1 ? co('toReport') : co('toReportN')) : '') + '</span>';
   }
@@ -8390,6 +9077,7 @@ function coRender(){
   else if (coSecOfScreen(sc)) html = coListHtml(coSecOfScreen(sc).key);
   else if (sc === 'problems') html = coProblemsHtml();
   else if (sc === 'photos') html = coPhotosHtml();
+  else if (sc === 'final') html = coFinalHtml();
   else if (sc === 'area') html = coAreaHtml();
   else if (sc === 'report') html = coReportHtml();
   else if (sc === 'send') html = coSendHtml();
@@ -8400,7 +9088,7 @@ function coRender(){
   // Never rebuild under a finger typing — the note boxes commit on input.
   var ae = document.activeElement;
   if (ae && ae.tagName === 'TEXTAREA' && body.contains(ae) && body.__co === html) return;
-  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote') && body.contains(ae)){
+  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote' || ae.id === 'coFinal') && body.contains(ae)){
     // keep the field; repaint only what sits around it
     var keep = ae.id, pos = ae.selectionStart, val = ae.value;
     body.innerHTML = html; body.__co = html; coWire();
@@ -8422,6 +9110,7 @@ function coWire(){
   on('[data-coclockhere]', function(){ coClockHere(CO.jobId); });
   on('[data-copartner]', function(){ $('partnerBtn').onclick(); coRender(); });
   on('[data-coclock]', function(){ setTab('job'); });
+  on('[data-cotellpm]', function(){ var j = CO.job || coJobById(CO.jobId); if (j) tellPmOpen(coClockJob(j)); });
   on('[data-coscreen]', function(b){ var s = b.getAttribute('data-coscreen'); if (s === 'repairs' && CO.job && S.lang === 'es') coTranslateTasks(CO.job); coGo(s); });
   on('[data-coscope]', function(){ var j = CO.job || coJobById(CO.jobId); if (j) coScopeToggle(j); });
   on('[data-cooutbox]', function(){ coGo('outbox'); });
@@ -8435,7 +9124,11 @@ function coWire(){
     // Start on an area puts the clock on this job, as Start on a card does (T2.15).
     if (a && coAreaIsOpen(j, v, a) && !coAreaStarted(v, key)) coClockHere(CO.jobId, key);
   });
-  on('[data-coreport]', function(b){ coStartReport(b.getAttribute('data-coreport'), CO.screen); });
+  on('[data-coreport]', function(b){ coStartReport(b.getAttribute('data-coreport'), CO.screen, CO.ctxArea || undefined); });
+  on('[data-rvtoggle]', function(b){ var k = b.getAttribute('data-rvtoggle'); CO.rvOpen = CO.rvOpen || {}; CO.rvOpen[k] = !CO.rvOpen[k]; coRender(); });
+  on('[data-rvedit]', function(b){ coGo(b.getAttribute('data-rvedit')); });
+  on('[data-conextarea]', function(b){ CO.receipt = null; CO.areaKey = b.getAttribute('data-conextarea'); coGo('area'); });
+  on('[data-coroof]', function(){ CO.receipt = null; coGo('job'); });
   on('[data-cophoto]', function(b){ coTakePhoto(JSON.parse(b.getAttribute('data-cophoto'))); });
   on('[data-cogallery]', function(b){ coPickPhotos(JSON.parse(b.getAttribute('data-cogallery'))); });
   on('[data-corm]', function(b){ coRemovePhoto(JSON.parse(b.getAttribute('data-target')), b.getAttribute('data-corm')); });
@@ -8444,38 +9137,55 @@ function coWire(){
   on('[data-rec]', function(b){ dlRecToggle(b.getAttribute('data-rec')); });
   [].forEach.call(body.querySelectorAll('.ans button'), function(b){
     b.onclick = function(){
-      var wrap = b.parentNode, key = wrap.getAttribute('data-key'), which = wrap.getAttribute('data-which'), v = coVisit(CO.jobId);
+      var wrap = b.parentNode, key = wrap.getAttribute('data-key'), which = wrap.getAttribute('data-which'), ans = coCtx().answers;
       var val = CO_ANS[b.getAttribute('data-ans')];
-      v.answers[which] = v.answers[which] || {};
-      v.answers[which][key] = v.answers[which][key] === val ? '' : val;
-      if (!v.answers[which][key]) delete v.answers[which][key];
+      ans[which] = ans[which] || {};
+      ans[which][key] = ans[which][key] === val ? '' : val;
+      if (!ans[which][key]) delete ans[which][key];
       coPersist(); coRender();
-      if (val === CO_ANS.FIX && v.answers[which][key] === val) coStartReport(key, CO.screen);
+      if (val === CO_ANS.FIX && ans[which][key] === val) coStartReport(key, CO.screen, CO.ctxArea || undefined);
     };
   });
-  var next = $('coNext'); if (next) next.onclick = function(){ coGo(next.getAttribute('data-next') || 'job'); };
-  var rv = $('coReview'); if (rv) rv.onclick = function(){
-    var v = coVisit(CO.jobId);
-    if (coBlockers(CO.jobId, v).length) openSheet('coWhy'); else coGo('send');
+  // Anything still left opens the list of it (T2.12), each row going where
+  // it is dealt with; nothing left, the review.
+  var toReview = function(){ if (coBlockersCtx(coCtx()).length) openSheet('coWhy'); else coGo('send'); };
+  var next = $('coNext'); if (next) next.onclick = function(){ var to = next.getAttribute('data-next') || 'job'; if (dlRec.want) dlRecStop(); if (to === 'review') toReview(); else coGo(to); };
+  var rv = $('coReview'); if (rv) rv.onclick = toReview;
+  var sd = $('coSend'); if (sd) sd.onclick = function(){
+    var ctx = coCtx();
+    if (coBlockersCtx(ctx).length){ openSheet('coWhy'); return; }
+    sd.disabled = true;
+    if (ctx.area) coSendArea(CO.jobId, ctx.area).then(function(){ coGo('area'); }); else coSendVisit(CO.jobId);
   };
-  var sd = $('coSend'); if (sd) sd.onclick = function(){ sd.disabled = true; coSendVisit(CO.jobId); };
-  var bq = $('coBackQueue'); if (bq) bq.onclick = function(){ CO.receipt = null; coBack(); };
-  var nr = $('coNewReport'); if (nr) nr.onclick = function(){ coStartReport('', 'problems'); };
+  var bq = $('coBackQueue'); if (bq) bq.onclick = function(){ CO.receipt = null; CO.jobId = null; CO.job = null; coLoadQueue(false); coGo('queue'); };
+  var nr = $('coNewReport'); if (nr) nr.onclick = function(){ coStartReport('', 'problems', CO.ctxArea || undefined); };
+  var fn = $('coFinal'); if (fn){ fn.oninput = function(){ var f = coCtx().fin; f.note = fn.value; coPersist(); autoGrow(fn); };
+    fn.onblur = function(){ var f = coCtx().fin; coAfterTap(function(){ coToEnglish(f); coRender(); }); }; autoGrow(fn); }
+  var fty = $('coFinalType'); if (fty) fty.onclick = function(){ var ta = $('coFinal'); if (ta) ta.focus(); };
   var ty = $('coType'); if (ty) ty.onclick = function(){ var ta = $('coNote'); if (ta) ta.focus(); };
   var note = $('coNote'); if (note){ note.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.note = note.value; coPersist(); autoGrow(note); var s = $('coSaveReport'); if (s){ var can = (r.photos || []).length > 0 && !!r.note.trim(); s.disabled = !can; } };
     note.onblur = function(){ var v = coVisit(CO.jobId), i = CO.reportIdx; coAfterTap(function(){ coEnglishFor(v, i); coRender(); }); }; autoGrow(note); }
   var wt = $('coWhereText'); if (wt) wt.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.locationText = wt.value; coLocationWords(r); coPersist(); };
-  var ln = $('coListNote'); if (ln) ln.oninput = function(){ var v = coVisit(CO.jobId); v.notes[ln.getAttribute('data-notes')] = ln.value; coPersist(); };
-  var rn = $('coRepairNote'); if (rn) rn.oninput = function(){ var v = coVisit(CO.jobId); v.repairNote[CO.taskId] = rn.value; coPersist(); };
+  var ln = $('coListNote'); if (ln) ln.oninput = function(){ coCtx().notes[ln.getAttribute('data-notes')] = ln.value; coPersist(); };
+  var rn = $('coRepairNote'); if (rn){ rn.oninput = function(){ var v = coVisit(CO.jobId); v.repairNote[CO.taskId] = rn.value; coPersist(); autoGrow(rn); coRepairDoneState(); };
+    rn.onblur = function(){ var v = coVisit(CO.jobId), tid = CO.taskId; coAfterTap(function(){ coToEnglish(coRepairEn(v, tid)); coRender(); }); }; autoGrow(rn); }
+  var rty = $('coRepairType'); if (rty) rty.onclick = function(){ var ta = $('coRepairNote'); if (ta) ta.focus(); };
   var sv = $('coSaveReport'); if (sv) sv.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || !(r.photos || []).length || !r.note.trim()) return; r.saved = true; if (dlRec.want) dlRecStop(); coEnglishFor(v, CO.reportIdx); coPersist(); toast(co('reportSaved')); coBack(); };
   var dr = $('coDeleteReport'); if (dr) dr.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || r.sentAt) return; (r.photos || []).forEach(function(p){ coPhotoDel(p.id); }); v.reports.splice(CO.reportIdx, 1); if (r.itemKey){ var w = r.itemKey.indexOf('22PdEQhB') === 0 ? 'cleanup' : 'inspection'; } coPersist(); coBack(); };
   var an = $('coAreaNote'); if (an){ an.oninput = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); av.note = an.value; coPersist(); autoGrow(an); };
     an.onblur = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); coAfterTap(function(){ coToEnglish(av); coRender(); }); }; autoGrow(an); }
   var aty = $('coAreaType'); if (aty) aty.onclick = function(){ var ta = $('coAreaNote'); if (ta) ta.focus(); };
   var arp = $('coAreaReport'); if (arp) arp.onclick = function(){ coStartReport('', 'area', CO.areaKey); };
-  var asd = $('coAreaSend'); if (asd) asd.onclick = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); if (!av.photos.length || CO.areaSending) return; coSendArea(CO.jobId, CO.areaKey); };
+  var asd = $('coAreaSend'); if (asd) asd.onclick = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); if (av.photos.length < CO_SITE_PHOTOS_MIN || !String(av.note || '').trim() || CO.areaSending) return; coSendArea(CO.jobId, CO.areaKey); };
   var abk = $('coAreaBack'); if (abk) abk.onclick = function(){ CO.receipt = null; coGo('job'); };
-  var dn = $('coDone'); if (dn) dn.onclick = function(){ var v = coVisit(CO.jobId); if (!v.after[CO.taskId]) return; dn.disabled = true; coFinishRepair(CO.jobId, CO.taskId); };
+  var dn = $('coDone'); if (dn) dn.onclick = function(){ var v = coVisit(CO.jobId); if (coRepairMissing(v, CO.taskId).length) return; if (dlRec.want) dlRecStop(); dn.disabled = true; coFinishRepair(CO.jobId, CO.taskId); };
+}
+/* Done lights up as the note is typed, without re-drawing under the finger. */
+function coRepairDoneState(){
+  var dn = $('coDone'), v = coVisit(CO.jobId); if (!dn || CO.screen !== 'repair') return;
+  var miss = coRepairMissing(v, CO.taskId), can = !miss.length;
+  dn.disabled = !can; dn.style.background = can ? '' : 'var(--surf2)'; dn.style.color = can ? '' : 'var(--lab)';
+  var ft = dn.nextElementSibling; if (ft && ft.classList.contains('foot') && !can) ft.textContent = co('doneSubAll') + ': ' + miss.join(' · ');
 }
 function coLocationWords(r){
   var w = r.location ? CO_L10N.en[r.location] : '';
@@ -8635,7 +9345,10 @@ $('photoBtn').onclick = function(){ S.capture = 'during'; S.returnToClock = true
 $('breakBtn').onclick = function(){ openSheet('break'); };
 $('codeBtn').onclick = function(){ openSheet('codes'); };
 $('leaveBtn').onclick = function(){ if (atShop()){ leaveGo('from-shop'); return; } openSheet('leave'); };
-$('outBtn').onclick = function(){ leaveGo('out'); };
+// At the shop Clock out is the end of the day; on a site it asks first (T2.27).
+$('tpmBtn').onclick = function(){ tellPmOpen(S.job); };
+$('coJump').onclick = function(){ if (S.job) { S.tabTouched = true; setTab('co'); coLandJob(S.job.id); } };
+$('outBtn').onclick = function(){ if (atShop() || !S.job) leaveGo('out'); else openSheet('outhow'); };
 $('earlierBtn').onclick = function(){ if (!earlierBlock()) { render(); return; } S.earlierPick = 0; openSheet('earlier'); };
 $('backBtn').onclick = doEndBreak;
 $('breakOutBtn').onclick = doBreakOut;
@@ -8743,9 +9456,9 @@ window.addEventListener('offline', function(){ S.online = false; render(); });
 window.addEventListener('resize', measureTabs);
 // A phone going in a pocket mid-list: send what is unsaved now, best effort.
 // The copy in localStorage is what actually guarantees it.
-window.addEventListener('pagehide', ckFlushAll);
+window.addEventListener('pagehide', function(){ ckFlushAll(); whereSave(); });
 document.addEventListener('visibilitychange', function(){
-  if (document.visibilityState !== 'visible'){ ckFlushAll(); dlRecStop(); return; }
+  if (document.visibilityState !== 'visible'){ ckFlushAll(); dlRecStop(); whereSave(); return; }
   ckRetryPending();
   dlRetryPending();
   // A phone that spent an hour in a pocket should show the right number

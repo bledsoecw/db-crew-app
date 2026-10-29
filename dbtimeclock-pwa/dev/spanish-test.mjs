@@ -114,9 +114,9 @@ const missing = async (page) => page.evaluate((notOurs) => {
   check('Started earlier, in Spanish', await txt(page, '#earlierBtn'), '¿Empezaste antes? Di a qué hora');
 
   await tap(page, '#leaveBtn', 400);
-  const leave = await page.locator('#sheetBody .stoprow .st').allTextContents();
-  check('Leave the site: the four ways out', [(await txt(page, '#sheetTitle')).startsWith('Saliendo de '), leave],
-    [true, ['Ir por material · regreso aquí después', 'Otro trabajo · regreso aquí más tarde', 'Otro trabajo · terminé aquí por hoy', 'Al taller · terminé aquí por hoy']]);
+  const leave = await page.locator('#sheetBody .lvbtn .t').allTextContents();
+  check('Leave the site: the two groups and the four ways out', [(await txt(page, '#sheetTitle')).startsWith('Saliendo de '), await page.locator('#sheetBody .lvhead').allTextContents(), leave],
+    [true, ['Terminé aquí por hoy', 'Regreso aquí hoy'], ['Regresar al taller', 'A otro trabajo', 'Ir por material', 'Una vuelta a otro trabajo']]);
   await page.evaluate(() => closeSheet());
   await tap(page, '#breakBtn', 400);
   check('the break sheet', [await txt(page, '#sheetTitle'), /^regresas /.test(await txt(page, '.brkopt .bs'))], ['¿Cuánto descanso?', true]);
@@ -159,7 +159,9 @@ const missing = async (page) => page.evaluate((notOurs) => {
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
   await page.evaluate(() => { S.lang = 'es'; S.langSet = true; savePrefs(); render(); });
   await tap(page, '#clockIn', 300); await tap(page, '.coderow:has-text("Masonry Labor")', 600); await shoot(page); await settle(page);
-  await tap(page, '#outBtn', 900);
+  await tap(page, '#outBtn', 600);
+  check('Clock out on a site, in Spanish', [await txt(page, '#sheetTitle'), await txt(page, '#sheetBody .lvbtn.main .t')], ['Fin del día', 'Regresar al taller']);
+  await tap(page, '#sheetBody [data-leave="out"]', 900);
   check('leaving for the day: the log first, in Spanish', [await txt(page, '#dlBody .promptbox .pe'), await txt(page, '#dlBody .promptbox .pt')], ['Saliendo de Noah Webster por hoy', 'Primero manda el registro de hoy']);
   await page.fill('#dlStory', 'Todo bien hoy'); await page.locator('#dlStory').dispatchEvent('input'); await page.waitForTimeout(300);
   check('…Tell the PM now', await txt(page, '#dlTellPm'), 'Avisar al PM ahora');

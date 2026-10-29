@@ -718,3 +718,44 @@ retries on the next open.
 Rough-in · week 2 of 3*. Any other name says nothing extra. Over ten days on
 site the card counts weeks (five working days from the visit's own first day)
 instead of days.
+
+## Tell the PM, by text (added 2026-10-29)
+
+*"I want the 'Tell the pm button' to be available also outside of the send
+todays log, and have it text the PM"* (Carl, T2.27). The Apps Script's
+`tellPm` still posts the words on the job, assigned to its PM — the record in
+JobTread — and then asks the board to text them: the board knows who the
+job's PM is, holds DB Text's door, and is where Operations switches staff
+texts to Live, Test or Off.
+
+### `POST /api/crew/tell-pm`
+
+Same door as every `/api/crew` route: `Authorization: Bearer $CREW_APP_SECRET`.
+
+```json
+{ "membershipId": "22PdPTwMdkzj", "jobId": "22PdnvtkKJ3a", "text": "Need two more bundles of ridge cap" }
+```
+
+- The board reads the job's **Project Manager** field and texts that person
+  through `textOne` (DB Text's `/api/staff-text`), so the staff-texts switch
+  applies: in **Test** the text goes to the test person, opened with who it was
+  meant for; **Off** sends nothing.
+- The text reads `DB Crew - Yahir Gonzalez at 26-8072 Castellano: Need two more
+  bundles of ridge cap` — the sender named from the membership, plain GSM
+  characters, the crew's words cut at 480.
+- **No role is checked**: anyone on a job may tell its PM something, as the
+  comment beside it is not checked either.
+
+Response — 200, whether or not a text went:
+
+```json
+{ "sent": true, "to": "Dave Elick" }
+{ "sent": true, "to": "Dave Elick", "redirectedTo": "Carl Bledsoe" }
+{ "sent": false, "to": "Dave Elick", "why": "staff texts are switched off in Operations" }
+{ "sent": false, "to": null, "why": "the job has no Project Manager in JobTread" }
+```
+
+400 for a missing field, 404 for a job JobTread does not have, 502 when the
+read fails. The Apps Script never fails the note for any of these: the phone's
+toast says who was texted, or that it is on the job in JobTread and why there
+was no text.

@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.25 (2026-10-29)';
+var APP_BUILD = 'T2.27 (2026-10-29)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -1262,9 +1262,20 @@ function pingFieldRe_() {
  *  that is gone. Also the filled ones with their names, for the notes, and
  *  the ones that ping. `names` is the phone's own copy of the field names,
  *  used only when the org's list cannot be had. */
-function dailyLogFieldValues_(raw, names) {
+function dailyLogFieldValues_(raw, names, said) {
   var values = {}, filled = [], pings = [];
-  if (!raw || typeof raw !== 'object') return { values: values, filled: filled, pings: pings };
+  // What the crew typed or picked beside a field that JobTread's list does
+  // not carry (T2.27: Gutter Crew, Siding Crew, PM; what held them up): it
+  // rides the field's Other as words in the log, never as a value the list
+  // does not have.
+  var words = {};
+  if (said && typeof said === 'object') for (var sk in said) {
+    if (!Object.prototype.hasOwnProperty.call(said, sk)) continue;
+    var w = String(said[sk] == null ? '' : said[sk]).replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (w) words[sk] = w;
+  }
+  if (!raw || typeof raw !== 'object') raw = {};
+  if (!Object.keys(raw).length && !Object.keys(words).length) return { values: values, filled: filled, pings: pings };
   var defs = null;
   try { defs = {}; dailyLogFields_().forEach(function (f) { defs[f.id] = f; }); } catch (e) { defs = null; }
   var pingRe = pingFieldRe_();
@@ -1292,8 +1303,17 @@ function dailyLogFieldValues_(raw, names) {
       values[id] = str; text = str; exceptional = true;
     }
     var name = f ? f.name : ((names && names[id]) || id);
+    if (words[id]) { text += ' — ' + words[id]; delete words[id]; }
     filled.push({ id: id, name: name, text: text });
     if (exceptional && pingRe.test(name)) pings.push({ id: id, name: name, text: text });
+  }
+  // Words for a field that took no value (a list with no Other): the notes only.
+  for (var wid in words) {
+    var wf = defs ? defs[wid] : null;
+    if (defs && !wf) continue;
+    var wname = wf ? wf.name : ((names && names[wid]) || wid);
+    filled.push({ id: wid, name: wname, text: words[wid] });
+    if (pingRe.test(wname)) pings.push({ id: wid, name: wname, text: words[wid] });
   }
   return { values: values, filled: filled, pings: pings };
 }
@@ -1345,7 +1365,7 @@ function sendDailyLog(me, log) {
   if (!rs[0].error) { try { people = jobPeopleFrom_(rs[0].data)[jobId] || people; } catch (e0) {} }
   if (rs[1] && !rs[1].error) { try { dailyLogFieldsFrom_(rs[1].data); } catch (e00) {} }
   var who = assigneesFor_([people.pm].concat(people.reps || []));
-  var fields = dailyLogFieldValues_(story ? storyFieldsRaw_(log) : log.fields, log.fieldNames);
+  var fields = dailyLogFieldValues_(story ? storyFieldsRaw_(log) : log.fields, log.fieldNames, log.fieldText);
 
   var text = (story ? dailyLogStoryText_(me, log, fields) : dailyLogText_(me, log, fields)).slice(0, DAILY_LOG_NOTES_MAX);
   var files = [];
@@ -1553,10 +1573,36 @@ function dailyLogTail_(me, log) {
   return L;
 }
 
-/** "Tell the PM now" on the Day log: the line goes to the PM this minute as a
- *  comment on the job, assigned to them. The log still carries it. */
+/** "Tell the PM": the words go to the PM this minute as a comment on the
+ *  job, assigned to them — the record in JobTread — and, since T2.27 (Carl,
+ *  29 Oct 2026: "have it text the PM"), as a text: the board knows who the
+ *  job's PM is and holds DB Text's door (POST /api/crew/tell-pm). The text
+ *  is best effort and never fails the note; `text` says what happened. */
 function tellPm(me, jobId, text) {
-  return postJobNote(jobId, text, me.name, true);
+  var r = postJobNote(jobId, text, me.name, true);
+  r.text = boardTellPm_(me, jobId, text);
+  return r;
+}
+function boardTellPm_(me, jobId, text) {
+  if (!me.membershipId) return { sent: false, why: 'no JobTread membership on this account' };
+  var cfg = boardConfig_();
+  if (!cfg.url || !cfg.secret) return { sent: false, why: 'the Production Board is not set up on this deployment' };
+  try {
+    var resp = UrlFetchApp.fetch(cfg.url + '/api/crew/tell-pm', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ membershipId: me.membershipId, jobId: String(jobId || ''), text: String(text || '').slice(0, 1000) }),
+      headers: { Authorization: 'Bearer ' + cfg.secret },
+      muteHttpExceptions: true,
+      followRedirects: false
+    });
+    var code = resp.getResponseCode(), body = null;
+    try { body = JSON.parse(resp.getContentText()); } catch (pe) { body = null; }
+    if (code === 200 && body) return { sent: !!body.sent, to: body.to || null, redirectedTo: body.redirectedTo || null, why: body.why || '' };
+    return { sent: false, why: (body && body.error) || ('the board answered ' + code) };
+  } catch (e) {
+    return { sent: false, why: 'the board could not be reached' };
+  }
 }
 
 // ===========================================================
@@ -2396,6 +2442,29 @@ function morningCheck_(me, coords, opts) {
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
 
+// ---- the clock-out, checked where it happened (T2.27) ----------------------
+// Carl, 29 Oct 2026: the drive back to the shop is on the clock, "then at
+// the shop they can clock out. if not in the radius of the buildings PM and
+// OpsDir notified." The morning's rule turned round: the same two places,
+// the same radius, the same notice — on the job of the block just closed
+// (its PM), else the shop's job, assigned to the Ops Director as well. It
+// never fails the clock-out.
+function eveningCheck_(me, coords, closed) {
+  try {
+    var near = nearestShopPlace_(coords);
+    if (near && near.m <= shopRadius_()) return { ok: true, at: near.place.name };
+    if (PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet) return { ok: false, quiet: true };
+    var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '';
+    var where = near ? 'about ' + milesWords_(near.m) + ' from ' + near.place.name : 'with no location from the phone';
+    var jobId = closed && closed.job && closed.job.id ? closed.job.id : SHOP_JOB.id;
+    var on = closed && closed.code ? ' (last on ' + [closed.code.number, closed.code.name].filter(Boolean).join(' ') + ')' : '';
+    var notice = noticeToPm_(jobId,
+      '📍 ' + me.name + (also ? ' and ' + also : '') + ' clocked out for the day at ' + clockWords_(new Date()) + ' ' + where +
+      ' — not at the shop or the office' + on + '. Sent from DB Crew.', opsDirector_());
+    return { ok: false, where: where, notice: notice };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}
+
 function clockIn(me, jobId, costItemId, coords, startPhotoId, opts) {
   if (!jobId) throw new Error('Missing job id.');
   if (!costItemId) throw new Error('Pick a code before clocking in.');
@@ -2457,7 +2526,7 @@ function clockOut(me, coords, endPhotoId) {
     assertWrite_(open.job && open.job.id);
     deleteEntry_(open.id);
     forgetBreak_(me.userId);
-    return { ok: true, closed: null, cancelled: open.id, entries: getMyDay(me) };
+    return { ok: true, closed: null, cancelled: open.id, entries: getMyDay(me), evening: eveningCheck_(me, coords, open) };
   }
   // Out at the end of a drive (T2.18): the photo was taken where the drive
   // began; the end of one is the inside of a truck. Out at the shop owes
@@ -2466,7 +2535,7 @@ function clockOut(me, coords, endPhotoId) {
   if (!open) return { ok: true, closed: null };
   assertWrite_(open.job && open.job.id);
   closeEntry_(open.id, coords);
-  return { ok: true, closed: open.id, entries: getMyDay(me) };
+  return { ok: true, closed: open.id, entries: getMyDay(me), evening: eveningCheck_(me, coords, open) };
 }
 
 // Close the running entry and open the next one in a single call, so a
@@ -2729,7 +2798,7 @@ function withPartner_(me, f, fn, args) {
   var mine = known ? openEntryFrom_(rs[0].data) : null, theirs = known ? openEntryFrom_(rs[1].data) : null;
   var same = known && sameClock_(mine, theirs);
   var data;
-  var notices = fn === 'leftSite' || fn === 'clockIn' || fn === 'startedEarlier';
+  var notices = fn === 'leftSite' || fn === 'clockIn' || fn === 'startedEarlier' || fn === 'clockOut';
   try { PARTNER_NOTICE_ = same && notices ? { alsoName: p.name } : null; data = f.apply(null, [me].concat(args)); }
   finally { PARTNER_NOTICE_ = null; }
   var info = { name: p.name, followed: false };

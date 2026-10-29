@@ -357,7 +357,31 @@
         { key: 'shingle', label: 'Shingle roof', line: true, form: 'roof', inspectionTaskId: 'fi-mason', inspectionDate: isoAdd(-3), assigneeNames: ['Alberto Gonzalez', 'Yahir Gonzalez'], mine: true, inspected: true, openRepairs: 1 },
         { key: 'gutters', label: 'Gutters', line: false, form: 'notes', inspectionTaskId: 'fig-mason', inspectionDate: isoAdd(0), assigneeNames: ['Alberto Gonzalez'], mine: true, inspected: false, openRepairs: 0 }
       ], soldScope: [] });
+    // __MOCK_CO_AREA_FORMS (T2.27): a server that serves the gutters' own
+    // checklist; Mason's roof still to inspect, so the next area can be offered.
+    if (window.__MOCK_CO_AREA_FORMS) {
+      var mason = CO_JOBS[CO_JOBS.length - 1];
+      mason.areas[0].inspected = false; mason.areas[0].openRepairs = 0; mason.areas[0].inspectionDate = isoAdd(0);
+      mason.areas[1].form = 'gutters';
+      mason.punchTasks = []; mason.openPunchCount = 0; mason.openPunchTotal = 0;
+    }
   }
+  // The gutters' checklist as DB CheckOut serves it (packages/shared/src/forms.ts).
+  var MOCK_GUTTERS_FORM = { key: 'gutters', sections: [
+    { key: 'inspection', label: { es: 'Inspección', en: 'Inspection' }, items: [
+      { key: 'gut-pitch', n: 'G1', es: 'Canales derechos y con caída a las bajantes', en: 'Gutters straight, pitched to the downspouts' },
+      { key: 'gut-hang', n: 'G2', es: 'Ganchos firmes, cada 2 pies más o menos', en: 'Hangers tight, about every 2 feet' },
+      { key: 'gut-seal', n: 'G3', es: 'Uniones, tapas y esquinas selladas', en: 'Seams, end caps & miters sealed' },
+      { key: 'gut-edge', n: 'G4', es: 'El agua cae en el canal — drip edge encima', en: 'Water lands in the gutter — drip edge over it' },
+      { key: 'gut-down', n: 'G5', es: 'Bajantes sujetas, codos y extensiones puestos', en: 'Downspouts strapped, elbows & extensions on' },
+      { key: 'gut-guard', n: 'G6', es: 'Protectores puestos y firmes, si se vendieron', en: 'Gutter guards in & secure, if sold' },
+      { key: 'gut-look', n: 'G7', es: 'Sin golpes ni rayones; el color es el del pedido', en: 'No dents or scratches; color matches' },
+      { key: 'gut-water', n: 'G8', es: 'Prueba de agua — corre a cada bajante, sin fugas', en: 'Water test — flows to every downspout, no leaks' }] },
+    { key: 'cleanup', label: { es: 'Limpieza', en: 'Cleanup' }, items: [
+      { key: 'gut-c-scrap', n: 'GC1', es: 'Canales viejos, recortes y tornillos recogidos', en: 'Old gutters, cut-offs & screws hauled off' },
+      { key: 'gut-c-mag', n: 'GC2', es: 'Barrido con imán — entrada, jardineras y pasto', en: 'Magnet sweep — driveway, beds & lawn' },
+      { key: 'gut-c-dmg', n: 'GC3', es: 'Sin marcas de escalera ni daños', en: 'No ladder marks or damage' }] }
+  ] };
   // __MOCK_CO_DAYS: a CheckOut server new enough to say which days each of
   // your jobs is booked for (`booked`, T2.11). Hartman's inspection is today,
   // Okafor's repair slipped from two days ago, a new job is booked in four
@@ -639,7 +663,9 @@
       if (!endPhotoId && HANDLERS.__endOwed()) throw new Error('PHOTO_REQUIRED: An end photo is required to clock out.');
       if (ST.open) ST.open.endedAt = new Date().toISOString();
       ST.open = null;
-      return { ok: true, entries: ST.entries };
+      // Out away from the shop and the office (T2.27): __MOCK_AWAY_OUT plays
+      // the server telling the PM and the Ops Director.
+      return { ok: true, entries: ST.entries, evening: window.__MOCK_AWAY_OUT ? { ok: false, where: 'about 12 miles from the shop on Monroe St' } : { ok: true, at: 'the shop on Monroe St' } };
     },
     // A break the way JobTread takes one (T2.13): the running block ends and
     // the next is waiting, starting when the break ends (floored to the
@@ -699,7 +725,14 @@
       return { ok: true, id: 'c' + window.__NOTES.length, assigned: assignPm ? [FX.pm || 'Neal Deitemeyer'] : [] };
     },
     // "Tell the PM now": a comment on the job, assigned to the PM.
-    tellPm: function (jobId, text) { return HANDLERS.postJobNote(jobId, text, HANDLERS.getBoot().name, true); },
+    // T2.27: the note, and the text the board sends the PM. __MOCK_NO_TEXT
+    // plays a board that could not text.
+    tellPm: function (jobId, text) {
+      var r = HANDLERS.postJobNote(jobId, text, HANDLERS.getBoot().name, true);
+      (window.__TEXTS = window.__TEXTS || []).push({ jobId: jobId, text: text });
+      r.text = window.__MOCK_NO_TEXT ? { sent: false, to: 'Neal Deitemeyer', why: 'DB Text isn\'t set up on this deployment' } : { sent: true, to: 'Neal Deitemeyer', redirectedTo: null, why: '' };
+      return r;
+    },
     // The safety alert: a comment assigned to the PM and a text to the
     // office's list, recorded in window.__ALERTS. __MOCK_ALERTFAIL makes it throw.
     sendSafetyAlert: function (jobId, alert) {
@@ -766,6 +799,7 @@
       // __MOCK_CO_FORM (T2.25): the server's form, as data — the phone draws
       // this one, not its own copy. A form object here replaces the roof's.
       if (window.__MOCK_CO_FORM) { out.forms = { roof: window.__MOCK_CO_FORM }; out.jobForm = 'roof'; }
+      if (window.__MOCK_CO_AREA_FORMS) { out.forms = Object.assign({}, out.forms || {}, { gutters: MOCK_GUTTERS_FORM }); out.jobForm = out.jobForm || 'roof'; }
       return { status: 200, body: out };
     },
     coScope: function () { if (FX.scope) return { status: 200, body: FX.scope }; return { status: 200, body: { en: 'A 32-square Duration roof in Onyx Black with three pipe boots and new gutters on the back.', es: 'Un techo Duration de 32 cuadros en Onyx Black con tres botas y canales nuevos atrás.' } }; },
