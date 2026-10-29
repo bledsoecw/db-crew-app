@@ -160,10 +160,10 @@ regeneration, Linux only.
   Job Type, 29 Oct). 01GR (Crew Labor) is used on the odd roofing job too but
   stays under All codes there; 01GR-2 Design is the designer's and is not a
   crew code. `TRADE_CODES_JSON` is the lever if Carl wants it otherwise.
-- **The board half of T2.25 is one field** (`taskName` on the assignment,
-  board branch `claude/zealous-hopper-j7xy98`, restarted from `main` because
-  the earlier branch had merged). Until it is merged the phone just says no
-  stage.
+- **The board half of T2.25 is one field** (`taskName` on the assignment).
+  It reached the board's `main` on 29 Oct 2026, as did DB CheckOut's served
+  form; both deployed to production the same afternoon. A board older than
+  that answers no `taskName` and the phone simply says no stage.
 - **The training video was re-recorded after this** (phase 3's last step, 29
   Oct 2026) — see *The re-record by role* below.
 
