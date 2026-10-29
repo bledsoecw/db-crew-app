@@ -113,9 +113,14 @@ LANG = sys.argv[5] if len(sys.argv) > 5 else "en-us"
 if not LANG.startswith("en"):
     LEXICON = LEXICON_ES
 
+# The Spanish phonemizer reads a button's "·" aloud ("Ya llegué · empezar" came
+# back from the recogniser as "punto medio"); the English one skips it. So in
+# Spanish it is a comma — a short breath, as the eye reads it.
+DOT = "," if not LANG.startswith("en") else None
+
 SETTINGS = json.dumps(
     {"voice": voice_name, "lang": LANG, "speed": SPEED, "pauses": [SENTENCE_PAUSE, CLAUSE_PAUSE],
-     "rms": TARGET_RMS, "lexicon": LEXICON, "v": 1},
+     "rms": TARGET_RMS, "lexicon": LEXICON, "v": 1, **({"dot": DOT} if DOT else {})},
     sort_keys=True, ensure_ascii=False,
 )
 os.makedirs(out_dir, exist_ok=True)
@@ -167,6 +172,8 @@ def pieces(text):
 
 
 def speak(text):
+    if DOT:
+        text = re.sub(r"\s*·\s*", DOT + " ", text)
     chunks = []
     for sentence, pause in pieces(text):
         audio, rate = kokoro.create(phonemes(sentence), voice=voice_name, speed=SPEED, is_phonemes=True)

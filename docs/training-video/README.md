@@ -70,8 +70,13 @@ phone app:
   Spanish lexicon of its own (`LEXICON_ES`: DB Crew, JobTread, Close Out, the
   people's and customers' English names as a Spanish speaker says them). The
   English voice is `am_michael`, the Spanish `em_alex` with the Latin American
-  phonemizer (`es-419`). Checked by the recogniser on the day: a Spanish test
-  line came back word for word.
+  phonemizer (`es-419`). The recogniser over the whole of both narrations (29
+  Oct 2026): English 1.7% of words misheard, Spanish 2.8% — names (Zac →
+  "Zach", Yahir → "Jair", Abernathy) and the English button words inside the
+  Spanish lines. It found one real fault: the Spanish phonemizer reads a
+  button's `·` aloud ("Ya llegué · empezar" → "punto medio"), so `tts.py`
+  speaks it as a comma in Spanish (`DOT`); the English voice already skipped
+  it.
 - `record.mjs` runs it: `tts`, `debug` (a fast walk, one screenshot a line),
   `record` (the real take). `assemble.mjs` makes the MP4s, the `.srt` files
   and the chapter marks.

@@ -189,6 +189,13 @@ regeneration, Linux only.
 - **The board's TV and checklist lines stay English in the Spanish take** —
   that is the board's, and the narration says the tags by their English names
   in both.
+- **Run the recogniser over the Spanish take before handing it over.** The
+  Spanish phonemizer read every `·` in a button name aloud as "punto medio";
+  nothing on screen or in the English take shows it. `tts.py` speaks it as a
+  comma in Spanish now. The fix shortened four clips and was laid into the
+  recorded take without re-recording — a shorter clip only leaves a longer
+  pause after it. A LONGER one would run into the next line, and then it is a
+  re-record.
 - **The mock's `crewLead`** follows `FX.crewLead` (the video names Jeremiah on
   the watertight line); unset it is what it was.
 
