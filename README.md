@@ -646,6 +646,96 @@ being switched away from. Words only: the taps and the writes are as before.
 **Needs:** `firebase deploy --only hosting` (no Apps Script change; the API
 still says T2.21).
 
+**Leaving the site, the photo rule, and the morning check** (T2.23, Carl 29 Oct
+2026, off his review of the leaving-the-site flow — *"the crew should change
+clock in code to travel for the trip back… the site manager should send the
+day log on site before leaving… crew members may leave a site and go places
+like a store to get supplies, or to another site… Stop the clock label is a
+little confusing… some of the requirements to take photos when 'stopping the
+clock' is not needed"*, and his answers to the recommendations, *"Do not use
+Carl. use Ops Director instead"*):
+
+- **The Clock screen has four buttons, and Stop the clock is gone**: **Break**,
+  **Change code**, **Leave the site** (filled; *Leave the shop* at the shop)
+  and **Clock out**. Under them Take a photo stays, with *Photos through the
+  day go in DB Cam* — DB Cam is the crews' camera through the day, DB Crew
+  takes the start, finish and Close Out photos.
+- **Leave the site** asks where to, in four rows: **Supply run · back here
+  after** (the drive goes on this job's travel line with no photo, its notes
+  read *Supply run · 26-0890 Noah Webster · back to 04MA Masonry Labor*, and
+  the band offers **Back at Noah Webster · Masonry Labor** — one tap, the same
+  code, no photo); **Another job · back here later** (the drive, no photo, no
+  log); **Another job · done here today** and **Back to the shop · done here
+  today** (the day log for a site manager, the end photo, then the drive —
+  the drive back is paid travel on the job's travel line, as before). At the
+  shop the button goes straight to the roll-out: the shop checks (still the
+  T2.20 hard stop), then **Where are you going?**, with no photo.
+- **A job picked with no drive in between** — Go here instead on My jobs,
+  Start on a Close Out card, Move to another job — asks **Still on the
+  clock** instead of an end photo of a place they may have left: **Driving
+  there · back here later**, **Driving there · done here today**, **Already
+  there — I left Noah Webster at…** (T2.19's say-when) or **Wrong job — I was
+  never at Noah Webster** (the clock moves now; the entry's notes say *Changed
+  from Noah Webster in DB Crew — wrong job*). At the shop it is one row,
+  **Driving there now**.
+- **The photo rule** (Carl: *"the photo rule is ok"*): a **start photo** when
+  work first starts at a job site today, an **end photo** when a site is left
+  for the day (Clock out, or one of the two *done here today* rows), and
+  nothing in between — not a code change, not a supply run, not a drive to
+  another job and back. **Never at the shop**: the morning clock-in is one
+  tap with no camera. The API holds the same rule (`startPhotoOwed_`,
+  `endPhotoOwed_`); a phone whose day is older than the API's and skips a
+  photo the API still wants gets the camera for that same step. A block with
+  no start photo is marked nudged, as a drive's is.
+- **The site manager's day log is required before leaving a site for the
+  day** (Carl: *"yes required"*): Clock out or *done here today* opens the log
+  with *Leaving Noah Webster for the day · Send today's log first*; once it is
+  queued the leaving carries on by itself — the end photo, then the drive or
+  the clock-out. Leaving the log tab without sending drops the leave; nothing
+  was written. *Back here later* and a supply run ask for no log.
+- **The morning check**: the day's first clock-in, when it is at the shop, is
+  measured against **the shop on Monroe St** (40.8778989, -84.5870324) and
+  **the office on Bonnewitz Ave** (40.8804786, -84.5857135). Within 400 m of
+  either (`SHOP_RADIUS_M`) nothing is said. Outside, or with no location from
+  the phone, the clock-in stands — it is payroll — and one comment goes on the
+  job the board has them on today (else the shop's), assigned to that job's
+  PM and the Ops Director: *📍 Tyler Mohr clocked in for the day at 6:58a about
+  10 miles from the shop on Monroe St — not at the shop or the office. Sent
+  from DB Crew.* The phone says *Not at the shop or the office · your PM and
+  the Ops Director are told* (or *No location from the phone · …*). A first
+  clock-in straight at a job site owes its start photo, which says where they
+  are, and is not checked.
+- **The Ops Director, not Carl**: every line a crew reads that named Carl —
+  Already left, the shop checks forgotten, the safety alert — says *the Ops
+  Director*. Who that is is the Script Property `OPS_DIRECTOR` (names); the
+  older `LEFT_SITE_NOTIFY` is still read if it is the only one set; unset is
+  Carl Bledsoe.
+- **The shop, not the yard**: *Before you roll out* holds on the **shop
+  checks** (*Shop checks not done · Clock in · your PM and the Ops Director
+  are told*). The phase's own words come from the board's checklist, renamed
+  *At the shop, before you roll out* there the same day (`install-checks.ts`,
+  with the pickup line's *PM told, so the shop can send a driver*); until the
+  board deploys, the phone says shop on its behalf (`shopText`), so either may
+  go first.
+- **Your codes first**: Change code (and a clock-in) opens on the four codes
+  this person used most in the last 30 days that are on this job's list
+  (`getExtras.recentCodes`, never travel, a supply run or the shop), then
+  **All codes** with the count. Every job's CLOCK IN ITEMS carries the same
+  long list, roofing or construction — Concrete, Drywall and Fireplace on a
+  roof — while the construction bench clocks nearly all its time on General
+  Requirements, so the first four are nearly always the one wanted.
+
+`apps-script/code-test.mjs` (the photo rules both ways, a supply run, the
+morning check at the shop, ten miles off and with no location, `OPS_DIRECTOR`,
+the recent codes), `dev/clock-test.mjs` (the four buttons, every Leave row,
+Still on the clock and its four answers, the supply run there and back, no
+shop photo, the morning toast, your codes, the API refusing a photo the phone
+skipped), `dev/daylog-test.mjs` (the log before a move, then the move) and
+`dev/closeout-test.mjs` (Start elsewhere through Still on the clock) walk it.
+**Needs:** the Apps Script first (`clockIn`, `switchCode` and `startTravel`
+take new options and an older script still asks for every photo), then
+`firebase deploy --only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

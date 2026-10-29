@@ -309,7 +309,7 @@ const kindOf = (f) => {
   if (o.jobs) return o.jobs.nodes && o.jobs.nodes.customFieldValues ? 'people' : 'job';
   if (o.timeEntries) {
     const a = o.timeEntries.$;
-    return a.size === 1 ? 'open' : a.where[0] === 'endedAt' ? 'crew' : o.timeEntries.nodes.id ? 'day' : 'recent';
+    return a.size === 1 ? 'open' : a.where[0] === 'endedAt' ? 'crew' : o.timeEntries.nodes.id ? 'day' : o.timeEntries.nodes.costItem ? 'codesUsed' : 'recent';
   }
   return '?';
 };
@@ -350,11 +350,20 @@ fetchImpl = route({ jobs: JOBS, entries: ENTRIES, codes: CODES });
 const x1 = sandbox.getExtras(crewMe, 'j1');
 t('getExtras carries the codes and the picker', [x1.codes.length, x1.jobOptions.length], [1, 2]);
 t('a crew member gets no crew block', [x1.crew.length, fetched.map(kindOf).indexOf('crew')], [0, -1]);
-t('cold: one round trip for the codes, the recent jobs and the log fields, then the picker\'s details', [trips, fetched.map(kindOf)], [1, ['codes', 'recent', 'fields', 'job']]);
+t('cold: one round trip for the codes, the recent jobs, the log fields and your codes, then the picker\'s details', [trips, fetched.map(kindOf)], [1, ['codes', 'recent', 'fields', 'codesUsed', 'job']]);
 fetched = []; trips = 0;
 const x2 = sandbox.getExtras(crewMe, 'j1');
 t('warm: nothing is asked at all', [x2.codes.length, x2.jobOptions.length, fetched.length], [1, 2, 0]);
 
+// T2.23: your codes — the lines you clocked on lately, most used first; never
+// the drive, a supply run or the shop.
+{
+  const te = (num, name, extra) => Object.assign({ startedAt: '2026-10-20T12:00:00Z', notes: '', job: { id: 'j1' }, costItem: { name, costCode: { number: num } } }, extra || {});
+  const rc = sandbox.recentCodesFrom_({ organization: { timeEntries: { nodes: [
+    te('07TM-1', 'Roofing'), te('01GR-1', 'Project Management'), te('07TM-1', 'Roofing'), te('01GR-9', 'Travel Related Labor'),
+    te('01GR', 'Crew Labor', { notes: 'Supply run · 26-0890 Webster' }), te('99TM-1', 'Morning Clock-In', { job: { id: sandbox.SHOP_JOB.id } }), te('07TM-1', 'roofing') ] } } });
+  t('your codes: most used first, never travel, a supply run or the shop', rc.map(c => [c.number, c.name, c.n]), [['07TM-1', 'Roofing', 3], ['01GR-1', 'Project Management', 1]]);
+}
 const bossMe = { ...ME, role: 'Sales Team Manager' };
 t('a manager is a foreman', sandbox.getStart(bossMe, null).me.isForeman, true);
 fetched = []; trips = 0;
@@ -966,8 +975,11 @@ fetched = [];
 r = sandbox.clockOut(ME, null, 'ph_end');
 t('with one, the block closes', [r.closed, paveKinds().includes('close')], ['te9', true]);
 fetched = [];
-t('a switch needs the end photo', /end photo/.test(refusedBy(() => sandbox.switchCode(ME, 'j1', 'ci2', null, '', 'ph_s'))), true);
-t('...and the start photo', /start photo/.test(refusedBy(() => sandbox.switchCode(ME, 'j1', 'ci2', null, 'ph_e', ''))), true);
+// T2.23: the photo rule — a start photo when work starts at a site, an end
+// photo when it is left for the day. A code change on the same site owes none.
+t('a code change on the same job owes no photo', [refusedBy(() => sandbox.switchCode(ME, 'j1', 'ci2', null, '', '')), paveKinds().filter(k => k === 'close' || k === 'create')], ['', ['close', 'create']]);
+fetched = [];
+t('a move to a job not started today still owes its start photo', /start photo/.test(refusedBy(() => sandbox.switchCode(ME, 'j2', 'ci4', null, 'ph_e', ''))), true);
 t('...and nothing moved meanwhile', paveKinds().some(k => k === 'close' || k === 'create'), false);
 fetched = [];
 sandbox.switchCode(ME, 'j1', 'ci2', null, 'ph_e', 'ph_s');
@@ -992,11 +1004,17 @@ const created = () => fetched.map(f => (paveOf(f.opts) || {}).createTimeEntry).f
 fetchImpl = withEntry(null); fetched = [];
 t('no drive from off the clock', /not on the clock/.test(refusedBy(() => sandbox.startTravel(ME, 'j2', 'tr2', null, 'ph_e', 'Drive to 26-1591 Dirham'))), true);
 fetchImpl = withEntry(OPEN_TE); fetched = [];
-t('from work, the drive needs the end photo of what is left', [/end photo/.test(refusedBy(() => sandbox.startTravel(ME, 'j2', 'tr2', null, '', 'Drive to 26-1591 Dirham'))), paveKinds().some(k => k === 'close' || k === 'create')], [true, false]);
+t('leaving a site for the day (doneHere), the drive needs the end photo of the site', [/end photo/.test(refusedBy(() => sandbox.startTravel(ME, 'j2', 'tr2', null, '', 'Drive to 26-1591 Dirham', { doneHere: true }))), paveKinds().some(k => k === 'close' || k === 'create')], [true, false]);
 fetched = []; delete props.nudged_te9;
 sandbox.startTravel(ME, 'j2', 'tr2', null, 'ph_e', 'Drive to 26-1591 Dirham');
 t('…with it, one call closes the block and opens the drive on that job\'s travel line, saying where to', [paveKinds().filter(k => k === 'close' || k === 'create'), created().map(c => [c.jobId, c.costItemId, c.notes])],
   [['close', 'create'], [['j2', 'tr2', 'Drive to 26-1591 Dirham']]]);
+// T2.23: a supply run, or a trip to another job and back, owes no end photo,
+// and a supply run's notes make it a drive on any line.
+fetched = [];
+t('a supply run owes no end photo, and says so in its notes', [refusedBy(() => sandbox.startTravel(ME, 'j1', 'tr1', null, '', 'Supply run · 26-0890 Webster · back to 01GR Crew Labor')),
+  created().map(c => c.notes), sandbox.isTravelEntry_({ startedAt: '2026-09-16T12:00:00Z', notes: 'Supply run · 26-0890 Webster', code: { name: 'Crew Labor' }, job: { id: 'j1' } })],
+  ['', ['Supply run · 26-0890 Webster · back to 01GR Crew Labor'], true]);
 fetchImpl = withEntry(OPEN_DRIVE); fetched = [];
 t('on a drive: arriving is the start photo only', refusedBy(() => sandbox.switchCode(ME, 'j2', 'ci1', null, '', 'ph_s')), '');
 t('…and still needs the start photo', /start photo/.test(refusedBy(() => sandbox.switchCode(ME, 'j2', 'ci1', null, '', ''))), true);
@@ -1221,8 +1239,32 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   writes.length = 0;
   sandbox.rollForgot(ME, 'j9', '26-1490 Courtney', ['Tarps checked and loaded — four sound 20×40s', 'Material loaded for the crew']);
   const rf = writes.find(w => w[0] === 'comment')[1];
-  t('rolled out without the yard: the PM and Carl, with what was missing', [rf.targetId, rf.assignees, /^📋 Tyler B\. started at 26-1490 Courtney without the yard checks done before rolling out: Tarps checked and loaded · Material loaded for the crew\. Clocked in at \d+:\d\d[ap]\.$/.test(rf.message)],
+  t('rolled out without the shop checks: the PM and the Ops Director, with what was missing', [rf.targetId, rf.assignees, /^📋 Tyler B\. started at 26-1490 Courtney without the shop checks done before rolling out: Tarps checked and loaded · Material loaded for the crew\. Clocked in at \d+:\d\d[ap]\.$/.test(rf.message)],
     ['j9', [{ membershipId: 'm_dave' }, { membershipId: 'm_carl' }], true]);
+  // T2.23: the shop owes no photo, and the first clock-in of the day there is
+  // checked against the shop and the office: away, or no location, the PM of
+  // today's job (else the shop's job) and the Ops Director are told.
+  const SHOP = sandbox.SHOP_JOB.id;
+  // The stub answers the open entry the same before and after a write, so it
+  // stands for the block just opened.
+  openNow = { id: 'te_s', startedAt: new Date(Date.now() - 60e3).toISOString(), minutes: 1, notes: '', job: { id: SHOP, name: '250011 DB INTERNAL', number: '25-0011', location: {} }, costItem: { id: 'sh1', name: 'Morning Clock-In', costCode: { number: '99TM-1', name: 'Morning Clock-In' } } };
+  writes.length = 0;
+  r = sandbox.clockIn(ME, SHOP, 'sh1', { lat: 40.8779, lng: -84.5871 }, '');
+  t('at the shop: no photo, and nothing said', [writes.filter(w => w[0] === 'create').length, writes.filter(w => w[0] === 'comment').length, r.morning && r.morning.ok], [1, 0, true]);
+  writes.length = 0;
+  r = sandbox.clockIn(ME, SHOP, 'sh1', { lat: 40.9, lng: -84.4 }, '', { todayJobId: 'j9' });
+  const mn = (writes.find(w => w[0] === 'comment') || [])[1] || {};
+  t('ten miles off: the PM of today\'s job and the Ops Director are told', [mn.targetId, mn.assignees, /^📍 Tyler B\. clocked in for the day at \d+:\d\d[ap] about [\d.]+ miles from the (shop on Monroe St|office on Bonnewitz Ave) — not at the shop or the office\. Sent from DB Crew\.$/.test(mn.message || '')],
+    ['j9', [{ membershipId: 'm_dave' }, { membershipId: 'm_carl' }], true]);
+  writes.length = 0;
+  r = sandbox.clockIn(ME, SHOP, 'sh1', null, '');
+  const mn2 = (writes.find(w => w[0] === 'comment') || [])[1] || {};
+  t('no location from the phone: told on the shop\'s job, to the Ops Director', [mn2.targetId, mn2.assignees, /with no location from the phone/.test(mn2.message || '')], [SHOP, [{ membershipId: 'm_carl' }], true]);
+  props.OPS_DIRECTOR = 'Dave Elick'; writes.length = 0;
+  sandbox.clockIn(ME, SHOP, 'sh1', null, '');
+  t('OPS_DIRECTOR names who that is', ((writes.find(w => w[0] === 'comment') || [])[1] || {}).assignees, [{ membershipId: 'm_dave' }]);
+  delete props.OPS_DIRECTOR;
+  openNow = ONSITE;
   // The review's findings (28 Oct): the phone cannot quiet the notice or add
   // names to it; nothing carries a night into a drive; the drive's line is
   // the job's own.

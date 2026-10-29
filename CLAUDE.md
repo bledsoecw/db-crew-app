@@ -87,3 +87,21 @@ regeneration, Linux only.
 - **Recording it found two words wrong on the drive**, fixed first (T2.22,
   README): a repair card read Continue while driving to it, and the arrival's
   code sheet was titled Switch code.
+
+## Leaving the site (T2.23, 29 Oct 2026) — what the README does not say
+
+- **The training video is out of date as of T2.23** and is re-recorded last
+  (Carl agreed the order: the clock flow first, then multi-day checks, the
+  daily roll-out, Spanish and forgot in/out, then construction, then the
+  videos). It still shows Stop the clock, the end photo on every move, the
+  shop photo, "the PM and Carl are told" and "At the yard"
+  (`docs/training-video/script.mjs`, `fixtures.js`). Carl: *"Do not use
+  Carl. use Ops Director instead"* applies to the new narration too.
+- **The mock's sample day starts at the shop** (Morning Clock-In, then the
+  drive on Webster's travel line), so whether Webster "was worked today" no
+  longer depends on the hour the suite runs. A test that needs the day's first
+  clock-in boots with `window.__MOCK_FIX={entries:function(){return [];}}`;
+  `dev/daylog-test.mjs` puts the old two codes at Webster back for its hours.
+- The board renamed its checklist the same day (`bledsoecw/DB_Production_Board`,
+  branch `claude/zealous-hopper-j7xy98`, not merged to `main` by the session —
+  `main` is production there). `shopText` on the phone covers the gap.

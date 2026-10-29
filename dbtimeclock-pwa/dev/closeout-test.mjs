@@ -412,21 +412,25 @@ const allErrs = [];
   await tap(page, '#coSend', 2500);
   check('after the send: the clock row names the running code', await page.evaluate(() => { const b = document.querySelector('[data-coclock]'); return [!!b, !!b && b.querySelector('.es').textContent.indexOf('01GR Crew Labor') !== -1, !!CO.receipt]; }), [true, true, true]);
   await tap(page, '[data-coclock]', 400);
-  check('…and it is the Stop sheet: break, switch code or job, clock out', await page.evaluate(() => [S.sheet, document.getElementById('sheetTitle').textContent, !!document.getElementById('stopBreak'), !!document.getElementById('stopSwitch'), !!document.getElementById('stopOut')]), ['stop', 'Stop the clock', true, true, true]);
-  await page.evaluate(() => closeSheet());
+  check('…and it opens the clock, with its four buttons (T2.23)', await page.evaluate(() => [S.tab, S.sheet, !document.getElementById('runStack').classList.contains('hidden')]), ['job', null, true]);
 
-  // On the clock here, Start on ANOTHER inspection: the move, as the Clock
-  // tab does it — end photo, the next job's code over its Close Out screen,
-  // start photo — and back to that job.
-  await page.evaluate(() => { CO.screen = 'queue'; CO.jobId = null; CO.job = null; CO.filter = 'all'; coRender(); });
+  // On the clock here, Start on ANOTHER inspection (T2.23): what happened?
+  // Driving there · done here today is leaving this site for the day — its end photo —
+  // then the drive on that job's travel line, over its Close Out screen;
+  // there, the arrival is its code and its start photo.
+  await page.evaluate(() => { setTab('co'); CO.screen = 'queue'; CO.jobId = null; CO.job = null; CO.filter = 'all'; coRender(); });
   await tap(page, '[data-costart="co-reyes"]', 900);
-  check('Start elsewhere while on the clock: the end photo first', await page.evaluate(() => [S.tab, S.clockGate, S.moving, S.pendingJob && S.pendingJob.id, S.coReturn, CO.jobId]), ['cam', 'end-switch', true, 'co-reyes', 'co-reyes', 'co-reyes']);
-  await shoot(page); await until(page, () => S.sheet === 'codes');
-  check('…then the next job\'s code sheet, over its Close Out screen (from the phone\'s copy, prefetched with the queue)', await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.sheet, !!S.switching, !!codesCached('co-reyes')]), ['co', 'job', 'co-reyes', 'codes', true, true]);
+  check('Start elsewhere while on the clock: what happened?', await page.evaluate(() => [S.tab, S.clockGate, S.sheet, S.pendingJob && S.pendingJob.id, S.coReturn, CO.jobId]), ['co', null, 'moveHow', 'co-reyes', 'co-reyes', 'co-reyes']);
+  await tap(page, '[data-move="drive"]', 600);
+  check('…Driving there · done here today: the end photo of the site, left for the day', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'end-travel']);
+  await shoot(page); await settle(page);
+  check('…the drive on that job\'s travel line, back on its Close Out screen', [(await clockCalls(page)).slice(-1)[0], await page.evaluate(() => [S.tab, CO.screen, CO.jobId, onTravel()])], [['startTravel', 'co-reyes', 'ci11'], ['co', 'job', 'co-reyes', true]]);
+  await tap(page, '[data-coclockhere]', 900);
+  check('…there, the arrival asks its code over its Close Out screen (from the phone\'s copy)', await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.sheet, !!codesCached('co-reyes')]), ['co', 'job', 'co-reyes', 'codes', true]);
   await tap(page, '[data-code="ci4"]', 500);
   check('…the start photo', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'start']);
   await shoot(page); await settle(page);
-  check('…one switch call, and the clock and Close Out both on the new job', [await clockCalls(page), await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.job && S.job.id, S.open && S.open.code && S.open.code.id, S.coReturn, S.moving, S.pendingJob])], [[['clockIn', 'co-hartman', 'ci2'], ['switchCode', 'co-reyes', 'ci4']], ['co', 'job', 'co-reyes', 'co-reyes', 'ci4', null, false, null]]);
+  check('…one switch call, and the clock and Close Out both on the new job', [await clockCalls(page), await page.evaluate(() => [S.tab, CO.screen, CO.jobId, S.job && S.job.id, S.open && S.open.code && S.open.code.id, S.coReturn, S.moving, S.pendingJob])], [[['clockIn', 'co-hartman', 'ci2'], ['startTravel', 'co-reyes', 'ci11'], ['switchCode', 'co-reyes', 'ci4']], ['co', 'job', 'co-reyes', 'co-reyes', 'ci4', null, false, null]]);
 
   // A tab tapped by hand clears the hand-back, so a later clock-in from the
   // Clock tab lands on the clock as it always did.
@@ -471,8 +475,8 @@ const allErrs = [];
   check('a job opened without Start offers to move the clock here', await page.evaluate(() => { const b = document.querySelector('[data-coclockhere]'); return b ? [b.querySelector('.es').textContent, b.querySelector('.en').textContent] : null; }),
     ['Pasar el reloj aquí', 'estás en el reloj en Okafor']);
   await tap(page, '[data-coclockhere]', 900);
-  check('…and it is the move: the end photo first', await page.evaluate(() => [S.tab, S.clockGate, S.pendingJob && S.pendingJob.id, S.coReturn]), ['cam', 'end-switch', 'co-reyes', 'co-reyes']);
-  await page.evaluate(() => camBack());
+  check('…and it is the move: what happened? (T2.23)', await page.evaluate(() => [S.tab, S.clockGate, S.sheet, S.pendingJob && S.pendingJob.id, S.coReturn]), ['co', null, 'moveHow', 'co-reyes', 'co-reyes']);
+  await page.evaluate(() => backOutOfSheet());
   await page.waitForTimeout(400);
   // The code a repair prefers, by the kind of job.
   check('which code a Start picks', await page.evaluate(() => {
@@ -496,8 +500,8 @@ const allErrs = [];
 
   // T2.18: driving to the next job, its Start is the arrival — no end photo
   // for the drive, the job's code, its start photo.
-  await page.evaluate(() => { setTab('job'); openSheet('stop'); });
-  await tap(page, '#stopTravel', 500); await shoot(page);
+  await page.evaluate(() => { setTab('job'); });
+  await tap(page, '#leaveBtn', 400); await tap(page, '[data-leave="done-job"]', 500); await shoot(page);
   await page.waitForFunction(() => S.sheet === 'dest', null, { timeout: 10000 });
   await tap(page, '#destOther', 500);
   await page.locator('#jobSearch').fill('26-0418'); await page.waitForTimeout(700);
@@ -533,7 +537,7 @@ const allErrs = [];
   await tap(page, '[data-code="ci2"]', 500); await shoot(page); await settle(page);
   check('…and the clock-in goes for Alberto too', await page.evaluate(() => [(window.__PARTNER || []), (window.__CLOCK || []).slice(-1)[0].slice(0, 2)]), [['clockIn'], ['clockIn', 'co-hartman']]);
   await page.evaluate(() => { S.partnerOn = false; savePrefs(); });
-  await page.evaluate(() => { setTab('job'); openSheet('stop'); }); await tap(page, '#stopOut', 500); await shoot(page); await settle(page);
+  await page.evaluate(() => { setTab('job'); }); await tap(page, '#outBtn', 500); await shoot(page); await settle(page);
   check('box off: the clock-out is Yahir\'s alone', await page.evaluate(() => [(window.__PARTNER || []), (window.__CLOCK || []).slice(-1)[0][0]]), [['clockIn'], 'clockOut']);
   check('the clock tab has the same box', await page.evaluate(() => !document.getElementById('partnerBtn').classList.contains('hidden')), true);
   allErrs.push(...errs); await ctx.close();

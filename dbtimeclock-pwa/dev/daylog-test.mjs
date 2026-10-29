@@ -29,6 +29,12 @@ async function boot(flags = {}, init = '') {
     errs.push(m.text());
   });
   await page.addInitScript(`window.__MOCK_FOREMAN=false;window.__MOCK_READONLY=false;window.__MOCK_TWO_TODAY=${!!flags.twoToday};window.__MOCK_NOJOB=${!!flags.noJob};`);
+  // The log's hours come off the day's work at the job: two codes at Webster.
+  // (The mock's own sample day starts at the shop with a drive, since T2.23.)
+  await page.addInitScript(`window.__MOCK_FIX = window.__MOCK_FIX || { entries: function (h) { return [
+    { id: 'e1', startedAt: new Date(h.t0).toISOString(), endedAt: new Date(h.t0 + 42 * 60000).toISOString(), minutes: 42, job: h.job, code: h.code('ci4') },
+    { id: 'e2', startedAt: new Date(h.t0 + 42 * 60000).toISOString(), endedAt: new Date(h.t0 + 180 * 60000).toISOString(), minutes: 138, job: h.job, code: h.code('ci9') }
+  ]; } };`);
   if (init) await page.addInitScript(init);
   await page.addInitScript(mock);
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
@@ -217,7 +223,7 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   const { ctx, page, errs } = await boot();
   await tap(page, '.tab[data-tab="log"]', 500);
   await tap(page, '[data-yn="safety"][data-v="1"]', 400);
-  check('yes is amber, and opens the alert card', [await cls(page, '[data-yn="safety"][data-v="1"]'), await page.locator('#alertCard').count(), await txt(page, '#alertCard .warnbar')], ['ynbtn on amber', 1, 'Goes to the PM, Shawn, Neal and Carl the second you send']);
+  check('yes is amber, and opens the alert card', [await cls(page, '[data-yn="safety"][data-v="1"]'), await page.locator('#alertCard').count(), await txt(page, '#alertCard .warnbar')], ['ynbtn on amber', 1, 'Goes to the PM, Shawn, Neal and the Ops Director the second you send']);
   check('the review waits until the alert has gone', [await cls(page, '#dlReview'), await txt(page, '#dlBlockedFoot'), await page.locator('#dlNormal').isVisible()], ['btn btn-go sendbig off', 'Day log waits until the alert has gone.', false]);
   check('the five kinds, single-select; hurt or nobody hurt', [await page.locator('[data-kind]').allTextContents(), await page.locator('[data-hurt]').allTextContents()], [['Fall', 'Cut', 'Heat', 'Close call', 'Other'], ['Hurt', 'Nobody hurt']]);
   await tap(page, '#alertSend', 400);
@@ -238,7 +244,7 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   check('Send alert now goes at once, with the kind, hurt, the words, the photo and the job', [alerts.length, alerts[0].jobId, alerts[0].alert.kind, alerts[0].alert.hurt, alerts[0].alert.text, alerts[0].alert.photoIds, alerts[0].alert.photos, alerts[0].alert.jobLabel],
     [1, 'j_2841', 'close', false, 'Bundle slid off the ridge, landed about three feet from Marcos. Nobody hit.', ['f1'], 1, '26-0890 Noah Webster']);
   check('...before the log went', (await grab(page, '__LOGS')).length, 0);
-  check('the strip says it went, the card collapses, the review comes back', [/^Alert sent \d+:\d\d[ap] · PM, Shawn, Neal, Carl$/.test(await txt(page, '#alertCard .warnbar')), await txt(page, '.alertsum'), await cls(page, '#dlReview'), await page.locator('#dlBlockedFoot').count()],
+  check('the strip says it went, the card collapses, the review comes back', [/^Alert sent \d+:\d\d[ap] · PM, Shawn, Neal, the Ops Director$/.test(await txt(page, '#alertCard .warnbar')), await txt(page, '.alertsum'), await cls(page, '#dlReview'), await page.locator('#dlBlockedFoot').count()],
     [true, 'Close call · Nobody hurt · Bundle slid off the ridge, landed about three feet from Marcos. Nobody hit. · 1 photo', 'btn btn-go sendbig', 0]);
   await tap(page, '[data-yn="safety"][data-v="0"]', 300);
   check('no after a sent alert stays yes: the incident happened', await cls(page, '[data-yn="safety"][data-v="1"]'), 'ynbtn on amber');
@@ -348,7 +354,8 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
 
 // ---- the moments: handing over prompts the log; a move prompts it for the roof you left ----
 {
-  const { ctx, page, errs } = await boot({ twoToday: true });
+  // Nothing worked yet today, so Webster still owes its start photo (T2.23).
+  const { ctx, page, errs } = await boot({ twoToday: true }, 'window.__MOCK_FIX={entries:function(){return [];}};');
   await tap(page, '#todayPick [data-today="j_2841"]', 400);
   await tap(page, '.tab[data-tab="jobs"]', 800);
   await tap(page, '[data-checks="t2roof"]', 500);
@@ -372,24 +379,32 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   await tap(page, '#pickJobBtn', 400);
   check('the sheet says so', await txt(page, '#sheetTitle'), 'Move to which job?');
   await tap(page, '.jobrow[data-job="j2"]', 600);
-  check('then the end photo of this code first', [await page.evaluate(() => S.tab), await page.evaluate(() => S.clockGate), await txt(page, '#afterBarT')], ['cam', 'end-switch', 'End photo of 04MA · you switch when you shoot']);
+  // T2.23: a move with no drive asks what happened; driving there now is
+  // leaving Webster for the day — the site manager's log for it first, on
+  // site, then its end photo, then the drive.
+  check('a move asks what happened', [await page.evaluate(() => S.sheet), await txt(page, '#sheetTitle')], ['moveHow', 'Still on the clock']);
+  await tap(page, '[data-move="drive"]', 600);
+  check('Driving there · done here today: today\'s log for the roof being left, first', [await page.evaluate(() => [S.tab, S.dlJobId]), await txt(page, '.promptbox .pe'), await txt(page, '.promptbox .pt')],
+    [['log', 'j_2841'], 'Leaving Noah Webster for the day', 'Send today’s log first']);
+  await tap(page, '#dlNormal', 900);
+  check('then the end photo of the site', [await page.evaluate(() => S.tab), await page.evaluate(() => S.clockGate), await txt(page, '#afterBarT')], ['cam', 'end-travel', 'End photo of Noah Webster · you start the drive when you shoot']);
   await shoot(page);
-  await page.waitForTimeout(900);
   await settle(page);
-  check('then asks for the code at the next roof', await txt(page, '#sheetTitle'), 'Code at Lucas');
+  check('then the drive to Lucas, carrying the end photo', await page.evaluate(() => { const c = window.__CLOCK.slice(-1)[0]; return [c[0], c[1], !!c[3], c[5], onTravel()]; }), ['startTravel', 'j2', true, true, true]);
+  await tap(page, '#arriveBtn', 600);
   await tap(page, '.coderow:has-text("Final Clean")', 500);
   // Lucas's shop material was never marked loaded (T2.20): the site manager
-  // clocks in all the same, and the PM and Carl are told.
+  // clocks in all the same, and the PM and the Ops Director are told.
   check('Lucas rolled out without its material loaded: said, then on', [await page.evaluate(() => S.sheet), await txt(page, '#sheetBody .trow .nm')], ['forgot', 'Material loaded for the crew']);
   await tap(page, '#forgotGo', 500);
   check('then the start photo there', [await page.evaluate(() => S.clockGate), await txt(page, '#afterBarT')], ['start', 'Start photo · the clock starts when you shoot']);
   await shoot(page);
   await settle(page);
   check('the clock is now at the next roof', [await txt(page, '#jobAddr'), await txt(page, '#bandCodeName')], ['812 S Washington St', 'Final Clean']);
-  check('...and the roof you left is owed its log, first', [/hidden/.test(await cls(page, '#clockNudge')), /^Send today’s log for Noah Webster\?/.test(await txt(page, '#clockNudge .nt'))], [false, true]);
+  check('...and the roof left already has its log', await page.evaluate(() => (window.__LOGS || []).map((l) => l.jobId)), ['j_2841']);
   const sw = await page.evaluate(() => S.open && S.open.job && S.open.job.id);
   const last = await page.evaluate(() => window.__CLOCK.slice(-1)[0]);
-  check('one call closed the old entry and opened the new one there, carrying both photos', [sw, last.slice(0, 3), !!last[3], !!last[4]], ['j2', ['switchCode', 'j2', 'ci5'], true, true]);
+  check('the arrival is one switch with the start photo only', [sw, last.slice(0, 3), last[3], !!last[4]], ['j2', ['switchCode', 'j2', 'ci5'], null, true]);
   check('no page errors', errs, []);
   await ctx.close();
 }

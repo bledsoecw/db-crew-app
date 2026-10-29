@@ -106,6 +106,13 @@ Clock In lines (`where: [['costType','name'], 'in', ['Labor','Clock In']]`,
 with `costGroup { name }`) and keeps the group's Clock In lines when there are
 any; otherwise every budget-level line, as before.
 
+The list is the same on every job, roofing or construction (Concrete,
+Drywall and Fireplace on a roof), and what people pick from it is narrow: in
+the two weeks to 28 Oct the construction bench clocked nearly all of its time
+on General Requirements. So since T2.23 the code sheet opens on the four codes
+the person used most in the last 30 days (`recentCodes` on `getExtras`) and
+the rest sit behind **All codes**.
+
 ### The shop: 25-0011 DB INTERNAL
 
 The crew's morning clock-in at the Monroe Street building is job **`25-0011
@@ -117,6 +124,12 @@ Shop Work/Maintenance (`99TM-4`) and Crew Labor – Bonnewitz Ave. (`99TM-5`),
 all Labor; Administrative (`99TM-7`) sits in an `Admin` group, and the job
 has a CLOCK IN ITEMS group of its own besides. Carl's list for the shop is the
 five `99TM-1…5` lines and nothing else (`SHOP_CODES` in Code.gs).
+
+Where the morning is checked from (T2.23): **the shop, 701 Monroe St**
+(40.8778989, -84.5870324) and **the office, 224 Bonnewitz Ave** — 25-0011's
+own location, and the yard the Production Board measures from (40.8804786,
+-84.5857135, JobTread's own geocode). They are about 310 m apart, so the
+400 m radius (`SHOP_RADIUS_M`) around each overlaps.
 
 What people actually did, Sep 1 – Oct 28: 102 Morning Clock-Ins from eight
 people, most 15–60 minutes and then a switch at the site (the drive rode on

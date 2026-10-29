@@ -244,11 +244,14 @@
   }
 
   var ST = { open: null, entries: [], pushToken: null, nudged: null, n: 0, files: 0 };
-  // Two closed blocks already banked today, so the table has something in it.
+  // Two closed blocks already banked, so the hours have something in them:
+  // the morning at the shop and the drive to Webster (T2.23). Neither is work
+  // at Webster, so its first clock-in owes the start photo whatever the hour
+  // the suites run — the photo rule asks whether the site was worked today.
   var t0 = Date.now() - 3 * 3600 * 1000;
   ST.entries = [
-    { id: 'e1', startedAt: new Date(t0).toISOString(), endedAt: new Date(t0 + 42 * 60000).toISOString(), minutes: 42, job: JOB, code: code('ci4') },
-    { id: 'e2', startedAt: new Date(t0 + 42 * 60000).toISOString(), endedAt: new Date(t0 + 180 * 60000).toISOString(), minutes: 138, job: JOB, code: code('ci9') }
+    { id: 'e1', startedAt: new Date(t0).toISOString(), endedAt: new Date(t0 + 42 * 60000).toISOString(), minutes: 42, notes: '', job: SHOP, code: code('sh1') },
+    { id: 'e2', startedAt: new Date(t0 + 42 * 60000).toISOString(), endedAt: new Date(t0 + 180 * 60000).toISOString(), minutes: 138, notes: 'Drive to 26-0890 Noah Webster · from the shop', job: JOB, code: code('ci11') }
   ];
   if (FX.entries) ST.entries = FX.entries({ job: JOB, code: code, t0: t0 });
   // __MOCK_OPEN_AGO (minutes): on 04MA at Webster since then. __MOCK_OPEN_YESTERDAY:
@@ -373,7 +376,9 @@
       return { codes: jobId ? codesFor(jobId) : [], jobOptions: HANDLERS.getJobOptions(),
                crew: b.isForeman ? HANDLERS.getCrewOnClock() : [], logFields: LOG_FIELDS,
                // __MOCK_PARTNER: Yahir's phone — the API names Alberto (T2.21).
-               partner: window.__MOCK_PARTNER ? { name: 'Alberto Gonzalez' } : (FX.partner || null) };
+               partner: window.__MOCK_PARTNER ? { name: 'Alberto Gonzalez' } : (FX.partner || null),
+               // T2.23: your codes — __MOCK_RECENT, or the fixtures'; null is "could not ask".
+               recentCodes: window.__MOCK_RECENT || FX.recentCodes || null };
     },
     getToday: function (jobId) {
       // __MOCK_NOJOB: nothing remembered on the phone — the seed-from-the-schedule case.
@@ -460,10 +465,29 @@
     // The clock, with the photo gates Code.gs enforces: no start photo, no
     // clock-in; no end photo, no clock-out; a switch carries both. A break
     // is the one photo-less write. Every call is recorded in window.__CLOCK.
-    clockIn: function (jobId, costItemId, coords, startPhotoId) {
-      (window.__CLOCK = window.__CLOCK || []).push(['clockIn', jobId, costItemId, startPhotoId || null]);
-      if (!startPhotoId) throw new Error('PHOTO_REQUIRED: A start photo is required to clock in.');
-      return HANDLERS.__open(jobId, costItemId);
+    // T2.23: the photo rule, as Code.gs asks it — a start photo when work
+    // starts at a site not started today, never at the shop; an end photo
+    // when a site is left for the day.
+    __work: function (e) { return !!(e && e.job && Date.parse(e.startedAt) <= Date.now() && !(e.code && /travel/i.test(e.code.name || '')) && !/^(drive (to|back)|supply run)\b/i.test(e.notes || '')); },
+    __startOwed: function (jobId) {
+      if (jobId === SHOP.id) return false;
+      if (HANDLERS.__work(ST.open) && ST.open.job && ST.open.job.id === jobId) return false;
+      var today = new Date(); today.setHours(0, 0, 0, 0);
+      return !ST.entries.some(function (e) { return e.job && e.job.id === jobId && HANDLERS.__work(e) && Date.parse(e.startedAt) >= today.getTime(); });
+    },
+    __endOwed: function () { return HANDLERS.__work(ST.open) && !(ST.open.job && ST.open.job.id === SHOP.id); },
+    clockIn: function (jobId, costItemId, coords, startPhotoId, opts) {
+      (window.__CLOCK = window.__CLOCK || []).push(['clockIn', jobId, costItemId, startPhotoId || null, (opts && opts.todayJobId) || null]);
+      if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to clock in.');
+      var today = new Date(); today.setHours(0, 0, 0, 0);
+      var first = jobId === SHOP.id && !ST.entries.some(function (e) { return Date.parse(e.startedAt) >= today.getTime() && Date.parse(e.startedAt) <= Date.now(); });
+      var e = HANDLERS.__open(jobId, costItemId);
+      // __MOCK_AWAY: the morning clock-in somewhere else (T2.23).
+      if (first) {
+        e.morning = window.__MOCK_AWAY ? { ok: false, where: window.__MOCK_AWAY === 'noloc' ? 'with no location from the phone' : 'about 3.2 miles from the shop on Monroe St' } : { ok: true, at: 'the shop on Monroe St' };
+        if (window.__MOCK_AWAY) (window.__NOTES = window.__NOTES || []).push({ kind: 'morning', jobId: (opts && opts.todayJobId) || SHOP.id, where: e.morning.where });
+      }
+      return e;
     },
     __open: function (jobId, costItemId, notes) {
       HANDLERS.__dropPlanned();
@@ -472,11 +496,10 @@
       ST.entries = [ST.open].concat(ST.entries);
       return ST.open;
     },
-    switchCode: function (jobId, costItemId, coords, endPhotoId, startPhotoId) {
-      (window.__CLOCK = window.__CLOCK || []).push(['switchCode', jobId, costItemId, endPhotoId || null, startPhotoId || null]);
-      if (!endPhotoId && !HANDLERS.__driving()) throw new Error('PHOTO_REQUIRED: An end photo of the code you are leaving is required to switch.');
-      if (!startPhotoId) throw new Error('PHOTO_REQUIRED: A start photo is required to start the next code.');
-      return HANDLERS.__open(jobId, costItemId);
+    switchCode: function (jobId, costItemId, coords, endPhotoId, startPhotoId, opts) {
+      (window.__CLOCK = window.__CLOCK || []).push(['switchCode', jobId, costItemId, endPhotoId || null, startPhotoId || null, (opts && opts.notes) || null]);
+      if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to start work at this job.');
+      return HANDLERS.__open(jobId, costItemId, opts && opts.notes);
     },
     // Rolled out without the yard done (T2.20): the PM and Carl are told.
     rollForgot: function (jobId, jobLabel, missing) {
@@ -494,7 +517,7 @@
       var at = Date.parse(leftAt);
       if (!(at > Date.parse(ST.open.startedAt))) throw new Error('That is before this block began.');
       if (at > Date.now() + 60000) throw new Error('That time has not happened yet.');
-      if (plan.kind === 'work' && !plan.startPhotoId) throw new Error('PHOTO_REQUIRED: A start photo is required to start the next code.');
+      if (plan.kind === 'work' && !plan.startPhotoId && HANDLERS.__startOwed(plan.jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to start the next code.');
       ST.open.endedAt = new Date(at).toISOString();
       ST.open.notes = 'No end photo — left the site.';
       ST.open = null;
@@ -513,19 +536,18 @@
     },
     // The drive (T2.18): from work it carries the end photo of what is left;
     // from a drive nothing. Opens on the line named, saying where to.
-    __driving: function () { return !!(ST.open && Date.parse(ST.open.startedAt) <= Date.now() && ((ST.open.code && /travel/i.test(ST.open.code.name || '')) || /^drive (to|back)\b/i.test(ST.open.notes || ''))); },
-    startTravel: function (jobId, costItemId, coords, endPhotoId, notes) {
-      (window.__CLOCK = window.__CLOCK || []).push(['startTravel', jobId, costItemId, endPhotoId || null, notes || '']);
+    __driving: function () { return !!(ST.open && Date.parse(ST.open.startedAt) <= Date.now() && ((ST.open.code && /travel/i.test(ST.open.code.name || '')) || /^(drive (to|back)|supply run)\b/i.test(ST.open.notes || ''))); },
+    startTravel: function (jobId, costItemId, coords, endPhotoId, notes, opts) {
+      (window.__CLOCK = window.__CLOCK || []).push(['startTravel', jobId, costItemId, endPhotoId || null, notes || '', !!(opts && opts.doneHere)]);
       if (!ST.open) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');
-      var brk = Date.parse(ST.open.startedAt) > Date.now();
-      if (!endPhotoId && !brk && !HANDLERS.__driving()) throw new Error('PHOTO_REQUIRED: An end photo of the code you are leaving is required to start the drive.');
+      if (!endPhotoId && opts && opts.doneHere && HANDLERS.__endOwed()) throw new Error('PHOTO_REQUIRED: An end photo of the site is required when you leave it for the day.');
       return HANDLERS.__open(jobId, costItemId, notes);
     },
     clockOut: function (coords, endPhotoId) {
       (window.__CLOCK = window.__CLOCK || []).push(['clockOut', endPhotoId || null]);
       // Out from a break: the planned block goes, no photo (T2.13).
       if (HANDLERS.__dropPlanned()) return { ok: true, closed: null, entries: ST.entries };
-      if (!endPhotoId && !HANDLERS.__driving()) throw new Error('PHOTO_REQUIRED: An end photo is required to clock out.');
+      if (!endPhotoId && HANDLERS.__endOwed()) throw new Error('PHOTO_REQUIRED: An end photo is required to clock out.');
       if (ST.open) ST.open.endedAt = new Date().toISOString();
       ST.open = null;
       return { ok: true, entries: ST.entries };

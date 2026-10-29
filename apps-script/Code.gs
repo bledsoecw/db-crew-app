@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.21 (2026-10-28)';
+var APP_BUILD = 'T2.23 (2026-10-29)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -2074,8 +2074,32 @@ function getStart(me, jobId) {
 // screen until someone taps something, and none of it is worth failing for —
 // without the job list you can still search, without the codes the sheet says
 // so and reloads.
+// Your codes first (T2.23): the lines this person clocked on in the last 30
+// days, by how often, matched on the phone to the job's list by number and
+// name — every job's CLOCK IN ITEMS carries the same thirty lines, so a
+// roofer's Roofing and Project Management are found on any job.
+var RECENT_CODES_DAYS = 30, RECENT_CODES_MAX = 4;
+function recentCodesQuery_(userId) {
+  var since = new Date(Date.now() - RECENT_CODES_DAYS * 86400000).toISOString();
+  return { organization: { '$': { id: ORG }, timeEntries: { '$': {
+    where: { and: [[['user', 'id'], userId], { '>=': [{ field: 'startedAt' }, { value: since }] }] },
+    sortBy: [{ field: 'startedAt', order: 'desc' }], size: 100 },
+    nodes: { startedAt: {}, notes: {}, job: { id: {} }, costItem: { name: {}, costCode: { number: {} } } } } } };
+}
+function recentCodesFrom_(d) {
+  var ns = (((d.organization || {}).timeEntries || {}).nodes) || [], tally = {}, order = [];
+  ns.forEach(function (t) {
+    var ci = t.costItem || {}, num = (ci.costCode && ci.costCode.number) || '', name = ci.name || '';
+    if (!name || /travel/i.test(name) || DRIVE_NOTES.test(t.notes || '') || (t.job && isShopJob_(t.job.id))) return;
+    var k = num + '|' + name.toLowerCase();
+    if (!tally[k]) { tally[k] = { number: num, name: name, n: 0 }; order.push(k); }
+    tally[k].n++;
+  });
+  return order.map(function (k) { return tally[k]; }).sort(function (a, b) { return b.n - a.n; }).slice(0, RECENT_CODES_MAX);
+}
+
 function getExtras(me, jobId) {
-  var out = { codes: [], jobOptions: [], crew: [], logFields: null, partner: null };
+  var out = { codes: [], jobOptions: [], crew: [], logFields: null, partner: null, recentCodes: null };
   // The toggle's name (T2.21); never worth failing the extras for.
   try { var pt = partnerFor_(me); out.partner = pt ? { name: pt.name } : null; } catch (ePt) { delete out.partner; }   // could not ask: the phone keeps its box
   var codesHit = jobId ? cacheGet_('jc2_' + jobId) : null;
@@ -2089,6 +2113,8 @@ function getExtras(me, jobId) {
   if (me.userId && !optsHit) { qs.push(recentJobsQuery_(me.userId)); tags.push('recent'); }
   if (!fieldsHit) { qs.push(dailyLogFieldsQuery_()); tags.push('fields'); }
   if (foreman) { qs.push(crewOnClockQuery_()); tags.push('crew'); }
+  var rcHit = me.userId ? cacheGet_('rc_' + me.userId) : null;
+  if (me.userId && !rcHit) { qs.push(recentCodesQuery_(me.userId)); tags.push('recentCodes'); }
   var got = {};
   paveAll_(qs).forEach(function (r, i) { got[tags[i]] = r; });
   if (codesHit) out.codes = codesHit;
@@ -2096,6 +2122,9 @@ function getExtras(me, jobId) {
   if (optsHit) out.jobOptions = optsHit;
   else if (got.recent && !got.recent.error) { try { out.jobOptions = jobOptionsFrom_(me.userId, got.recent.data); } catch (e2) {} }
   if (got.crew && !got.crew.error) { try { out.crew = crewFrom_(got.crew.data); } catch (e3) {} }
+  // null: could not ask, the phone keeps what it had.
+  if (rcHit) out.recentCodes = rcHit;
+  else if (got.recentCodes && !got.recentCodes.error) { try { out.recentCodes = recentCodesFrom_(got.recentCodes.data); cachePut_('rc_' + me.userId, out.recentCodes, 3600); } catch (e5) {} }
   // null means "could not ask": the phone keeps the list it has. An empty
   // list is an answer — the org has no such fields.
   if (fieldsHit) out.logFields = fieldsHit;
@@ -2154,12 +2183,97 @@ function requirePhoto_(id, what) {
   if (!id || !String(id).trim()) throw new Error('PHOTO_REQUIRED: ' + what);
 }
 
-function clockIn(me, jobId, costItemId, coords, startPhotoId) {
+// ---- the photo rule (T2.23, the Ops Director, 29 Oct 2026) ----------------
+// "The photo rule is ok": a start photo when you START WORK at a job site,
+// and an end photo when you LEAVE it for the day — nothing else asks. Not a
+// code change on the same site, not a supply run or coming back from one, not
+// a return the same day to a site already started, and never at the shop
+// ("no morning shop photo for starting the day clock-in"). The day's photos
+// go in DB Cam; DB Crew's are the start, the finish and Close Out's. What
+// stands in for a photo: every entry carries the phone's location when it
+// shares one (startCoordinates / endCoordinates), and the first clock-in of
+// the day at the shop is checked against the shop and the office
+// (morningCheck_). The questions are asked only when a write comes without
+// a photo, so a phone that still sends one (T2.22 and older) costs nothing.
+function isShopJob_(jobId) { return !!jobId && String(jobId) === SHOP_JOB.id; }
+function isWorkEntry_(e) { return !!(e && e.job && !isFuture_(e.startedAt) && !isTravelEntry_(e)); }
+/** The site was started today: work (not a drive, not a planned block) on it already. */
+function workedHereToday_(day, jobId) {
+  return (day || []).some(function (e) { return e.job && e.job.id === jobId && isWorkEntry_(e); });
+}
+function startPhotoOwed_(me, jobId, open) {
+  if (isShopJob_(jobId)) return false;
+  if (isWorkEntry_(open) && open.job.id === jobId) return false;
+  return !workedHereToday_(getMyDay(me), jobId);
+}
+/** Owed when work at a job site ends for the day: a clock-out, or leaving it
+ *  for the day (startTravel's doneHere). Never at the shop, never from a drive. */
+function endPhotoOwed_(open) { return isWorkEntry_(open) && !isShopJob_(open.job && open.job.id); }
+
+// ---- the morning clock-in, checked where it happened (T2.23) --------------
+// "Notify the PM and the Ops Director if the morning clock-in is not at the
+// Monroe Street shop or the Bonnewitz office radius." The two places are
+// JobTread's own geocodes of the company's locations (701 Monroe St and
+// 224 Bonnewitz Ave, about 300 m apart); SHOP_RADIUS_M (a Script Property)
+// overrides the 400 m around each. A phone that shares no location is told
+// about the same way — it is the same unknown. The notice is a comment on the
+// job the board has them on today (its PM), else on the shop's job, assigned
+// to the Ops Director as well. It never fails the clock-in.
+var SHOP_PLACES = [
+  { name: 'the shop on Monroe St', lat: 40.8778989, lng: -84.5870324 },
+  { name: 'the office on Bonnewitz Ave', lat: 40.8804786, lng: -84.5857135 }
+];
+var SHOP_RADIUS_M = 400;
+function shopRadius_() {
+  var v = NaN;
+  try { v = Number(PropertiesService.getScriptProperties().getProperty('SHOP_RADIUS_M')); } catch (e) {}
+  return v > 0 ? v : SHOP_RADIUS_M;
+}
+function metersBetween_(a, b) {
+  var R = 6371000, rad = Math.PI / 180;
+  var dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  var h = Math.pow(Math.sin(dLat / 2), 2) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.pow(Math.sin(dLng / 2), 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+function milesWords_(m) {
+  var mi = m / 1609.344;
+  return (mi < 10 ? Math.round(mi * 10) / 10 : Math.round(mi)) + (mi >= 0.95 && mi < 1.05 ? ' mile' : ' miles');
+}
+function nearestShopPlace_(coords) {
+  var c = coordArg_(coords);
+  if (!c) return null;
+  var here = { lat: c.latitude, lng: c.longitude };
+  return SHOP_PLACES.map(function (p) { return { place: p, m: metersBetween_(here, p) }; })
+    .sort(function (a, b) { return a.m - b.m; })[0];
+}
+function morningCheck_(me, coords, opts) {
+  try {
+    var near = nearestShopPlace_(coords);
+    if (near && near.m <= shopRadius_()) return { ok: true, at: near.place.name };
+    if (PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet) return { ok: false, quiet: true };
+    var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '';
+    var where = near ? 'about ' + milesWords_(near.m) + ' from ' + near.place.name : 'with no location from the phone';
+    var todayJob = String((opts && opts.todayJobId) || '').trim();
+    var notice = noticeToPm_(todayJob && !isShopJob_(todayJob) ? todayJob : SHOP_JOB.id,
+      '📍 ' + me.name + (also ? ' and ' + also : '') + ' clocked in for the day at ' + clockWords_(new Date()) + ' ' + where +
+      ' — not at the shop or the office. Sent from DB Crew.', opsDirector_());
+    return { ok: false, where: where, notice: notice };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}
+
+function clockIn(me, jobId, costItemId, coords, startPhotoId, opts) {
   if (!jobId) throw new Error('Missing job id.');
   if (!costItemId) throw new Error('Pick a code before clocking in.');
-  requirePhoto_(startPhotoId, 'A start photo is required to clock in.');
+  if (!startPhotoId && startPhotoOwed_(me, jobId, null)) requirePhoto_(startPhotoId, 'A start photo is required to clock in.');
   assertWrite_(jobId);
-  return openEntry_(me, jobId, costItemId, coords);
+  // The first clock-in of the day at the shop is checked against where the
+  // shop and the office are (T2.23) — asked before the entry opens, so the
+  // day's own entries say whether this is the first.
+  var first = isShopJob_(jobId) && !getMyDay(me).some(function (x) { return !isFuture_(x.startedAt); });
+  var e = openEntry_(me, jobId, costItemId, coords);
+  if (e && !startPhotoId) markNudged(e.id);
+  if (e && first) e.morning = morningCheck_(me, coords, opts);
+  return e;
 }
 
 /** Open a block on a code, closing anything already running — a crew member
@@ -2211,8 +2325,9 @@ function clockOut(me, coords, endPhotoId) {
     return { ok: true, closed: null, cancelled: open.id, entries: getMyDay(me) };
   }
   // Out at the end of a drive (T2.18): the photo was taken where the drive
-  // began; the end of one is the inside of a truck.
-  if (!isTravelEntry_(open)) requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
+  // began; the end of one is the inside of a truck. Out at the shop owes
+  // none either (T2.23): the end photo is of a job site, left for the day.
+  if (endPhotoOwed_(open)) requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
   if (!open) return { ok: true, closed: null };
   assertWrite_(open.job && open.job.id);
   closeEntry_(open.id, coords);
@@ -2222,14 +2337,19 @@ function clockOut(me, coords, endPhotoId) {
 // Close the running entry and open the next one in a single call, so a
 // dropped connection can't leave someone clocked out mid-switch. The end
 // photo of the code just ended and the start photo of the next both ride.
-function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId) {
+function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId, opts) {
   if (!costItemId) throw new Error('Pick a code to switch to.');
-  // Arriving from a drive (T2.18) owes no end photo: it ends in the truck.
+  // A switch owes no end photo (T2.23): the end photo is taken when a site is
+  // left for the day — startTravel's doneHere, or a clock-out. The start
+  // photo is owed only when this starts work at a site not started today:
+  // arriving from a drive, or a job changed with no drive between.
   var open = openEntryFor_(me.userId);
-  if (!isTravelEntry_(open)) requirePhoto_(endPhotoId, 'An end photo of the code you are leaving is required to switch.');
-  requirePhoto_(startPhotoId, 'A start photo is required to start the next code.');
+  if (!startPhotoId && startPhotoOwed_(me, jobId, open)) requirePhoto_(startPhotoId, 'A start photo is required to start work at this job.');
   assertWrite_(jobId);
-  return openEntry_(me, jobId, costItemId, coords, null, open);   // closes what is running, then opens
+  var notes = opts && opts.notes ? String(opts.notes).trim().slice(0, 200) : null;
+  var e = openEntry_(me, jobId, costItemId, coords, notes, open);   // closes what is running, then opens
+  if (e && !startPhotoId) markNudged(e.id);
+  return e;
 }
 
 // ---- the drive (T2.18, Carl 28 Oct 2026) ----------------------------------
@@ -2253,8 +2373,10 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId) {
 // So the end photo has one way round it, and it is never quiet: the block
 // ends at the time they say they left (never before it began, never in the
 // future), with no photo; its notes say so; and a comment on the job is
-// assigned to the job's PM and to Carl (LEFT_SITE_NOTIFY, a Script Property
-// of names, overrides "Carl Bledsoe"). What comes next is the same call:
+// assigned to the job's PM and to the Ops Director (opsDirector_: the Script
+// Property OPS_DIRECTOR, names, else the older LEFT_SITE_NOTIFY, else "Carl
+// Bledsoe"). The crews and the PMs read "the Ops Director", never a name
+// (29 Oct 2026). What comes next is the same call:
 //   kind 'out'   — that was the end of the day.
 //   kind 'drive' — the drive that began when they left, open, on the line
 //                  named (the next job's travel line): they are on the road.
@@ -2263,14 +2385,17 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId) {
 //                  then the work, with its start photo, from now.
 // The same door serves an entry left open overnight: ended at the time given
 // on the day it began.
-var LEFT_SITE_NOTIFY = ['Carl Bledsoe'];
+var OPS_DIRECTOR = ['Carl Bledsoe'];
 var LEFT_SITE_DRIVE_MAX_MS = 12 * 3600 * 1000;
-var PARTNER_LEFT_ = null;   // set by withPartner_ only, for the length of one leftSite
-function leftSiteNotify_() {
-  var v = '';
-  try { v = PropertiesService.getScriptProperties().getProperty('LEFT_SITE_NOTIFY') || ''; } catch (e) {}
-  var list = v.split(',').map(function (x) { return x.trim(); }).filter(Boolean);
-  return list.length ? list : LEFT_SITE_NOTIFY;
+// Set by withPartner_ only, for the length of one write that can post a
+// notice (leftSite, the morning clock-in): one notice naming both, not two.
+var PARTNER_NOTICE_ = null;
+function opsDirector_() {
+  var props = null;
+  try { props = PropertiesService.getScriptProperties(); } catch (e) {}
+  var read = function (k) { try { return (props && props.getProperty(k)) || ''; } catch (e) { return ''; } };
+  var list = (read('OPS_DIRECTOR') || read('LEFT_SITE_NOTIFY')).split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  return list.length ? list : OPS_DIRECTOR;
 }
 /** A comment on the job, assigned to its PM and to the names given. Never
  *  throws: the clock does not wait on a notice. */
@@ -2284,19 +2409,19 @@ function noticeToPm_(jobId, message, extraNames) {
     return { ok: true, id: (((d.createComment || {}).createdComment) || {}).id || null, assigned: who.assigned };
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
-// ---- rolled out without the yard done (T2.20, Carl 28 Oct 2026) ----------
+// ---- rolled out without the shop checks done (T2.20, 28 Oct 2026) ---------
 // Leaving the shop for a roof is a hard stop on the phone until the board's
-// "At the yard, before you roll out" lines are ticked and the shop material is
+// "At the shop, before you roll out" lines are ticked and the shop material is
 // loaded. Forgot — at the roof without them — the site manager still clocks
 // in ("with the same guidelines as before": T2.19's), and the job's PM and
-// Carl get one comment saying what was not done.
+// the Ops Director get one comment saying what was not done.
 function rollForgot(me, jobId, jobLabel, missing) {
   jobId = String(jobId || '').trim();
   if (!jobId) throw new Error('Missing job id.');
   assertWrite_(jobId);
   var what = (missing || []).map(function (m) { return String(m || '').split(' — ')[0].trim(); }).filter(Boolean);
-  return noticeToPm_(jobId, '📋 ' + me.name + ' started at ' + (String(jobLabel || '').trim() || 'the job') + ' without the yard checks done before rolling out' +
-    (what.length ? ': ' + what.join(' · ') : '') + '. Clocked in at ' + clockWords_(new Date()) + '.', leftSiteNotify_());
+  return noticeToPm_(jobId, '📋 ' + me.name + ' started at ' + (String(jobLabel || '').trim() || 'the job') + ' without the shop checks done before rolling out' +
+    (what.length ? ': ' + what.join(' · ') : '') + '. Clocked in at ' + clockWords_(new Date()) + '.', opsDirector_());
 }
 function leftSite(me, leftAt, coords, plan) {
   plan = plan || {};
@@ -2314,14 +2439,14 @@ function leftSite(me, leftAt, coords, plan) {
   // be a night's pay. Out at the time you left, then clock in where you are.
   if (kind !== 'out' && now - at > LEFT_SITE_DRIVE_MAX_MS) throw new Error('That was over 12 hours ago — clock out at the time you left, then clock in where you are.');
   if (kind !== 'out' && (!plan.jobId || !plan.costItemId)) throw new Error('Missing the next job or its line.');
-  if (kind === 'work') requirePhoto_(plan.startPhotoId, 'A start photo is required to start the next code.');
+  if (kind === 'work' && !plan.startPhotoId && startPhotoOwed_(me, plan.jobId, null)) requirePhoto_(plan.startPhotoId, 'A start photo is required to start the next code.');
   assertWrite_(open.job && open.job.id);
   if (kind !== 'out') assertWrite_(plan.jobId);
   if (kind === 'drive') assertDriveLine_(plan.jobId, plan.costItemId);
   if (kind === 'work' && plan.travelItemId) assertDriveLine_(plan.jobId, plan.travelItemId, true);
   // Who else to name, or to stay quiet for, is withPartner_'s to say — never
-  // the phone's (PARTNER_LEFT_).
-  var also = (PARTNER_LEFT_ && PARTNER_LEFT_.alsoName) || '', quiet = !!(PARTNER_LEFT_ && PARTNER_LEFT_.quiet);
+  // the phone's (PARTNER_NOTICE_).
+  var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '', quiet = !!(PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet);
   var leftIso = new Date(Math.min(at, now)).toISOString();
   var label = open.job ? [open.job.number, open.job.name].filter(Boolean).join(' ') : 'the job';
   var said = 'No end photo — left the site. Ended from DB Crew at ' + clockWords_(new Date(now)) + ', said they left at ' + clockWords_(new Date(at)) + '.';
@@ -2338,7 +2463,7 @@ function leftSite(me, leftAt, coords, plan) {
     var a = entry({ jobId: plan.jobId, costItemId: plan.costItemId, startedAt: leftIso });
     // As startTravel's: the notes are what make it a drive on any line.
     var dn = String(plan.notes || '').trim();
-    a.notes = (/^drive (to|back)\b/i.test(dn) ? dn : 'Drive to ' + plan.jobId + (dn ? ' · ' + dn : '')).slice(0, 500);
+    a.notes = (DRIVE_NOTES.test(dn) ? dn : 'Drive to ' + plan.jobId + (dn ? ' · ' + dn : '')).slice(0, 500);
     markNudged(create(a));
   } else if (kind === 'work') {
     var nowIso = new Date(now).toISOString();
@@ -2349,11 +2474,12 @@ function leftSite(me, leftAt, coords, plan) {
     }
     var w = entry({ jobId: plan.jobId, costItemId: plan.costItemId, startedAt: nowIso });
     if (sc) w.startCoordinates = sc;
-    create(w);
+    var wid = create(w);
+    if (!plan.startPhotoId) markNudged(wid);
   }
   var notice = quiet ? null : noticeToPm_(open.job && open.job.id,
     '⏱ ' + me.name + (also ? ' and ' + also : '') + ' left ' + label + ' without clocking out. The block on ' + ((open.code && [open.code.number, open.code.name].filter(Boolean).join(' ')) || 'the job') +
-    ' was ended at ' + clockWords_(new Date(at)) + ', the time given, from DB Crew at ' + clockWords_(new Date(now)) + ' — no end photo.', leftSiteNotify_());
+    ' was ended at ' + clockWords_(new Date(at)) + ', the time given, from DB Crew at ' + clockWords_(new Date(now)) + ' — no end photo.', opsDirector_());
   return { ok: true, closed: open.id, endedAt: leftIso, open: kind === 'out' ? null : openEntryFor_(me.userId), notice: notice, entries: getMyDay(me) };
 }
 
@@ -2404,16 +2530,17 @@ function withPartner_(me, f, fn, args) {
   var mine = known ? openEntryFrom_(rs[0].data) : null, theirs = known ? openEntryFrom_(rs[1].data) : null;
   var same = known && sameClock_(mine, theirs);
   var data;
-  try { PARTNER_LEFT_ = same && fn === 'leftSite' ? { alsoName: p.name } : null; data = f.apply(null, [me].concat(args)); }
-  finally { PARTNER_LEFT_ = null; }
+  var notices = fn === 'leftSite' || fn === 'clockIn';
+  try { PARTNER_NOTICE_ = same && notices ? { alsoName: p.name } : null; data = f.apply(null, [me].concat(args)); }
+  finally { PARTNER_NOTICE_ = null; }
   var info = { name: p.name, followed: false };
   if (!known) info.why = 'JobTread did not say where they are';
   else if (!same) info.why = theirs ? 'on the clock at ' + [theirs.job && theirs.job.number, theirs.code && theirs.code.number].filter(Boolean).join(' · ') : 'not on the clock';
   else {
     try {
       var pd;
-      try { PARTNER_LEFT_ = fn === 'leftSite' ? { quiet: true } : null; pd = f.apply(null, [p].concat(args)); }
-      finally { PARTNER_LEFT_ = null; }
+      try { PARTNER_NOTICE_ = notices ? { quiet: true } : null; pd = f.apply(null, [p].concat(args)); }
+      finally { PARTNER_NOTICE_ = null; }
       var pid = pd && (pd.id || (pd.open && pd.open.id));
       if (pid) markNudged(pid);
       info.followed = true;
@@ -2423,10 +2550,12 @@ function withPartner_(me, f, fn, args) {
   return data;
 }
 
+var DRIVE_NOTES = /^(drive (to|back)|supply run)\b/i;
 function isTravelEntry_(open) {
   // The travel line, or — on a job with none — the line a drive was put on,
   // which says so in its notes ("Drive to …", "Drive back · …").
-  return !!(open && !isFuture_(open.startedAt) && ((open.code && /travel/i.test(open.code.name || '')) || /^drive (to|back)\b/i.test(open.notes || '')));
+  // A supply run (T2.23) is a drive that comes back: "Supply run · …".
+  return !!(open && !isFuture_(open.startedAt) && ((open.code && /travel/i.test(open.code.name || '')) || DRIVE_NOTES.test(open.notes || '')));
 }
 /* The drive goes on the job's travel line; on a job with none, on one of its
    own lines — never on a line the phone made up. `travelOnly`: the line must
@@ -2440,19 +2569,20 @@ function assertDriveLine_(jobId, costItemId, travelOnly) {
                          : !travelOnly && codes.some(function (c) { return c.id === costItemId; });
   if (!ok) throw new Error(travel.length ? 'The drive goes on the job’s travel line.' : travelOnly ? 'That job has no travel line.' : 'That line is not on the job.');
 }
-function startTravel(me, jobId, costItemId, coords, endPhotoId, notes) {
+function startTravel(me, jobId, costItemId, coords, endPhotoId, notes, opts) {
   if (!jobId) throw new Error('Missing job id.');
   if (!costItemId) throw new Error('Pick the line to drive on.');
   var open = openEntryFor_(me.userId);
   if (!open) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');
-  // From work, the end photo of what is being left; from a drive (changing
-  // where to) or a break, there is nothing to photograph.
-  if (!isTravelEntry_(open) && !isFuture_(open.startedAt)) requirePhoto_(endPhotoId, 'An end photo of the code you are leaving is required to start the drive.');
+  // The end photo is of a site left for the day (T2.23, `doneHere`): a supply
+  // run, a trip to another job and back, the shop, a drive or a break owe
+  // none. A phone older than T2.23 sends no doneHere and always a photo.
+  if (opts && opts.doneHere && endPhotoOwed_(open)) requirePhoto_(endPhotoId, 'An end photo of the site is required when you leave it for the day.');
   assertWrite_(jobId);
   assertDriveLine_(jobId, costItemId);
   // The notes are what make a drive on a job with no travel line a drive.
   notes = String(notes || '').trim();
-  if (!/^drive (to|back)\b/i.test(notes)) notes = 'Drive to ' + jobId + (notes ? ' · ' + notes : '');
+  if (!DRIVE_NOTES.test(notes)) notes = 'Drive to ' + jobId + (notes ? ' · ' + notes : '');
   var e = openEntry_(me, jobId, costItemId, coords, notes, open);
   if (e) markNudged(e.id);
   return e;

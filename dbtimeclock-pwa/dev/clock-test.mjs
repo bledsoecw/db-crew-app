@@ -4,9 +4,11 @@
      node dev/clock-test.mjs
 
    Needs a local static server on the port below and Playwright available.
-   The mock records every clock call it is handed (window.__CLOCK) and
-   refuses a clock-in, clock-out or switch with no photo id, the way Code.gs
-   does — so the shutter really is the only way through. */
+   The mock records every clock call it is handed (window.__CLOCK) and asks
+   for photos the way Code.gs does since T2.23 — a start photo when work
+   starts at a site not started today, an end photo when a site is left for
+   the day, none at the shop — so where a photo is owed, the shutter really
+   is the only way through. */
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 
@@ -76,8 +78,11 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   check('the photo is on the code, stamped with the entry, as START', [s.photos.map((p) => p.slice(0, 2)), await page.evaluate(() => fileDescription({ tag: 'before', entryId: S.open.id, codeLabel: codeLabel(S.open.code) }))], [[['before', 'ci9']], '#START #TE:open1 04MA Masonry Labor']);
   await page.waitForTimeout(1500);
   check('...and uploads on its own', await page.evaluate(() => S.photos.map((p) => [p.pending, p.fileId])), [[false, 'f1']]);
-  check('the band says so', [/^Started \d+:\d\d[ap] with a start photo · 1 photo on this code$/.test(await txt(page, '#bandSub')), await txt(page, '#stopFoot')], [true, 'Photos go on the job in JobTread, tagged to 04MA. Stop opens Break · Switch · Clock out.']);
-  check('two buttons, no remind strip', [await txt(page, '#photoBtn'), await txt(page, '#stopBtn'), await page.locator('#remind').count()], ['Take a photo', 'Stop the clock', 0]);
+  check('the band says so', [/^Started \d+:\d\d[ap] with a start photo · 1 photo on this code$/.test(await txt(page, '#bandSub')), await txt(page, '#stopFoot')], [true, 'A start photo when you start here, an end photo when you leave for the day — nothing in between.']);
+  check('the four buttons (T2.23), Take a photo under them, no remind strip', [await page.locator('.clkgrid .cbtn').allTextContents(), await txt(page, '#photoBtn'), await txt(page, '#photoNote'), await page.locator('#remind').count()],
+    [['Break', 'Change code', 'Leave the site', 'Clock out'], 'Take a photo', 'Photos through the day go in DB Cam.', 0]);
+  const cb = await page.locator('.clkgrid .cbtn').first().boundingBox();
+  check('…big enough for a glove', cb.height >= 90, true);
 
   // a progress shot
   await tap(page, '#photoBtn', 500);
@@ -89,16 +94,17 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   s = await st(page);
   check('...and back to the clock after the shot', [s.tab, s.photos.length, await page.evaluate(() => fileDescription({ tag: 'during', entryId: 'x', codeLabel: '' }))], ['job', 2, '#DURING #TE:x']);
 
-  // the stop sheet
-  await tap(page, '#stopBtn', 400);
-  check('Stop the clock: three rows and the fine print', [await txt(page, '#sheetTitle'), await page.locator('.stoprow .st').allTextContents(), await page.locator('.stoprow .ss').allTextContents(), /^Your \d+:\d\d on 04MA is already saved\. Nothing here can lose time\.$/.test(await txt(page, '#sheetBody .fine'))],
-    ['Stop the clock', ['Break', 'Switch code or job', 'Leave for another job', 'Clock out for the day'], ['15, 30, 45 or 60 min · no photo', 'End photo of 04MA first', 'End photo here, then the drive', 'End photo, then today’s log'], true]);
+  // Leave the site (T2.23): four ways out, each saying what it costs.
+  await tap(page, '#leaveBtn', 400);
+  check('Leave the site: four rows and the fine print', [await txt(page, '#sheetTitle'), await page.locator('.stoprow .st').allTextContents(), await page.locator('.stoprow .ss').allTextContents(), await txt(page, '#sheetBody .fine')],
+    ['Leaving Noah Webster', ['Supply run · back here after', 'Another job · back here later', 'Another job · done here today', 'Back to the shop · done here today'],
+     ['On this job’s travel line · no photo', 'The drive · no photo — you’re coming back', 'Today’s log, the end photo, then the drive', 'Today’s log, the end photo, then the drive back — paid travel'],
+     'Going home? Clock out instead. Site managers send today’s log before leaving the site for the day.']);
   await tap(page, '#sheetClose', 300);
 
   // a break (T2.13): pick how long; JobTread's shape — the block ends, the
   // next one waits in JobTread for when the break is over. No photo.
-  await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopBreak', 300);
+  await tap(page, '#breakBtn', 300);
   check('Break asks how long: JobTread\u2019s four lengths, each saying when the clock restarts',
     [await txt(page, '#sheetTitle'), await page.locator('.brkopt .bt').allTextContents(), (await page.locator('.brkopt .bs').allTextContents()).every((t) => /^back \d+:\d\d[ap]$/.test(t)), /^Your \d+:\d\d on 04MA is saved\. The clock starts again by itself when the break ends/.test(await txt(page, '#sheetBody .fine'))],
     ['How long a break?', ['0:15', '0:30', '0:45', '1:00'], true, true]);
@@ -122,57 +128,35 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   s = await st(page);
   check('End break early: the waiting block goes, one starts now on the same code', [s.code, s.open, (await calls(page)).slice(-1)[0], await page.evaluate(() => S.brk), await txt(page, '#band .lbl')], ['04MA', 'open3', ['endBreak', 'j_2841', 'ci9'], null, 'On the clock']);
 
-  // a switch: the end photo, then the code, then the start photo — one call
-  await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopSwitch', 600);
-  s = await st(page);
-  check('Switch: the camera, locked to END', [s.tab, s.gate, await txt(page, '#afterBarT'), await txt(page, '#camBackLbl'), await page.locator('.tagbtn.on .tl').textContent()], ['cam', 'end-switch', 'End photo of 04MA · you switch when you shoot', 'Stay on', 'End']);
-  check('...the stamp carries the time on the code', /^04MA Masonry Labor · \d+:\d\d$/.test(await txt(page, '#stampCode')), true);
-  await tap(page, '#camBack', 400);
-  s = await st(page);
-  check('Stay on: back to the clock, nothing changes', [s.tab, s.gate, s.code, (await calls(page)).slice(-1)[0][0]], ['job', null, '04MA', 'endBreak']);
-  await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopSwitch', 600);
-  await shoot(page);
-  await page.waitForTimeout(800);
-  s = await st(page);
-  check('the end photo opens the code sheet; the clock is still running', [s.tab, s.gate, s.code, await txt(page, '#sheetTitle'), await page.evaluate(() => !!S.switching)], ['job', null, '04MA', 'Switch code', true]);
-  await tap(page, '#sheetClose', 300);
-  check('backing out leaves the clock running, the switch forgotten', [await page.evaluate(() => !!S.switching), (await st(page)).code], [false, '04MA']);
-  await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopSwitch', 600);
-  await shoot(page);
-  await page.waitForTimeout(800);
-  await tap(page, '.coderow:has-text("Final Clean")', 500);
-  s = await st(page);
-  check('the next code: the camera, locked to START, for that code', [s.tab, s.gate, await txt(page, '#stampCode'), await page.locator('.tagbtn .tc').allTextContents()], ['cam', 'start', '02ST-1 Final Clean', ['00', '00', '00']]);
-  await tap(page, '#camBack', 400);
-  check('Back from the start photo: the code sheet again, still on the old code', [await txt(page, '#sheetTitle'), (await st(page)).code], ['Switch code', '04MA']);
-  await tap(page, '.coderow:has-text("Final Clean")', 500);
-  await shoot(page);
+  // Change code (T2.23): the same site, no photos — one call, the code changes.
+  const before = (await st(page)).photos.length;
+  await tap(page, '#codeBtn', 400);
+  check('Change code: this job\'s codes', [await txt(page, '#sheetTitle'), (await page.locator('.coderow.on .cname').allTextContents())], ['Change code', ['Masonry Labor']]);
+  await tap(page, '.coderow:has-text("Final Clean")', 300);
   await settle(page);
   s = await st(page);
   const sw = (await calls(page)).slice(-1)[0];
-  check('the start photo commits the switch: one call, both photo ids', [s.code, s.gate, sw.slice(0, 3), typeof sw[3], typeof sw[4], sw[3] !== sw[4]], ['02ST-1', null, ['switchCode', 'j_2841', 'ci5'], 'string', 'string', true]);
-  check('the end photo is on the old code, the start photo on the new', await page.evaluate(() => S.photos.slice(-2).map((p) => [p.tag, p.codeId])), [['after', 'ci9'], ['before', 'ci5']]);
+  check('…no camera: one switch with no photo ids, and the clock on the new code', [s.tab, s.gate, s.code, sw, s.photos.length], ['job', null, '02ST-1', ['switchCode', 'j_2841', 'ci5', null, null, null], before]);
 
-  // clock out: the end photo, then the day log
-  await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopOut', 600);
-  check('Clock out: the camera, locked to END', [await page.evaluate(() => S.clockGate), await txt(page, '#afterBarT')], ['end-out', 'End photo of 02ST-1 · you clock out when you shoot']);
+  // Clock out (T2.23): a site manager sends today's log first, on site;
+  // then the end photo of the site clocks out.
+  await tap(page, '#outBtn', 600);
+  s = await st(page);
+  check('Clock out: the Day log first, saying why', [s.tab, s.gate, await txt(page, '.promptbox .pe'), await txt(page, '.promptbox .pt'), (await calls(page)).slice(-1)[0][0]],
+    ['log', null, 'Leaving Noah Webster for the day', 'Send today’s log first', 'switchCode']);
+  await tap(page, '#dlNormal', 900);
+  check('…the log on its way, the end photo next', [await page.evaluate(() => [S.tab, S.clockGate]), await txt(page, '#afterBarT')], [['cam', 'end-out'], 'End photo of Noah Webster · you clock out when you shoot']);
   await shoot(page);
   await settle(page);
   s = await st(page);
   const out = (await calls(page)).slice(-1)[0];
   check('the shutter clocks out, with the photo id', [s.open, s.gate, out[0], typeof out[1]], [null, null, 'clockOut', 'string']);
-  check('...and lands on the Day log with the nudge', [s.tab, await txt(page, '.promptbox .pe'), await txt(page, '.promptbox .pt')], ['log', 'Today’s log · not sent', 'Send it before you go?']);
-  await tap(page, '#dlNormal', 1500);
-  check('sending the log clears the nudge', await page.locator('.promptbox').count(), 0);
+  check('…and the log already went, so it lands on the clock', [s.tab, await page.evaluate(() => (window.__LOGS || []).length)], ['job', 1]);
   check('no page errors', errs, []);
   await ctx.close();
 }
 
-// ---- My jobs: Go here instead, on the clock, is the end photo first ----
+// ---- My jobs: Go here instead, on the clock, asks what happened (T2.23) ----
 {
   const { ctx, page, errs } = await boot();
   await tap(page, '#clockIn', 300);
@@ -180,17 +164,40 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await shoot(page);
   await settle(page);
   await tap(page, '.tab[data-tab="jobs"]', 900);
-  check('the other cards say end photo first while on the clock', await page.locator('.jcard:has-text("Lucas") .jact .a1, .jcard:has-text("Lucas") .jact .a2').allTextContents(), ['Go here instead', 'End photo first']);
+  check('the other cards say it moves the clock', await page.locator('.jcard:has-text("Lucas") .jact .a1, .jcard:has-text("Lucas") .jact .a2').allTextContents(), ['Go here instead', 'Moves the clock']);
   await tap(page, '.jcard:has-text("Lucas") [data-go]', 600);
-  check('...and open the camera locked to END, for a move', [await page.evaluate(() => S.tab), await page.evaluate(() => S.clockGate), await page.evaluate(() => S.pendingJob && S.pendingJob.id), await txt(page, '#afterBarT')], ['cam', 'end-switch', 'j2', 'End photo of 04MA · you switch when you shoot']);
-  await shoot(page);
-  await page.waitForTimeout(900);
-  await settle(page);
-  check('then the next job\'s codes', await txt(page, '#sheetTitle'), 'Code at Lucas');
+  check('…not an end photo of somewhere they may have left: what happened?', [await page.evaluate(() => [S.tab, S.clockGate, S.sheet, S.pendingJob && S.pendingJob.id]), await txt(page, '#sheetTitle'), await page.locator('#sheetBody .stoprow .st').allTextContents()],
+    [['job', null, 'moveHow', 'j2'], 'Still on the clock', ['Driving there · back here later', 'Driving there · done here today', 'Already there — I left Noah Webster at…', 'Wrong job — I was never at Noah Webster']]);
+  await tap(page, '#sheetClose', 300);
+  check('backing out: still at Webster, nothing moved', await page.evaluate(() => [S.sheet, S.pendingJob, S.moving, S.job.id, (window.__CLOCK || []).length]), [null, null, false, 'j_2841', 1]);
+  await tap(page, '.tab[data-tab="jobs"]', 600);
+  await tap(page, '.jcard:has-text("Lucas") [data-go]', 600);
+  await tap(page, '[data-move="wrong"]', 600);
+  check('Wrong job: the next job\'s codes', await txt(page, '#sheetTitle'), 'Code at Lucas');
   await tap(page, '.coderow:has-text("Final Clean")', 500);
+  check('…a job not started today owes its start photo', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'start']);
   await shoot(page);
   await settle(page);
-  check('then the start photo there, and the clock is at the next roof', [await txt(page, '#jobAddr'), (await st(page)).code, (await calls(page)).slice(-1)[0].slice(0, 3)], ['812 S Washington St', '02ST-1', ['switchCode', 'j2', 'ci5']]);
+  const c = (await calls(page)).slice(-1)[0];
+  check('…one switch, no end photo, and the entry says it was the wrong job', [await txt(page, '#jobAddr'), (await st(page)).code, c[0], c[1], c[2], c[3], typeof c[4], c[5]],
+    ['812 S Washington St', '02ST-1', 'switchCode', 'j2', 'ci5', null, 'string', 'Changed from Noah Webster in DB Crew — wrong job']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- Go here instead, then Driving there · back here later: the drive, no photo, no log ----
+{
+  const { ctx, page, errs } = await boot();
+  await tap(page, '#clockIn', 300);
+  await tap(page, '.coderow:has-text("Masonry Labor")', 600);
+  await shoot(page);
+  await settle(page);
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await tap(page, '.jcard:has-text("Lucas") [data-go]', 600);
+  await tap(page, '[data-move="drive-later"]', 600); await settle(page);
+  const c = (await calls(page)).slice(-1)[0];
+  check('coming back to Webster: no camera, no log, straight to the drive to Lucas', [await page.evaluate(() => [S.tab, S.clockGate, S.sheet, onTravel()]), c[0], c[1], c[3], c[5]],
+    [['job', null, null, true], 'startTravel', 'j2', null, false]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -206,14 +213,20 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await ctx.close();
 }
 
-// ---- the API refuses a write with no photo — the gate cannot be skipped ----
+// ---- the API refuses a write with no photo where one is owed (T2.23) ----
 {
   const { ctx, page, errs } = await boot();
   const tryCall = (fn, args) => page.evaluate(([f, a]) => apiCall(f, a).then(() => 'ok', (e) => e.message), [fn, args]);
-  check('clockIn without a photo', /PHOTO_REQUIRED/.test(await tryCall('clockIn', ['j_2841', 'ci9', null, ''])), true);
-  check('clockOut without a photo', /PHOTO_REQUIRED/.test(await tryCall('clockOut', [null, ''])), true);
-  check('switchCode without the end photo', /PHOTO_REQUIRED/.test(await tryCall('switchCode', ['j_2841', 'ci9', null, '', 'x'])), true);
-  check('...or the start photo', /PHOTO_REQUIRED/.test(await tryCall('switchCode', ['j_2841', 'ci9', null, 'x', ''])), true);
+  check('clockIn at a site not started today, without a photo', /PHOTO_REQUIRED/.test(await tryCall('clockIn', ['j_2841', 'ci9', null, ''])), true);
+  check('…at the shop, none is owed', await tryCall('clockIn', ['shop', 'sh1', null, '']), 'ok');
+  check('…and a move from the shop to a site owes its start photo', /PHOTO_REQUIRED/.test(await tryCall('switchCode', ['j_2841', 'ci9', null, '', ''])), true);
+  await tryCall('switchCode', ['j_2841', 'ci9', null, '', 'x']);
+  check('a code change on that site owes none', await tryCall('switchCode', ['j_2841', 'ci5', null, '', '']), 'ok');
+  check('clockOut from a site without the end photo', /PHOTO_REQUIRED/.test(await tryCall('clockOut', [null, ''])), true);
+  check('…the drive away for the day without it', /PHOTO_REQUIRED/.test(await tryCall('startTravel', ['j2', 'ci11', null, '', 'Drive to 26-1045 Lucas', { doneHere: true }])), true);
+  check('…a supply run, coming back, owes none', await tryCall('startTravel', ['j_2841', 'ci11', null, '', 'Supply run · 26-0890 Noah Webster · back to 02ST-1 Final Clean', { doneHere: false }]), 'ok');
+  await page.evaluate(() => { window.__CLOCK = []; S.open = null; });
+  await page.evaluate(() => apiCall('clockOut', [null, ''])).catch(() => {});
   check('a refused clock-in from the camera leaves the clock as it was, with the reason', await (async () => {
     await page.evaluate(() => { window.__MOCK_READONLY = true; });
     await tap(page, '#clockIn', 300);
@@ -303,8 +316,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await tap(page, '.coderow:has-text("Masonry Labor")', 600);
   await shoot(page);
   await settle(page);
-  await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopBreak', 300);
+  await tap(page, '#breakBtn', 300);
   await tap(page, '.brkopt[data-brk="15"]', 200);
   await until(page, () => onBreakNow() && document.body.style.pointerEvents === '');
   const left = await page.evaluate(() => breakLeft());
@@ -323,8 +335,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
     [await page.evaluate(() => [S.brk, S.open.id]), (await calls(page)).slice(n), await txt(page, '#band .lbl')], [[null, 'open2'], [['endBreak', 'j_2841', 'ci9']], 'On the clock']);
 
   // out for the day from a break: the waiting block goes, no photo
-  await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopBreak', 300);
+  await tap(page, '#breakBtn', 300);
   await tap(page, '.brkopt[data-brk="45"]', 200);
   await until(page, () => onBreakNow() && document.body.style.pointerEvents === '');
   check('the Clock out button on a break', await txt(page, '#breakOutBtn'), 'Clock out for the day');
@@ -343,8 +354,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await tap(page, '.coderow:has-text("Masonry Labor")', 600);
   await shoot(page);
   await settle(page);
-  await tap(page, '#stopBtn', 300);
-  await tap(page, '#stopBreak', 300);
+  await tap(page, '#breakBtn', 300);
   await tap(page, '.brkopt[data-brk="30"]', 200);
   await until(page, () => !!S.onBreak && document.body.style.pointerEvents === '');
   let s = await st(page);
@@ -370,19 +380,26 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
 }
 
 // ---- T2.17: At the shop is one tap; the code sheet is the job's clock-in list ----
+// T2.23: no photo at the shop, and the first clock-in of the day there is
+// checked against where the shop and the office are.
 {
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
   check('off the clock: At the shop sits under Clock in', [await page.locator('#shopRow').isVisible(), await txt(page, '#shopBtn'), await txt(page, '#shopOther')],
-    [true, 'At the shopMorning clock-in · start photo', 'Other shop work']);
-  await tap(page, '#shopBtn', 600);
+    [true, 'At the shopMorning clock-in · one tap', 'Other shop work']);
+  await tap(page, '#shopBtn', 400); await settle(page);
   let s = await st(page);
-  check('one tap: the shop\'s Morning Clock-In, straight to the start photo', [s.tab, s.gate, await page.evaluate(() => [S.job && S.job.id, S.gateCode && S.gateCode.number, S.sheet])], ['cam', 'start', ['shop', '99TM-1', null]]);
-  check('…the stamps name the shop and the code', await txt(page, '#stampCode'), '99TM-1 Morning Clock-In');
-  await shoot(page); await settle(page);
-  s = await st(page);
-  check('the shutter clocks in at the shop', [(await calls(page)).map((c) => c.slice(0, 3)), s.code, await txt(page, '#jobK'), await txt(page, '#jobAddr')],
-    [[['clockIn', 'shop', 'sh1']], '99TM-1', 'At the shop · JT #25-0011', 'The shop']);
-  check('on the clock, the shop row is gone', await page.locator('#shopRow').isVisible(), false);
+  check('one tap: the shop\'s Morning Clock-In, no camera', [s.tab, s.gate, (await calls(page)).map((c) => c.slice(0, 4)), s.code, await txt(page, '#jobK'), await txt(page, '#jobAddr')],
+    ['job', null, [['clockIn', 'shop', 'sh1', null]], '99TM-1', 'At the shop · JT #25-0011', 'The shop']);
+  check('…at the shop, nothing said', await page.evaluate(() => (window.__NOTES || []).filter((n) => n.kind === 'morning').length), 0);
+  check('on the clock, the shop row is gone; Leave reads Leave the shop', [await page.locator('#shopRow').isVisible(), await txt(page, '#leaveBtn'), await txt(page, '#stopFoot')], [false, 'Leave the shop', 'At the shop no photo is asked for.']);
+  await ctx.close();
+  check('no page errors', errs, []);
+}
+for (const [away, words] of [['far', 'Not at the shop or the office · your PM and the Ops Director are told'], ['noloc', 'No location from the phone · your PM and the Ops Director are told']]) {
+  const { ctx, page, errs } = await boot(`window.__MOCK_KEEP_CLOCK=true;window.__MOCK_AWAY=${JSON.stringify(away)};window.__MOCK_FIX={entries:function(){return [];}};`);
+  await tap(page, '#shopBtn', 400); await settle(page);
+  check(`the morning clock-in away from the shop (${away}): in all the same, and the phone says who is told`, [(await st(page)).code, await txt(page, '#toast span')], ['99TM-1', words]);
+  check('…the notice goes on today\'s job', await page.evaluate(() => (window.__NOTES || []).filter((n) => n.kind === 'morning').map((n) => n.jobId)), [(await calls(page))[0][4] || 'shop']);
   await ctx.close();
   check('no page errors', errs, []);
 }
@@ -412,21 +429,33 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   }
 }
 
+// ---- T2.23: your codes first, all of them one tap away ----
+{
+  const { ctx, page, errs } = await boot(`window.__MOCK_RECENT=${JSON.stringify([{ number: '04MA', name: 'Masonry Labor', n: 9 }, { number: '02ST-1', name: 'Final Clean', n: 3 }, { number: '99XX', name: 'Not on this job', n: 2 }])};`);
+  await until(page, () => Array.isArray(S.recentCodes));
+  await tap(page, '#clockIn', 400);
+  check('the code sheet: your codes, in the order you use them, then All codes', [await page.locator('.codesk').allTextContents(), await page.locator('.coderow .cname').allTextContents(), await txt(page, '#allCodes')],
+    [['Your codes'], ['Masonry Labor', 'Final Clean'], 'All codes · 10']);
+  await tap(page, '#allCodes', 300);
+  check('…All codes opens the rest under them, travel still not among them', [await page.locator('.codesk').allTextContents(), await page.locator('.coderow').count(), (await page.locator('.coderow .cname').allTextContents()).includes('Travel Related Labor')],
+    [['Your codes', 'All codes'], 10, false]);
+  await tap(page, '#sheetClose', 300); await tap(page, '#clockIn', 400);
+  check('…and it folds up again next time', await page.locator('#allCodes').count(), 1);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 // ---- T2.18: the drive — from the shop to the job, the job back to the shop ----
 {
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
-  await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
-  await tap(page, '#stopBtn', 300);
-  check('at the shop, Stop offers Leave for the job', await txt(page, '#stopTravel .st'), 'Leave for the job');
-  await tap(page, '#stopTravel', 500);
-  check('…the end photo first, where you still are', [await page.evaluate(() => [S.tab, S.clockGate]), await txt(page, '#afterBarT')], [['cam', 'end-travel'], 'End photo of 99TM-1 · you start the drive when you shoot']);
-  await shoot(page); await until(page, () => S.sheet === 'dest');
-  check('…then Where are you going? — today\'s booked job, another job; no drive back from the shop', [await txt(page, '#sheetTitle'), await page.locator('#sheetBody .stoprow .st').allTextContents()],
-    ['Where are you going?', ['Noah Webster', 'Another job']]);
+  await tap(page, '#shopBtn', 400); await settle(page);
+  await tap(page, '#leaveBtn', 500);
+  check('Leave the shop: no photo at the shop, straight to Where are you going? — today\'s booked job, another job; no drive back from the shop', [await page.evaluate(() => [S.tab, S.clockGate, S.sheet]), await page.locator('#sheetBody .stoprow .st').allTextContents()],
+    [['job', null, 'dest'], ['Noah Webster', 'Another job']]);
   await tap(page, '[data-dest="j_2841"]', 300); await settle(page);
   let c = (await calls(page)).slice(-1)[0];
-  check('one call: the drive opens on that job\'s travel line, with the shop\'s end photo, saying where to', [c[0], c[1], c[2], typeof c[3], c[4]],
-    ['startTravel', 'j_2841', 'ci11', 'string', 'Drive to 26-0890 Noah Webster · from the shop']);
+  check('one call: the drive opens on that job\'s travel line, saying where to', [c[0], c[1], c[2], c[3], c[4], c[5]],
+    ['startTravel', 'j_2841', 'ci11', null, 'Drive to 26-0890 Noah Webster · from the shop', false]);
   check('the band is the drive; the buttons are the arrival', [await txt(page, '#band .lbl'), await txt(page, '#jobK'), await page.locator('#travelStack').isVisible(), await page.locator('#runStack').isVisible(), await txt(page, '#arriveBtn'), await txt(page, '#travelOut')],
     ['Driving to Noah Webster', 'Driving to · JT #26-0890', true, false, 'I’m here · start work', 'Clock out · done for the day']);
   await tap(page, '#arriveBtn', 600);
@@ -438,17 +467,50 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await shoot(page); await settle(page);
   c = (await calls(page)).slice(-1)[0];
   check('…one switch, with no end photo for the drive', [c[0], c[1], c[2], c[3], typeof c[4], await page.evaluate(() => S.open.code.number)], ['switchCode', 'j_2841', 'ci9', null, 'string', '04MA']);
-  // The end of the day: back to the shop, on this job's travel line.
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500); await shoot(page); await until(page, () => S.sheet === 'dest');
-  check('away from the shop, the drive back is offered, on this job\'s line', [await page.locator('#sheetBody .stoprow .st').allTextContents(), await txt(page, '#destBack .ss')],
-    [['Another job', 'Back to the shop · end of the day'], 'On 26-0890 Noah Webster’s travel line']);
-  await tap(page, '#destBack', 300); await settle(page);
+
+  // A supply run (T2.23): this job's travel line, no photo, one tap back.
+  await tap(page, '#leaveBtn', 400); await tap(page, '[data-leave="supply"]', 300); await settle(page);
   c = (await calls(page)).slice(-1)[0];
-  check('the drive back is paid travel on the job just left', [c[0], c[1], c[2], c[4], await txt(page, '#band .lbl'), await txt(page, '#arriveBtn'), await txt(page, '#travelOut'), await page.locator('#travelElse').isVisible()],
-    ['startTravel', 'j_2841', 'ci11', 'Drive back · end of the day · from 26-0890 Noah Webster', 'Driving back · end of the day', 'At the shop · shop work', 'Clock out · I’m back', false]);
+  check('Supply run: one call, no photo, the notes say where back to', c, ['startTravel', 'j_2841', 'ci11', null, 'Supply run · 26-0890 Noah Webster · back to 04MA Masonry Labor', false]);
+  check('…the band says so, and the arrival is the way back', [await txt(page, '#band .lbl'), await txt(page, '#arriveBtn'), await page.locator('#travelElse').isVisible()],
+    ['Supply run · back to Noah Webster', 'Back at Noah Webster · Masonry Labor', true]);
+  await tap(page, '#arriveBtn', 400); await settle(page);
+  c = (await calls(page)).slice(-1)[0];
+  check('Back at the job: the same code again, no photo', [c, await page.evaluate(() => [S.tab, S.open.code.number, onTravel()])], [['switchCode', 'j_2841', 'ci9', null, null, null], ['job', '04MA', false]]);
+
+  // Another job and back the same day: no photo either way back.
+  await tap(page, '#leaveBtn', 400); await tap(page, '[data-leave="later"]', 300);
+  check('Another job · back here later: no photo, no log, Where are you going?', await page.evaluate(() => [S.tab, S.clockGate, S.sheet]), ['job', null, 'dest']);
+  await tap(page, '#destOther', 500); await tap(page, '.jobrow[data-job="j2"]', 300); await settle(page);
+  c = (await calls(page)).slice(-1)[0];
+  check('…the drive to Lucas, no photo', [c[0], c[1], c[3], c[5]], ['startTravel', 'j2', null, false]);
+  await tap(page, '#arriveBtn', 500); await tap(page, '.coderow:has-text("Final Clean")', 500);
+  check('…at Lucas, not started today: the start photo', await page.evaluate(() => S.clockGate), 'start');
+  await shoot(page); await settle(page);
+  // Done at Lucas for today: the log, the end photo, then back to Webster.
+  await tap(page, '#leaveBtn', 400); await tap(page, '[data-leave="done-job"]', 500);
+  check('Another job · done here today: the site manager\'s log first', [await page.evaluate(() => [S.tab, S.dlJobId]), await txt(page, '.promptbox .pt')], [['log', 'j2'], 'Send today’s log first']);
+  await tap(page, '#dlNormal', 900);
+  check('…then the end photo of Lucas', [await page.evaluate(() => S.clockGate), await txt(page, '#afterBarT')], ['end-travel', 'End photo of Lucas · you start the drive when you shoot']);
+  await shoot(page); await until(page, () => S.sheet === 'dest');
+  await tap(page, '[data-dest="j_2841"]', 300); await settle(page);
+  c = (await calls(page)).slice(-1)[0];
+  check('…the drive back to Webster carries the end photo, done here', [c[0], c[1], typeof c[3], c[5]], ['startTravel', 'j_2841', 'string', true]);
+  await tap(page, '#arriveBtn', 500); await tap(page, '.coderow:has-text("Masonry Labor")', 500); await settle(page);
+  c = (await calls(page)).slice(-1)[0];
+  check('Back at Webster, started this morning: no start photo', [c, await page.evaluate(() => S.tab)], [['switchCode', 'j_2841', 'ci9', null, null, null], 'job']);
+
+  // The end of the day: back to the shop, on this job's travel line.
+  await tap(page, '#leaveBtn', 400); await tap(page, '[data-leave="done-shop"]', 500);
+  await tap(page, '#dlNormal', 900);
+  check('Back to the shop: the log, then the end photo', [await page.evaluate(() => S.clockGate), await page.evaluate(() => (window.__LOGS || []).map((l) => l.jobId))], ['end-travel', ['j2', 'j_2841']]);
+  await shoot(page); await settle(page);
+  c = (await calls(page)).slice(-1)[0];
+  check('the drive back is paid travel on the job just left', [c[0], c[1], c[2], typeof c[3], c[4], c[5], await txt(page, '#band .lbl'), await txt(page, '#arriveBtn'), await txt(page, '#travelOut'), await page.locator('#travelElse').isVisible()],
+    ['startTravel', 'j_2841', 'ci11', 'string', 'Drive back · end of the day · from 26-0890 Noah Webster', true, 'Driving back · end of the day', 'At the shop · shop work', 'Clock out · I’m back', false]);
   await tap(page, '#travelOut', 300); await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
   c = (await calls(page)).slice(-1)[0];
-  check('Clock out from the drive: no photo, and a site manager lands on the day log', [c, await page.evaluate(() => [!!S.open, S.tab])], [['clockOut', null], [false, 'log']]);
+  check('Clock out from the drive: no photo, and the logs already went', [c, await page.evaluate(() => [!!S.open, S.tab])], [['clockOut', null], [false, 'job']]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -456,7 +518,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   // A job with no travel line: the drive asks which of its lines to drive on.
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_NOTRAVEL=true;');
   await tap(page, '#clockIn', 400); await tap(page, '.coderow:has-text("Masonry Labor")', 600); await shoot(page); await settle(page);
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500); await shoot(page); await until(page, () => S.sheet === 'dest');
+  await tap(page, '#leaveBtn', 300); await tap(page, '[data-leave="later"]', 500); await until(page, () => S.sheet === 'dest');
   await tap(page, '#destOther', 500);
   check('Another job is the job search', [await page.evaluate(() => [S.sheet, S.travelPick])], [['jobs', true]]);
   await tap(page, '.jobrow[data-job="j2"]', 600);
@@ -464,19 +526,19 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await tap(page, '[data-tcode="ci2"]', 300); await settle(page);
   const c = (await calls(page)).slice(-1)[0];
   check('…and the drive goes on the line picked — still a drive, by its notes', [c[0], c[1], c[2], c[4], await page.evaluate(() => [S.job.id, onTravel()])], ['startTravel', 'j2', 'ci2', 'Drive to 26-1045 Lucas · from 26-0890 Noah Webster', ['j2', true]]);
-  check('…so it shows the arrival, not the Stop sheet', [await page.locator('#travelStack').isVisible(), await page.locator('#runStack').isVisible()], [true, false]);
+  check('…so it shows the arrival, not the four buttons', [await page.locator('#travelStack').isVisible(), await page.locator('#runStack').isVisible()], [true, false]);
   check('no page errors', errs, []);
   await ctx.close();
 }
 
 // ---- T2.19: already left the job — say when, no photo ----
 {
-  // A move: the end photo of Webster is owed, but they are at Lucas now.
+  // A move with no drive (T2.23): they are at Lucas now — Already there.
   const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
   await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
-  check('the end-photo camera of a move offers the way round', [await page.evaluate(() => S.clockGate), await page.locator('#leftBtn').isVisible(), await txt(page, '#leftBtn')],
-    ['end-switch', true, 'Already left Noah Webster? Say when — no photo']);
-  await tap(page, '#leftBtn', 500);
+  check('a move with no drive asks what happened', [await page.evaluate(() => [S.clockGate, S.sheet]), await txt(page, '[data-move="left"] .st')],
+    [[null, 'moveHow'], 'Already there — I left Noah Webster at…']);
+  await tap(page, '[data-move="left"]', 500);
   check('…When did you leave? — only times after the block began', [await txt(page, '#sheetTitle'), await page.locator('[data-leftat] .bt').allTextContents(), await page.locator('#leftGo').isDisabled()],
     ['When did you leave?', ['Just now', '15 min ago', '30 min ago', '45 min ago', '1 hour ago'], true]);
   await tap(page, '[data-leftat]:has-text("30 min ago")', 200);
@@ -488,29 +550,31 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   check('one call: Webster ends when they left, the drive to Lucas on its travel line, the work from now', [c[0], c[2], c[3], c[4], c[5], typeof c[6], c[7], await page.evaluate(() => [S.job.id, S.open.code.id])],
     ['leftSite', 'work', 'j2', 'ci9', 'ci11', 'string', 'Drive to 26-1045 Lucas · from 26-0890 Noah Webster', ['j2', 'ci9']]);
   check('…and it was 30 minutes ago', Math.round((Date.now() - Date.parse(c[1])) / 60000), 30);
-  // A code switch where you still stand has no way round.
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopSwitch', 500);
-  check('a code switch at the same job: no way round', [await page.evaluate(() => S.clockGate), await page.locator('#leftBtn').isVisible()], ['end-switch', false]);
+  // A code change where you still stand: no camera at all.
+  await tap(page, '#codeBtn', 300); await tap(page, '.coderow:has-text("Final Clean")', 300); await settle(page);
+  check('a code change at the same job: no camera, one switch', [await page.evaluate(() => [S.tab, S.clockGate]), (await calls(page)).slice(-1)[0]], [['job', null], ['switchCode', 'j2', 'ci5', null, null, null]]);
   check('no page errors', errs, []);
   await ctx.close();
 }
 {
-  // The end of the day, gone home without clocking out.
+  // The end of the day, gone home without clocking out: the log first, then
+  // the end-photo camera's way round.
   const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopOut', 500);
+  await tap(page, '#outBtn', 500); await tap(page, '#dlNormal', 900);
+  check('the camera of the clock-out offers the way round', [await page.evaluate(() => S.clockGate), await txt(page, '#leftBtn')], ['end-out', 'Already left Noah Webster? Say when — no photo']);
   await tap(page, '#leftBtn', 500);
   await tap(page, '[data-leftat]:has-text("15 min ago")', 200);
   await tap(page, '#leftGo', 300);
   await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
   const c = (await calls(page)).slice(-1)[0];
-  check('out: one call, at the time they left, and the site manager lands on the day log', [c[0], c[2], Math.round((Date.now() - Date.parse(c[1])) / 60000), await page.evaluate(() => [!!S.open, S.tab])], ['leftSite', 'out', 15, [false, 'log']]);
+  check('out: one call, at the time they left; the log already went', [c[0], c[2], Math.round((Date.now() - Date.parse(c[1])) / 60000), await page.evaluate(() => [!!S.open, S.tab])], ['leftSite', 'out', 15, [false, 'job']]);
   check('no page errors', errs, []);
   await ctx.close();
 }
 {
   // On the road already: the drive starts when they left.
   const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
+  await tap(page, '#leaveBtn', 300); await tap(page, '[data-leave="done-job"]', 500); await tap(page, '#dlNormal', 900);
   await tap(page, '#leftBtn', 500);
   await tap(page, '[data-leftat]:has-text("45 min ago")', 200);
   await tap(page, '#leftGo', 500);
@@ -544,8 +608,8 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
 {
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_YARD=true;');
   await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
-  await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
+  await tap(page, '#shopBtn', 400); await settle(page);
+  await tap(page, '#leaveBtn', 500);
   const rollRows = () => page.locator('#sheetBody .ckrow .lbl').allTextContents();
   check('leaving the shop: Before you roll out, not the camera', [await page.evaluate(() => [S.tab, S.clockGate, S.sheet]), await txt(page, '#sheetTitle')], [['job', null, 'roll'], 'Before you roll out']);
   check('…today\'s roof: its yard lines and the shop material, nothing else', (await rollRows()).map((t) => t.split(' — ')[0].split(' · ')[0]),
@@ -559,7 +623,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await page.waitForTimeout(1800);
   check('the yard ticks went to the board in one save', await page.evaluate(() => (window.__PUTS || []).map((p) => [p.taskId, p.checks.done.tarps, p.checks.done.dryin])), [['t2roof', true, true]]);
   await tap(page, '#rollGo', 500);
-  check('…then the end photo, the loaded truck', await page.evaluate(() => [S.tab, S.clockGate]), ['cam', 'end-travel']);
+  check('…then Where are you going? — no photo at the shop', await page.evaluate(() => [S.tab, S.clockGate, S.sheet]), ['job', null, 'dest']);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -567,7 +631,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   // A move from the shop is held the same way; backing out stays at the shop.
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_YARD=true;');
   await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
-  await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
+  await tap(page, '#shopBtn', 400); await settle(page);
   await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
   check('Move to another job from the shop: held too', await page.evaluate(() => [S.sheet, S.clockGate, S.pendingJob && S.pendingJob.id]), ['roll', null, 'j2']);
   await tap(page, '#sheetClose', 300);
@@ -583,7 +647,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await page.waitForTimeout(400);
   await tap(page, '#clockIn', 400); await tap(page, '.coderow:has-text("Crew Labor")', 500);
   check('at the roof, the yard not done: say so, then clock in', [await page.evaluate(() => [S.sheet, S.clockGate]), await txt(page, '#sheetTitle'), await page.locator('#sheetBody .trow .nm').count(), await txt(page, '#forgotGo')],
-    [['forgot', null], 'Yard checks not done', 3, 'Clock in · the PM and Carl are told']);
+    [['forgot', null], 'Shop checks not done', 3, 'Clock in · the PM and the Ops Director are told']);
   await tap(page, '#forgotGo', 500);
   check('…on to the start photo, nobody told yet', await page.evaluate(() => [S.tab, S.clockGate, (window.__ROLL || []).length]), ['cam', 'start', 0]);
   await shoot(page); await settle(page);
@@ -596,9 +660,9 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   // Not a site manager: nothing to hold.
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_YARD=true;window.__MOCK_ROLE="crew";');
   await page.waitForTimeout(800);
-  await tap(page, '#shopBtn', 600); await shoot(page); await settle(page);
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
-  check('the crew leave the shop with the end photo, no hold', await page.evaluate(() => [S.sheet, S.clockGate]), [null, 'end-travel']);
+  await tap(page, '#shopBtn', 400); await settle(page);
+  await tap(page, '#leaveBtn', 500);
+  check('the crew leave the shop with no hold and no photo', await page.evaluate(() => [S.sheet, S.clockGate]), ['dest', null]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -609,7 +673,7 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   // then the next job's clock-in from scratch — never a drive from last night.
   const { ctx, page, errs } = await boot('window.__MOCK_OPEN_YESTERDAY=true;');
   await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
-  await tap(page, '#leftBtn', 500);
+  await tap(page, '[data-move="left"]', 500);
   await page.locator('#leftTime').fill('16:30'); await page.waitForTimeout(200);
   await tap(page, '#leftGo', 300);
   await page.waitForFunction(() => S.sheet === 'codes' && document.body.style.pointerEvents === '', null, { timeout: 10000 });
@@ -625,13 +689,11 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   // Backing out of Where are you going? after Already left: the next
   // clock-out is an ordinary one, not a leftSite that is refused.
   const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500);
+  await tap(page, '#leaveBtn', 300); await tap(page, '[data-leave="done-job"]', 500); await tap(page, '#dlNormal', 900);
   await tap(page, '#leftBtn', 500); await tap(page, '[data-leftat]:has-text("15 min ago")', 200); await tap(page, '#leftGo', 500);
   await tap(page, '#sheetClose', 300);
   check('out of Where are you going?: nothing carried', await page.evaluate(() => [S.sheet, S.switching, S.travelPick, !!S.open]), [null, null, false, true]);
-  await tap(page, '#stopBtn', 300); await tap(page, '#destOther', 0).catch(() => {});
-  await page.evaluate(() => closeSheet());
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopOut', 500); await shoot(page);
+  await tap(page, '#outBtn', 500); await shoot(page);
   await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
   check('…the clock-out is an ordinary one, with its photo', (await calls(page)).slice(-1)[0][0], 'clockOut');
   check('no page errors', errs, []);
@@ -640,12 +702,12 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
 {
   // Another job's search backed out of: the next move is a move, with its camera.
   const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
-  await tap(page, '#stopBtn', 300); await tap(page, '#stopTravel', 500); await shoot(page);
+  await tap(page, '#leaveBtn', 300); await tap(page, '[data-leave="later"]', 500);
   await page.waitForFunction(() => S.sheet === 'dest', null, { timeout: 10000 });
   await tap(page, '#destOther', 500); await tap(page, '#sheetClose', 300);
-  check('out of the drive\'s job search: nothing carried', await page.evaluate(() => [S.travelPick, S.switching]), [false, null]);
+  check('out of the drive\'s job search: nothing carried', await page.evaluate(() => [S.travelPick, S.switching, S.leaveMode]), [false, null, 'later']);
   await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
-  check('…a later move is a move: the end photo, not a drive', await page.evaluate(() => [S.clockGate, (window.__CLOCK || []).some((x) => x[0] === 'startTravel')]), ['end-switch', false]);
+  check('…a later move is a move: What happened?, not a drive', await page.evaluate(() => [S.sheet, (window.__CLOCK || []).some((x) => x[0] === 'startTravel')]), ['moveHow', false]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -653,13 +715,13 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   // Yard checks not done, backed out of; and the notice only once the clock is on.
   const { ctx, page, errs } = await boot('window.__MOCK_YARD=true;window.__MOCK_OPEN_AGO=90;');
   await page.waitForFunction(() => S.assign && S.assign.source === 'board', null, { timeout: 10000 });
-  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500); await shoot(page);
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500); await tap(page, '[data-move="wrong"]', 500);
   await page.waitForFunction(() => S.sheet === 'codes', null, { timeout: 10000 });
   await tap(page, '.coderow:has-text("Crew Labor")', 500);
-  check('the move meets Yard checks not done', await page.evaluate(() => S.sheet), 'forgot');
+  check('the move meets Shop checks not done', await page.evaluate(() => S.sheet), 'forgot');
   await tap(page, '#sheetClose', 300);
   check('…backed out: no half-move left', await page.evaluate(() => [S.pendingJob, S.moving, S.switching, S.job.id, S.gateCode]), [null, false, null, 'j_2841', null]);
-  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500); await shoot(page);
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500); await tap(page, '[data-move="wrong"]', 500);
   await page.waitForFunction(() => S.sheet === 'codes', null, { timeout: 10000 });
   await tap(page, '.coderow:has-text("Crew Labor")', 500); await tap(page, '#forgotGo', 500);
   check('…Clock in: not told yet, the camera first', await page.evaluate(() => [(window.__ROLL || []).length, S.clockGate]), [0, 'start']);
