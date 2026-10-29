@@ -154,6 +154,24 @@ const missing = async (page) => page.evaluate((notOurs) => {
   await ctx.close();
 }
 
+// ---- the day log's own sentences, in Spanish (the T2.25 re-record films them) ----
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');
+  await page.evaluate(() => { S.lang = 'es'; S.langSet = true; savePrefs(); render(); });
+  await tap(page, '#clockIn', 300); await tap(page, '.coderow:has-text("Masonry Labor")', 600); await shoot(page); await settle(page);
+  await tap(page, '#outBtn', 900);
+  check('leaving for the day: the log first, in Spanish', [await txt(page, '#dlBody .promptbox .pe'), await txt(page, '#dlBody .promptbox .pt')], ['Saliendo de Noah Webster por hoy', 'Primero manda el registro de hoy']);
+  await page.fill('#dlStory', 'Todo bien hoy'); await page.locator('#dlStory').dispatchEvent('input'); await page.waitForTimeout(300);
+  check('…Tell the PM now', await txt(page, '#dlTellPm'), 'Avisar al PM ahora');
+  await page.locator('#dlStory').blur(); await page.waitForTimeout(200);
+  await page.evaluate(() => { S.dlReview = true; renderDayLog(); }); await page.waitForTimeout(300);
+  check('…the review: its heading, its rows and its button', [await txt(page, '#dlBody .dlh'), await page.locator('#dlBody .rvrow .rk').first().textContent(), await txt(page, '#dlSend'), await txt(page, '#dlBack')],
+    ['Revísalo, y luego mándalo', 'Horas', 'Mandar el registro de hoy', 'Regresar a corregir algo']);
+  check('…nothing on these screens without its Spanish', await missing(page), []);
+  check('no page errors (day log)', errs, []);
+  await ctx.close();
+}
+
 await browser.close();
 const fails = results.filter((r) => !r.pass);
 for (const r of results) console.log((r.pass ? 'ok   ' : 'FAIL ') + r.name + (r.pass ? '' : '\n       got      ' + JSON.stringify(r.actual) + '\n       expected ' + JSON.stringify(r.expected)));

@@ -903,6 +903,17 @@ test` covers the served form and the refusal. **Needs:** the Apps Script first
 DB CheckOut's deploy and the board's merge can come before or after — the
 phone works with either side old.
 
+**The day log in Spanish, all of it** (T2.26, 29 Oct 2026). Recording the
+Spanish training video found the day log still English under a Spanish phone
+in about forty places: the *Leaving … for the day · Send today's log first*
+prompt, *Tell the PM now* and its row, the review (*Check it, then send*, the
+rows, *Goes on JT #… as today's daily log for …*, *Send today's log*), the sent
+card, and the whole safety alert card. They are looked up by their English
+now (*Avisar al PM ahora*, *Mandar el registro de hoy*, *Alerta enviada*), so
+the English screens are byte-identical; what goes to JobTread is still
+English. `dev/spanish-test.mjs` walks the leaving prompt and the review in
+Spanish. **Needs:** `firebase deploy --only hosting` only.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

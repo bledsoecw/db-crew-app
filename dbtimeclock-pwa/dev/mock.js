@@ -206,7 +206,7 @@
   function checksFor(tid) {
     var c = CHECKS[tid];
     if (!c) return null;
-    return { taskId: tid, state: JSON.parse(JSON.stringify(c)), progress: checksProgress(c), words: checksWords(c), crewLead: window.__MOCK_NAMES ? 'Jeremiah Zehr' : null };
+    return { taskId: tid, state: JSON.parse(JSON.stringify(c)), progress: checksProgress(c), words: checksWords(c), crewLead: FX.crewLead || (window.__MOCK_NAMES ? 'Jeremiah Zehr' : null) };
   }
   // The bench's pre-start list (T2.25): seven boxes on a construction job's
   // Start Date line, the board's own words (prestart-checks.ts). Webster

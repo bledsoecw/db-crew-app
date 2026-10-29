@@ -1040,7 +1040,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.25 (2026-10-29)';
+var APP_BUILD = 'T2.26 (2026-10-29)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -5806,6 +5806,38 @@ esAdd({
   'Not applicable': 'No aplica', '{n} n/a': '{n} no aplica', 'Why doesn’t it apply here?': '¿Por qué no aplica aquí?', 'It applies': 'Sí aplica',
   'Doesn’t apply here': 'No aplica aquí', 'who, and when you’re back': 'quién, y cuándo regresas', 'which crew leader?': '¿qué jefe de cuadrilla?'
 });
+/* The day log's own sentences (T2.25 re-record: the Spanish video films them). */
+esAdd({
+  ' and ': ' y ', 'Pick a job on the Clock tab, or tap one under My jobs, and today’s log starts here.': 'Escoge un trabajo en la pestaña Reloj, o toca uno en Mis trabajos, y aquí empieza el registro de hoy.',
+  'Leaving {p} for the day': 'Saliendo de {p} por hoy', 'Send today’s log first': 'Primero manda el registro de hoy',
+  'Then the end photo clocks you out': 'Luego la foto de salida marca tu salida', 'Then the end photo and the drive': 'Luego la foto de salida y el viaje',
+  'Today’s log · not sent': 'El registro de hoy · sin enviar', 'Send it before you go?': '¿Lo mandas antes de irte?',
+  'Something the PM needs right now?': '¿Algo que el PM necesita ahora mismo?',
+  'Sends what you just said to the PM this minute. Today’s log still goes when you hit Send.': 'Le manda al PM lo que acabas de decir en este momento. El registro de hoy se manda de todos modos cuando lo envíes.',
+  'Tell the PM now': 'Avisar al PM ahora', 'PM told': 'PM avisado', 'Day log waits until the alert has gone.': 'El registro espera hasta que se mande la alerta.',
+  'Hurt': 'Lastimado', 'Nobody hurt': 'Nadie lastimado', '1 photo': '1 foto', '{n} photos': '{n} fotos',
+  'Alert sent {t}': 'Alerta enviada {t}', 'PM, Shawn, Neal, the Ops Director': 'PM, Shawn, Neal, el Director de Operaciones',
+  'Goes to the PM, Shawn, Neal and the Ops Director the second you send': 'Le llega al PM, a Shawn, a Neal y al Director de Operaciones en el momento que la mandas',
+  'What happened?': '¿Qué pasó?', 'Say what happened': 'Di qué pasó', 'Send alert now': 'Mandar la alerta ya', 'Sending…': 'Enviando…',
+  'Sends as a text and a JobTread comment right away. It also lands in today’s log Safety field.': 'Se manda como mensaje de texto y comentario en JobTread de inmediato. También queda en la parte de Seguridad del registro de hoy.',
+  'Tap Hurt or Nobody hurt': 'Toca Lastimado o Nadie lastimado', 'Alert sent': 'Alerta enviada',
+  'Fall': 'Caída', 'Cut': 'Cortada', 'Heat': 'Calor', 'Close call': 'Casi accidente', 'Other': 'Otro',
+  '1 code': '1 código', '{n} codes': '{n} códigos', 'Not on the clock here': 'Sin marcar aquí', 'Hours': 'Horas', 'Photos': 'Fotos',
+  'Hurt / close call': 'Lastimado / casi accidente', 'None': 'Nada',
+  'Check it, then send': 'Revísalo, y luego mándalo', 'Your story': 'Tu historia', 'the job’s PM and sales rep': 'el PM y el vendedor del trabajo',
+  'Goes on JT #{n} as today’s daily log for {who}. Hours and photos are already there.': 'Va en JT #{n} como el reporte diario de hoy para {who}. Las horas y las fotos ya están ahí.',
+  'Goes on JT #{n} as yesterday’s daily log for {who}. Hours and photos are already there.': 'Va en JT #{n} como el reporte diario de ayer para {who}. Las horas y las fotos ya están ahí.',
+  'Send today’s log': 'Mandar el registro de hoy', 'Send yesterday’s log': 'Mandar el registro de ayer', 'Go back and fix something': 'Regresar a corregir algo',
+  'The office': 'La oficina', 'Could not find {who} in JobTread.': 'No se encontró a {who} en JobTread.',
+  'Sent without 1 photo still to upload; it lands in DB Cam on the job when it does.': 'Se mandó sin 1 foto que falta subir; queda en DB Cam en el trabajo cuando suba.',
+  'Sent without {n} photos still to upload; they land in DB Cam on the job when they do.': 'Se mandó sin {n} fotos que faltan subir; quedan en DB Cam en el trabajo cuando suban.',
+  '1 photo never uploaded and is gone from this phone — take it again and it goes to DB Cam on the job.': '1 foto nunca subió y ya no está en este teléfono — tómala otra vez y se va a DB Cam en el trabajo.',
+  '{n} photos never uploaded and are gone from this phone — take them again and they go to DB Cam on the job.': '{n} fotos nunca subieron y ya no están en este teléfono — tómalas otra vez y se van a DB Cam en el trabajo.',
+  'Log sent · {t}': 'Registro enviado · {t}', 'You’re done for today': 'Terminaste por hoy',
+  '{who} has it on JT #{n}.': '{who} lo tiene en JT #{n}.', '{who} have it on JT #{n}.': '{who} lo tienen en JT #{n}.',
+  'What did you forget?': '¿Qué se te olvidó?', 'Forgot something? Add a line': '¿Se te olvidó algo? Agrega una línea',
+  'Anything you add now goes on the same log with the time.': 'Lo que agregues ahora va en el mismo registro con la hora.'
+});
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
@@ -6025,7 +6057,7 @@ function firstNames(list){ return (list || []).map(function(n){ return String(n)
 function joinAnd(list){
   list = (list || []).filter(Boolean);
   if (list.length < 2) return list.join('');
-  return list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1];
+  return list.slice(0, -1).join(', ') + L(' and ') + list[list.length - 1];
 }
 /* The job's people — the PM first, then the sales reps — as the review and
    the sent card name them. */
@@ -6230,7 +6262,7 @@ function renderDayLog(){
   }
   var cur = jobs.filter(function(j){ return j.id === S.dlJobId; })[0] || null;
   $('logK').textContent = T('k') + (cur && cur.jobNum ? ' · JT #' + cur.jobNum : '');
-  $('logDate').textContent = (date === today ? '' : 'Yesterday · ') + logDateWords(date);
+  $('logDate').textContent = (date === today ? '' : L('Yesterday') + ' · ') + logDateWords(date);
   renderLogStatus();
   $('dlChips').innerHTML = jobs.length > 1 ? jobs.map(function(j){
     var e = dlGet(j.id, date), st = e && e.sent ? 'sent' : (dlHasContent(e) ? 'draft' : '');
@@ -6244,7 +6276,7 @@ function renderDayLog(){
   var body = $('dlBody'), ae = document.activeElement;
   var typing = ae && body.contains(ae) && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT');
   if (typing) return;
-  var html = cur ? dlBodyHtml(cur, dlGet(cur.id, date), date) : '<div class="jempty">Pick a job on the Clock tab, or tap one under My jobs, and today’s log starts here.</div>';
+  var html = cur ? dlBodyHtml(cur, dlGet(cur.id, date), date) : '<div class="jempty">' + esc(L('Pick a job on the Clock tab, or tap one under My jobs, and today’s log starts here.')) + '</div>';
   if (body.__dl === html) return;
   body.innerHTML = html;
   body.__dl = html;
@@ -6260,13 +6292,13 @@ function dlBodyHtml(cur, e, date){
   var lw = S.leaveAfterLog && S.leaveAfterLog.jobId === cur.id && date === isoLocal() ? S.leaveAfterLog : null;
   if (lw){
     h += '<div class="promptbox warn" style="margin-top:8px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn);flex:none"><path d="M10 6h11M10 12h11M10 18h11"/><polyline points="3 6 4.2 7.2 6.4 5"/><polyline points="3 12 4.2 13.2 6.4 11"/><polyline points="3 18 4.2 19.2 6.4 17"/></svg>' +
-         '<span style="flex:1;min-width:0"><span class="pe" style="display:block">Leaving ' + esc(placeWord(S.job)) + ' for the day</span><span class="pt" style="display:block">Send today’s log first</span>' +
-         '<span class="k9" style="display:block;margin-top:6px;opacity:.8">Then ' + (lw.mode === 'out' ? 'the end photo clocks you out' : 'the end photo and the drive') + '</span></span></div>';
+         '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc(Lf('Leaving {p} for the day', { p: pw(S.job) })) + '</span><span class="pt" style="display:block">' + esc(L('Send today’s log first')) + '</span>' +
+         '<span class="k9" style="display:block;margin-top:6px;opacity:.8">' + esc(lw.mode === 'out' ? L('Then the end photo clocks you out') : L('Then the end photo and the drive')) + '</span></span></div>';
   }
   // Landed here from the clock-out: send it before you go.
   else if (S.dlNudge && date === isoLocal()){
     h += '<div class="promptbox warn" style="margin-top:8px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warn);flex:none"><path d="M10 6h11M10 12h11M10 18h11"/><polyline points="3 6 4.2 7.2 6.4 5"/><polyline points="3 12 4.2 13.2 6.4 11"/><polyline points="3 18 4.2 19.2 6.4 17"/></svg>' +
-         '<span style="flex:1;min-width:0"><span class="pe" style="display:block">Today’s log · not sent</span><span class="pt" style="display:block">Send it before you go?</span></span></div>';
+         '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc(L('Today’s log · not sent')) + '</span><span class="pt" style="display:block">' + esc(L('Send it before you go?')) + '</span></span></div>';
   }
   // 1. The story: a real text box, tap anywhere to type. The lines that went
   // to the PM sit above it with their time.
@@ -6280,9 +6312,9 @@ function dlBodyHtml(cur, e, date){
   h += '<div class="talkrow" id="dlTalkRow">' + recBtnHtml('dlStory', 'dlTalk') +
        '<button class="talkbtn type" id="dlType">' + ico('keyboard', 24) + esc(T('type')) + '</button></div>';
   h += '<div class="pmrow' + (hasText ? '' : ' hidden') + '" id="dlPmRow"><div style="flex:1;min-width:0">' +
-       '<div class="pt1">Something the PM needs right now?</div>' +
-       '<div class="pt2">Sends what you just said to the PM this minute. Today’s log still goes when you hit Send.</div></div>' +
-       '<button class="pmbtn" id="dlTellPm">Tell the PM now</button></div>';
+       '<div class="pt1">' + esc(L('Something the PM needs right now?')) + '</div>' +
+       '<div class="pt2">' + esc(L('Sends what you just said to the PM this minute. Today’s log still goes when you hit Send.')) + '</div></div>' +
+       '<button class="pmbtn" id="dlTellPm">' + esc(L('Tell the PM now')) + '</button></div>';
   // 2. JobTread's own questions: delays, then "Anyone hurt or a close
   // call?" — amber, the one warning voice — then the rest in the office's order.
   dlQuestions().forEach(function(q){ h += dlQuestionHtml(q, d, cur, date); });
@@ -6293,7 +6325,7 @@ function dlBodyHtml(cur, e, date){
 }
 function dlLineHtml(l){
   return '<div class="dlline"><span class="k9">' + esc(l.time) + '</span><span class="lt">' + esc(l.text) + '</span>' +
-         (l.pmTold ? '<span class="pm">PM told</span>' : '') + '</div>';
+         (l.pmTold ? '<span class="pm">' + esc(L('PM told')) + '</span>' : '') + '</div>';
 }
 function dlQuestionHtml(q, d, cur, date){
   var h = '';
@@ -6333,7 +6365,7 @@ function dlSendHtml(d, has){
   var ok = dlReviewable(d, has), blocked = dlBlocked(d);
   var h = '<button class="btn btn-go sendbig' + ((!ok || blocked) ? ' off' : '') + '" id="dlReview">' +
           (ok ? esc(T('review')) + ico('chev', 24, 2.4) : ico('send', 24) + esc(T('send'))) + '</button>';
-  if (blocked) h += '<div class="foot" id="dlBlockedFoot">Day log waits until the alert has gone.</div>';
+  if (blocked) h += '<div class="foot" id="dlBlockedFoot">' + esc(L('Day log waits until the alert has gone.')) + '</div>';
   return h;
 }
 function dlNormalHtml(d, has){
@@ -6346,33 +6378,32 @@ function dlNormalHtml(d, has){
    Shawn, Neal and Carl and a comment on the job assigned to the PM. It also
    lands in the day's log Safety field when that goes. */
 var ALERT_KINDS = [{ key:'fall', label:'Fall' }, { key:'cut', label:'Cut' }, { key:'heat', label:'Heat' }, { key:'close', label:'Close call' }, { key:'other', label:'Other' }];
-var ALERT_TO_WORDS = 'PM, Shawn, Neal, the Ops Director';
 function alertSummary(a){
-  return [alertKindLabel(a.kind || ''), a.hurt === true ? 'Hurt' : a.hurt === false ? 'Nobody hurt' : '', String(a.text || '').trim(),
-          (a.photoIds || []).length ? (a.photoIds.length + (a.photoIds.length === 1 ? ' photo' : ' photos')) : ''].filter(Boolean).join(' · ');
+  return [alertKindLabel(a.kind || ''), a.hurt === true ? L('Hurt') : a.hurt === false ? L('Nobody hurt') : '', String(a.text || '').trim(),
+          (a.photoIds || []).length ? (a.photoIds.length === 1 ? L('1 photo') : Lf('{n} photos', { n: a.photoIds.length })) : ''].filter(Boolean).join(' · ');
 }
 function dlAlertHtml(cur, d, date){
   var a = d.alert || {};
   var h = '<div class="alertcard" id="alertCard">';
   if (a.sentAt){
-    h += '<div class="warnbar">' + ico('alert', 18) + '<span>Alert sent ' + esc(clockLabel(a.sentAt)) + ' · ' + ALERT_TO_WORDS + '</span></div>' +
+    h += '<div class="warnbar">' + ico('alert', 18) + '<span>' + esc(Lf('Alert sent {t}', { t: clockLabel(a.sentAt) })) + ' · ' + esc(L('PM, Shawn, Neal, the Ops Director')) + '</span></div>' +
          '<div class="alertsum">' + esc(alertSummary(a)) + '</div></div>';
     return h;
   }
   var n = (a.photoIds || []).length;
-  h += '<div class="warnbar">' + ico('alert', 18) + '<span>Goes to the PM, Shawn, Neal and the Ops Director the second you send</span></div>';
-  h += '<div class="alertbody"><div class="alerth">What happened?</div>' +
+  h += '<div class="warnbar">' + ico('alert', 18) + '<span>' + esc(L('Goes to the PM, Shawn, Neal and the Ops Director the second you send')) + '</span></div>';
+  h += '<div class="alertbody"><div class="alerth">' + esc(L('What happened?')) + '</div>' +
        '<div class="whychips" style="margin-top:12px">' + ALERT_KINDS.map(function(k){
-         return '<button class="whychip small' + (a.kind === k.key ? ' on' : '') + '" data-kind="' + k.key + '">' + esc(k.label) + '</button>';
+         return '<button class="whychip small' + (a.kind === k.key ? ' on' : '') + '" data-kind="' + k.key + '">' + esc(alertKindLabel(k.key)) + '</button>';
        }).join('') + '</div>' +
-       '<textarea id="alertText" class="alertta" rows="1" placeholder="Say what happened" autocomplete="off">' + esc(a.text || '') + '</textarea>' +
+       '<textarea id="alertText" class="alertta" rows="1" placeholder="' + esc(L('Say what happened')) + '" autocomplete="off">' + esc(a.text || '') + '</textarea>' +
        '<div class="reccap hidden" data-reccap="alertText"></div>' +
-       '<div class="ynrow hurtrow"><button class="ynbtn' + (a.hurt === true ? ' on' : '') + '" data-hurt="1">Hurt</button>' +
-       '<button class="ynbtn' + (a.hurt === false ? ' on' : '') + '" data-hurt="0">Nobody hurt</button></div></div>';
+       '<div class="ynrow hurtrow"><button class="ynbtn' + (a.hurt === true ? ' on' : '') + '" data-hurt="1">' + esc(L('Hurt')) + '</button>' +
+       '<button class="ynbtn' + (a.hurt === false ? ' on' : '') + '" data-hurt="0">' + esc(L('Nobody hurt')) + '</button></div></div>';
   h += '<div class="alertfoot"><button class="sqnav" id="alertMic" data-rec="alertText" aria-label="Record" aria-pressed="false">' + ico('mic', 24) + '</button>' +
        '<button class="sqnav" id="alertCam" aria-label="Take a photo">' + ico('camera', 24) + (n ? '<span class="k9">' + n + '</span>' : '') + '</button>' +
-       '<button class="alertsend' + (a.sending ? ' off' : '') + '" id="alertSend">' + (a.sending ? 'Sending…' : 'Send alert now') + '</button></div></div>';
-  h += '<div class="foot">Sends as a text and a JobTread comment right away. It also lands in today’s log Safety field.</div>';
+       '<button class="alertsend' + (a.sending ? ' off' : '') + '" id="alertSend">' + esc(a.sending ? L('Sending…') : L('Send alert now')) + '</button></div></div>';
+  h += '<div class="foot">' + esc(L('Sends as a text and a JobTread comment right away. It also lands in today’s log Safety field.')) + '</div>';
   return h;
 }
 function dlAlertSet(jobId, date, field, val){
@@ -6389,14 +6420,14 @@ function dlSendAlert(jobId, date){
   if (!a){ dlAlertSet(jobId, date, 'text', ta ? ta.value : ''); a = e.alert; }
   if (ta) a.text = ta.value;
   if (a.sentAt || a.sending) return;
-  if (a.hurt !== true && a.hurt !== false){ toast('Tap Hurt or Nobody hurt', true); return; }
+  if (a.hurt !== true && a.hurt !== false){ toast(L('Tap Hurt or Nobody hurt'), true); return; }
   a.sending = true; dlPersist(); renderDayLog();
   // The photos that have reached JobTread ride by id; the rest are counted.
   var fileIds = (a.photoIds || []).map(photoRec).filter(function(p){ return p && p.fileId; }).map(function(p){ return p.fileId; });
   apiCall('sendSafetyAlert', [jobId, { kind: a.kind || '', hurt: a.hurt, text: a.text || '', photoIds: fileIds, photos: (a.photoIds || []).length, jobLabel: e.jobLabel || '' }]).then(function(r){
     a.sending = false; a.sentAt = Date.now(); a.to = (r && r.to) || []; a.assigned = (r && r.assigned) || [];
     e.seq = (e.seq || 0) + 1; dlPersist();
-    toast('Alert sent');
+    toast(L('Alert sent'));
     render();
   }).catch(function(err){
     a.sending = false; dlPersist();
@@ -6410,57 +6441,58 @@ function dlSendAlert(jobId, date){
 function dlRowsHtml(cur, d, date, short){
   var today = isoLocal(), hrs = date === today ? hoursFor(cur.id) : [];
   var tot = 0; hrs.forEach(function(x){ tot += x.minutes; });
-  var hours = hrs.length ? hm(tot * 60) + (short ? '' : ' · ' + hrs.length + (hrs.length === 1 ? ' code' : ' codes')) : (date === today ? 'Not on the clock here' : '—');
+  var hours = hrs.length ? hm(tot * 60) + (short ? '' : ' · ' + (hrs.length === 1 ? L('1 code') : Lf('{n} codes', { n: hrs.length }))) : (date === today ? L('Not on the clock here') : '—');
   var row = function(k, v){ return '<div class="rvrow' + (short ? ' short' : '') + '"><span class="rk">' + esc(k) + '</span><span class="rv tabular">' + esc(v) + '</span></div>'; };
-  var h = row('Hours', hours) + row('Photos', String(photosFor(cur.id, date).length));
+  var h = row(L('Hours'), hours) + row(L('Photos'), String(photosFor(cur.id, date).length));
   // One row per question, under JobTread's own name for the field.
-  dlQuestions().forEach(function(q){ h += row(q.field ? q.field.name : 'Hurt / close call', dlAnswerWords(q, d)); });
+  dlQuestions().forEach(function(q){ h += row(q.field ? q.field.name : L('Hurt / close call'), dlAnswerWords(q, d)); });
   return h;
 }
 function dlAnswerWords(q, d){
-  if (q.kind === 'safety') return d.safety === true ? 'Yes' + (d.alert && d.alert.kind ? ' · ' + alertKindLabel(d.alert.kind) : '') : d.safety === false ? 'None' : '—';
+  if (q.kind === 'safety') return d.safety === true ? T('yes') + (d.alert && d.alert.kind ? ' · ' + alertKindLabel(d.alert.kind) : '') : d.safety === false ? L('None') : '—';
   if (q.kind === 'bool'){
     var v = dlBoolAnswer(d, q.field.id), why = q.reason ? dlPicked(d, q.reason.id) : [];
-    return v === true ? 'Yes' + (why.length ? ' · ' + why.map(optionLabel).join(', ') : '') : v === false ? 'No' : '—';
+    return v === true ? T('yes') + (why.length ? ' · ' + why.map(optionLabel).join(', ') : '') : v === false ? T('no') : '—';
   }
   var picked = dlPicked(d, q.field.id);
   return picked.length ? picked.map(optionLabel).join(', ') : '—';
 }
-function alertKindLabel(kind){ return { fall:'Fall', cut:'Cut', heat:'Heat', close:'Close call', other:'Other' }[kind] || kind; }
+function alertKindLabel(kind){ var w = { fall:'Fall', cut:'Cut', heat:'Heat', close:'Close call', other:'Other' }[kind]; return w ? L(w) : kind; }
 function dlReviewHtml(cur, d, date){
   var today = isoLocal(), people = dlPeople(cur.id), q = !!d.wantSend;
-  var h = '<div class="dlh first">Check it, then send</div>';
+  var h = '<div class="dlh first">' + esc(L('Check it, then send')) + '</div>';
   h += '<div class="rvcard">' + dlRowsHtml(cur, d, date, false) +
-       '<div class="rvstory"><span class="rk">Your story</span><div class="rt">' + esc(dlStoryText(d) || '—') + '</div></div></div>';
-  h += '<div class="rvfoot">Goes on JT #' + esc(cur.jobNum || '') + ' as ' + (date === today ? 'today’s' : 'yesterday’s') + ' daily log for ' +
-       esc(people.length ? joinAnd(people) : 'the job’s PM and sales rep') + '. Hours and photos are already there.</div>';
+       '<div class="rvstory"><span class="rk">' + esc(L('Your story')) + '</span><div class="rt">' + esc(dlStoryText(d) || '—') + '</div></div></div>';
+  var whoFor = people.length ? joinAnd(people) : L('the job’s PM and sales rep');
+  h += '<div class="rvfoot">' + esc(date === today ? Lf('Goes on JT #{n} as today’s daily log for {who}. Hours and photos are already there.', { n: cur.jobNum || '', who: whoFor })
+                                              : Lf('Goes on JT #{n} as yesterday’s daily log for {who}. Hours and photos are already there.', { n: cur.jobNum || '', who: whoFor })) + '</div>';
   h += '<button class="btn btn-go sendbig' + (q ? ' off' : '') + '" id="dlSend" style="margin-top:22px">' + ico('send', 24) +
-       (date === today ? 'Send today’s log' : 'Send yesterday’s log') + '</button>';
+       esc(date === today ? L('Send today’s log') : L('Send yesterday’s log')) + '</button>';
   if (q) h += '<div class="foot" id="dlQueued">' + esc(dlQueuedWords(d)) + '</div>';
-  h += '<button class="btn btn-out normalday" id="dlBack" style="gap:10px">' + ico('chevl', 20, 2.4) + 'Go back and fix something</button>';
+  h += '<button class="btn btn-out normalday" id="dlBack" style="gap:10px">' + ico('chevl', 20, 2.4) + esc(L('Go back and fix something')) + '</button>';
   return h;
 }
 /* Sent (1d): the dark card, the same rows without the story, and a way to
    add a line to the same log. */
 function dlSentHtml(cur, d, date){
   var s = d.sent, names = s.assigned && s.assigned.length ? s.assigned : dlPeople(cur.id);
-  var who = names.length ? joinAnd(names) : 'The office';
+  var who = names.length ? joinAnd(names) : L('The office');
   var extra = '';
-  if (s.unresolved && s.unresolved.length) extra += ' Could not find ' + esc(s.unresolved.join(', ')) + ' in JobTread.';
-  if (s.left) extra += ' Sent without ' + s.left + ' photo' + (s.left === 1 ? '' : 's') + ' still to upload; ' + (s.left === 1 ? 'it lands' : 'they land') + ' in DB Cam on the job when ' + (s.left === 1 ? 'it does' : 'they do') + '.';
-  if (s.lost) extra += ' ' + s.lost + ' photo' + (s.lost === 1 ? '' : 's') + ' never uploaded and ' + (s.lost === 1 ? 'is' : 'are') + ' gone from this phone — take ' + (s.lost === 1 ? 'it' : 'them') + ' again and ' + (s.lost === 1 ? 'it goes' : 'they go') + ' to DB Cam on the job.';
-  var h = '<div class="sentcard"><div class="sl">' + ico('check', 26, 2.6) + 'Log sent · ' + esc(clockLabel(s.at)) + '</div>' +
-          '<div class="st">You’re done for today</div>' +
-          '<div class="ss">' + esc(who) + (names.length === 1 || !names.length ? ' has' : ' have') + ' it on JT #' + esc(cur.jobNum || '') + '.' + extra + '</div></div>';
+  if (s.unresolved && s.unresolved.length) extra += ' ' + esc(Lf('Could not find {who} in JobTread.', { who: s.unresolved.join(', ') }));
+  if (s.left) extra += ' ' + esc(s.left === 1 ? L('Sent without 1 photo still to upload; it lands in DB Cam on the job when it does.') : Lf('Sent without {n} photos still to upload; they land in DB Cam on the job when they do.', { n: s.left }));
+  if (s.lost) extra += ' ' + esc(s.lost === 1 ? L('1 photo never uploaded and is gone from this phone — take it again and it goes to DB Cam on the job.') : Lf('{n} photos never uploaded and are gone from this phone — take them again and they go to DB Cam on the job.', { n: s.lost }));
+  var h = '<div class="sentcard"><div class="sl">' + ico('check', 26, 2.6) + esc(Lf('Log sent · {t}', { t: clockLabel(s.at) })) + '</div>' +
+          '<div class="st">' + esc(L('You’re done for today')) + '</div>' +
+          '<div class="ss">' + esc(names.length === 1 || !names.length ? Lf('{who} has it on JT #{n}.', { who: who, n: cur.jobNum || '' }) : Lf('{who} have it on JT #{n}.', { who: who, n: cur.jobNum || '' })) + extra + '</div></div>';
   h += '<div class="rvcard" style="margin-top:14px">' + dlRowsHtml(cur, d, date, true) + '</div>';
   var later = (d.notes || []).filter(function(n){ return n.later; });
   if (later.length) h += '<div class="rvcard" style="margin-top:14px">' + later.map(function(n){ return dlLineHtml({ time: n.time, text: n.body }); }).join('') + '</div>';
-  h += '<div class="story has hidden" id="dlLaterBox" style="margin-top:14px"><textarea id="dlLater" rows="1" autocomplete="off" placeholder="What did you forget?"></textarea></div>';
+  h += '<div class="story has hidden" id="dlLaterBox" style="margin-top:14px"><textarea id="dlLater" rows="1" autocomplete="off" placeholder="' + esc(L('What did you forget?')) + '"></textarea></div>';
   h += '<div class="reccap hidden" data-reccap="dlLater"></div>';
   h += '<div class="talkrow hidden" id="dlLaterRow">' + recBtnHtml('dlLater', 'dlLaterRec') +
        '<button class="talkbtn type" id="dlLaterType">' + ico('keyboard', 24) + esc(T('type')) + '</button></div>';
-  h += '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:22px;min-height:68px">' + ico('plus', 22) + 'Forgot something? Add a line</button>';
-  h += '<div class="foot" style="margin-top:12px">Anything you add now goes on the same log with the time.</div>';
+  h += '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:22px;min-height:68px">' + ico('plus', 22) + esc(L('Forgot something? Add a line')) + '</button>';
+  h += '<div class="foot" style="margin-top:12px">' + esc(L('Anything you add now goes on the same log with the time.')) + '</div>';
   return h;
 }
 

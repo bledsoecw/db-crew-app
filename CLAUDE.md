@@ -164,6 +164,31 @@ regeneration, Linux only.
   board branch `claude/zealous-hopper-j7xy98`, restarted from `main` because
   the earlier branch had merged). Until it is merged the phone just says no
   stage.
-- **The training video is re-recorded after this** (phase 3's last step): by
-  role, with the language set per cut, "Ops Director" in the narration.
+- **The training video was re-recorded after this** (phase 3's last step, 29
+  Oct 2026) — see *The re-record by role* below.
+
+## The re-record by role (29 Oct 2026) — what the README does not say
+
+- **Five parts, two takes, not one take with two caption files.** Carl's
+  phase-3 call was a Spanish-voiced version, so the October "English voice,
+  Spanish subtitles" cut is gone: a Spanish voice describing an English phone
+  would name buttons the viewer cannot see. `VIDEO_LANG=es` makes the Spanish
+  take (voice `em_alex`, `es-419` phonemes, the phone set to Spanish by
+  `loadApp`); each take lands under `VIDEO_WORK/<lang>`, the voices and the
+  photos are shared. Every line in `script.mjs` carries its `es`, and
+  `record.mjs` refuses to run with one missing.
+- **By role** (Carl): every crew member (Zac, the construction bench — no site
+  managers on construction), site managers (Tyler, roofing), service (Yahir),
+  close out (Yahir), the war-room TV. Part 1 is the clock everyone uses and
+  the others do not repeat it.
+- **Recording it in Spanish found the day log still English** under a Spanish
+  phone, about forty strings — fixed first as T2.26 (README).
+  `spanish-test`'s whole-file scan could not catch it: those strings were
+  never handed to `L`/`Lf` at all. The scan only proves a literal that IS
+  looked up has Spanish; a screen built from bare strings has to be walked.
+- **The board's TV and checklist lines stay English in the Spanish take** —
+  that is the board's, and the narration says the tags by their English names
+  in both.
+- **The mock's `crewLead`** follows `FX.crewLead` (the video names Jeremiah on
+  the watertight line); unset it is what it was.
 

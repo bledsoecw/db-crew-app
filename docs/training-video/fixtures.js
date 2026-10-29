@@ -36,10 +36,10 @@
   // via checklistShape(): five phases, forty lines).
   var CHECKLIST = {
     phases: [
-      { key: 'yard', label: 'At the yard, before you roll out', tag: 'AT THE YARD', when: 'while the truck is loaded — the same moment as marking the material loaded' },
+      { key: 'yard', label: 'At the shop, before you roll out', tag: 'AT THE SHOP', when: 'while the truck is loaded — the same moment as marking the material loaded' },
       { key: 'before', label: 'Before the tear-off', tag: 'BEFORE TEAR-OFF', when: 'the morning the crew starts' },
       { key: 'during', label: 'While the roof is open', tag: 'DURING', when: 'before each stage gets covered — a promise is not an inspection' },
-      { key: 'handover', label: 'Before the site manager leaves', tag: 'HANDING OVER', when: 'only if you leave before the crew does — the PM approves the plan first' },
+      { key: 'handover', label: 'Before the site manager leaves', tag: 'HANDING OVER', when: 'only if you leave before the crew does, and only with the PM\'s OK' },
       { key: 'finished', label: 'Before the crew leaves for good', tag: 'FINISHED', when: 'the last day' }
     ],
     lines: [
@@ -79,7 +79,7 @@
       ['finished', 'magnet', 'Magnet run, lawn and beds — by:', 'magnetBy'],
       ['finished', 'photos', '20–30 photos in DB Cam (8 from the ground, each side)'],
       ['finished', 'extras', 'Returns and extras logged'],
-      ['finished', 'pickup', 'Trailer or buggy ready for pickup — yard told'],
+      ['finished', 'pickup', 'Trailer or buggy ready for pickup — PM told, so the shop can send a driver'],
       ['finished', 'corrections', 'Roof corrections verified — anything left goes to the PM’s punch list with an owner'],
       ['finished', 'watertight', 'Watertight confirmed with:', 'watertightWith'],
       ['finished', 'signoff', 'Signed off:', 'signedOff']
@@ -105,11 +105,19 @@
     { id: 'ci3', name: 'Service Repair Labor', number: '01GR-4', codeName: 'Service Repair Labor' },
     { id: 'ci4', name: 'Warranty Work', number: '01GR-5', codeName: 'Warranty Work' }
   ];
+  // The bench's construction job (T2.25): its Job Type is Construction, so
+  // the API marks the construction codes and the sheet puts them first.
   if (role === 'crew') CODES = [
-    { id: 'ci1', name: 'General Requirements', number: '01GR', codeName: 'General Requirements' },
-    { id: 'ci2', name: 'Framing/Sheeting', number: '06WP-1', codeName: 'Framing/Sheeting' },
-    { id: 'ci3', name: 'Site Prep/Clean Up', number: '02ST-1', codeName: 'Site Prep/Clean Up' },
-    { id: 'ci4', name: 'Hauling & Disposal (Direct)', number: '02ST-5', codeName: 'Hauling & Disposal (Direct)' }
+    { id: 'ci1', name: 'General Requirements', number: '01GR', codeName: 'General Requirements', trade: 'Construction' },
+    { id: 'ci2', name: 'Framing/Sheeting', number: '06WP-1', codeName: 'Framing/Sheeting', trade: 'Construction' },
+    { id: 'ci3', name: 'Site Prep/Clean Up', number: '02ST-1', codeName: 'Site Prep/Clean Up', trade: 'Construction' },
+    { id: 'ci4', name: 'Hauling & Disposal (Direct)', number: '02ST-5', codeName: 'Hauling & Disposal (Direct)', trade: 'Construction' },
+    { id: 'ci5', name: 'Electrical', number: '16EL', codeName: 'Electrical', trade: 'Construction' },
+    { id: 'ci6', name: 'Drywall', number: '09FN-1', codeName: 'Drywall', trade: 'Construction' },
+    { id: 'ci7', name: 'Roofing', number: '07TM-1', codeName: 'Roofing' },
+    { id: 'ci8', name: 'Gutters', number: '07TM-3', codeName: 'Gutters' },
+    { id: 'ci10', name: 'Fireplace', number: '10SP-1', codeName: 'Fireplace' },
+    { id: 'ci11', name: 'Concrete', number: '03CC', codeName: 'Concrete', trade: 'Construction' }
   ];
   CODES = CODES.concat([TRAVEL]);
 
@@ -140,6 +148,8 @@
                           : { id: 'tyler', name: 'Tyler', leadMembershipId: 'm3', leadUserName: 'Tyler Mohr' };
     },
     checklist: CHECKLIST,
+    // The crew leader the board names for "Watertight confirmed with:" (T2.25).
+    crewLead: 'Jeremiah Zehr',
     checks: function (blank) {
       var yesterday = blank([].concat(keysOf('yard'), keysOf('before'), keysOf('during'), keysOf('handover'),
                                       ['cleanup', 'nails', 'bundle', 'movedback', 'blown', 'tabs', 'photos', 'extras', 'watertight']));
@@ -154,7 +164,7 @@
       if (by.during.done > 0) return 'Roof open — ' + by.during.done + ' of ' + by.during.total + ' checked';
       if (by.before.done === by.before.total) return 'Before-tear-off checks done';
       if (by.before.done > 0) return 'Before tear-off — ' + by.before.done + ' of ' + by.before.total + ' done';
-      if (by.yard.done > 0) return 'At the yard — ' + by.yard.done + ' of ' + by.yard.total + ' done';
+      if (by.yard.done > 0) return 'At the shop — ' + by.yard.done + ' of ' + by.yard.total + ' done';
       return 'Site checks not started';
     },
     visits: function (h) {
@@ -164,12 +174,15 @@
       };
       // Yahir's day is Close Out's; the board books no roofs on him.
       if (role === 'service') return [];
+      // The bench (T2.25): Lindqvist's Rough-in is week 2 of a three-week
+      // stay; Halvorsen starts Monday, with the pre-start half done.
       if (role === 'crew') return [
-        v(J.lindqvist, { taskId: 'z1', start: h.isoAdd(-1), end: h.isoAdd(1), days: 3, dayOf: 2, today: true, jtype: 'Construction',
+        v(J.lindqvist, { taskId: 'z1', taskName: 'Rough-in', start: h.isoAdd(-7), end: h.isoAdd(13), days: 15, dayOf: 6, today: true, jtype: 'Construction',
           material: { text: '7 of 9 lines in — Window (MBS) due Aug 12', cls: 'warn' }, pm: 'Neal Deitemeyer', reps: ['Justin Phillips'],
           crewNote: 'Dumpster goes on the north side of the drive. Homeowner works from home — knock before the saws start.' }),
-        v(J.halvorsen, { taskId: 'z2', start: h.isoAdd(4), end: h.isoAdd(5), days: 2, dayOf: null, today: false, jtype: 'Construction',
-          material: { text: 'All 6 lines received — per the office, not counted on site', cls: 'good' }, pm: 'Neal Deitemeyer', reps: ['Robert Switzer'] })
+        v(J.halvorsen, { taskId: 'z2', taskName: 'Start Date', start: h.isoAdd(4), end: h.isoAdd(5), days: 2, dayOf: null, today: false, jtype: 'Construction',
+          material: { text: 'All 6 lines received — per the office, not counted on site', cls: 'good' }, pm: 'Neal Deitemeyer', reps: ['Robert Switzer'],
+          prestart: h.prestartFor('tpre') })
       ];
       return [
         v(J.thornbury, { taskId: 'tThornV', start: h.isoAdd(-1), end: h.isoAdd(-1), days: 1, dayOf: null, today: false, jtype: 'Roofing',

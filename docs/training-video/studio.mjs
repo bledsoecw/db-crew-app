@@ -21,9 +21,20 @@ const HERE = import.meta.dirname;
 export const APP = process.env.APP_URL ?? "http://localhost:8100";
 export const BOARD = process.env.BOARD_URL ?? "http://localhost:3000";
 export const WORK = process.env.VIDEO_WORK ?? path.join(HERE, ".video-work");
+/**
+ * The take's language (T2.25 re-record): "en" — English voice, the phone in
+ * English, English captions — or "es" — a Spanish voice, the phone in Spanish,
+ * Spanish captions, so the narration names the buttons the screen shows.
+ * Each language is its own take under WORK/<lang>; the voices and the photos
+ * are shared.
+ */
+export const LANG = process.env.VIDEO_LANG === "es" ? "es" : "en";
+export const TAKE = path.join(WORK, LANG);
+/** In the take's language: T("Your tabs", "Tus pestañas"). */
+export const T = (en, es) => (LANG === "es" ? es : en);
 export const FPS = 30;
-/** The narrator: a Kokoro voice. am_michael is the PM video's, so the two sound like a set. */
-export const VOICE = process.env.NARRATOR ?? "am_michael";
+/** The narrator: a Kokoro voice. am_michael is the PM video's, so the two sound like a set; em_alex reads the Spanish. */
+export const VOICE = process.env.NARRATOR ?? (LANG === "es" ? "em_alex" : "am_michael");
 export const voiceDir = () => path.join(WORK, `voice-${VOICE}`);
 const GAP_MS = 380; // breath between narration lines
 /** The take's "now": Thursday 6 August 2026, 6:58am in Ohio — the board's fixture week. */
@@ -43,6 +54,7 @@ export function ensureDir(d) {
 export function spoken(text) {
   return text
     .replace(/›/g, "")
+    .replace(/[«»]/g, "")
     .replace(/—/g, ", ")
     .replace(/\s+,/g, ",")
     .replace(/\s{2,}/g, " ")
@@ -158,6 +170,13 @@ export async function loadApp(page, role) {
     () => /mock\.local/.test(window.DBTC_CONFIG?.apiUrl ?? "") && !!window.__MOCK_FIX,
   );
   if (!ok) throw new Error("the app is not on the mock with the video's fixtures — refusing to film it");
+  // The phone in the take's language, whatever the role's default (the
+  // service crew open in Spanish): chosen, the way a crew member's own tap does.
+  await frame.evaluate((lang) => {
+    S.lang = lang; S.langSet = true; savePrefs();
+    if (typeof coOnLang === "function") coOnLang();
+    render();
+  }, LANG);
   await sleep(1200);
   return app;
 }
@@ -274,18 +293,20 @@ export function director({ page, capture, lengths, collect, debugDir }) {
     marks,
     where,
     /** One line of narration; `act` runs while it is spoken. `es` is the Spanish subtitle. */
-    async say(text, a, b) {
+    async say(en, a, b) {
       const act = typeof a === "function" ? a : null;
       const opts = (a && typeof a === "object" ? a : b) ?? {};
+      if (LANG === "es" && !opts.es) throw new Error(`no Spanish for: ${en}`);
+      const text = LANG === "es" ? opts.es : en;
       const id = lineId(text);
       if (collect) {
-        cues.push({ id, text, es: opts.es ?? null, spoken: spoken(text), part });
+        cues.push({ id, text, en, es: opts.es ?? null, spoken: spoken(text), part });
         return;
       }
-      const dur = lengths[id];
+      const dur = lengths[id] ?? (debugDir ? 1 : null);
       if (dur == null) throw new Error(`no narration for: ${text}`);
       const at = capture ? capture.t() : 0;
-      cues.push({ id, text, es: opts.es ?? null, at, dur, layout, part });
+      cues.push({ id, text, en, es: opts.es ?? null, at, dur, layout, part });
       const t0 = performance.now();
       if (act) await act();
       const left = (debugDir ? 650 : dur * 1000 + GAP_MS) - (performance.now() - t0);
@@ -295,26 +316,29 @@ export function director({ page, capture, lengths, collect, debugDir }) {
     },
     /** A part's title card (Production crews, Service…). Parts are what the per-part files are cut on. */
     async part(n, title, sub, es) {
-      part = title;
+      const shown = T(title, es?.title ?? title);
+      part = shown;
       if (collect) {
-        marks.push({ title, part: true });
+        marks.push({ title: shown, en: title, part: true });
         return api.say(`Part ${n}. ${title}.`, { es: es?.say });
       }
-      marks.push({ title, part: true, at: capture ? capture.t() : 0 });
-      await page.evaluate((spec) => window.__stage.card(spec), { kicker: `Part ${n}`, title, sub });
+      marks.push({ title: shown, en: title, part: true, at: capture ? capture.t() : 0 });
+      await page.evaluate((spec) => window.__stage.card(spec), { kicker: T(`Part ${n}`, `Parte ${n}`), title: shown, sub: T(sub, es?.sub ?? sub) });
       await api.say(`Part ${n}. ${title}.`, { es: es?.say });
     },
     /** A chapter: its card, then the stage keeps its name beside the phone. */
-    async chapter(n, title, { sub, kicker, who, es, day } = {}) {
+    async chapter(n, title, { sub, subEs, kicker, who, es, day } = {}) {
+      const shown = T(title, es ?? title);
       if (collect) {
-        marks.push({ title });
+        marks.push({ title: shown, en: title });
         return api.say(n === 0 ? title : `${title}.`, { es: es ? (n === 0 ? es : `${es}.`) : null });
       }
-      marks.push({ title, at: capture ? capture.t() : 0 });
+      marks.push({ title: shown, en: title, at: capture ? capture.t() : 0 });
+      const word = T("Chapter", "Capítulo");
       await page.evaluate(
         ([spec, info]) => { window.__stage.card(spec); window.__stage.info(info); },
-        [{ kicker: kicker ?? (n === 0 ? "DB Crew · training" : `Chapter ${n}`), title, sub, day: !!day },
-          n === 0 ? { kicker: "", title: "", who: "" } : { kicker: `${part ? part + " · " : ""}Chapter ${n}`, title, who: who ?? "" }],
+        [{ kicker: kicker ?? (n === 0 ? T("DB Crew · training", "DB Crew · capacitación") : `${word} ${n}`), title: shown, sub: T(sub, subEs ?? sub), day: !!day },
+          n === 0 ? { kicker: "", title: "", who: "" } : { kicker: `${part ? part + " · " : ""}${word} ${n}`, title: shown, who: who ?? "" }],
       );
       await api.say(n === 0 ? title : `${title}.`, { es: es ? (n === 0 ? es : `${es}.`) : null });
     },

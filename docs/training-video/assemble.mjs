@@ -1,7 +1,8 @@
-// Turn a take (raw.mp4 + cues.json + marks.json under VIDEO_WORK) into the
-// finished videos: the narration laid under the picture, captions burned in —
-// once in English and once in Spanish — a matching .srt for each, a chapter
-// mark per part and chapter, and each part cut as a file of its own.
+// Turn a take (raw.mp4 + cues.json + marks.json under VIDEO_WORK/<lang>) into
+// the finished videos: the narration laid under the picture, captions burned
+// in in the take's language (VIDEO_LANG — English, or the Spanish take with
+// its Spanish voice and the phone in Spanish), a matching .srt, a chapter mark
+// per part and chapter, and each part cut as a file of its own.
 //
 //   node assemble.mjs [out-dir]
 //
@@ -11,26 +12,25 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
-import { WORK, voiceDir, ensureDir } from "./studio.mjs";
+import { LANG, TAKE, WORK, voiceDir, ensureDir } from "./studio.mjs";
 
 const outDir = ensureDir(path.resolve(process.argv[2] ?? path.join(WORK, "out")));
-const cues = JSON.parse(fs.readFileSync(path.join(WORK, "cues.json"), "utf8"));
-const marks = JSON.parse(fs.readFileSync(path.join(WORK, "marks.json"), "utf8"));
-const raw = path.join(WORK, "raw.mp4");
+const cues = JSON.parse(fs.readFileSync(path.join(TAKE, "cues.json"), "utf8"));
+const marks = JSON.parse(fs.readFileSync(path.join(TAKE, "marks.json"), "utf8"));
+const raw = path.join(TAKE, "raw.mp4");
 const seconds = Number(
   execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", raw], { encoding: "utf8" }),
 );
-const NAME = "DB Crew - training";
-const LANGS = [
-  { key: "en", label: "English captions", title: "DB Crew — crew training" },
-  { key: "es", label: "subtitulos en espanol", title: "DB Crew — capacitación para las cuadrillas" },
-];
+const NAME = LANG === "es" ? "DB Crew - capacitacion" : "DB Crew - training";
+const LANGS = LANG === "es"
+  ? [{ key: "es", label: "espanol", title: "DB Crew — capacitación para las cuadrillas", part: "Parte" }]
+  : [{ key: "en", label: "English", title: "DB Crew — crew training", part: "Part" }];
 
 // 1 · The narration track.
-const mixed = path.join(WORK, "narration-mix.wav");
+const mixed = path.join(TAKE, "narration-mix.wav");
 execFileSync(process.env.TTS_PYTHON ?? "python3", [
-  path.join(import.meta.dirname, "mix.py"), path.join(WORK, "cues.json"), voiceDir(), String(seconds), mixed,
-  path.join(WORK, "spans.json"),
+  path.join(import.meta.dirname, "mix.py"), path.join(TAKE, "cues.json"), voiceDir(), String(seconds), mixed,
+  path.join(TAKE, "spans.json"),
 ]);
 // -16 LUFS with one steady gain, then a fast limiter under -3 dB (the AAC
 // encode overshoots a -1.5 dB limit). Not loudnorm: it rides the level.
@@ -40,7 +40,7 @@ const probe = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", mixed, "-af
   maxBuffer: 1 << 28,
 });
 const loudness = Number(probe.stderr.match(/Summary:[\s\S]*?I:\s+(-?[\d.]+) LUFS/)[1]);
-const narration = path.join(WORK, "narration.wav");
+const narration = path.join(TAKE, "narration.wav");
 execFileSync("ffmpeg", [
   "-y", "-loglevel", "error", "-i", mixed, "-af",
   `volume=${(TARGET_LUFS - loudness).toFixed(2)}dB,alimiter=limit=0.708:attack=5:release=60:level=disabled`,
@@ -76,7 +76,7 @@ function pieces(text, max) {
   }
   return outp;
 }
-const spans = JSON.parse(fs.readFileSync(path.join(WORK, "spans.json"), "utf8"));
+const spans = JSON.parse(fs.readFileSync(path.join(TAKE, "spans.json"), "utf8"));
 /**
  * [{ text, start, end }] for one line in one language, in seconds from the
  * line's start. Each sentence shows from the moment the voice starts it until
@@ -138,7 +138,8 @@ function captions(lang) {
   let n = 0;
   let fallbacks = 0;
   cues.forEach((c, i) => {
-    const text = lang === "en" ? c.text : c.es;
+    // The take's own words: what the voice said.
+    const text = c.text;
     if (!text) throw new Error(`no ${lang} caption for: ${c.text}`);
     const st = STYLE[c.layout ?? "side"];
     if ((spans[c.id]?.length ?? -1) !== units(text).length) fallbacks++;
@@ -151,7 +152,7 @@ function captions(lang) {
     }
   });
   if (fallbacks) console.log(`captions (${lang}): ${fallbacks} line(s) timed by length — their sentences did not pair with the pauses`);
-  const ass = path.join(WORK, `captions-${lang}.ass`);
+  const ass = path.join(TAKE, `captions-${lang}.ass`);
   fs.writeFileSync(ass, assHead + events.join("\n") + "\n");
   return { ass, srt: srt.join("\n") };
 }
@@ -160,7 +161,7 @@ function captions(lang) {
 const chapterNo = new Map();
 let cn = 0;
 for (const m of marks) if (!m.part && m.title !== marks[0].title) chapterNo.set(m, ++cn);
-const titleOf = (m, i) => (i === 0 ? "Introduction" : m.part ? `Part ${marks.filter((x) => x.part).indexOf(m) + 1} · ${m.title}` : `${chapterNo.get(m)} · ${m.title}`);
+const titleOf = (m, i) => (i === 0 ? (LANG === "es" ? "Introducción" : "Introduction") : m.part ? `${LANGS[0].part} ${marks.filter((x) => x.part).indexOf(m) + 1} · ${m.title}` : `${chapterNo.get(m)} · ${m.title}`);
 function chapterMeta(title, from, to) {
   const meta = [";FFMETADATA1", `title=${title}`];
   marks.forEach((m, i) => {
@@ -179,7 +180,7 @@ for (const lang of LANGS) {
   const { ass, srt } = captions(lang.key);
   const full = path.join(outDir, `${NAME} (${lang.label}).mp4`);
   fs.writeFileSync(full.replace(/\.mp4$/, ".srt"), srt);
-  const meta = path.join(WORK, `chapters-${lang.key}.txt`);
+  const meta = path.join(TAKE, `chapters-${lang.key}.txt`);
   fs.writeFileSync(meta, chapterMeta(lang.title, 0, seconds));
   execFileSync(
     "ffmpeg",
@@ -190,9 +191,9 @@ for (const lang of LANGS) {
   );
   console.log(`${full} — ${(seconds / 60).toFixed(1)} min, ${(fs.statSync(full).size / 1e6).toFixed(0)} MB`);
   for (const p of parts) {
-    const file = path.join(outDir, `${NAME} - Part ${p.n} ${p.title} (${lang.label}).mp4`);
-    const pm = path.join(WORK, `chapters-${lang.key}-part${p.n}.txt`);
-    fs.writeFileSync(pm, chapterMeta(`${lang.title} — Part ${p.n} · ${p.title}`, p.from, p.to));
+    const file = path.join(outDir, `${NAME} - ${lang.part} ${p.n} ${p.title.replace(/[\/:*?"<>|]/g, "")} (${lang.label}).mp4`);
+    const pm = path.join(TAKE, `chapters-${lang.key}-part${p.n}.txt`);
+    fs.writeFileSync(pm, chapterMeta(`${lang.title} — ${lang.part} ${p.n} · ${p.title}`, p.from, p.to));
     // Cut on the exact frame (re-encoded, so a part never opens on the tail
     // of the chapter before it).
     execFileSync(

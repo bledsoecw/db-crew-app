@@ -2,7 +2,11 @@
 
 Listen to the narration with a speech recogniser and list what it mishears.
 
-    python check-voice.py <lines.json> <voice-dir> [--model small.en] [--top 25]
+    python check-voice.py <lines.json> <voice-dir> [--model small.en] [--top 25] [--lang es]
+
+--lang es checks the Spanish take (T2.25 re-record, voice em_alex): the
+multilingual "small" model, Spanish recognition, accents folded before the
+comparison so "está" and "esta" are one word.
 
     e.g.  python check-voice.py "$VIDEO_WORK/lines.json" "$VIDEO_WORK/voice-am_michael"
 
@@ -19,6 +23,7 @@ recogniser model downloads itself on first use.
 """
 import argparse
 import difflib
+import unicodedata
 import json
 import os
 import re
@@ -40,10 +45,13 @@ def load16k(path):
 ap = argparse.ArgumentParser()
 ap.add_argument("lines")
 ap.add_argument("wavdir")
-ap.add_argument("--model", default="small.en")
+ap.add_argument("--model", default=None)
+ap.add_argument("--lang", default="en")
 ap.add_argument("--top", type=int, default=25)
 ap.add_argument("--json")
 a = ap.parse_args()
+if a.model is None:
+    a.model = "small.en" if a.lang == "en" else "small"
 
 CANON = [
     (r"\bjob tread\b", "jobtread"),
@@ -70,7 +78,19 @@ CANON = [
 ]
 
 
+# The Spanish take's: numerals the recogniser writes as digits, and the
+# English names it spells its own way.
+CANON_ES = [
+    (r"\b1\b", "uno"), (r"\b2\b", "dos"), (r"\b3\b", "tres"), (r"\b5\b", "cinco"), (r"\b8\b", "ocho"),
+    (r"\b7\b", "siete"), (r"\b10\b", "diez"), (r"\bun\b", "uno"),
+    (r"\bjob tread\b", "jobtread"), (r"\bclose out\b", "closeout"), (r"\bd b\b", "db"), (r"\bde be\b", "db"),
+    (r"\bpm\b", "pm"), (r"\bp m\b", "pm"),
+]
+
+
 def norm(t):
+    if a.lang != "en":
+        t = "".join(c for c in unicodedata.normalize("NFD", t) if unicodedata.category(c) != "Mn")
     t = t.lower().replace("’", "'").replace("-", " ")
     t = re.sub(r"[^a-z0-9' ]+", " ", t)
     words = t.split()
@@ -87,7 +107,7 @@ def norm(t):
     if run:
         out.append("".join(run))
     t = " ".join(out)
-    for pat, rep in CANON:
+    for pat, rep in (CANON if a.lang == "en" else CANON_ES):
         t = re.sub(pat, rep, t)
     return t.split()
 
@@ -99,7 +119,7 @@ for line in lines:
     wav = os.path.join(a.wavdir, line["id"] + ".wav")
     if not os.path.exists(wav):
         continue
-    segs, _ = model.transcribe(load16k(wav), beam_size=5, language="en", condition_on_previous_text=False)
+    segs, _ = model.transcribe(load16k(wav), beam_size=5, language=a.lang, condition_on_previous_text=False)
     heard = " ".join(s.text for s in segs).strip()
     ref, hyp = norm(line["text"]), norm(heard)
     sm = difflib.SequenceMatcher(a=ref, b=hyp, autojunk=False)

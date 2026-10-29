@@ -4,7 +4,10 @@ Copied from the Production Board's service-PM video (bledsoecw/DB_Production_Boa
 docs/guides/service-pm-video/tts.py) so the two videos sound like one set:
 the same voice, speed, pauses and loudness. Only the LEXICON grows here.
 
-    python tts.py <lines.json> <out-dir> <kokoro-dir> <voice>
+    python tts.py <lines.json> <out-dir> <kokoro-dir> <voice> [lang]
+
+lang is the phonemizer's: en-us (the default) or es-419 for the Spanish take
+(Latin American Spanish, the crews' own), each with its own LEXICON.
 
 lines.json is [{"id": "...", "text": "..."}]; each line is written to
 <out-dir>/<id>.wav unless that file already exists, so re-running after a
@@ -72,11 +75,46 @@ LEXICON = {
     "Ord": "ˈɔːɹd",
     "Mohr": "mˈɔːɹ",
     "Castellano": "kˌæstəlˈɑːnoʊ",  # cas-tel-AH-no
+    "Lindqvist": "lˈɪndkvɪst",
+    "Halvorsen": "hˈælvɚsən",
+}
+
+# The Spanish take: the English names and words the narration still says,
+# as a Spanish speaker in the crew says them (espeak's es-419 alphabet).
+LEXICON_ES = {
+    "DB Crew": "dˌi bˈi kɾˈu",
+    "DB Cam": "dˌi bˈi kˈam",
+    "DB": "dˌi bˈi",
+    "JobTread": "dʒˈob tɾˈɛd",
+    "Close Out": "klˈous ˈaut",
+    "Production Board": "pɾodˈʌkʃon bˈoɾd",
+    "PMs": "pˌi ˈɛms",
+    "PM": "pˌi ˈɛm",
+    "Tyler": "tˈajleɾ",
+    "Dave": "dˈeiβ",
+    "Neal": "nˈil",
+    "Zac": "sˈak",
+    "Kyle": "kˈajl",
+    "Monroe": "monɾˈou",
+    "Bonnewitz": "bˈonewits",
+    "Whitcombe": "wˈitkom",
+    "Lindqvist": "lˈindkuist",
+    "Halvorsen": "ˈalβoɾsen",
+    "Abernathy": "aβˈeɾnasi",
+    "Fairbanks": "fˈeɾbanks",
+    "Sinclair": "sinklˈeɾ",
+    "Pemberton": "pˈembeɾton",
+    "Ellen": "ˈelen",
+    "Mohr": "mˈoɾ",
 }
 
 lines_path, out_dir, kokoro_dir, voice_name = sys.argv[1:5]
+LANG = sys.argv[5] if len(sys.argv) > 5 else "en-us"
+if not LANG.startswith("en"):
+    LEXICON = LEXICON_ES
+
 SETTINGS = json.dumps(
-    {"voice": voice_name, "speed": SPEED, "pauses": [SENTENCE_PAUSE, CLAUSE_PAUSE],
+    {"voice": voice_name, "lang": LANG, "speed": SPEED, "pauses": [SENTENCE_PAUSE, CLAUSE_PAUSE],
      "rms": TARGET_RMS, "lexicon": LEXICON, "v": 1},
     sort_keys=True, ensure_ascii=False,
 )
@@ -102,15 +140,15 @@ def phonemes(text):
     for m in LEX_RE.finditer(text):
         before = text[last:m.start()]
         if before.strip():
-            out.append(kokoro.tokenizer.phonemize(before, "en-us"))
+            out.append(kokoro.tokenizer.phonemize(before, LANG))
         word = LEXICON[m.group(1)]
-        if m.group(2):
+        if m.group(2) and LANG.startswith("en"):
             word += "ᵻz" if word.endswith(("s", "z", "ʃ", "ʒ", "tʃ", "dʒ")) else "z"
         out.append(word)
         last = m.end()
     rest = text[last:]
     if rest.strip():
-        out.append(kokoro.tokenizer.phonemize(rest, "en-us"))
+        out.append(kokoro.tokenizer.phonemize(rest, LANG))
     return " ".join(" ".join(out).split())
 
 
