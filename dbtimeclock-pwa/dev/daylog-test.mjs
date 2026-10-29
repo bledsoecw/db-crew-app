@@ -96,6 +96,19 @@ const draftOf = (over) => Object.assign({ jobId: 'j_2841', date: isoToday, jobLa
   await ctx.close();
 }
 
+// ---- T2.25: a stay of weeks says its stage and its week ----
+{
+  const { ctx, page, errs } = await boot({}, 'window.__MOCK_LONG=true;');
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  check('a four-week Rough-in reads its stage and its week, not day 8 of 15', await txt(page, '.jcard.today .jwhen .d'), 'You’re here · Rough-in · week 2 of 3');
+  check('an upcoming stage names itself before the days', / · Finishes · 2 days$/.test(await txt(page, '.jcard:has-text("Harmon") .jwhen .d')), true);
+  await page.evaluate(() => { S.lang = 'es'; render(); });
+  await page.waitForTimeout(300);
+  check('…in Spanish too', await txt(page, '.jcard.today .jwhen .d'), 'Estás aquí · Obra negra · semana 2 de 3');
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 // ---- today's job from the schedule: one roof needs no picking, two ask once ----
 {
   const { ctx, page, errs } = await boot({ noJob: true });
@@ -414,7 +427,7 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   const draft = draftOf({ date: isoYday, story: 'Footers poured.', at: Date.now() - 86400000 });
   const { ctx, page, errs } = await boot({}, `localStorage.setItem('dbtc_daylog', ${JSON.stringify(JSON.stringify({ ['j_2841|' + isoYday]: draft }))});`);
   const items = await page.evaluate(() => nudgeItems().map((i) => [i.kind, i.text]));
-  check('the morning after: the unsigned roof first, then the unsent log', items, [['unsigned', 'Yesterday’s roof at Courtney isn’t signed off'], ['log-late', 'Yesterday’s log for Noah Webster wasn’t sent']]);
+  check('the morning after: the unsigned roof first, then the unsent log', items, [['unsigned', 'Yesterday’s job at Courtney isn’t signed off'], ['log-late', 'Yesterday’s log for Noah Webster wasn’t sent']]);
   check('the banner counts the rest', /\+1 more/.test(await txt(page, '#clockNudge .nt')), true);
   await page.evaluate(() => nudgeItems()[1].go());
   await page.waitForTimeout(400);

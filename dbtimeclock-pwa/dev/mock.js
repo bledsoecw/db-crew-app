@@ -56,6 +56,16 @@
   ];
   if (window.__MOCK_NOTRAVEL) CODES = CODES.filter(function (c) { return !c.travel; });
   if (FX.codes) CODES = FX.codes;
+  // T2.25: __MOCK_TRADE='Roofing' (or 'Construction') plays an API that read
+  // the job's Job Type and marked off that trade's codes, as getJobCodes does.
+  var TRADE_CODES = {
+    Roofing: ['07TM-1', '07TM', '07TM-2', '01GR-7', '01GR-1', '02ST-2', '02ST-1', '02ST-5'],
+    Construction: ['01GR', '01GR-1', '01GR-4', '01GR-7', '02ST-2', '02ST-1', '02ST-5', '03CC', '04MA', '06WP-1', '06WP', '06WP-2', '09FN-1', '09FN-2', '09FN', '16EL', '15MC']
+  };
+  if (window.__MOCK_TRADE) CODES = CODES.map(function (c) {
+    var t = window.__MOCK_TRADE, list = TRADE_CODES[t] || [];
+    return Object.assign({}, c, { trade: list.indexOf(c.number) !== -1 ? t : '' });
+  });
   // The shop (T2.17): 25-0011 DB INTERNAL and the six lines the crew
   // clocks at the shop, as getJobCodes chooses them. __MOCK_NOSHOP plays an
   // API from before T2.17, which names no shop on boot.
@@ -151,12 +161,21 @@
     CHECKLIST.lines.unshift({ key: 'tarps', phase: 'yard', label: 'Tarps checked and loaded \u2014 four sound 20\u00d740s with tie-downs, a torn one swapped out' },
                             { key: 'dryin', phase: 'yard', label: 'Dry-in supplies loaded \u2014 underlayment, flashing, sealants, fasteners for the planned section' });
   }
+  // __MOCK_NAMES (T2.25): the two name lines the board's list has carried
+  // since 21 Sep — Covered by: on the handover, Watertight confirmed with:
+  // before the sign-off — and the crew leader offered for the second.
+  if (window.__MOCK_NAMES && !FX.checklist) {
+    var ipm = CHECKLIST.lines.map(function (l) { return l.key; }).indexOf('pm');
+    CHECKLIST.lines.splice(ipm + 1, 0, { key: 'covered', phase: 'handover', label: 'Covered by:', value: 'coveredBy' });
+    var isg = CHECKLIST.lines.map(function (l) { return l.key; }).indexOf('signoff');
+    CHECKLIST.lines.splice(isg, 0, { key: 'watertight', phase: 'finished', label: 'Watertight confirmed with:', value: 'watertightWith' });
+  }
   var LINE_KEYS = {};
   CHECKLIST.lines.forEach(function (l) { LINE_KEYS[l.key] = true; });
   function blankChecks(ticked) {
     var done = {};
     CHECKLIST.lines.forEach(function (l) { done[l.key] = (ticked || []).indexOf(l.key) !== -1; });
-    return { done: done, magnetBy: null, signedOff: null, notes: {} };
+    return { done: done, magnetBy: null, coveredBy: null, watertightWith: null, signedOff: null, notes: {}, na: {} };
   }
   // One list per JOB, on the roofing crew's line — so its id is never the
   // visit's own taskId. 26-1490 ended yesterday and was never signed off.
@@ -169,7 +188,8 @@
   function checksProgress(c) {
     return CHECKLIST.phases.map(function (p) {
       var ls = CHECKLIST.lines.filter(function (l) { return l.phase === p.key; });
-      return { phase: p.key, label: p.label, done: ls.filter(function (l) { return !!c.done[l.key]; }).length, total: ls.length };
+      return { phase: p.key, label: p.label, done: ls.filter(function (l) { return !!c.done[l.key] || !!(c.na && c.na[l.key]); }).length, total: ls.length,
+               na: ls.filter(function (l) { return !c.done[l.key] && !!(c.na && c.na[l.key]); }).length };
     });
   }
   function checksWords(c) {
@@ -186,7 +206,29 @@
   function checksFor(tid) {
     var c = CHECKS[tid];
     if (!c) return null;
-    return { taskId: tid, state: JSON.parse(JSON.stringify(c)), progress: checksProgress(c), words: checksWords(c) };
+    return { taskId: tid, state: JSON.parse(JSON.stringify(c)), progress: checksProgress(c), words: checksWords(c), crewLead: window.__MOCK_NAMES ? 'Jeremiah Zehr' : null };
+  }
+  // The bench's pre-start list (T2.25): seven boxes on a construction job's
+  // Start Date line, the board's own words (prestart-checks.ts). Webster
+  // carries one when __MOCK_PRESTART is set; a fixture can name its own.
+  var PRESTART_LINES = [
+    { key: 'precon', label: 'Pre-con meeting held \u2014 scope, selections and access agreed with the customer' },
+    { key: 'permit', label: 'Permit posted on site, or confirmed not needed' },
+    { key: 'utilities', label: 'Utilities located and marked \u2014 gas, electric, water, septic' },
+    { key: 'material', label: 'Material for the first days is in \u2014 the rest dated on the budget lines' },
+    { key: 'debris', label: 'Dumpster or trailer booked for the start' },
+    { key: 'photos', label: 'Before photos in DB Cam \u2014 property, access, anything already damaged' },
+    { key: 'customer', label: 'Customer told the start day and who is coming' }
+  ];
+  var PRESTART = { 'tpre': (function () { var d = {}; PRESTART_LINES.forEach(function (l) { d[l.key] = l.key === 'precon' || l.key === 'permit'; }); return { done: d }; })() };
+  function prestartWords(c) {
+    var n = PRESTART_LINES.filter(function (l) { return c.done[l.key]; }).length;
+    return n === 0 ? 'Pre-start not started' : n === PRESTART_LINES.length ? 'Pre-start all done' : 'Pre-start \u2014 ' + n + ' of ' + PRESTART_LINES.length + ' done';
+  }
+  function prestartFor(tid) {
+    var c = PRESTART[tid]; if (!c) return null;
+    var n = PRESTART_LINES.filter(function (l) { return c.done[l.key]; }).length;
+    return { taskId: tid, state: JSON.parse(JSON.stringify(c)), progress: { done: n, total: PRESTART_LINES.length }, words: prestartWords(c), lines: JSON.parse(JSON.stringify(PRESTART_LINES)) };
   }
   function shortDate(iso) {
     var d = new Date(iso + 'T12:00:00');
@@ -198,7 +240,7 @@
   // is dropped — which is what T1.18's re-ask after a save relies on.
   var WAREHOUSE = {};
   function visits() {
-    var out = FX.visits ? FX.visits({ isoAdd: isoAdd, checksFor: checksFor, two: TWO }) : [
+    var out = FX.visits ? FX.visits({ isoAdd: isoAdd, checksFor: checksFor, prestartFor: prestartFor, two: TWO }) : [
       { taskId: 't1', jobId: 'j_2841', jobNum: '26-0890', jobName: '260890 Webster_Foundation',
         start: isoAdd(-1), end: isoAdd(1), days: 3, dayOf: 2, today: true,
         crewNote: 'Dumpster on the north side. Gate code 1412 — do not block the neighbour\u2019s drive.',
@@ -206,7 +248,7 @@
         status: 'Production', jtype: 'Foundation',
         material: { text: 'Ordered \u2014 drop booked, not on site yet', cls: 'warn' },
         warehouse: null,
-        checks: null, alongside: null, pm: 'Neal Deitemeyer', reps: ['Justin Phillips'] },
+        checks: null, prestart: window.__MOCK_PRESTART ? prestartFor('tpre') : null, alongside: null, pm: 'Neal Deitemeyer', reps: ['Justin Phillips'] },
       { taskId: 't4', jobId: 'j4', jobNum: '26-1490', jobName: '261490 Courtney_Roof',
         start: isoAdd(-1), end: isoAdd(-1), days: 1, dayOf: null, today: false,
         crewNote: '', cust: 'Courtney', city: 'Ohio City', address: '1140 Bittersweet Ln, Ohio City, OH 45874, USA',
@@ -230,6 +272,12 @@
         warehouse: null,
         checks: null, alongside: null, pm: '', reps: [] }
     ];
+    // T2.25: __MOCK_LONG — Webster is the bench's four-week Rough-in, day 8
+    // of 15 on site (the board names the task; the phone says the stage).
+    if (window.__MOCK_LONG) out.forEach(function (v) {
+      if (v.taskId === 't1') Object.assign(v, { taskName: 'Rough-in', days: 15, dayOf: 8, end: isoAdd(9) });
+      if (v.taskId === 't3') Object.assign(v, { taskName: 'Finishes' });
+    });
     out.forEach(function (v) {
       var w = v.warehouse, o = WAREHOUSE[v.jobId];
       if (!w || !o) return;
@@ -430,10 +478,31 @@
       done.signoff = !!signedOff;
       var notes = Object.assign({}, cur.notes || {});
       for (var nk in (checks.notes || {})) if (LINE_KEYS[nk]) { var nt = String(checks.notes[nk] || '').replace(/\s+/g, ' ').trim().slice(0, 140); if (nt) notes[nk] = nt; else delete notes[nk]; }
-      cur = CHECKS[taskId] = { done: done, magnetBy: String(checks.magnetBy || '').trim().slice(0, 40) || null, signedOff: signedOff, notes: notes };
+      // N/A as the board takes it: a reason sets it, "" clears it, and a tick
+      // this save does not also send as n/a clears an old one.
+      var na = Object.assign({}, cur.na || {});
+      for (var ak in (checks.na || {})) if (LINE_KEYS[ak]) { var ar = String(checks.na[ak] || '').replace(/\s+/g, ' ').trim().slice(0, 80); if (ar) { na[ak] = ar; done[ak] = false; } else delete na[ak]; }
+      for (var tk in done) if (done[tk] && !(checks.na && checks.na[tk])) delete na[tk];
+      var nameOf = function (f) { return Object.prototype.hasOwnProperty.call(checks, f) ? (String(checks[f] || '').trim().slice(0, 60) || null) : (cur[f] || null); };
+      cur = CHECKS[taskId] = { done: done, magnetBy: String(checks.magnetBy || '').trim().slice(0, 40) || null, coveredBy: nameOf('coveredBy'), watertightWith: nameOf('watertightWith'),
+                               signedOff: signedOff, notes: notes, na: na };
       return { status: 200, reason: '', body: {
         human: jobLabel + ' \u2014 ' + checksWords(cur), api: [],
         checks: JSON.parse(JSON.stringify(cur)), previous: previous } };
+    },
+    // The board's PUT /api/crew/prestart: the whole state, every time (T2.25).
+    //   __MOCK_PRE_FORBID  the board's 403: not on the bench, not a site manager
+    savePrestart: function (taskId, jobId, jobLabel, done) {
+      window.__PREPUTS = window.__PREPUTS || [];
+      window.__PREPUTS.push(JSON.parse(JSON.stringify({ taskId: taskId, jobId: jobId, jobLabel: jobLabel, done: done })));
+      if (window.__MOCK_PRE_FORBID) return { status: 403, reason: 'board-http-403', body: { error: 'Only the construction bench or a site manager can tick the pre-start \u2014 ask the office.' } };
+      if (window.__MOCK_PUTFAIL) return { status: 502, reason: 'board-http-502', body: { error: 'JobTread write failed' } };
+      var cur = PRESTART[taskId];
+      if (!cur) return { status: 400, reason: 'board-http-400', body: { error: 'membershipId, taskId, jobId and done are required' } };
+      var previous = JSON.parse(JSON.stringify(cur)), next = { done: {} };
+      PRESTART_LINES.forEach(function (l) { next.done[l.key] = done[l.key] === true; });
+      PRESTART[taskId] = next;
+      return { status: 200, reason: '', body: { taskId: taskId, human: jobLabel + ' \u2014 ' + prestartWords(next), api: [], prestart: JSON.parse(JSON.stringify(next)), previous: previous } };
     },
     // The one material fact the phone records. Same door as the checks, so
     // __MOCK_NOTMANAGER covers it too.
@@ -694,6 +763,9 @@
       if (!j) return { status: 404, reason: 'http-404', body: { error: 'Job not found' } };
       var out = JSON.parse(JSON.stringify(j));
       out.punchTasks.forEach(function (t) { if (CO_DONE[t.id]) t.progress = 1; });
+      // __MOCK_CO_FORM (T2.25): the server's form, as data — the phone draws
+      // this one, not its own copy. A form object here replaces the roof's.
+      if (window.__MOCK_CO_FORM) { out.forms = { roof: window.__MOCK_CO_FORM }; out.jobForm = 'roof'; }
       return { status: 200, body: out };
     },
     coScope: function () { if (FX.scope) return { status: 200, body: FX.scope }; return { status: 200, body: { en: 'A 32-square Duration roof in Onyx Black with three pipe boots and new gutters on the back.', es: 'Un techo Duration de 32 cuadros en Onyx Black con tres botas y canales nuevos atrás.' } }; },

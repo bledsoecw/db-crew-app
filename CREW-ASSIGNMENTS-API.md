@@ -1,7 +1,7 @@
 # `GET /api/crew/assignments` — the contract between this app and the Production Board
 
 Two repos build to this file. The board (`bledsoecw/DB_Production_Board`, default
-branch `claude/db-production-board-pkk0he`, which **is** production) serves it;
+branch `main`, which **is** production) serves it;
 this app (`apps-script/Code.gs`, `getMyJobs`) consumes it. It was pinned before
 either half was written so the two could be built in parallel.
 
@@ -57,7 +57,7 @@ job. Don't lose that by filtering the result again on `start >= from`.
     "leadUserName": "Alberto Gonzalez"
   },
   // Added 2026-10-05: this crew is on a division's final-inspection list on
-  // the board (Operations → Divisions & PMs), i.e. the board assigns them
+  // the board (Operations → Close-out), i.e. the board assigns them
   // inspections and DB Crew's Close Out tab has something to show. The
   // app's Service ROLE (who sees the tab) and this (who gets the work) are
   // two lists in two places on purpose; Close Out says so beside a person
@@ -75,6 +75,10 @@ job. Don't lose that by filtering the result again on `start >= from`.
       "end":     "2026-09-17",
       "days":    3,
       "crewNote": "Dumpster on the north side, gate code 1412",
+      // Added 2026-10-29: the JobTread task's own name. The phone says a
+      // construction stage off it ("Rough-in · week 2 of 3" for the
+      // template's Rough-in / Finishes lines). "" when the sweep did not carry it.
+      "taskName": "Roof install — Alberto",
 
       // joined from BoardJob
       "cust":    "Noah Webster",
@@ -93,8 +97,10 @@ job. Don't lose that by filtering the result again on `start >= from`.
       // ignores it.
       "warehouse": {
         "delivered": false,       // a drop routed to OUR building has landed there
-        "pulled":    true,
-        "staged":    true,
+        "staged":    true,        // pulled AND staged — one step since 2026-09-21
+        "pulled":    true,        // MIRRORS "staged" since 2026-09-21 — do not branch
+                                  // on it, read staged; removed once T1.23 confirms
+                                  // nothing reads it
         "where":     "Bay 3",     // free text the yard typed; null when unanswered
         "loaded":    false,       // THE tick this app records
         "toWarehouse": false,     // the supplier drop lands at the DB warehouse
@@ -107,31 +113,43 @@ job. Don't lose that by filtering the result again on `start >= from`.
       "checks": {
         "taskId": "22P…",                      // the task the list is ON — NOT this visit's
         "state": {
-          "done": { "address": true, "…": false }, "magnetBy": null, "signedOff": null,
-          "notes": { "septic": "Tank lid is under the back deck" }   // per-line notes, keyed like done (added 2026-09-20)
+          "done": { "address": true, "…": false },
+          "magnetBy": null,
+          "coveredBy": null,                   // "Kenton, back by 3:30" — who took the site over (added 2026-09-21)
+          "watertightWith": null,              // "Jason Zehr" — the crew leader who confirmed it watertight with the site manager (added 2026-09-21)
+          "signedOff": null,
+          "notes": { "septic": "Tank lid is under the back deck" },   // per-line notes, keyed like done (added 2026-09-20)
+          "na": { "septic": "city sewer" }     // per-line NOT APPLICABLE, with the reason, keyed like done (added 2026-09-21)
         },
-        "progress": [
-          { "phase": "before",   "label": "Before the tear-off",             "done": 1, "total": 11 },
-          { "phase": "handover", "label": "Before the site manager leaves",  "done": 0, "total": 7 },
-          { "phase": "finished", "label": "Before the crew leaves for good", "done": 0, "total": 10 }
+        "progress": [                          // done = settled (ticked OR n/a); na = how many of those are n/a
+          { "phase": "yard",     "label": "At the yard, before you roll out", "done": 0, "total": 2,  "na": 0 },
+          { "phase": "before",   "label": "Before the tear-off",             "done": 2, "total": 12, "na": 1 },
+          { "phase": "during",   "label": "While the roof is open",          "done": 0, "total": 5,  "na": 0 },
+          { "phase": "handover", "label": "Before the site manager leaves",  "done": 0, "total": 8,  "na": 0 },
+          { "phase": "finished", "label": "Before the crew leaves for good", "done": 0, "total": 13, "na": 0 }
         ],
-        "words": "Before tear-off — 1 of 11 done"
+        "words": "Before tear-off — 2 of 12 done",
+        "crewLead": "Jeremiah Zehr"            // roster lead of the crew whose task carries the list — the default answer for "Watertight confirmed with:"; null when the roster names nobody (added 2026-09-21)
       }
     }
   ],
 
   // how to DRAW any visits[].checks — once per response, see "Site checks"
   "checklist": {
-    "phases": [
-      { "key": "before",   "label": "Before the tear-off",             "tag": null,           "when": "the morning the crew starts" },
-      { "key": "handover", "label": "Before the site manager leaves",  "tag": "HANDING OVER", "when": "only if you leave before the crew does" },
-      { "key": "finished", "label": "Before the crew leaves for good", "tag": "FINISHED",     "when": "the last day" }
+    "phases": [                                // FIVE since 2026-09-21 — draw however many come back, never assume three
+      { "key": "yard",     "label": "At the yard, before you roll out", "tag": "AT THE YARD",     "when": "while the truck is loaded — the same moment as marking the material loaded" },
+      { "key": "before",   "label": "Before the tear-off",             "tag": "BEFORE TEAR-OFF", "when": "the morning the crew starts" },
+      { "key": "during",   "label": "While the roof is open",          "tag": "DURING",          "when": "before each stage gets covered — a promise is not an inspection" },
+      { "key": "handover", "label": "Before the site manager leaves",  "tag": "HANDING OVER",    "when": "only if you leave before the crew does, and only with the PM's OK" },
+      { "key": "finished", "label": "Before the crew leaves for good", "tag": "FINISHED",        "when": "the last day" }
     ],
     "lines": [
-      { "key": "address",  "phase": "before",   "label": "Right address, right roof" },
-      { "key": "…",        "phase": "…",        "label": "…" },
-      { "key": "magnet",   "phase": "finished", "label": "Magnet run, lawn and beds — by:", "value": "magnetBy" },
-      { "key": "signoff",  "phase": "finished", "label": "Signed off:",                     "value": "signedOff" }
+      { "key": "tarps",      "phase": "yard",     "label": "Tarps checked and loaded — four sound 20×40s with tie-downs, a torn one swapped out" },
+      { "key": "…",          "phase": "…",        "label": "…" },
+      { "key": "covered",    "phase": "handover", "label": "Covered by:",                     "value": "coveredBy" },
+      { "key": "magnet",     "phase": "finished", "label": "Magnet run, lawn and beds — by:", "value": "magnetBy" },
+      { "key": "watertight", "phase": "finished", "label": "Watertight confirmed with:",      "value": "watertightWith" },
+      { "key": "signoff",    "phase": "finished", "label": "Signed off:",                     "value": "signedOff" }
     ]
   },
   "fetchedAt": "2026-09-14T11:02:00.000Z"
@@ -147,7 +165,7 @@ the card loses a line the crew already expects to see.
 text as-is and colours from `cls`; it deliberately does **not** re-derive the
 words, so they stay defined in one place.
 
-**The words changed on 18 Sep 2026 and this app must not paper over it.**
+**The words changed on 18 Sep 2026 and the phone must not paper over it.**
 Ordered, booked and delivered used to collapse into one green `Material
 ordered ✓`, so a job nobody had rung ABC about read on a crew's phone exactly
 like one whose bundles were on the roof. Only two states are `good` now, and
@@ -163,31 +181,41 @@ both mean a person said so:
 | `Due at the shop today — not confirmed` | warn | that warehouse drop was booked for today or earlier |
 | `Ordered — no drop date yet` | warn | ordered, nobody has rung the supplier for a date |
 | `Staged at Bay 3 — not loaded` | warn | pulled and staged in OUR warehouse, still not on the truck |
-| `Pulled — not staged yet` | warn | the DB inventory pull is off the shelf, nothing staged (added 2026-09-20) |
-| `At the shop — not pulled yet` | warn | a supplier drop routed to the DB warehouse has landed there; nobody has pulled for the crew (added 2026-09-20) |
+| `At the shop — not staged yet` | warn | a supplier drop routed to the DB warehouse has landed there; nobody has pulled and staged it for the crew (added 2026-09-20 as `At the shop — not pulled yet`, reworded 2026-09-21) |
 | `Pull from shop` | warn | a DB inventory pull nobody has been to the shelf for |
 | `PART ORDER — check first` | bad | some supplier orders still in draft |
 | `NOTHING ORDERED — check first` | bad | no supplier order and no DB inventory pull |
 
-`matLine()` in `index.html` used to re-word these into three of its own, which
-is the same bug from the other side: every `good` line became "Material on
-site", so LOADED FOR THE CREW — on our own truck, nowhere near the roof — read
-as material standing on the job. It renders the board's text as it arrives now
-(the tick is still stripped: the self-hosted face draws U+2713 as a radical
-sign). Do not put a rewrite back.
+`Pulled — not staged yet` is **gone** (2026-09-21). Pulled and Staged are one
+step, so the state it named no longer exists and the board can never send it.
+
+Anything that reworded this into a single "MATERIAL ON SITE" banner is now
+wrong twice over — render the text as it arrives. (`matLine()` in the app's
+`index.html` did exactly that until T1.17: every `good` line became "Material
+on site", so LOADED FOR THE CREW read as material standing on the job. It
+renders the board's text as it arrives now, the tick stripped because the
+self-hosted face draws U+2713 as a radical sign. Do not put a rewrite back.)
 
 **In Spanish (T2.24) each line has one Spanish line of its own** — `matEs()` in
-`index.html`, keyed by the board's exact text (*Ordered — no drop date yet* →
-*Pedido — sin fecha de entrega todavía*, *Staged at Bay 3 — not loaded* →
-*Apartado en Bay 3 — sin cargar*). It is a translation, one for one, never two
-states folded into one sentence, and a line the phone has no Spanish for is
+the app's `index.html`, keyed by the board's exact text (*Ordered — no drop
+date yet* → *Pedido — sin fecha de entrega todavía*, *Staged at Bay 3 — not
+loaded* → *Apartado en Bay 3 — sin cargar*). A translation, one for one, never
+two states folded into one sentence; a line the phone has no Spanish for is
 shown in English exactly as the board sent it. So a new or reworded line here
 reads in English on a phone set to Spanish until the app learns it — add its
 Spanish to the `ES` table there in the same change.
 
-`days` is *m*. Day *n* of *m* is computed in this app from `start` vs today —
-the board must **not** expand one row per calendar day. A three-day install is
-one visit.
+`days` is *m*, and it counts **days on site, not calendar days** (changed 18
+Sep 2026): a visit that starts on a Friday and finishes on Monday is `days: 2`,
+because nobody is on a roof at the weekend. `start` and `end` are still real
+dates and still span the weekend.
+
+Day *n* of *m* is computed in this app from `start` vs today, and must be
+counted the **same way** or the two disagree the moment a visit runs over a
+weekend: *n* is 1 on the start date whatever day it falls on, and goes up by
+one on each weekday after it. Counting calendar days would make that Monday
+"day 4 of 2". The board must **not** expand one row per calendar day — a
+three-day install is one visit.
 
 ## Response — the cases that aren't 200
 
@@ -259,7 +287,7 @@ says so in the UI. **The clock is payroll and must never be blocked by the board
 being down.**
 
 `getMyJobs` asks from **yesterday**, not today, so the morning-after nudge
-("Yesterday's roof at Courtney isn't signed off") has data; `checks` and
+("Yesterday's job at Courtney isn't signed off") has data; `checks` and
 `checklist` pass through untouched. The site checks are saved by
 `saveSiteChecks(me, taskId, jobId, jobLabel, today, checks)`, also in
 `WITH_USER`: it stamps `membershipId` from the verified token, PUTs to the
@@ -290,8 +318,9 @@ here. Crew App = the working day; CheckOut = closing the job out.
 
 The site manager's paper checklist ("Roofing Checklist" in the packet) now lives
 as a JobTread checklist on the job's roofing install task — the board's
-`src/lib/install-checks.ts` is the single home of the 28 lines, the three
-phases and the words. The board seeds it when a roofing crew is booked and
+`src/lib/install-checks.ts` is the single home of the 40 lines, the five
+phases and the words (28 lines and three phases until 2026-09-21 — see
+*Shawn's SOP v1.1* below). The board seeds it when a roofing crew is booked and
 sweeps hourly for any it missed; JobTread derives the task's progress from it.
 
 **It rides ONE task per job, and that task is usually not the site manager's
@@ -302,13 +331,16 @@ gutter visit, or a roofing install booked before the list existed and not yet
 swept — the sweep runs hourly).
 
 **Draw the list from `checklist`, never from wording of your own.** `phases`
-and `lines` are the board's `PHASES` and `CHECK_LINES` verbatim — 28 lines,
+and `lines` are the board's `PHASES` and `CHECK_LINES` verbatim — 40 lines,
 in the order a person reads them (order IS the grouping), each with the
-`phase` it belongs to. The two lines with a `value` carry an answer after
-their label: `magnetBy` is free text the phone may send; `signedOff` is
-written by the board only. A line's `label` is what the site manager reads;
-the phase's `tag` is what JobTread's own checklist prefixes the later phases
-with, and the app need not show it.
+`phase` it belongs to. Four lines carry a `value` after their label:
+`magnetBy`, `coveredBy` and `watertightWith` are free text the phone may send
+(60 characters); `signedOff` is written by the board only. A `value` this
+build does not know should render as a tick with the current text read-only
+after the label — never as a bare tick, which would hide the name on it. A
+line's `label` is what the site manager reads; the phase's `tag` is what
+JobTread's own checklist prefixes every phase with, and the app need not show
+it.
 
 `words` is `checksWords()`'s own return value — render it as-is, never
 re-derive. `state.done` is keyed by `checklist.lines[].key`;
@@ -331,8 +363,11 @@ Content-Type: application/json
   "checks": {
     "done": { "address": true, "homeowner": true },  // only the keys you changed are needed
     "magnetBy": "Kenton",                              // or null
+    "coveredBy": "Kenton, back by 3:30",               // or null; LEAVE OUT to keep what is there (added 2026-09-21)
+    "watertightWith": "Jason Zehr",                    // or null; LEAVE OUT to keep what is there (added 2026-09-21)
     "signOff": true,                                   // sign it (false takes a signature off)
-    "notes": { "septic": "Tank lid is under the back deck", "address": "" }  // a note per line key; "" clears (added 2026-09-20)
+    "notes": { "septic": "Tank lid is under the back deck", "address": "" },  // a note per line key; "" clears (added 2026-09-20)
+    "na": { "septic": "city sewer", "sign": "" }        // NOT APPLICABLE per line key, with the reason; "" clears (added 2026-09-21)
   }
 }
 ```
@@ -390,12 +425,18 @@ on the GET, keyed by `checklist.lines[].key` exactly like `done`, and
   is sending a key with stale text after somebody cleared it in JobTread.
 - **A note is the TASK's message, never the job feed's** (Carl, 20 Sep 2026:
   *"notes land on the task's message, not directly on the activity feed"*).
-  Every save that adds, changes or clears a note posts ONE comment on the
-  install task itself (`createComment` with `targetType: "task"`) — *"📝 Site
-  check note — Well and septic located: Tank lid is under the back deck — via
-  Production Board (Tyler Mohr)"*, every changed note named, a cleared one as
-  *"note taken off"* — under BOTH comment policies, the moment the note
-  arrives. The group-finished comment on the job feed names ticks only.
+  Every save that changes anything posts ONE comment on the install task
+  itself (`createComment` with `targetType: "task"`), and since 2026-09-21 it
+  is the whole record of the save, not only the notes — *"📋 Site checks —
+  ticked: Decking inspected · Underlayment and ice & water checked; n/a: Well
+  and septic located (city sewer); note on Flashing and penetrations checked
+  before covering: reused the step flashing — via Production Board (Tyler
+  Mohr)"* — every tick, untick, n/a with its reason, changed value and note
+  named in list order, a cleared note as *"note taken off …"*, under BOTH
+  comment policies, the moment it arrives. That message is the SOP's
+  per-check record (who verified, when, what was found): the comment's own
+  author line and timestamp carry the when. The group-finished comment on
+  the job feed names ticks only.
   **So send a note once, when it is finished**: this app commits a note when
   its box is left (blur, Enter, or the phone going away — T1.21), never per
   keystroke burst, or a pause mid-sentence would post half of one to the
@@ -406,14 +447,97 @@ on the GET, keyed by `checklist.lines[].key` exactly like `done`, and
   seeded before 20 Sep needs nothing. This app draws `checklist.lines[].label`
   verbatim, so it changes on the next GET.
 
+### Shawn's SOP v1.1: five phases, N/A, two more names, the PM tagged (added 2026-09-21)
+
+The "Roofing Site Manager — Responsibilities & Field Checklist" v1.1 (Shawn,
+21 Sep 2026; `design/roofing-site-manager-sop-v1.1.md` on the board) widened
+the list. Everything below is additive on the wire, and a screen that draws
+from `checklist` picks the shape up on its next GET; what needs a build here
+is the yard nudge, the N/A control and the two name fields. **All three are
+built in the app**: the yard lines are asked on *Before you roll out* when the
+truck leaves the shop (T2.20, every morning of a multi-day roof since T2.24),
+and the N/A control and the two name boxes with the crew leader offered came
+with T2.25 (29 Oct 2026).
+
+- **Five phases, 40 lines**: `yard` (2) · `before` (12) · `during` (5) ·
+  `handover` (8) · `finished` (13). Draw `checklist.phases` in the order
+  served; `progress` has five entries now and a `na` count on each. Nothing
+  about "three" is safe to assume anywhere.
+- **The yard phase belongs beside MARK LOADED.** It is the SOP's 4C
+  pre-check — tarps and dry-in supplies on the truck — and Carl's call is that
+  it happens at the truck (*"a pre-check at the yard the site manager needs to
+  do while/after loading materials for the job, before he rolls out"*). Render
+  the two `yard` lines on the warehouse panel next to the Loaded button, and
+  when Loaded is ticked with either still open say so in a line ("Tarps and
+  dry-in supplies not checked yet") — a nudge, never a block. They stay on the
+  site checks rather than the material ladder on purpose: every roofing job
+  carries the site checks, while an ABC roof boomed straight on has no
+  warehouse half and no Loaded button at all, and on that job the tarps ARE
+  the truck load. Save them through this route like any other line.
+- **Not applicable** (SOP 8C: every check is Verified, Pending or N/A, and an
+  N/A is explained). `state.na` is keyed like `done`; a line in it is SETTLED —
+  it counts in `progress[].done` and finishes its group — and never done:
+  "Material on site" marked n/a confirms nothing. Mark one by sending
+  `na: { key: "reason" }`; a reason is REQUIRED and the board drops an n/a
+  without one. `""` clears it. A tick sent for a line this save does not
+  also send as n/a clears its old n/a — the person plainly did it; both in
+  one save is n/a. Draw an n/a line dashed, with the word N/A and the reason,
+  never green. The sign-off cannot be n/a. In JobTread the line reads
+  `Well and septic located — n/a: city sewer` and is ticked, so the task's own
+  progress can reach the end.
+- **Two more names ride their lines**: `coveredBy` on the handover line
+  "Covered by:" (SOP 7C — who took the site over, and when you are back:
+  "Kenton, back by 3:30"), and `watertightWith` on the finished line
+  "Watertight confirmed with:" (SOP 4D/7E — the crew leader who walked the
+  roof with the site manager; offer `checks.crewLead` as the default). Send
+  either only when you draw it: leaving the field out of the PUT keeps the
+  current value, `null` clears, 60 characters. "PM notified" became "PM
+  approved the coverage plan" the same day; old lists still read.
+- **Every save writes one message on the task** — see the note bullet above.
+  It is the SOP's per-check record and lands whatever the burst finished; the
+  feed policy (group finished, or a signature) is unchanged.
+- **The PM is tagged** on the feed comment when the handing-over group
+  finishes or the list is signed or unsigned — JobTread's own notification,
+  via `createComment.assignees` (`[{ "membershipId": "…" }]`, flat; verified
+  live 21 Sep 2026). Nothing for the phone to do.
+- **Ask, for the day log:** `createDailyLog` takes the same `assignees`
+  (and `notify` defaults on), so the day log this app already posts (*"Site
+  manager's log — … — sent from DB Time Clock"*) should carry the job's PM
+  too, which is SOP 8A's "tag the people affected, including the PM" made
+  literal. The board resolves the PM's name to an internal membership by
+  exact user-name match (`membershipForName` in `src/lib/jobtread/whoami.ts`);
+  the same query works from Apps Script, or ask for the id on this payload.
+- **Words**: the SOP says "site coordinator" in places; it is the same person
+  and the app says **site manager** everywhere (Carl, 21 Sep 2026).
+- **The wording round, same afternoon** (Carl): "Homeowner talked to" is
+  "Homeowner talked to, or texted if away — …" (SOP 2A), "Weather plan —
+  tarps on hand" is "Weather call made with the crew leader — proceed, limit
+  or hold, tear-off limit in the group text" (SOP 4A), both still reading
+  under their old names; and three lines are new — `prephotos` (pre-job
+  photos in DB Cam: property, delivered material, DB stock, sign and trailer
+  spot) closing the before phase, `pickup` (trailer or buggy ready for pickup,
+  yard told) and `corrections` (roof corrections verified, anything left to
+  the PM's punch list with an owner) in the finished phase before the
+  watertight line. Labels come off the payload, so nothing to draw by hand.
+
 ## The material loaded tick (added 2026-09-19)
+
+**2026-09-21: Pulled and Staged are ONE step** (Carl and Kyle, training
+session). The yard walks to the shelf and sets the material down; nobody
+records half of that. `PullState.pulled` is deleted on the board, the two
+checklist lines became one — `Pulled and staged at: Bay 3` — and `staged` IS
+the step. On the wire `warehouse.pulled` REMAINS, mirroring `staged`, so an
+older build that reads it cannot be told anything false; **stop reading it**,
+and key any state chip off `staged` / `loaded` / `delivered` (T1.23). The
+board reads an old-shaped POST forgivingly too — a `pulled: true` with
+`staged: false` is honoured as the step done, never dropped.
 
 Carl: *"The crew app should be where the site manager checks off the material
 is loaded ready to go to site."* And it is the right place — the person who
 knows the material is on the truck is standing beside the truck, not at a desk.
 
 This is the **only** material fact this app records. What was ordered, when the
-drop is, whether the yard pulled and staged it: those stay on the board, where
+drop is, whether the yard has pulled and staged it: those stay on the board, where
 the office and the yard answer them. One tick here, and it is `loaded`.
 
 **Show the tick only when `warehouse` is non-null.** It is null on a job whose
@@ -424,9 +548,14 @@ no button.
 `warehouse` is present when the job has a DB inventory pull **or** a supplier
 drop routed to the DB warehouse (`toWarehouse: true`). The second is new: an
 ABC order that comes to the yard instead of the roof still has to be taken in,
-pulled, staged and loaded like stock, and `delivered` is the yard recording
-that it turned up. Render `words` as-is — it is the same sentence every board
-screen says about that job.
+pulled and staged, then loaded, like stock, and `delivered` is the yard
+recording that it turned up. Render `words` as-is — it is the same sentence
+every board screen says about that job.
+
+`warehouse.words` is one of: `Still on the shelf` · `Pulled and staged` ·
+`Staged at Bay 3` · `Pulled, staged and loaded for the crew` · `Not delivered
+to the warehouse yet` · `Delivered to the warehouse — not staged yet`. Render
+it as it arrives; never re-derive it and never reword it.
 
 ### `PUT /api/crew/loaded`
 
@@ -457,23 +586,27 @@ trade line reads "Site Manager"). Ticking this is saying a thing happened,
 which is what a site manager is for — it is not scheduling, and it never
 becomes scheduling.
 
-**Loading implies pulling and staging**, the same rule the board's own popup
-follows: nobody loads material they never pulled. The board reads the checklist
-first and writes on top of it, so the staged LOCATION somebody in the yard
-typed is never blanked — which is why this call takes one boolean and not a
-state object.
+**Loading implies the pulled-and-staged step** (one line since 2026-09-21),
+the same rule the board's own popup follows: nobody loads material they never
+pulled. The board reads the checklist first and writes on top of it, so the
+staged LOCATION somebody in the yard typed is never blanked — which is why
+this call takes one boolean and not a state object.
 
 **Where it is written**: the job's "Order materials" task in JobTread, as the
-`Loaded for the crew` line of the six-line material checklist —
+`Loaded for the crew` line of the five-line material checklist —
 
 ```
 Ordered from ABC Supply            ← derived by the board, off the PO
 Drop booked: Sep 22 · job site     ← derived by the board, off the drop date
 Delivered to the warehouse         ← only when the drop lands at ours
-Pulled from DB inventory
-Staged at: Bay 3
+Pulled and staged at: Bay 3
 Loaded for the crew                ← this call
 ```
+
+The two old lines — `Pulled from DB inventory` and `Staged at: …` — are still
+READ by the board, for ever, and never written again. A list in the old shape
+is rewritten into the new one by the next write of any kind, or by the hourly
+sweep.
 
 The first two are derived and nobody ticks them, here or anywhere. One job
 comment is posted per save, naming the actor, like every other board write.
@@ -498,3 +631,90 @@ against anything else, and the honest failure is the button staying as it was
 with the reason said out loud. `index.html` draws the button only when
 `warehouse` is non-null and never to somebody the board has already said cannot
 sign the site checks — it is the same door, so a 403 puts both read-only.
+
+## Bench members see the bench's day (added 2026-09-28)
+
+The construction office books the bench as a UNIT: one `Start Date` task on
+the job for the whole crew, no assignee, no crew suffix. Since 27 Sep 2026
+the board reads that task as the crew `bench`. Since 28 Sep 2026 **a bench
+member's job list carries the bench's visits as well as their own**: when
+the membership resolves to a construction employee (`isBenchMember` — the
+whiteboard's name plates, Neal included), `GET /api/crew/assignments` returns
+every visit booked in their own name PLUS every visit booked on `bench` in the
+window. Nothing else about the response changes; such a row's `crew` is still
+the signed-in member, and the visit's own `taskId` is the bench's line, so
+`PUT /api/crew/checks` and `PUT /api/crew/loaded` against it work as they do
+for any other task.
+
+A sub, a roofer, a site manager or a trailer gets only what is booked in their
+own name, as before. The board does not expand the bench's stay one row per
+member on its own screens — the collapsed bench lane is the concept there —
+so a bench member's phone is the one place a Start Date reads as *their* day,
+which is the point.
+
+## The bench's pre-start list (added 2026-09-28)
+
+Construction has no site checks — the roofing list rides a crew that roofs.
+What the bench has is a **pre-start list**: seven boxes on the job's own
+`Start Date` line, tagged `PRE-START ·` in JobTread's checklist, written by
+the board when the bench is booked and by the hourly sweep for every bench
+start still to come. Each `visits[]` row now carries it, additively:
+
+```jsonc
+"prestart": {
+  "taskId": "22Pe…",                // the Start Date line the list is ON
+  "state": { "done": { "precon": true, "permit": true, "utilities": false, "material": false, "debris": false, "photos": false, "customer": false } },
+  "progress": { "done": 2, "total": 7 },
+  "words": "Pre-start — 2 of 7 done",   // render as-is
+  "lines": [ { "key": "precon", "label": "Pre-con meeting held — scope, selections and access agreed with the customer" }, … ]
+}
+```
+
+`null` on a roofing visit and on a bench start the sweep has not reached
+yet. Draw the seven `lines` from the payload in order — the words live in
+one place on the board and a reworded line reaches the phone with no build.
+Ticks only: no phases, no N/A, no values on the line.
+
+### `PUT /api/crew/prestart`
+
+Same door as the other routes (`Authorization: Bearer $CREW_APP_SECRET`).
+The membership has to be on the construction bench (the whiteboard's name
+plates, Neal included) or a site manager as the site checks define one; a
+sub, a roofer or a trailer gets a 403 with words to show.
+
+```jsonc
+{
+  "membershipId": "22PLtNLqScx6",
+  "taskId": "22Pe…",              // prestart.taskId from the GET
+  "jobId": "22PX…",
+  "jobLabel": "26-1040 Agler",
+  "done": { "precon": true, "permit": true, "utilities": true, "material": false, "debris": false, "photos": false, "customer": false }
+}
+```
+
+The WHOLE state every time — a key left out reads as unticked, so send every
+key you drew. The response is the board's own write result: `prestart` (the
+state as written — adopt it), `previous`, `human`, `api`. Every save with a
+change posts one job comment naming what moved (*"📋 Bench pre-start 3 of 7
+— ticked Utilities located — via Production Board (Zac Deitemeyer)"*), so
+save when the box is left, not per tap. Undo is `previous` posted back.
+
+### This app's half (T2.25, 29 Oct 2026)
+
+`savePrestart(me, taskId, jobId, jobLabel, done)` in `Code.gs`, in
+`WITH_USER` like `saveSiteChecks`: `membershipId` stamped from the verified
+token, the board's status and JSON handed back verbatim (never thrown), the
+cached job list dropped on a 200 so the card reads the board's new words. The
+phone shows the list on a job that has no site checks, ticks only, in the
+payload's order and words; taps stay on the phone and the whole state is sent
+once, when the list is left or after a minute and a half of nothing, which is
+what keeps the job feed to one comment per visit to the list. A 403 makes the
+list read-only with the board's words; offline or a 5xx keeps the ticks and
+retries on the next open.
+
+`taskName` is read off each visit for the stage words: a name starting
+*Rough-in* or *Finishes* (the construction template's lines, the board's
+`isRoughInLine` / `isFinishesLine`) is said on the card — *You’re here ·
+Rough-in · week 2 of 3*. Any other name says nothing extra. Over ten days on
+site the card counts weeks (five working days from the visit's own first day)
+instead of days.

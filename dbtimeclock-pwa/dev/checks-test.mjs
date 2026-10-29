@@ -65,7 +65,7 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   check('a roof that has not started yet shows no words, just the button', [await page.locator('.jcard:has-text("Lucas") .jck').count(), await page.locator('.jcard:has-text("Lucas") [data-checks]').count()], [0, 1]);
   check('in progress is amber', await cls(page, '.jcard:has-text("Courtney") .jck'), 'jck amber');
   check('yesterday\'s visit sits below today\'s, and says so', (await page.locator('#jobsList .jcard').last().locator('.jwhen .d').textContent()).trim(), 'Yesterday');
-  check('the morning-after nudge, on the day list', await txt(page, '#jobsNudge .nt'), 'Yesterday’s roof at Courtney isn’t signed off');
+  check('the morning-after nudge, on the day list', await txt(page, '#jobsNudge .nt'), 'Yesterday’s job at Courtney isn’t signed off');
   check('...and on the clock screen', /hidden/.test(await cls(page, '#clockNudge')), false);
 
   await tap(page, '[data-checks="t2roof"]', 500);
@@ -273,6 +273,100 @@ const dayWords = (d) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] 
   check('the last day: the group is the board\'s own again', [await cls(page, '.ckphase[data-phase="finished"]'), await txt(page, '.ckphase[data-phase="finished"] .w')],
     ['ckphase', 'The last day']);
   check('no page errors', errs, []);
+  await ctx.close();
+}
+
+// ---- T2.25: the board's whole list — N/A with its reason, and two more names ----
+{
+  const { ctx, page, errs } = await boot({ init: 'window.__MOCK_NAMES=true;' });
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await tap(page, '[data-checks="t2roof"]', 500);
+  // N/A: the pen's box offers it; nothing is n/a until there is a reason.
+  await tap(page, '[data-note-add="septic"]', 200);
+  await tap(page, '[data-na-open="septic"]', 200);
+  check('Doesn\'t apply opens a reason box, focused, and settles nothing yet', [await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-na')),
+    await page.locator('.ckrow.na').count()], ['septic', 0]);
+  await page.fill('[data-na="septic"]', 'city   sewer');
+  await page.locator('[data-na="septic"]').press('Enter');
+  await page.waitForTimeout(300);
+  check('a reason makes it n/a: dashed, N/A in the box, the reason under the line, never green', [await cls(page, '.ckrow[data-line="septic"]'), await txt(page, '.ckrow[data-line="septic"] .box'), await txt(page, '.ckrow[data-line="septic"] .nar')],
+    ['ckrow na', 'N/A', 'Not applicable · city sewer']);
+  check('…it counts toward its group, and the group says how many are n/a', await txt(page, '.ckphase[data-phase="before"] .ckph .c'), '1 of 11 · 1 n/a');
+  await page.waitForTimeout(2200);
+  let p = await puts(page);
+  check('…saved with the reason, every other line "" ', [p.length, p[0].checks.na.septic, p[0].checks.na.address, p[0].checks.done.septic], [1, 'city sewer', '', false]);
+  // A tick takes the n/a off.
+  await tap(page, '.ckrow[data-line="septic"]', 2200);
+  p = await puts(page);
+  check('ticking an n/a line clears it', [await cls(page, '.ckrow[data-line="septic"]'), p[p.length - 1].checks.na.septic, p[p.length - 1].checks.done.septic], ['ckrow on', '', true]);
+  // Covered by: and Watertight confirmed with:
+  await page.evaluate(() => { S.ckOpen.handover = true; renderChecks(); });
+  const before = (await puts(page)).length;
+  await page.fill('[data-val="coveredBy"]', 'Kenton, back by 3:30');
+  await page.waitForTimeout(2200);
+  check('typing a name alone sends nothing — it goes when the box is left, like a note', (await puts(page)).length, before);
+  await page.locator('[data-val="coveredBy"]').blur();
+  await page.waitForTimeout(2200);
+  p = await puts(page);
+  check('Covered by: is a box; a name ticks its line and rides the save', [p[p.length - 1].checks.coveredBy, p[p.length - 1].checks.done.covered],
+    ['Kenton, back by 3:30', true]);
+  check('…and the row ticks once the box is left', await cls(page, '.ckrow[data-line="covered"]'), 'ckrow on');
+  await page.evaluate(() => { S.ckOpen.finished = true; renderChecks(); });
+  check('Watertight confirmed with: offers the crew leader', await txt(page, '[data-val-pick="watertightWith"]'), 'Jeremiah');
+  await tap(page, '[data-val-pick="watertightWith"]', 2200);
+  p = await puts(page);
+  check('…one tap names him and ticks the line', [await page.inputValue('[data-val="watertightWith"]'), p[p.length - 1].checks.watertightWith, p[p.length - 1].checks.done.watertight], ['Jeremiah Zehr', 'Jeremiah Zehr', true]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Without the two lines, their names are never sent: the board keeps them.
+  const { ctx, page, errs } = await boot();
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await tap(page, '[data-checks="t2roof"]', 500);
+  await tap(page, '.ckrow[data-line="address"]', 2200);
+  const p = await puts(page);
+  check('a list with no name lines sends neither name', ['coveredBy' in p[0].checks, 'watertightWith' in p[0].checks], [false, false]);
+  check('no page errors (no names)', errs, []);
+  await ctx.close();
+}
+
+// ---- T2.25: the bench's pre-start list, construction's first checklist ----
+// Seven ticks on Webster's Start Date line, the board's words and order;
+// saved whole when the list is left, never per tap (each save is a comment).
+{
+  const { ctx, page, errs } = await boot({ init: 'window.__MOCK_PRESTART=true;' });
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  check('the card says where the pre-start stands, in the board\'s words', [await txt(page, '.jcard:has([data-prestart="tpre"]) .jck'), await txt(page, '[data-prestart="tpre"]')],
+    ['Pre-start — 2 of 7 done', 'Pre-start']);
+  await tap(page, '[data-prestart="tpre"]', 500);
+  check('the screen: its title, its seven lines in order, two ticked', [await txt(page, '#ckK'), await page.locator('#ckBody .ckrow').count(), await page.locator('#ckBody .ckrow.on').count(),
+    (await page.locator('#ckBody .ckrow .lbl').first().textContent()).split(' — ')[0], await txt(page, '#ckBody .ckph .c')],
+    ['Pre-start · JT #26-0890', 7, 2, 'Pre-con meeting held', '2 of 7']);
+  check('ticks only: no pens, no N/A, no sign-off', [await page.locator('#ckBody .cknote-pen').count(), await page.locator('#ckSignBtn').count()], [0, 0]);
+  await tap(page, '[data-pline="utilities"]', 200);
+  await tap(page, '[data-pline="material"]', 200);
+  check('…taps are kept, nothing is sent yet', [await page.locator('#ckBody .ckrow.on').count(), await page.evaluate(() => (window.__PREPUTS || []).length), await txt(page, '#ckSave')],
+    [4, 0, 'Saves when you leave the list']);
+  await tap(page, '#ckBack', 1200);
+  const pp = await page.evaluate(() => window.__PREPUTS || []);
+  check('leaving the list saves it once, the whole state', [pp.length, pp[0] && pp[0].taskId, pp[0] && pp[0].jobId, pp[0] && Object.keys(pp[0].done).length,
+    pp[0] && pp[0].done.utilities, pp[0] && pp[0].done.material, pp[0] && pp[0].done.debris], [1, 'tpre', 'j_2841', 7, true, true, false]);
+  check('…and the card reads the board\'s new words', await txt(page, '.jcard:has([data-prestart="tpre"]) .jck'), 'Pre-start — 4 of 7 done');
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Not on the bench, not a site manager: the board's 403, remembered.
+  const { ctx, page, errs } = await boot({ init: 'window.__MOCK_PRESTART=true;window.__MOCK_PRE_FORBID=true;' });
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await tap(page, '[data-prestart="tpre"]', 500);
+  await tap(page, '[data-pline="debris"]', 200);
+  await page.evaluate(() => prFlush('tpre'));
+  await page.waitForTimeout(900);
+  check('the 403: read-only with the board\'s words, the tick dropped', [await page.locator('#ckRo').isVisible(), (await txt(page, '#ckRo')).startsWith('Only the construction bench'), await page.locator('#ckBody .ckrow.on').count(), await page.locator('#ckBody .ckrow[disabled]').count()],
+    [true, true, 2, 7]);
+  check('no page errors (403)', errs, []);
   await ctx.close();
 }
 

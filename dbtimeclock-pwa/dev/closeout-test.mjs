@@ -188,6 +188,37 @@ const allErrs = [];
   await ctx.close();
 }
 
+// ---- T2.25: the form is data — the one DB CheckOut serves is the one drawn ----
+// A reworded item and a third section, served on the job detail: the phone
+// draws them with no build, counts them, and sends the answers by section.
+{
+  const FORM = { key: 'roof', sections: [
+    { key: 'inspection', label: { es: 'Revisión', en: 'Check' }, items: [{ key: 'i1', n: '1', es: 'Tejas parejas (nuevo)', en: 'Shingles flat (new words)' }, { key: 'i2', n: '2', es: 'Bordes', en: 'Edges' }] },
+    { key: 'cleanup', label: { es: 'Limpieza', en: 'Cleanup' }, items: [{ key: 'c1', n: 'C1', es: 'Imán', en: 'Magnet' }] },
+    { key: 'walk', label: { es: 'Recorrido', en: 'Walk-through' }, items: [{ key: 'w1', n: 'W1', es: 'Cliente contento', en: 'Customer happy' }] }
+  ] };
+  const { ctx, page, errs } = await boot({ role: 'service', fix: 'window.__MOCK_CO_FORM=' + JSON.stringify(FORM) + ';' });
+  await tap(page, '.tab[data-tab="co"]', 900);
+  await tap(page, '[data-cojob="co-hartman"]', 800);
+  check('the served form\'s sections are the tiles, in its words', await page.evaluate(() => [...document.querySelectorAll('#coBody .jtile:not([data-coclockhere]) .es')].map((e) => e.textContent).slice(0, 3)), ['Revisión', 'Limpieza', 'Recorrido']);
+  await tap(page, '[data-coscreen="inspect"]', 500);
+  check('…its items, its words, and the count is its own', [await page.locator('#coBody .ans').count(), await txt(page, '#coBody .ckq .es'), await txt(page, '#coK')], [2, 'Tejas parejas (nuevo)', 'Revisión · JT #26-0418']);
+  for (const k of ['i1', 'i2']) await tap(page, `.ans[data-key="${k}"] .ok`, 120);
+  await tap(page, '#coNext', 400);
+  await tap(page, '.ans[data-key="c1"] .ok', 120);
+  await tap(page, '#coNext', 400);
+  check('Next walks every section, the third included', await txt(page, '#coK'), 'Recorrido · JT #26-0418');
+  await tap(page, '.ans[data-key="w1"] .ok', 120);
+  await tap(page, '#coNext', 400);
+  await tap(page, '#coReview', 500);
+  await tap(page, '#coSend', 2500);
+  const close = (await calls(page)).filter((c) => c.fn === 'coClose')[0];
+  check('the close names the form and carries the answers by section', [close && close.visit.form, close && Object.keys(close.visit.answers), close && close.visit.answers.walk.w1], ['roof', ['inspection', 'cleanup', 'walk'], 'OK']);
+  check('the served form is kept for a phone with no signal', await page.evaluate(() => JSON.parse(localStorage.getItem('dbtc_co_forms')).roof.sections.length), 3);
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
 // ---- a photo the server answers 409 to is kept and retried; a refusal is kept and shown ----
 {
   const { ctx, page, errs } = await boot({ role: 'service', reject: true });

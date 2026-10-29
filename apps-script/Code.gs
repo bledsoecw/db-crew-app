@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.24 (2026-10-29)';
+var APP_BUILD = 'T2.25 (2026-10-29)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -395,6 +395,7 @@ function doPost(e) {
       getMyJobs: getMyJobs,
       saveSiteChecks: saveSiteChecks,
       saveMaterialLoaded: saveMaterialLoaded,
+      savePrestart: savePrestart,
       sendDailyLog: sendDailyLog,
       addDailyLogNote: addDailyLogNote,
       tellPm: tellPm,
@@ -986,7 +987,13 @@ function shapeVisit_(v, today) {
     // The JOB's site checks, or null when the job has none. `checks.taskId` is
     // the task the list sits on — usually the roofing crew's line, not this
     // visit's own task — and is what saveSiteChecks must be given. Untouched.
-    checks: v.checks || null
+    checks: v.checks || null,
+    // The bench's pre-start list on a construction job (T2.25): seven boxes on
+    // the job's Start Date line, saved through savePrestart. null elsewhere.
+    prestart: v.prestart || null,
+    // The task's own name ("Start Date", "Rough-in", "Finishes"…), when the
+    // board sends it: on a long job the phone says which stage this is.
+    taskName: v.taskName || ''
   };
 }
 
@@ -1701,6 +1708,15 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
       done: done,
       magnetBy: (checks.magnetBy == null || String(checks.magnetBy).trim() === '') ? null : String(checks.magnetBy).trim().slice(0, 40),
       signOff: !!checks.signOff,
+      // Not applicable, per line, with the reason; "" clears it (T2.25). The
+      // board drops an n/a with no reason, so the phone never sends one.
+      na: (function () {
+        var n = {}, src = (checks.na && typeof checks.na === 'object') ? checks.na : {};
+        for (var nk in src) if (Object.prototype.hasOwnProperty.call(src, nk)) {
+          n[String(nk)] = String(src[nk] == null ? '' : src[nk]).replace(/\s+/g, ' ').trim().slice(0, 80);
+        }
+        return n;
+      })(),
       // A note per line, one clean line each; "" takes a note off (T1.20).
       notes: (function () {
         var n = {}, src = (checks.notes && typeof checks.notes === 'object') ? checks.notes : {};
@@ -1711,6 +1727,13 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
       })()
     }
   };
+  // The two names that ride their lines (T2.25): sent only when the phone
+  // drew them — left out, the board keeps what is there; null clears.
+  ['coveredBy', 'watertightWith'].forEach(function (f) {
+    if (!Object.prototype.hasOwnProperty.call(checks, f)) return;
+    var v = checks[f] == null ? '' : String(checks[f]).replace(/\s+/g, ' ').trim().slice(0, 60);
+    payload.checks[f] = v || null;
+  });
 
   var startedMs = Date.now(), elapsedMs = 0;
   try {
@@ -1748,6 +1771,69 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
       var win = boardWindow_(isoDay_(new Date()));
       CacheService.getScriptCache().remove(myJobsCacheKey_(me.membershipId, win.from, win.to));
     } catch (e2) { /* a stale cache is a cosmetic problem, not a failure */ }
+  }
+  return out;
+}
+
+// ===========================================================
+// THE BENCH'S PRE-START LIST (T2.25, 29 Oct 2026)
+//
+// Construction's first checklist on the phone. The board writes seven boxes
+// on the job's Start Date line when the bench is booked (`visits[].prestart`
+// on getMyJobs) and takes them back through PUT /api/crew/prestart — the
+// WHOLE state each time, a key left out reading as unticked. Who may tick is
+// the board's call: a construction bench member or a site manager; anybody
+// else gets a 403 with words to show. Every save with a change posts one job
+// comment, so the phone saves when the list is left, not per tap.
+// ===========================================================
+function savePrestart(me, taskId, jobId, jobLabel, done) {
+  taskId = String(taskId || '').trim();
+  jobId = String(jobId || '').trim();
+  if (!taskId) throw new Error('Missing the pre-start list id.');
+  if (!jobId) throw new Error('Missing job id.');
+  if (!done || typeof done !== 'object') throw new Error('Missing the pre-start ticks.');
+
+  var out = { status: 0, reason: '', body: null };
+  if (!me.membershipId) { out.reason = 'no-membership'; return out; }
+  var cfg = boardConfig_();
+  if (!cfg.url || !cfg.secret) { out.reason = 'not-configured'; return out; }
+
+  var d = {};
+  for (var k in done) if (Object.prototype.hasOwnProperty.call(done, k)) d[String(k).slice(0, 40)] = !!done[k];
+  var payload = { membershipId: me.membershipId, taskId: taskId, jobId: jobId, jobLabel: String(jobLabel || '').slice(0, 80), done: d };
+
+  var startedMs = Date.now(), elapsedMs = 0;
+  try {
+    var resp = UrlFetchApp.fetch(cfg.url + '/api/crew/prestart', {
+      method: 'put',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      headers: { Authorization: 'Bearer ' + cfg.secret },
+      muteHttpExceptions: true,
+      followRedirects: false
+    });
+    elapsedMs = Date.now() - startedMs;
+    if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
+    out.status = resp.getResponseCode();
+    out.boardMs = elapsedMs;
+    var text = resp.getContentText();
+    try { out.body = JSON.parse(text); } catch (pe) { out.body = null; out.text = String(text || '').slice(0, 300); }
+    if (out.status === 307 || out.status === 302) out.reason = 'board-signin-bounce';
+    else if (out.status !== 200) out.reason = 'board-http-' + out.status;
+  } catch (e) {
+    elapsedMs = Date.now() - startedMs;
+    if (elapsedMs > BOARD_SLOW_MS) tripBoardBreaker_(elapsedMs);
+    out.reason = 'board-unreachable';
+    out.boardMs = elapsedMs;
+    out.error = (e && e.message) || String(e);
+    return out;
+  }
+  // The cached job list carries the old words under the card; drop it.
+  if (out.status === 200) {
+    try {
+      var win = boardWindow_(isoDay_(new Date()));
+      CacheService.getScriptCache().remove(myJobsCacheKey_(me.membershipId, win.from, win.to));
+    } catch (e2) { /* cosmetic */ }
   }
   return out;
 }
@@ -1884,6 +1970,27 @@ var CLOCK_IN_GROUP = /^\s*clock\s*in\s*items\s*$/i;
 var SHOP_JOB = { id: '22PMNGeeViuh', number: '25-0011', name: '250011 DB INTERNAL' };
 var SHOP_CODES = ['99TM-1', '99TM-2', '99TM-3', '99TM-5', '99TM-4', '02ST-5'];
 var OFFICE_CODES = ['99TM-7'];
+// ---- the job's trade's codes (T2.25, 29 Oct 2026) ----
+// Every job's CLOCK IN ITEMS is the same forty lines, roofing or construction
+// (Concrete, Drywall and Fireplace on a roof). The code sheet opens on the
+// person's own codes (T2.23); next come the codes of the job's own trade, by
+// its Job Type, then All codes. The lists are what each trade clocks — read
+// off the four weeks to 29 Oct: roofing jobs on Roofing, Project Management
+// (R), Hauling and Final Clean; construction on General Requirements first,
+// then Electrical, Painting, Finishes, Masonry. Script Property
+// TRADE_CODES_JSON ({"Roofing":["07TM-1",…],"Construction":[…]}) replaces it.
+var JOB_TYPE_FIELD = '22PBzhnUydgC';
+var TRADE_CODES = {
+  Roofing: ['07TM-1', '07TM', '07TM-2', '01GR-7', '01GR-1', '02ST-2', '02ST-1', '02ST-5'],
+  Construction: ['01GR', '01GR-1', '01GR-4', '01GR-7', '02ST-2', '02ST-1', '02ST-5', '03CC', '04MA', '06WP-1', '06WP', '06WP-2', '09FN-1', '09FN-2', '09FN', '16EL', '15MC']
+};
+function tradeCodes_() {
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty('TRADE_CODES_JSON');
+    if (raw) { var o = JSON.parse(raw); if (o && typeof o === 'object') return o; }
+  } catch (e) {}
+  return TRADE_CODES;
+}
 function shopJobId_() { return SHOP_JOB.id; }
 function shopCodes_() {
   var v = '';
@@ -1894,8 +2001,7 @@ function shopCodes_() {
 function jobCodesQuery_(jobId, page) {
   var arg = { where: [['costType', 'name'], 'in', ['Labor', 'Clock In']], size: 100 };
   if (page) arg.page = page;
-  return {
-    job: {
+  var job = {
       '$': { id: jobId },
       costItems: {
         '$': arg,
@@ -1909,14 +2015,18 @@ function jobCodesQuery_(jobId, page) {
           costCode: { number: {}, name: {} }
         }
       }
-    }
   };
+  // The Job Type rides the first page: it says whose trade's codes go first.
+  if (!page) job.customFieldValues = { '$': { where: [['customField', 'id'], JOB_TYPE_FIELD] }, nodes: { value: {} } };
+  return { job: job };
 }
 /** The code list from its first page (already fetched), the rest paged in
  *  as needed; chosen as above, sorted and cached. Each code says `travel`
  *  (the job's Travel Related Labor) and `office` (Administrative). */
 function jobCodesFrom_(jobId, first) {
   var all = [], seen = {}, d = first;
+  var jobType = String((((((first || {}).job || {}).customFieldValues || {}).nodes || [])[0] || {}).value || '');
+  var tradeList = jobId === shopJobId_() ? null : (tradeCodes_()[jobType] || null);
   for (var i = 0; i < 4; i++) {
     var conn = (((d.job || {}).costItems) || {});
     var nodes = conn.nodes || [];
@@ -1957,19 +2067,22 @@ function jobCodesFrom_(jobId, first) {
       number: cc.number || '',
       codeName: cc.name || '',
       travel: /travel/i.test(name),
-      office: OFFICE_CODES.indexOf(cc.number || '') !== -1
+      office: OFFICE_CODES.indexOf(cc.number || '') !== -1,
+      // The job's own trade's code ("Roofing", "Construction"), or ''.
+      trade: tradeList && tradeList.indexOf(cc.number || '') !== -1 ? jobType : ''
     });
   });
   out.sort(function (a, b) {
     if (jobId === shopJobId_()) { var w = shopCodes_(); return w.indexOf(a.number) - w.indexOf(b.number); }
     return String(a.number).localeCompare(String(b.number)) || String(a.name).localeCompare(String(b.name));
   });
-  cachePut_('jc2_' + jobId, out, CODES_CACHE_SEC);
+  // jc3 (T2.25): the codes carry `trade`; a list cached before it has none.
+  cachePut_('jc3_' + jobId, out, CODES_CACHE_SEC);
   return out;
 }
 function getJobCodes(jobId) {
   if (!jobId) throw new Error('Missing job id.');
-  var cached = cacheGet_('jc2_' + jobId);
+  var cached = cacheGet_('jc3_' + jobId);
   if (cached) return cached;
   return jobCodesFrom_(jobId, pave(jobCodesQuery_(jobId, null)));
 }
@@ -2124,7 +2237,7 @@ function getExtras(me, jobId) {
   var out = { codes: [], jobOptions: [], crew: [], logFields: null, partner: null, recentCodes: null };
   // The toggle's name (T2.21); never worth failing the extras for.
   try { var pt = partnerFor_(me); out.partner = pt ? { name: pt.name } : null; } catch (ePt) { delete out.partner; }   // could not ask: the phone keeps its box
-  var codesHit = jobId ? cacheGet_('jc2_' + jobId) : null;
+  var codesHit = jobId ? cacheGet_('jc3_' + jobId) : null;
   var optsHit = me.userId ? cacheGet_('jo_' + me.userId) : null;
   var fieldsHit = cacheGet_(LOG_FIELDS_KEY);
   var foreman = bootProfile_(me).isForeman;

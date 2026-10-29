@@ -820,6 +820,89 @@ having its Spanish — a new sentence without one fails there by name) walk it.
 doors, `registerPushToken` takes the language), then `firebase deploy --only
 hosting`.
 
+**Ready for construction: the bench's pre-start list, the whole site
+checklist, Close Out forms the server sends, and words that fit any job**
+(T2.25, Carl 29 Oct 2026, phase 3 of his review). The construction lists and
+forms themselves are written with Neal later; this is the machinery that lets
+them arrive without an app release. Construction gets no site managers (*"not
+now, maybe future"*).
+
+- **The pre-start list.** The board has carried a seven-line pre-start list on
+  each bench start since 28 Sep (`prestart` on the assignment — pre-con held,
+  permit posted, utilities located, the first days' material in, the dumpster
+  or trailer, the before photos in DB Cam, the customer told the day). A job
+  with no site checklist shows its words on the My jobs card (*Pre-start — 2
+  of 7 done*) and a **Pre-start** button. The screen is ticks only, in the
+  board's order and words: no pens, no N/A, no sign-off. Taps are kept on the
+  phone and the whole list is saved once, when the list is left (or after a
+  minute and a half of nothing), through `savePrestart` → the board's `PUT
+  /api/crew/prestart`; the card then reads the board's new words. A 403 makes
+  it read-only with the board's reason, the way the site checks do. Offline or
+  a 5xx keeps the ticks and saves on the next open.
+- **The site checklist draws everything the board sends.** Since 21 Sep the
+  board's list has had an N/A state and two name lines; the phone drew them as
+  plain ticks. Now every line's pen box has **Doesn’t apply here**, which asks
+  *Why doesn’t it apply here?*; a reason makes the line n/a — dashed, N/A in
+  the box, the reason under the line, never green — and it counts toward its
+  group (*7 of 8 · 1 n/a*); **It applies**, or a tick, takes it off. An n/a
+  without a reason cannot be saved. **Covered by:** is a box (*who, and when
+  you’re back*) and **Watertight confirmed with:** offers the crew leader the
+  board names (`crewLead`, one tap); a name ticks its line, and goes when its
+  box is left — never per keystroke, since every save is a message on the
+  task (the magnet run's *who ran it?* box now does the same). Every save sends
+  `na` for every line (`""` for none), and the two names only when the list
+  has those lines, so a list without them never clears them.
+- **Close Out forms come from the server.** The inspection and cleanup items
+  lived in the phone's code beside DB CheckOut's own copy, and the two had
+  drifted (*lawn* here, *yard* there). The job detail now carries `forms` and
+  `jobForm` (`bledsoecw/DB-CheckOut`, `packages/shared/src/forms.ts`); the
+  phone draws the job's form — one tile per section, Next walks every one, the
+  review lists each — and the close names the form and sends the answers and
+  notes by section. The last form served is kept for a phone with no signal,
+  and the built-in roof form stands in for a server too old to send one.
+  Rewording an item, or adding the construction walk-through, is a DB
+  CheckOut change and deploy, never an app release; that server refuses to
+  close a form it does not know how to write (*The walk form is not written to
+  JobTread yet — ask the office.*) rather than writing it as the roof's.
+- **"Job", not "roof", where the sentence is about any job**: *Yesterday’s job
+  at Courtney isn’t signed off*, *The job at … from … isn’t signed off*,
+  *Today’s jobs, before the truck leaves the shop*. Lines that are about a
+  roof (the roof form's items, the roof's own checklist) keep saying roof.
+- **The code sheet puts the job's trade next.** `getJobCodes` reads the job's
+  Job Type with the first page of its code list and marks that trade's codes
+  (`trade`). The sheet is **Your codes**, then **Roofing codes** or
+  **Construction codes** (*Códigos de techado / de construcción*), then **All
+  codes** one tap away. The lists were checked against October's clock:
+  roofing crews clocked 07TM-1, 01GR-1, 02ST-1 and 02ST-5; construction 01GR,
+  16EL and, on a construction service call, 01GR-4. Roofing `07TM-1 07TM
+  07TM-2 01GR-7 01GR-1 02ST-2 02ST-1 02ST-5`; Construction `01GR 01GR-1 01GR-4
+  01GR-7 02ST-2 02ST-1 02ST-5 03CC 04MA 06WP-1 06WP 06WP-2 09FN-1 09FN-2 09FN
+  16EL 15MC`. The Script Property `TRADE_CODES_JSON`
+  (`{"Roofing":[…],"Construction":[…]}`) replaces them without a release. The
+  shop has no trade. The cached code lists moved to a new key (`jc3_`), so
+  nobody waits out an old list with no trade on it.
+- **A stay of weeks says its week, and a construction stage its name.** Over
+  ten days on site, *You’re here · day 8 of 15* reads *You’re here · week 2 of
+  3* (five working days a week from the visit's own first day). A visit on the
+  construction template's **Rough-in** or **Finishes** line says so — *You’re
+  here · Rough-in · week 2 of 3*, *Mon 11/10 · Finishes · 2 days* (*Obra
+  negra*, *Acabados*). The board sends the task's name for it (`taskName` on
+  the assignment, `bledsoecw/DB_Production_Board`); with an older board the
+  stage is just not said.
+
+`apps-script/code-test.mjs` (the N/A and the names forwarded, left out when
+absent, `savePrestart`, the trade codes and their Script Property),
+`dev/checks-test.mjs` (N/A and its reason, the two names and the crew leader,
+the pre-start screen, its save and its 403), `dev/closeout-test.mjs` (a served
+form with a third section, end to end, and its cache), `dev/clock-test.mjs`
+(the trade group in both languages, and a short rest left unfolded) and
+`dev/daylog-test.mjs` (the week and the stage) walk it; DB CheckOut's `npm
+test` covers the served form and the refusal. **Needs:** the Apps Script first
+(`savePrestart` is a new door, `saveSiteChecks` forwards `na` and the names,
+`getJobCodes` asks for the Job Type), then `firebase deploy --only hosting`.
+DB CheckOut's deploy and the board's merge can come before or after — the
+phone works with either side old.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

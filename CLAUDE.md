@@ -53,11 +53,10 @@ regeneration, Linux only.
   running at one job read "Running" on the next job's code list, beside the
   last job's hours. `FX.codesPerJob` (the video sets it) gives each job its own
   ids (`ci4@co-fair`); with it unset the mock is unchanged.
-- **Not on the phone yet, and visible in the video**: the board's checklist has
-  carried "Covered by:" and "Watertight confirmed with:" name lines and the
-  N/A state since 21 Sep (the T1.23 asks in `CREW-ASSIGNMENTS-API.md`). The
-  phone draws those two lines as plain ticks with no name box; the video does
-  not dwell on them.
+- **Drawn as plain ticks in the October cut**: the board's "Covered by:" and
+  "Watertight confirmed with:" lines and its N/A state. T2.25 drew them (name
+  boxes, the crew leader offered, Doesn’t apply here with its reason), so the
+  re-record shows them.
 - **Chromium refuses to frame localhost from a page the recorder answers**
   (`ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS`); the stage is launched with
   `--disable-features=LocalNetworkAccessChecks`.
@@ -132,3 +131,39 @@ regeneration, Linux only.
   error messages, Diagnostics, the sign-in gate and People. The schedule pushes
   ("Tomorrow", "Schedule changed") are still English; the evening push and the
   missing-start-photo push follow the language the phone registered with.
+
+## Phase 3 (T2.25, 29 Oct 2026) — what the README does not say
+
+- **The two copies of `CREW-ASSIGNMENTS-API.md` had drifted** — the board's had
+  the SOP v1.1 section, the bench and the pre-start; this one had `inspector`,
+  the Spanish material lines and the app-half paragraphs. They were merged into
+  one file and copied into both repos; keep them byte-identical (`diff` them)
+  and change both in the same session.
+- **Close Out's form is the server's now** (`bledsoecw/DB-CheckOut`,
+  `packages/shared/src/forms.ts`). The phone's `CO_FORM_ROOF` is the fallback
+  for a server too old to send one and must stay equal to the server's roof
+  form; it was built from it. `coForm(jobId)` is the one reader: the job's
+  served form, then the cached one (`dbtc_co_forms`), then the built-in.
+  `coSecScreen` maps the roof's `inspection` / `cleanup` sections to the old
+  screen names (`inspect`, `cleanup`) so nothing that keyed off them moved;
+  any other section is `sec:<key>`. A construction walk-through is a server
+  change (a form in `CLOSEOUT_FORMS`, `jobFormKey()` choosing it, and the
+  write path in close-inspection), which is Neal's to write with Carl.
+- **`ckSettled(st, key)` is the count** wherever a group, a nudge or a
+  sign-off asks "is this line dealt with": a tick OR an n/a. `ckDone` is still
+  the tick alone, and material-on-site reads the tick, never the n/a.
+- **The pre-start reuses the checks screen** (`S.checksKind` `'site'` or
+  `'prestart'`); `ckLeave` flushes whichever is open. Its store is
+  `dbtc_prestart`, kept apart from the site checks' so the two never share a
+  dirty flag.
+- **The trade lists were measured, not guessed** (October's time entries by
+  Job Type, 29 Oct). 01GR (Crew Labor) is used on the odd roofing job too but
+  stays under All codes there; 01GR-2 Design is the designer's and is not a
+  crew code. `TRADE_CODES_JSON` is the lever if Carl wants it otherwise.
+- **The board half of T2.25 is one field** (`taskName` on the assignment,
+  board branch `claude/zealous-hopper-j7xy98`, restarted from `main` because
+  the earlier branch had merged). Until it is merged the phone just says no
+  stage.
+- **The training video is re-recorded after this** (phase 3's last step): by
+  role, with the language set per cut, "Ops Director" in the narration.
+

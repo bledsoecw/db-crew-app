@@ -266,6 +266,31 @@ props = { SHOP_CODES: '99TM-1, 02ST-5' }; cacheStore = {};
 t('…and SHOP_CODES changes them without a release', sandbox.getJobCodes('22PMNGeeViuh').map(c => c.name), ['Morning Clock-In', 'Hauling & Disposal (Direct)']);
 props = {}; cacheStore = {};
 
+// ---- T2.25: the job's own trade's codes are marked, off its Job Type ----
+const tradeJob = (jobType, nodes) => (url, opts) => { try { codesAsked = JSON.parse(opts.payload).query; } catch (e) {} return { code: 200, body: JSON.stringify({ job: { customFieldValues: { nodes: jobType ? [{ value: jobType }] : [] }, costItems: { nextPage: null, nodes } } }) }; };
+const clockIn = [
+  ci('g1', 'General Requirements', '01GR', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('p1', 'Project Management (R)', '01GR-1', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('s1', 'Service Repair Labor - Gen Construction', '01GR-4', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('f1', 'Final Clean', '02ST-1', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('e1', 'Electrical', '16EL', 'Clock In', 'CLOCK IN ITEMS'),
+  ci('r1', 'Roofing', '07TM-1', 'Clock In', 'CLOCK IN ITEMS')
+];
+fetchImpl = tradeJob('Roofing', clockIn); cacheStore = {};
+sandbox.getJobCodes('jroof');
+t('the Job Type rides the first page of the code query', JSON.stringify(codesAsked.job.customFieldValues.$.where), '[["customField","id"],"22PBzhnUydgC"]');
+cacheStore = {};
+t('a roofing job marks its roofing codes and only those', sandbox.getJobCodes('jroof').map(c => [c.number, c.trade]),
+  [['01GR', ''], ['01GR-1', 'Roofing'], ['01GR-4', ''], ['02ST-1', 'Roofing'], ['07TM-1', 'Roofing'], ['16EL', '']]);
+fetchImpl = tradeJob('Construction', clockIn); cacheStore = {};
+t('a construction job marks its own, the service line among them', sandbox.getJobCodes('jcon').map(c => [c.number, c.trade]),
+  [['01GR', 'Construction'], ['01GR-1', 'Construction'], ['01GR-4', 'Construction'], ['02ST-1', 'Construction'], ['07TM-1', ''], ['16EL', 'Construction']]);
+fetchImpl = tradeJob('', clockIn); cacheStore = {};
+t('a job with no Job Type marks nothing', sandbox.getJobCodes('jnone').every(c => c.trade === ''), true);
+fetchImpl = tradeJob('Roofing', clockIn); cacheStore = {}; props = { TRADE_CODES_JSON: '{"Roofing":["16EL"]}' };
+t('…and TRADE_CODES_JSON changes the lists without a release', sandbox.getJobCodes('jroof2').filter(c => c.trade).map(c => c.number), ['16EL']);
+props = {}; cacheStore = {};
+
 // A router for the stubbed fetch: by URL, then by the shape of the Pave query.
 // The org's daily-log custom fields as JobTread returned them on 2026-09-15.
 const LOG_FIELDS = [
@@ -554,7 +579,7 @@ t('membershipId is the verified caller\'s, never the phone\'s', sent.membershipI
 t('the ids, the label and the PHONE\'s date ride along', [sent.taskId, sent.jobId, sent.jobLabel, sent.today], ['t_roof', 'j9', '26-1490 Courtney', '2026-09-15']);
 t('done coerced to booleans, magnetBy trimmed', [sent.checks.done, sent.checks.magnetBy, sent.checks.signOff],
   [{ address: true, homeowner: true, scope: false }, 'Kenton', false]);
-t('never sends a name or a date for the signature', Object.keys(sent.checks).sort(), ['done', 'magnetBy', 'notes', 'signOff']);
+t('never sends a name or a date for the signature, nor a name it did not draw', Object.keys(sent.checks).sort(), ['done', 'magnetBy', 'na', 'notes', 'signOff']);
 t('no notes sent -> an empty notes map, never a missing key', sent.checks.notes, {});
 t('bearer header, JSON body, no redirects', [put.opts.headers.Authorization, put.opts.contentType, put.opts.followRedirects], ['Bearer s3cret', 'application/json', false]);
 t('200 -> status and body come back verbatim', [r.status, r.reason, r.body.checks], [200, '', written]);
@@ -569,6 +594,34 @@ t('a note is collapsed to one line and trimmed', notesSent.septic, 'Tank lid is 
 t('an emptied note is sent as "" so the board takes it off', notesSent.address, '');
 t('a note is cut at 140 characters, the board\'s NOTE_MAX', notesSent.photos.length, 140);
 t('a null note reads as cleared, not the word null', notesSent.bogus, '');
+
+// ---- N/A and the two names (T2.25): the board's whole list, sent back whole ----
+cacheStore = {}; fetched = [];
+sandbox.saveSiteChecks(ME, 't_roof', 'j9', '26-1490 Courtney', '2026-09-20',
+  { done: {}, signOff: false, na: { septic: '  city   sewer ', sign: '' }, coveredBy: '  Kenton, back by 3:30 ', watertightWith: '' });
+const naSent = JSON.parse(fetched[0].opts.payload).checks;
+t('an n/a goes with its reason, one clean line; "" clears one', [naSent.na.septic, naSent.na.sign], ['city sewer', '']);
+t('Covered by: is sent when the phone drew it; an emptied name is null', [naSent.coveredBy, naSent.watertightWith], ['Kenton, back by 3:30', null]);
+cacheStore = {}; fetched = [];
+sandbox.saveSiteChecks(ME, 't_roof', 'j9', '', '2026-09-20', { done: {} });
+t('…and left out when it did not, so the board keeps what is there', ['coveredBy' in JSON.parse(fetched[0].opts.payload).checks, 'watertightWith' in JSON.parse(fetched[0].opts.payload).checks], [false, false]);
+
+// ---- the bench's pre-start (T2.25): the whole state to PUT /api/crew/prestart ----
+cacheStore = {}; fetched = [];
+fetchImpl = () => ({ code: 200, body: JSON.stringify({ taskId: 't_start', human: '26-1040 Agler — Pre-start — 3 of 7 done', api: [], prestart: { done: { precon: true } }, previous: { done: {} } }) });
+r = sandbox.savePrestart(ME, 't_start', 'j_agler', '26-1040 Agler', { precon: true, permit: 1, utilities: 0 });
+const pre = fetched[0], preSent = JSON.parse(pre.opts.payload);
+t('PUT /api/crew/prestart, the verified membership, the ids and the ticks as booleans',
+  [pre.url, pre.opts.method, preSent.membershipId, preSent.taskId, preSent.jobId, preSent.jobLabel, preSent.done],
+  ['https://ops.example.com/api/crew/prestart', 'put', 'm1', 't_start', 'j_agler', '26-1040 Agler', { precon: true, permit: true, utilities: false }]);
+t('…and the answer comes back verbatim', [r.status, r.body.prestart.done.precon], [200, true]);
+fetchImpl = () => ({ code: 403, body: '{"error":"Only the construction bench or a site manager can tick the pre-start — ask the office."}' });
+r = sandbox.savePrestart(ME, 't_start', 'j_agler', '', {});
+t('a 403 is data with the board\'s words, never thrown', [r.status, r.reason, /construction bench/.test(r.body.error)], [403, 'board-http-403', true]);
+let badPre = '';
+try { sandbox.savePrestart(ME, '', 'j_agler', '', {}); } catch (e) { badPre = e.message; }
+t('no list id is the app\'s bug', /pre-start list id/.test(badPre), true);
+fetchImpl = () => ({ code: 200, body: JSON.stringify({ human: '', api: [], checks: written, previous: {} }) });
 
 
 // A bad date from the phone falls back to the script's own today, not to nothing.

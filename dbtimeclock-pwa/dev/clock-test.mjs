@@ -445,6 +445,31 @@ for (const [away, words] of [['far', 'Not at the shop or the office · your PM a
   await ctx.close();
 }
 
+// ---- T2.25: the job's own trade's codes next, off its Job Type ----
+{
+  const { ctx, page, errs } = await boot(`window.__MOCK_TRADE='Roofing';window.__MOCK_RECENT=${JSON.stringify([{ number: '04MA', name: 'Masonry Labor', n: 9 }])};`);
+  await until(page, () => Array.isArray(S.recentCodes));
+  await tap(page, '#clockIn', 400);
+  check('the code sheet: your codes, then the roofing codes, then All codes', [await page.locator('.codesk').allTextContents(), await page.locator('.coderow .cname').allTextContents(), await txt(page, '#allCodes')],
+    [['Your codes', 'Roofing codes'], ['Masonry Labor', 'Project Management (C)', 'Site Prep Labor', 'Final Clean', 'Demolition', 'Hauling & Disposal'], 'All codes · 10']);
+  await tap(page, '#allCodes', 300);
+  check('…All codes opens the rest, none of them twice', [await page.locator('.codesk').allTextContents(), await page.locator('.coderow').count()], [['Your codes', 'Roofing codes', 'All codes'], 10]);
+  await tap(page, '#sheetClose', 300);
+  await page.evaluate(() => { S.lang = 'es'; S.allCodes = false; });
+  await tap(page, '#clockIn', 400);
+  check('…in Spanish the trade group reads its own words', await page.locator('.codesk').allTextContents(), ['Tus códigos', 'Códigos de techado']);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  const { ctx, page, errs } = await boot(`window.__MOCK_TRADE='Construction';`);
+  await tap(page, '#clockIn', 400);
+  check('nobody\'s codes yet: the construction codes first, and a rest of two shown under them, not folded', [await page.locator('.codesk').allTextContents(), (await page.locator('.coderow .cname').allTextContents()).slice(8), await page.locator('#allCodes').count()],
+    [['Construction codes', 'All codes'], ['Hand Excavation', 'Sales On-Site Support'], 0]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 // ---- T2.18: the drive — from the shop to the job, the job back to the shop ----
 {
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;');

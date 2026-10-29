@@ -435,6 +435,15 @@ button[disabled]{cursor:default}
 .cknote.ro{display:flex;gap:10px;align-items:baseline}
 .cknote .nk{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);flex:none}
 .cknote .nt{font:400 15px/1.4 var(--sans);color:var(--mut)}
+/* Not applicable (T2.25): settled, never done — dashed and grey, the word
+   N/A in the box, the reason under the label. Never green. */
+.ckrow.na{border-top-style:dashed}
+.ckrow.na .box{border-style:dashed;color:var(--mut);font:700 10px/1 var(--mono);letter-spacing:.4px}
+.ckrow.na .lbl{color:var(--mut)}
+.ckrow .nar{display:block;margin-top:5px;font:600 11px/1.3 var(--mono);letter-spacing:.7px;text-transform:uppercase;color:var(--mut)}
+.ckna{display:flex;gap:8px;align-items:center;margin-top:8px}
+.ckna .cknote-in{flex:1;min-width:0}
+.ckna-btn{min-height:44px;padding:0 14px;border-radius:6px;border:1.5px dashed var(--line2);font:700 13px/1 var(--head);letter-spacing:.4px;text-transform:uppercase;color:var(--mut);flex:none}
 .cksign{padding:14px 16px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
 .cksign .signed{display:flex;align-items:center;gap:12px;min-height:56px;color:var(--acc)}
 .cksign .signed .st{font:800 18px/1.15 var(--head);letter-spacing:.18px;text-transform:uppercase;flex:1;min-width:0}
@@ -1031,7 +1040,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.24 (2026-10-29)';
+var APP_BUILD = 'T2.25 (2026-10-29)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1423,7 +1432,7 @@ var S = {
   clockGate:null, gateCode:null, switching:null, onBreak:null, brk:null, dlNudge:false,
   capture:'before', mode:'photo', recStart:0,
   photos:[], notes:[], sent:false,
-  checksTask:null, checksVisit:null, ckOpen:{}, ckNoteOpen:{}, checksRO:null, assignAgain:false,
+  checksTask:null, checksVisit:null, checksKind:'site', ckOpen:{}, ckNoteOpen:{}, ckNaOpen:{}, checksRO:null, assignAgain:false,
   dlJobId:null, dlDate:'', dlReview:false, lang:'en', talkHinted:false, alertFor:null, logFields:null,
   pendingJob:null, moving:false, todayChoices:[], jobPickedDay:'', booted:false,
   sun:true, writeEnabled:null, started:false, meSeen:null, queued:0, online:navigator.onLine, lastErr:null,
@@ -2288,7 +2297,7 @@ function restoreAssign(){
     if (Date.now() - c.at > ASSIGN_MAX_AGE_MS) { localStorage.removeItem(ASSIGN_KEY); return false; }
     S.assign = c.a;
     S.assignAt = c.at;
-    ckReconcile(S.assign);
+    ckReconcile(S.assign); prReconcile(S.assign);
     return true;
   } catch (e) { return false; }
 }
@@ -2310,7 +2319,7 @@ function keepFresh(a, askedAt){
   S.assignAt = askedAt || Date.now();
   S.assignStale = false;
   saveAssign();
-  ckReconcile(S.assign);
+  ckReconcile(S.assign); prReconcile(S.assign);
   seedTodayJob();
 }
 
@@ -2393,8 +2402,26 @@ function loadAssignments(){
 }
 
 /* "Today · day 2 of 3" is what a crew member actually needs off a schedule —
-   which day of the stay this is, not a date they have to subtract from. */
+   which day of the stay this is, not a date they have to subtract from.
+   T2.25: a visit that runs for weeks says its week instead ("week 2 of 4",
+   not "day 13 of 20"), and a construction stage says its name — the task is
+   the template's "Rough-in" or "Finishes" line — so the bench reads
+   "Rough-in · week 2 of 4". Five working days a week, counted from the
+   visit's own first day, the same days the board counts. */
+var LONG_VISIT_DAYS = 10;
+function visitStage(v){
+  var n = String((v && v.taskName) || '').trim();
+  if (/^rough[\s-]?in\b/i.test(n)) return L('Rough-in');
+  if (/^finishes\b/i.test(n)) return L('Finishes');
+  return '';
+}
+function visitDayWords(v){
+  if (!(v.days > 1 && v.dayOf)) return '';
+  if (v.days > LONG_VISIT_DAYS) return Lf('week {n} of {m}', { n: Math.ceil(v.dayOf / 5), m: Math.ceil(v.days / 5) });
+  return Lf('day {n} of {m}', { n: v.dayOf, m: v.days });
+}
 function visitWhen(v){
+  var stage = visitStage(v), st = stage ? ' · ' + stage : '';
   var span = v.days > 1 ? ' · ' + Lf('{n} days', { n: v.days }) : '';
   // The window starts yesterday now, for the site checks: a visit that has
   // ended says so, and is never dressed up as today's.
@@ -2404,10 +2431,10 @@ function visitWhen(v){
     var de = new Date(v.end + 'T12:00:00');
     return (isNaN(de) ? v.end : dow3(de) + ' ' + (de.getMonth()+1) + '/' + de.getDate()) + ' · ' + L('ended');
   }
-  if (v.today) return v.days > 1 && v.dayOf ? Lf('You’re here · day {n} of {m}', { n: v.dayOf, m: v.days }) : L('You’re here');
-  if (v.start === isoLocal(new Date(Date.now() + 86400000))) return L('Tomorrow') + span;
+  if (v.today) return [L('You’re here'), stage, visitDayWords(v)].filter(Boolean).join(' · ');
+  if (v.start === isoLocal(new Date(Date.now() + 86400000))) return L('Tomorrow') + st + span;
   var d = new Date(v.start + 'T12:00:00');
-  return isNaN(d) ? v.start : dow3(d) + ' ' + (d.getMonth()+1) + '/' + d.getDate() + span;
+  return (isNaN(d) ? v.start : dow3(d) + ' ' + (d.getMonth()+1) + '/' + d.getDate()) + st + span;
 }
 
 /* Why the list isn't the board's answer. Said plainly — a crew member who is
@@ -2508,11 +2535,14 @@ function visitCardHtml(v){
   h += warehousePanelHtml(v);
   // "Not started" on next Thursday's roof is true and useless: the words
   // appear once the visit has begun. The button is always there.
-  if (!v.start || v.start <= today) h += checksLineHtml(v);
+  if (!v.start || v.start <= today) h += v.prestart && !(v.checks && v.checks.taskId) ? prestartLineHtml(v) : checksLineHtml(v);
   if (v.crewNote) h += '<div class="jnote"><span class="k">' + esc(L('From the office')) + '</span>' + esc(v.crewNote) + '</div>';
   h += '<div class="jrow">' + navCellHtml(v.address) + actionCellHtml(v) + '</div>';
   if (v.checks && v.checks.taskId){
     h += '<button class="jbtn" data-checks="' + esc(v.checks.taskId) + '">' + esc(L('Site checks')) + CK_CHEV + '</button>';
+  }
+  if (v.prestart && v.prestart.taskId){
+    h += '<button class="jbtn" data-prestart="' + esc(v.prestart.taskId) + '">' + esc(L('Pre-start')) + CK_CHEV + '</button>';
   }
   return h + '</div>';
 }
@@ -2664,6 +2694,9 @@ function renderJobs(){
   [].forEach.call($('jobsList').querySelectorAll('[data-checks]'), function(b){
     b.onclick = function(){ openChecks(b.getAttribute('data-checks')); };
   });
+  [].forEach.call($('jobsList').querySelectorAll('[data-prestart]'), function(b){
+    b.onclick = function(){ openPrestart(b.getAttribute('data-prestart')); };
+  });
 }
 
 /* =========================================================
@@ -2787,15 +2820,24 @@ function ckLineByKey(key){ return ckLines().filter(function(l){ return l.key ===
 function ckBlank(){
   var d = {};
   ckLines().forEach(function(l){ d[l.key] = false; });
-  return { done: d, magnetBy: null, signedOff: null, notes: {} };
+  return { done: d, magnetBy: null, coveredBy: null, watertightWith: null, signedOff: null, notes: {}, na: {} };
 }
+/* Ticked, or marked not applicable with its reason: either settles a line
+   (counts toward its group). Only a tick is DONE. */
+function ckSettled(st, key){ return !!(st.done[key] || (st.na && st.na[key])); }
+var CK_NAMES = ['magnetBy', 'coveredBy', 'watertightWith'];
 /* Every line the board knows, plus any key it sent that this shape doesn't
    carry yet — nothing is dropped on the way back. */
 function ckNorm(st){
   var out = ckBlank(), d = (st && st.done) || {};
   for (var k in d) out.done[k] = !!d[k];
-  out.magnetBy = (st && st.magnetBy) || null;
+  CK_NAMES.forEach(function(f){ out[f] = (st && st[f]) || null; });
   out.signedOff = (st && st.signedOff) || null;
+  var na = (st && st.na) || {};
+  for (var ak in na){
+    var r = typeof na[ak] === 'string' ? na[ak].replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+    if (r) out.na[ak] = r;
+  }
   // A note per line, one clean line of text each (the board caps it too).
   var notes = (st && st.notes) || {};
   for (var nk in notes){
@@ -2870,6 +2912,8 @@ function ckNoteCommit(inp){
 function ckNoteCommitFocused(){
   var ae = document.activeElement;
   if (ae && ae.hasAttribute && ae.hasAttribute('data-note')) ckNoteCommit(ae);
+  // A name or an n/a reason being typed goes with the leaving, like a note.
+  if (ae && ae.onchange && (ae.id === 'ckWho' || (ae.hasAttribute && (ae.hasAttribute('data-val') || ae.hasAttribute('data-na'))))) ae.onchange();
 }
 function ckTouch(v, mutate){
   if (ckReadOnly() || !v || !v.checks) return;
@@ -2885,7 +2929,7 @@ function ckTouch(v, mutate){
   var sh = ckShape();
   if (sh && sh.phases.length > 1){
     var hp = sh.phases[sh.phases.length - 2].key, st = e.state;
-    if (ckLinesOf(hp).length && ckLinesOf(hp).every(function(l){ return l.value === 'signedOff' || !!st.done[l.key]; })) dlPromptFor(v.jobId, 'handover');
+    if (ckLinesOf(hp).length && ckLinesOf(hp).every(function(l){ return l.value === 'signedOff' || ckSettled(st, l.key); })) dlPromptFor(v.jobId, 'handover');
     // Ticks in the LAST group mean the site manager stayed, so the
     // handing-over prompt was premature: it stands down until sign-off
     // (Carl, 20 Sep 2026 — "why is it asking already?").
@@ -2924,11 +2968,17 @@ function ckFlush(tid, opts){
   var sentSeq = e.seq || 0;
   var payload = { done: {}, magnetBy: e.state.magnetBy || null,
                   signOff: e.signIntent != null ? e.signIntent : !!e.state.signedOff };
+  // The two names go only when the list carries their lines — left out, the
+  // board keeps what is there (T2.25).
+  ['coveredBy', 'watertightWith'].forEach(function(f){ if (ckValueLine(f)) payload[f] = e.state[f] || null; });
   for (var k in e.state.done) payload.done[k] = !!e.state.done[k];
   // Every line's note, "" for none — the whole state, like the ticks, so a
   // note wiped here comes off the line in JobTread too.
   payload.notes = {};
   ckLines().forEach(function(l){ if (l.value !== 'signedOff') payload.notes[l.key] = (e.state.notes && e.state.notes[l.key]) || ''; });
+  // …and every line's n/a, "" for none: a tick here clears an old one.
+  payload.na = {};
+  ckLines().forEach(function(l){ if (l.value == null) payload.na[l.key] = (!e.state.done[l.key] && e.state.na && e.state.na[l.key]) || ''; });
   e.inflight = true; e.err = '';
   renderCkStatus();
   return apiCall('saveSiteChecks', [tid, e.jobId, e.jobLabel, isoLocal(), payload]).then(function(r){
@@ -3007,6 +3057,7 @@ function ckRetryLater(tid){
 }
 /* On open, on reconnect, on waking: anything unsaved goes now. */
 function ckRetryPending(){
+  prRetryPending();
   var i = 0;
   for (var tid in ckStore){
     var e = ckStore[tid];
@@ -3016,8 +3067,12 @@ function ckRetryPending(){
 function ckFlushAll(){
   ckNoteCommitFocused();
   for (var tid in ckStore){ var e = ckStore[tid]; if (e && e.dirty && !e.inflight) ckFlush(tid); }
+  prFlushAll();
 }
-function ckLeave(){ ckNoteCommitFocused(); if (S.checksTask) ckFlush(S.checksTask); }
+function ckLeave(){
+  if (S.checksKind === 'prestart'){ if (S.checksTask) prFlush(S.checksTask); return; }
+  ckNoteCommitFocused(); if (S.checksTask) ckFlush(S.checksTask);
+}
 /* The words on the card are the board's sentence, never re-derived here, so
    after a save they are re-asked for. The server drops its cached copy on a
    written save; this is the fetch that picks the new one up. */
@@ -3031,12 +3086,139 @@ function ckDiag(){
   return (ckReadOnly() ? 'read-only, ' : '') + n + ' unsaved' + (bad ? ', ' + bad + ' refused' : '');
 }
 
+/* =========================================================
+   THE BENCH'S PRE-START LIST (T2.25) — construction's first checklist
+   on the phone. The board writes seven boxes on the job's Start Date
+   line when the bench is booked and sends them on every visit of that
+   job (`prestart`: taskId, state.done, lines, words). Ticks only — no
+   groups, no notes, no N/A, nothing on a line. The words are the
+   board's, drawn in its order, so a reworded line needs no build here.
+   Saved through savePrestart, the WHOLE state each time, when the list
+   is LEFT (and on the phone going away): every save with a change is a
+   job comment, so a tap-by-tap save would be seven of them. Who may
+   tick is the board's call — a bench member or a site manager — and its
+   403 is remembered here, apart from the site checks', because a bench
+   member may tick this and not those.
+   ========================================================= */
+var PR_KEY = 'dbtc_prestart', PR_RO_KEY = 'dbtc_prestart_ro', PR_IDLE_MS = 90000;
+var prStore = {};
+try { prStore = JSON.parse(localStorage.getItem(PR_KEY) || '{}') || {}; } catch(e){ prStore = {}; }
+for (var prK in prStore){ if (prStore[prK]) prStore[prK].inflight = false; }
+function prPersist(){ try { localStorage.setItem(PR_KEY, JSON.stringify(prStore)); } catch(e){} }
+var prTimers = {}, prRetries = {};
+function prVisit(tid){
+  var a = S.assign; if (!a) return null;
+  return (a.visits || []).filter(function(v){ return v.prestart && v.prestart.taskId === tid; })[0] || null;
+}
+function prLines(v){ return (v && v.prestart && v.prestart.lines) || []; }
+function prBoardDone(v){ var d = (v && v.prestart && v.prestart.state && v.prestart.state.done) || {}, out = {}; prLines(v).forEach(function(l){ out[l.key] = !!d[l.key]; }); for (var k in d) if (!(k in out)) out[k] = !!d[k]; return out; }
+function prDone(v){ var e = v && v.prestart && prStore[v.prestart.taskId]; return e && e.done ? e.done : prBoardDone(v); }
+function prRO(){
+  try { var r = JSON.parse(localStorage.getItem(PR_RO_KEY) || 'null'); if (r && r.at && Date.now() - r.at < CHECKS_RO_MEMORY_MS && (!S.me || !r.email || r.email === S.me.email)) return r; } catch(e){}
+  return null;
+}
+function prSetRO(msg){ try { localStorage.setItem(PR_RO_KEY, JSON.stringify({ at: Date.now(), msg: msg, email: (S.me && S.me.email) || '' })); } catch(e){} }
+function prCls(v){
+  var d = prDone(v), ls = prLines(v), n = ls.filter(function(l){ return d[l.key]; }).length;
+  return !ls.length || !n ? 'none' : n === ls.length ? 'green' : 'amber';
+}
+function prTouch(v, key){
+  if (prRO() || !v || !v.prestart) return;
+  var tid = v.prestart.taskId, e = prStore[tid];
+  if (!e || !e.done) e = prStore[tid] = { done: prBoardDone(v), seq: (e && e.seq) || 0, savedAt: (e && e.savedAt) || 0, jobId: v.jobId, jobLabel: jobLabelOf(v) };
+  e.done[key] = !e.done[key];
+  e.dirty = true; e.seq = (e.seq || 0) + 1; e.at = Date.now(); e.err = '';
+  prPersist();
+  // A list left open on the screen still saves, once it has gone quiet.
+  clearTimeout(prTimers[tid]); prTimers[tid] = setTimeout(function(){ delete prTimers[tid]; prFlush(tid); }, PR_IDLE_MS);
+}
+function prFlush(tid){
+  var e = prStore[tid];
+  clearTimeout(prTimers[tid]); delete prTimers[tid];
+  if (!e || !e.dirty || e.inflight || !S.me) return Promise.resolve();
+  if (!S.online){ e.err = 'offline'; prPersist(); renderCkStatus(); return Promise.resolve(); }
+  var sentSeq = e.seq || 0, done = {};
+  var v = prVisit(tid);
+  prLines(v).forEach(function(l){ done[l.key] = !!e.done[l.key]; });
+  for (var k in e.done) if (!(k in done)) done[k] = !!e.done[k];
+  e.inflight = true; e.err = ''; renderCkStatus();
+  return apiCall('savePrestart', [tid, e.jobId, e.jobLabel, done]).then(function(r){
+    e.inflight = false; r = r || {};
+    if (r.status === 200){
+      prRetries[tid] = 0;
+      var won = r.body && r.body.prestart && r.body.prestart.done;
+      if ((e.seq || 0) === sentSeq){ e.dirty = false; if (won){ e.done = {}; for (var k2 in won) e.done[k2] = !!won[k2]; } }
+      e.savedAt = Date.now(); e.at = Date.now(); prPersist();
+      if (e.dirty) prFlush(tid); else ckRefreshWords();
+      renderChecksAfterSave();
+      return;
+    }
+    if (r.status === 403){
+      prSetRO((r.body && r.body.error) || 'Only the bench or a site manager can tick the pre-start — ask the office.');
+      delete prStore[tid]; prPersist(); render(); return;
+    }
+    if (r.status === 400){ e.err = 'Not saved — the board refused it' + (r.body && r.body.error ? ' (' + r.body.error + ')' : ''); prPersist(); renderCkStatus(); return; }
+    e.err = r.status === 401 ? 'Not saved — the board rejected the app’s key. Ask the office.'
+          : r.reason === 'not-configured' ? 'Not saved — the board isn’t connected to this app yet.'
+          : r.reason === 'no-membership' ? 'Not saved — no JobTread user is linked to you.' : 'retry';
+    prPersist(); prRetryLater(tid); renderCkStatus();
+    failed('pre-start', new Error(e.err === 'retry' ? 'Not saved — will retry' : e.err), true);
+  }).catch(function(err){
+    e.inflight = false; e.err = 'retry'; prPersist();
+    if (!(err && err.auth)) prRetryLater(tid);
+    renderCkStatus(); failed('pre-start', err, true);
+  });
+}
+function prRetryLater(tid){
+  var n = prRetries[tid] || 0; prRetries[tid] = n + 1;
+  clearTimeout(prTimers[tid]); prTimers[tid] = setTimeout(function(){ delete prTimers[tid]; prFlush(tid); }, CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)]);
+}
+function prRetryPending(){ for (var tid in prStore){ var e = prStore[tid]; if (e && e.dirty && !e.inflight && !prTimers[tid]) prFlush(tid); } }
+function prFlushAll(){ for (var tid in prStore){ var e = prStore[tid]; if (e && e.dirty && !e.inflight) prFlush(tid); } }
+/* A fresh answer from the board: a clean copy of ours hands back to it. */
+function prReconcile(a){
+  if (!a || !a.visits) return;
+  var changed = false;
+  for (var tid in prStore){
+    var e = prStore[tid];
+    if (e && !e.dirty && !e.inflight && (S.assignAt || 0) >= (e.savedAt || 0)){ delete prStore[tid]; changed = true; }
+  }
+  if (changed) prPersist();
+}
+function prStatus(v){
+  var e = v && v.prestart && prStore[v.prestart.taskId];
+  if (!e) return null;
+  if (e.inflight) return { cls: '', text: L('Saving…') };
+  if (e.dirty) return e.err ? { cls: 'bad', text: L(e.err !== 'retry' && e.err !== 'offline' ? e.err : 'Not saved — will retry') } : { cls: '', text: L('Saves when you leave the list') };
+  if (e.savedAt) return { cls: 'ok', text: L('Saved'), tick: true };
+  return null;
+}
+function prestartLineHtml(v){ return '<div class="jck ' + prCls(v) + '"><span class="dot"></span>' + esc(v.prestart.words || '') + '</div>'; }
+function openPrestart(tid){
+  var v = prVisit(tid);
+  if (!v){ toast('That checklist is not on your list any more', true); return; }
+  S.checksKind = 'prestart'; S.checksTask = tid; S.checksVisit = v;
+  setTab('checks');
+  var sc = $('vChecks').querySelector('.scroll'); if (sc) sc.scrollTop = 0;
+}
+function prBodyHtml(v){
+  var d = prDone(v), ls = prLines(v), ro = !!prRO(), n = ls.filter(function(l){ return d[l.key]; }).length, all = ls.length && n === ls.length;
+  var h = '<div class="ckphase open' + (all ? ' all' : '') + '"><div class="ckph" style="cursor:default"><span class="t"><span class="l">' + esc(L('Before the bench starts')) + '</span>' +
+          '<span class="w">' + esc(L('Ticks save when you leave the list')) + '</span></span><span class="c tabular' + (all ? ' all' : '') + '">' + esc(Lf('{n} of {m}', { n: n, m: ls.length })) + '</span></div><div class="ckrows">';
+  ls.forEach(function(l){
+    h += '<div class="ckline"><button class="ckrow' + (d[l.key] ? ' on' : '') + '" data-pline="' + esc(l.key) + '"' + (ro ? ' disabled' : '') + '>' +
+         '<span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(l.label) + '</span></button></div>';
+  });
+  return h + '</div></div>';
+}
+
 /* ---- the card line, and the morning-after nudge ---- */
 function checksCls(v){
   if (!v || !v.checks) return 'none';
   var st = ckStateFor(v);
   if (st.signedOff) return 'green';
   for (var k in st.done) if (st.done[k]) return 'amber';
+  for (var k2 in (st.na || {})) return 'amber';
   return 'none';
 }
 /* The warehouse panel: where the material is sitting, in the board's words,
@@ -3165,10 +3347,10 @@ function nudgeVisits(){
 }
 function nudgeText(v){
   var who = v.cust || jobTitle({ name: v.jobName }) || ('JT #' + (v.jobNum || ''));
-  if (v.end === isoLocal(new Date(Date.now() - 86400000))) return Lf('Yesterday’s roof at {who} isn’t signed off', { who: who });
+  if (v.end === isoLocal(new Date(Date.now() - 86400000))) return Lf('Yesterday’s job at {who} isn’t signed off', { who: who });
   var d = new Date(v.end + 'T12:00:00');
   var when = isNaN(d) ? v.end : dow3(d) + ' ' + (d.getMonth()+1) + '/' + d.getDate();
-  return Lf('The roof at {who} from {when} isn’t signed off', { who: who, when: when });
+  return Lf('The job at {who} from {when} isn’t signed off', { who: who, when: when });
 }
 /* One list, most pressing first: a log to send now (you just left, or handed
    over, or signed off), yesterday's roof unsigned, yesterday's log unsent. */
@@ -3227,7 +3409,7 @@ function renderNudge(){
 function openChecks(tid){
   var v = visitForChecks(tid);
   if (!v){ toast('That checklist is not on your list any more', true); return; }
-  S.checksTask = tid; S.checksVisit = v;
+  S.checksKind = 'site'; S.checksTask = tid; S.checksVisit = v;
   S.ckOpen = ckAutoOpen(v);
   setTab('checks');
   var sc = $('vChecks').querySelector('.scroll');
@@ -3266,7 +3448,7 @@ function ckAutoOpen(v){
   if (!sh) return open;
   sh.phases.forEach(function(p){
     if (p.key === later) return;
-    var any = ckLinesOf(p.key).some(function(l){ return l.value !== 'signedOff' && !st.done[l.key]; });
+    var any = ckLinesOf(p.key).some(function(l){ return l.value !== 'signedOff' && !ckSettled(st, l.key); });
     if (any && !found){ open[p.key] = true; found = true; }
   });
   if (!found){
@@ -3280,7 +3462,7 @@ function ckOpenNextIfDone(v, key){
   var sh = ckShape(), line = ckLineByKey(key);
   if (!sh || !line) return;
   var st = ckStateFor(v);
-  var complete = function(pk){ return ckLinesOf(pk).every(function(l){ return l.value === 'signedOff' || !!st.done[l.key]; }); };
+  var complete = function(pk){ return ckLinesOf(pk).every(function(l){ return l.value === 'signedOff' || ckSettled(st, l.key); }); };
   if (!complete(line.phase)) return;
   var idx = -1, later = ckLaterPhase(v);
   sh.phases.forEach(function(p, i){ if (p.key === line.phase) idx = i; });
@@ -3305,7 +3487,7 @@ function ckStatus(v){
 }
 function renderCkStatus(){
   if (S.tab !== 'checks' || !S.checksVisit) return;
-  var st = ckStatus(S.checksVisit), el = $('ckSave');
+  var st = S.checksKind === 'prestart' ? prStatus(S.checksVisit) : ckStatus(S.checksVisit), el = $('ckSave');
   el.className = 'cksave' + (st ? ' ' + st.cls : ' hidden');
   el.innerHTML = st ? esc(st.text) + (st.tick ? CK_TICK_SM : '') : '';
 }
@@ -3313,6 +3495,7 @@ function renderChecks(){
   if (S.tab !== 'checks') return;
   var v = S.checksVisit;
   if (!v) return;
+  if (S.checksKind === 'prestart'){ renderPrestart(v); return; }
   var fresh = visitForChecks(S.checksTask);
   if (fresh) v = S.checksVisit = fresh;
   $('ckK').textContent = L('Site checks') + (v.jobNum ? ' · JT #' + v.jobNum : '');
@@ -3327,16 +3510,36 @@ function renderChecks(){
   // Never rebuild the rows under a finger typing a name — and never rebuild
   // them at all when nothing changed, so a background fetch landing between
   // a finger going down and coming up cannot swallow the tap.
-  if (document.activeElement && document.activeElement.id === 'ckWho') return;
+  var ae0 = document.activeElement;
+  if (ae0 && (ae0.id === 'ckWho' || (ae0.hasAttribute && (ae0.hasAttribute('data-val') || ae0.hasAttribute('data-na'))))) return;
   var body = $('ckBody'), html = ckBodyHtml(v);
   if (body.__ck === html) return;
   body.innerHTML = html;
   body.__ck = html;
   wireChecks();
 }
+function renderPrestart(v){
+  var fresh = prVisit(S.checksTask);
+  if (fresh) v = S.checksVisit = fresh;
+  $('ckK').textContent = L('Pre-start') + (v.jobNum ? ' · JT #' + v.jobNum : '');
+  $('ckTitle').textContent = streetOf(v.address) || v.cust || jobTitle({ name: v.jobName }) || '—';
+  var w = $('ckWords');
+  w.className = 'jck ' + prCls(v);
+  w.innerHTML = '<span class="dot"></span>' + esc(v.prestart.words || '');
+  renderCkStatus();
+  var ro = $('ckRo'), r = prRO();
+  ro.classList.toggle('hidden', !r);
+  ro.innerHTML = '<span>' + esc(r ? L(r.msg) : '') + '</span>';
+  var body = $('ckBody'), html = prBodyHtml(v);
+  if (body.__ck === html) return;
+  body.innerHTML = html; body.__ck = html;
+  [].forEach.call(body.querySelectorAll('[data-pline]'), function(b){
+    b.onclick = function(){ var cv = S.checksVisit; if (!cv) return; prTouch(cv, b.getAttribute('data-pline')); renderChecks(); };
+  });
+}
 function renderChecksAfterSave(){
   var ae = document.activeElement;
-  if (ae && (ae.id === 'ckWho' || ae.hasAttribute('data-note'))){ renderCkStatus(); return; }
+  if (ae && (ae.id === 'ckWho' || ae.hasAttribute('data-note') || ae.hasAttribute('data-val') || ae.hasAttribute('data-na'))){ renderCkStatus(); return; }
   render();
 }
 function ckBodyHtml(v){
@@ -3345,30 +3548,55 @@ function ckBodyHtml(v){
   var st = ckStateFor(v), ro = ckReadOnly(), e = ckStore[v.checks.taskId], first = firstName(), later = ckLaterPhase(v);
   return sh.phases.map(function(p){
     var lines = ckLinesOf(p.key);
-    var total = lines.length, done = lines.filter(function(l){ return !!st.done[l.key]; }).length;
+    var total = lines.length, done = lines.filter(function(l){ return ckSettled(st, l.key); }).length;
+    var nna = lines.filter(function(l){ return !st.done[l.key] && st.na && st.na[l.key]; }).length;
     var all = total > 0 && done === total, open = !!S.ckOpen[p.key];
     var held = p.key === later && !all, when = held ? lastDayWords(v) : (p.when ? sentenceCase(p.when) : '');
     var h = '<div class="ckphase' + (open ? ' open' : '') + (all ? ' all' : '') + (held ? ' later' : '') + '" data-phase="' + esc(p.key) + '">';
     h += '<button class="ckph" data-toggle="' + esc(p.key) + '"><span class="t"><span class="l">' + esc(p.label) + '</span>' +
          (when ? '<span class="w">' + esc(when) + '</span>' : '') + '</span>' +
-         '<span class="c tabular' + (all ? ' all' : '') + '">' + esc(Lf('{n} of {m}', { n: done, m: total })) + '</span>' + CK_CHEV + '</button>';
+         '<span class="c tabular' + (all ? ' all' : '') + '">' + esc(Lf('{n} of {m}', { n: done, m: total }) + (nna ? ' · ' + Lf('{n} n/a', { n: nna }) : '')) + '</span>' + CK_CHEV + '</button>';
     h += '<div class="ckrows">';
     lines.forEach(function(l){
       if (l.value === 'signedOff') return;   // the signature is a button, below, not a box
       var on = !!st.done[l.key], note = (st.notes && st.notes[l.key]) || '', nopen = !!S.ckNoteOpen[l.key];
+      var na = !on && st.na && st.na[l.key] ? st.na[l.key] : '', naOpen = !!S.ckNaOpen[l.key];
       // The margin of the paper sheet: a pen at the row's end opens a
       // one-line note under it, lit once a note is there. A note is written
       // onto the line in JobTread and read back by the board and the PM's
       // feed when the group finishes (Carl, 20 Sep 2026).
       h += '<div class="ckline' + (ro ? '' : ' pen') + '">' +
-           '<button class="ckrow' + (on ? ' on' : '') + '" data-line="' + esc(l.key) + '"' + (ro ? ' disabled' : '') + '>' +
-           '<span class="box">' + CK_TICK + '</span><span class="lbl">' + esc(l.label) + '</span></button>' +
-           (ro ? '' : '<button class="cknote-pen' + (note ? ' has' : '') + '" data-note-add="' + esc(l.key) + '" aria-label="' + esc(L('Note on this line')) + '">' + CK_PEN + '</button>') +
+           '<button class="ckrow' + (on ? ' on' : '') + (na ? ' na' : '') + '" data-line="' + esc(l.key) + '"' + (ro ? ' disabled' : '') + '>' +
+           '<span class="box">' + (na ? 'N/A' : CK_TICK) + '</span><span class="lbl">' + esc(l.label) +
+           (na ? '<span class="nar">' + esc(L('Not applicable') + ' · ' + na) + '</span>' : '') + '</span></button>' +
+           (ro ? '' : '<button class="cknote-pen' + (note || na ? ' has' : '') + '" data-note-add="' + esc(l.key) + '" aria-label="' + esc(L('Note on this line')) + '">' + CK_PEN + '</button>') +
            '</div>';
-      if (!ro && (note || nopen)){
-        h += '<div class="cknote"><input class="cknote-in" data-note="' + esc(l.key) + '" placeholder="' + esc(L('Your note on this line')) + '" autocomplete="off" maxlength="140" value="' + esc(note) + '"></div>';
-      } else if (ro && note){
-        h += '<div class="cknote ro"><span class="nk">' + esc(L('Note')) + '</span><span class="nt">' + esc(note) + '</span></div>';
+      // The pen's box: the note, and "doesn't apply" with the reason the SOP
+      // asks for — an n/a with no reason is never saved (T2.25).
+      if (!ro && (note || nopen || na || naOpen)){
+        h += '<div class="cknote"><input class="cknote-in" data-note="' + esc(l.key) + '" placeholder="' + esc(L('Your note on this line')) + '" autocomplete="off" maxlength="140" value="' + esc(note) + '">';
+        if (l.value == null && (na || naOpen)){
+          h += '<div class="ckna"><input class="cknote-in" data-na="' + esc(l.key) + '" placeholder="' + esc(L('Why doesn’t it apply here?')) + '" autocomplete="off" maxlength="80" value="' + esc(na) + '">' +
+               '<button class="ckna-btn" data-na-clear="' + esc(l.key) + '">' + esc(L('It applies')) + '</button></div>';
+        } else if (l.value == null){
+          h += '<div class="ckna"><button class="ckna-btn" data-na-open="' + esc(l.key) + '">' + esc(L('Doesn’t apply here')) + '</button></div>';
+        }
+        h += '</div>';
+      } else if (ro && (note || na)){
+        if (note) h += '<div class="cknote ro"><span class="nk">' + esc(L('Note')) + '</span><span class="nt">' + esc(note) + '</span></div>';
+      }
+      if (l.value === 'coveredBy' || l.value === 'watertightWith'){
+        // The two names the SOP asks for (T2.25): who took the site over and
+        // when you are back; the crew leader who walked it watertight with you.
+        var cv = st[l.value] || '', lead = l.value === 'watertightWith' && v.checks && v.checks.crewLead;
+        h += '<div class="ckwho"><input class="ckval" data-val="' + esc(l.value) + '" data-key="' + esc(l.key) + '" placeholder="' +
+             esc(L(l.value === 'coveredBy' ? 'who, and when you’re back' : 'which crew leader?')) + '" autocomplete="off" maxlength="60" value="' + esc(cv) + '"' + (ro ? ' disabled' : '') + '>' +
+             (!ro && lead && lead !== cv ? '<button class="chipbtn" data-val-pick="' + esc(l.value) + '" data-key="' + esc(l.key) + '" data-name="' + esc(lead) + '">' + esc(String(lead).split(/\s+/)[0]) + '</button>' : '') + '</div>';
+      } else if (l.value && l.value !== 'magnetBy' && l.value !== 'signedOff'){
+        // A name this build does not know: the board's text, read-only after
+        // the line, never hidden behind a bare tick.
+        var raw = v.checks && v.checks.state && v.checks.state[l.value];
+        if (raw) h += '<div class="cknote ro"><span class="nt">' + esc(String(raw)) + '</span></div>';
       }
       if (l.value === 'magnetBy'){
         // The paper's "Who" is a real question, so the name is never prefilled.
@@ -3415,8 +3643,66 @@ function wireChecks(){
       var v = cur();
       if (ckReadOnly() || !v) return;
       var k = b.getAttribute('data-line');
-      ckTouch(v, function(st){ st.done[k] = !st.done[k]; });
+      ckTouch(v, function(st){ st.done[k] = !st.done[k]; if (st.done[k] && st.na) delete st.na[k]; });
+      if (S.ckNaOpen[k]) delete S.ckNaOpen[k];
       ckOpenNextIfDone(v, k);
+      renderChecks();
+    };
+  });
+  // Doesn't apply here: the reason box, focused; nothing is n/a until a
+  // reason is in it and the box is left.
+  [].forEach.call(body.querySelectorAll('[data-na-open]'), function(b){
+    b.onclick = function(){
+      var k = b.getAttribute('data-na-open');
+      S.ckNaOpen[k] = true; renderChecks();
+      var inp = body.querySelector('[data-na="' + k + '"]'); if (inp) inp.focus();
+    };
+  });
+  [].forEach.call(body.querySelectorAll('[data-na-clear]'), function(b){
+    b.onclick = function(){
+      var v = cur(), k = b.getAttribute('data-na-clear'); if (!v) return;
+      delete S.ckNaOpen[k];
+      if ((ckStateFor(v).na || {})[k]) ckTouch(v, function(st){ if (st.na) delete st.na[k]; });
+      renderChecks();
+    };
+  });
+  [].forEach.call(body.querySelectorAll('[data-na]'), function(inp){
+    var commit = function(){
+      var v = cur(); if (!v) return;
+      var k = inp.getAttribute('data-na'), t = String(inp.value || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      var had = (ckStateFor(v).na || {})[k] || '';
+      if (t === had) return;
+      ckTouch(v, function(st){ st.na = st.na || {}; if (t){ st.na[k] = t; st.done[k] = false; } else delete st.na[k]; });
+      if (t) ckOpenNextIfDone(v, k);
+      renderChecksAfterSave();
+    };
+    inp.onchange = commit;
+    inp.onkeydown = function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); commit(); inp.blur(); renderChecks(); } };
+  });
+  [].forEach.call(body.querySelectorAll('[data-val]'), function(inp){
+    // A name is committed when the box is LEFT (blur, Enter, the phone going
+    // away), never per keystroke: every save is a message on the task, and a
+    // pause mid-name must not post "covered by: Ken" (the T1.21 rule).
+    var commit = function(){
+      var v = cur(); if (!v) return;
+      var f = inp.getAttribute('data-val'), k = inp.getAttribute('data-key'), t = String(inp.value || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (t === (ckStateFor(v)[f] || '')) return;
+      // A name says it was done, so the line ticks with it.
+      ckTouch(v, function(st){ st[f] = t || null; if (t && k){ st.done[k] = true; if (st.na) delete st.na[k]; } });
+      renderCkStatus();
+    };
+    inp.onchange = commit;
+    inp.onkeydown = function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); commit(); inp.blur(); } };
+    // The row's tick catches up once the box is left — later than the blur,
+    // so a tap that took the focus away still lands on what it was aimed at.
+    inp.onblur = function(){ setTimeout(renderChecks, 350); };
+  });
+  [].forEach.call(body.querySelectorAll('[data-val-pick]'), function(b){
+    b.onclick = function(){
+      var v = cur(); if (!v) return;
+      var f = b.getAttribute('data-val-pick'), k = b.getAttribute('data-key'), name = b.getAttribute('data-name');
+      ckTouch(v, function(st){ st[f] = name; if (k){ st.done[k] = true; if (st.na) delete st.na[k]; } });
+      if (k) ckOpenNextIfDone(v, k);
       renderChecks();
     };
   });
@@ -3439,11 +3725,15 @@ function wireChecks(){
   });
   var who = $('ckWho');
   if (who){
-    who.oninput = function(){
+    // Committed when the box is left, like the other names (T2.25).
+    who.onchange = function(){
       var v = cur(); if (!v) return;
-      ckTouch(v, function(st){ st.magnetBy = who.value.trim() || null; });
+      var t = who.value.trim();
+      if (t === (ckStateFor(v).magnetBy || '')) return;
+      ckTouch(v, function(st){ st.magnetBy = t || null; });
       renderCkStatus();
     };
+    who.onkeydown = function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); who.onchange(); who.blur(); } };
   }
   var me = $('ckWhoMe');
   if (me){
@@ -3466,7 +3756,7 @@ function wireChecks(){
 function signoffHtml(){
   var v = S.checksVisit; if (!v) return '';
   var st = ckStateFor(v);
-  var missing = ckLines().filter(function(l){ return l.value !== 'signedOff' && !st.done[l.key]; });
+  var missing = ckLines().filter(function(l){ return l.value !== 'signedOff' && !ckSettled(st, l.key); });
   var h = '<div class="sheetpad">' +
     '<div class="promptbox' + (missing.length ? ' warn' : '') + '">' + CK_PEN +
       '<span style="flex:1;min-width:0"><span class="pe" style="display:block">' + esc(L('Sign off')) + (v.jobNum ? ' · JT #' + esc(v.jobNum) : '') + '</span>' +
@@ -3608,13 +3898,27 @@ function codesHtml(){
       '<span class="cmeta">' + (running ? esc(L('Running')) : (banked ? hm(banked) : '')) + '</span></button>';
   };
   // Your codes first (T2.23): every job carries the same thirty clock-in
-  // lines, and a crew member uses two or three of them. The rest are one
-  // tap away. A short list, or nobody's codes yet, is shown whole.
-  var mine = yourCodes(list), rest = list.filter(function(c){ return mine.indexOf(c) === -1; });
-  if (!mine.length || rest.length <= 3) return list.map(row).join('');
-  var h = '<div class="codesk">' + esc(L('Your codes')) + '</div>' + mine.map(row).join('');
-  if (!S.allCodes) return h + '<div class="sheetpad" style="padding-top:12px"><button class="btn btn-out" id="allCodes">' + esc(L('All codes')) + ' · ' + list.length + '</button></div>';
+  // lines, and a crew member uses two or three of them. Then the codes of the
+  // job's own trade (T2.25: the API marks them off the Job Type — a roof's
+  // tear-off and cleanup, a construction job's framing and drywall), then the
+  // rest one tap away. A short list, or nothing to put first, is shown whole.
+  var mine = yourCodes(list);
+  var trade = list.filter(function(c){ return c.trade && mine.indexOf(c) === -1; });
+  var rest = list.filter(function(c){ return mine.indexOf(c) === -1 && trade.indexOf(c) === -1; });
+  if (!mine.length && !trade.length) return list.map(row).join('');
+  if (!trade.length && rest.length <= 3) return list.map(row).join('');
+  var h = '';
+  if (mine.length) h += '<div class="codesk">' + esc(L('Your codes')) + '</div>' + mine.map(row).join('');
+  if (trade.length) h += '<div class="codesk">' + esc(tradeCodesWord(trade[0].trade)) + '</div>' + trade.map(row).join('');
+  if (!rest.length) return h;
+  if (!S.allCodes && rest.length > 3) return h + '<div class="sheetpad" style="padding-top:12px"><button class="btn btn-out" id="allCodes">' + esc(L('All codes')) + ' · ' + list.length + '</button></div>';
   return h + '<div class="codesk">' + esc(L('All codes')) + '</div>' + rest.map(row).join('');
+}
+// The trade group's heading: the Job Type the API read, in the crew's words.
+function tradeCodesWord(t){
+  return t === 'Roofing' ? L('Roofing codes')
+       : t === 'Construction' ? L('Construction codes')
+       : Lf('{trade} codes', { trade: t });
 }
 function yourCodes(list){
   var out = [], name = function(x){ return String(x || '').trim().toLowerCase(); };
@@ -4679,7 +4983,7 @@ function rollMissing(v){
     rollDailyLines().forEach(function(l){ if (!d[l.key]) out.push({ kind: 'daily', key: l.key, label: l.label }); });
   } else if (v.checks && v.checks.taskId && ckShape()){
     var st = ckStateFor(v);
-    ckLinesOf(ROLL_PHASE).forEach(function(l){ if (!st.done[l.key]) out.push({ kind: 'line', key: l.key, label: l.label }); });
+    ckLinesOf(ROLL_PHASE).forEach(function(l){ if (!ckSettled(st, l.key)) out.push({ kind: 'line', key: l.key, label: l.label }); });
   }
   if (v.warehouse && !v.warehouse.loaded) out.push({ kind: 'loaded', label: 'Material loaded for the crew' });
   return out;
@@ -4717,7 +5021,7 @@ function rollListHtml(only){
 }
 function rollHtml(){
   var left = rollOwed().reduce(function(n, x){ return n + x.miss.length; }, 0);
-  return '<div class="sheetpad" style="gap:10px"><div class="body">' + esc(L('Today’s roofs, before the truck leaves the shop. The drive starts once these are done.')) + '</div>' + rollListHtml() +
+  return '<div class="sheetpad" style="gap:10px"><div class="body">' + esc(L('Today’s jobs, before the truck leaves the shop. The drive starts once these are done.')) + '</div>' + rollListHtml() +
     '<button class="btn btn-go" id="rollGo" style="min-height:76px;margin-top:6px"' + (left ? ' disabled' : '') + '>' + esc(left ? Lf('{n} left to check', { n: left }) : L('All done · start the drive')) + '</button>' +
     '<button class="btn btn-out" id="rollLeft" style="min-height:52px;font-size:13px;color:var(--mut);border-color:var(--line)">' + esc(L('Already left the shop? Say when')) + '</button></div>';
 }
@@ -5355,6 +5659,7 @@ esAdd({
   'Loading this job’s code list…': 'Cargando los códigos de este trabajo…',
   'Nothing to clock into on this job. Ask the office to add the CLOCK IN ITEMS group to its budget.': 'No hay nada para marcar en este trabajo. Pide a la oficina que agregue el grupo CLOCK IN ITEMS a su presupuesto.',
   'Running': 'Corriendo', 'Your codes': 'Tus códigos', 'All codes': 'Todos los códigos',
+  'Roofing codes': 'Códigos de techado', 'Construction codes': 'Códigos de construcción', '{trade} codes': 'Códigos de {trade}',
   'Search jobs by name, number or customer': 'Buscar trabajos por nombre, número o cliente',
   'Loading your recent jobs…': 'Cargando tus trabajos recientes…', 'Search for the job you are on.': 'Busca el trabajo en el que estás.',
   'Searching JobTread for more…': 'Buscando más en JobTread…', 'Searching JobTread…': 'Buscando en JobTread…',
@@ -5398,7 +5703,7 @@ esAdd({
   'Tarps checked and loaded — four sound 20×40s with tie-downs': 'Lonas revisadas y cargadas — cuatro de 20×40 en buen estado con amarres',
   'Tarps checked and loaded — four sound 20×40s with tie-downs, a torn one swapped out': 'Lonas revisadas y cargadas — cuatro de 20×40 en buen estado con amarres, cambiar la que esté rota',
   'Dry-in supplies loaded for the planned section': 'Material para secar (dry-in) cargado para la sección planeada',
-  'Today’s roofs, before the truck leaves the shop. The drive starts once these are done.': 'Los techos de hoy, antes de que la troca salga del taller. El viaje empieza cuando esto esté listo.',
+  'Today’s jobs, before the truck leaves the shop. The drive starts once these are done.': 'Los trabajos de hoy, antes de que la troca salga del taller. El viaje empieza cuando esto esté listo.',
   '{n} left to check': 'faltan {n} por revisar', 'All done · start the drive': 'Todo listo · empezar el viaje', 'Already left the shop? Say when': '¿Ya saliste del taller? Di a qué hora',
   '{job} rolled out without the shop checks done:': '{job} salió sin las revisiones del taller:',
   'Clock in · the PM and the Ops Director are told': 'Marcar entrada · se le avisa al PM y al Director de Operaciones',
@@ -5441,7 +5746,8 @@ esAdd({
 });
 /* My jobs, the warehouse panel, the nudges and the checks screen. */
 esAdd({
-  '{n} days': '{n} días', 'Yesterday': 'Ayer', 'ended': 'terminó', 'You’re here · day {n} of {m}': 'Estás aquí · día {n} de {m}', 'You’re here': 'Estás aquí',
+  '{n} days': '{n} días', 'Yesterday': 'Ayer', 'ended': 'terminó', 'You’re here': 'Estás aquí',
+  'day {n} of {m}': 'día {n} de {m}', 'week {n} of {m}': 'semana {n} de {m}', 'Rough-in': 'Obra negra', 'Finishes': 'Acabados',
   'Tomorrow': 'Mañana', 'Today': 'Hoy', 'Recent': 'Reciente',
   'Could not reach the board just now — this is the schedule as of {t}.': 'No se pudo conectar al tablero ahorita — este es el horario de las {t}.',
   'No crew is linked to your account yet — ask the office. Showing jobs you have recently clocked into.': 'Todavía no hay cuadrilla ligada a tu cuenta — pregunta a la oficina. Mostrando trabajos donde marcaste entrada hace poco.',
@@ -5468,7 +5774,7 @@ esAdd({
   'No, keep it': 'No, dejarlo', 'Still loaded': 'Sigue cargado', 'Yes, undo it': 'Sí, deshacerlo', 'Not loaded after all': 'Al final no se cargó',
   'Mark loaded for the crew': 'Marcar cargado para la cuadrilla', 'Tap to undo': 'Toca para deshacer', 'Tap when it\u2019s on the truck': 'Toca cuando esté en la troca',
   'No checklist on this job yet': 'Todavía no hay lista en este trabajo',
-  'Yesterday’s roof at {who} isn’t signed off': 'El techo de ayer en {who} no está firmado', 'The roof at {who} from {when} isn’t signed off': 'El techo en {who} del {when} no está firmado',
+  'Yesterday’s job at {who} isn’t signed off': 'El trabajo de ayer en {who} no está firmado', 'The job at {who} from {when} isn’t signed off': 'El trabajo en {who} del {when} no está firmado',
   'You’ve handed over — send today’s log for {who} before you go?': 'Ya entregaste — ¿mandas el registro de hoy de {who} antes de irte?',
   'Signed off — send today’s log for {who}?': 'Firmado — ¿mandas el registro de hoy de {who}?', 'Send today’s log for {who}?': '¿Mandas el registro de hoy de {who}?',
   'Yesterday’s log for {who} wasn’t sent': 'El registro de ayer de {who} no se mandó', 'Day log': 'Registro',
@@ -5488,6 +5794,17 @@ esAdd({
   'Not saved — the board rejected the app’s key. Ask the office.': 'Sin guardar — el tablero rechazó la llave de la app. Pregunta a la oficina.',
   'Not saved — the board isn’t connected to this app yet.': 'Sin guardar — el tablero todavía no está conectado a esta app.',
   'Not saved — no JobTread user is linked to you.': 'Sin guardar — no hay usuario de JobTread ligado a ti.'
+});
+/* The pre-start list (T2.25). */
+esAdd({
+  'Pre-start': 'Antes de empezar', 'Before the bench starts': 'Antes de que empiece la cuadrilla',
+  'Ticks save when you leave the list': 'Las marcas se guardan al salir de la lista', 'Saves when you leave the list': 'Se guarda al salir de la lista',
+  'Only the bench or a site manager can tick the pre-start — ask the office.': 'Solo la cuadrilla o un encargado puede marcar el antes de empezar — pregunta a la oficina.'
+});
+/* Not applicable and the two names (T2.25). */
+esAdd({
+  'Not applicable': 'No aplica', '{n} n/a': '{n} no aplica', 'Why doesn’t it apply here?': '¿Por qué no aplica aquí?', 'It applies': 'Sí aplica',
+  'Doesn’t apply here': 'No aplica aquí', 'who, and when you’re back': 'quién, y cuándo regresas', 'which crew leader?': '¿qué jefe de cuadrilla?'
 });
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -6628,6 +6945,43 @@ var CO_CLEAN = [
   { key: '22PdEQhB6rSU', n: 'C4', es: 'Sin daños — siding, ventanas, AC, plantas', en: 'No damage — siding, windows, AC, plants' },
   { key: '22PdEQhB6rSV', n: 'C5', es: 'Listo para que lo vea el cliente', en: 'Ready for the homeowner to view' }
 ];
+/* The form, as data (T2.25). The roof's checklist above is the phone's own
+   copy; DB CheckOut serves its form on the job detail (`forms`, and
+   `jobForm` naming the one this job uses), and the served one wins — so an
+   item reworded, added, or a whole new form (a construction walk-through)
+   needs no build here. A form is sections, each a list of items answered
+   OK · N/A · Fix with one note; the send carries the answers by section.
+   The last copy served is kept, so a phone with no signal still draws it. */
+var CO_FORM_ROOF = { key: 'roof', sections: [
+  { key: 'inspection', label: { es: 'Inspección', en: 'Inspection' }, items: CO_INSPECT },
+  { key: 'cleanup', label: { es: 'Limpieza', en: 'Cleanup' }, items: CO_CLEAN }
+] };
+var CO_FORMS_KEY = 'dbtc_co_forms', coFormsSeen = {};
+try { coFormsSeen = JSON.parse(localStorage.getItem(CO_FORMS_KEY) || '{}') || {}; } catch(e){ coFormsSeen = {}; }
+function coFormOk(f){
+  return !!(f && f.sections && f.sections.length && f.sections.every(function(sec){
+    return sec && sec.key && sec.label && sec.items && sec.items.length && sec.items.every(function(i){ return i && i.key && i.n && (i.es || i.en); });
+  }));
+}
+function coAdoptForms(forms){
+  var changed = false;
+  for (var k in (forms || {})) if (coFormOk(forms[k]) && JSON.stringify(coFormsSeen[k]) !== JSON.stringify(forms[k])){ coFormsSeen[k] = forms[k]; changed = true; }
+  if (changed) try { localStorage.setItem(CO_FORMS_KEY, JSON.stringify(coFormsSeen)); } catch(e){}
+}
+function coForm(jobId){
+  var id = jobId || CO.jobId, j = CO.job && CO.job.id === id ? CO.job : coJobById(id), k = (j && j.jobForm) || 'roof';
+  if (j && j.forms && coFormOk(j.forms[k])) return j.forms[k];
+  if (coFormOk(coFormsSeen[k])) return coFormsSeen[k];
+  return CO_FORM_ROOF;
+}
+function coSecs(jobId){ return coForm(jobId).sections; }
+function coSecLabel(sec){ return S.lang === 'es' ? (sec.label.es || sec.label.en) : (sec.label.en || sec.label.es); }
+function coSecLabel2(sec){ return S.lang === 'es' ? (sec.label.en || '') : (sec.label.es || ''); }
+/* The screen a section opens on — the roof's two keep the names they had. */
+function coSecScreen(sec){ return sec.key === 'inspection' ? 'inspect' : sec.key === 'cleanup' ? 'cleanup' : 'sec:' + sec.key; }
+function coSecOfScreen(sc, jobId){ return coSecs(jobId).filter(function(x){ return coSecScreen(x) === sc; })[0] || null; }
+function coFormDone(v, jobId){ return coSecs(jobId).reduce(function(n, x){ return n + coCount(v, x.items, x.key); }, 0); }
+function coFormTotal(jobId){ return coSecs(jobId).reduce(function(n, x){ return n + x.items.length; }, 0); }
 var CO_ANS = { OK: 'OK', NA: 'N/A', FIX: 'ACTION' };
 var CO_STATUS = { fi: 'Final Inspection', pl: 'Punch List', pr: 'PM Review' };
 /* Every word on these screens, both languages. The first is what shows
@@ -6724,14 +7078,20 @@ function coVisit(jobId){
   return v;
 }
 function coCount(v, items, which){ var a = v.answers[which] || {}; return items.filter(function(i){ return !!a[i.key]; }).length; }
-function coFixes(v){ var a = v.answers.inspection || {}, c = v.answers.cleanup || {}; return CO_INSPECT.filter(function(i){ return a[i.key] === CO_ANS.FIX; }).concat(CO_CLEAN.filter(function(i){ return c[i.key] === CO_ANS.FIX; })); }
-function coItemByKey(k){ return CO_INSPECT.concat(CO_CLEAN).filter(function(i){ return i.key === k; })[0] || null; }
+function coFixes(v, sec){
+  var out = [];
+  (sec ? [sec] : coSecs()).forEach(function(x){ var a = v.answers[x.key] || {}; x.items.forEach(function(i){ if (a[i.key] === CO_ANS.FIX) out.push(i); }); });
+  return out;
+}
+function coItemByKey(k){
+  var all = []; coSecs().forEach(function(x){ all = all.concat(x.items); });
+  return all.filter(function(i){ return i.key === k; })[0] || CO_INSPECT.concat(CO_CLEAN).filter(function(i){ return i.key === k; })[0] || null;
+}
 /* What is still missing before the one send: a complete list on each side,
    and a report for every line marked Falla. */
 function coMissing(v){
   var m = [];
-  if (coCount(v, CO_INSPECT, 'inspection') < CO_INSPECT.length) m.push(co('inspection').toLowerCase() + ' (' + (CO_INSPECT.length - coCount(v, CO_INSPECT, 'inspection')) + ')');
-  if (coCount(v, CO_CLEAN, 'cleanup') < CO_CLEAN.length) m.push(co('cleanup').toLowerCase() + ' (' + (CO_CLEAN.length - coCount(v, CO_CLEAN, 'cleanup')) + ')');
+  coSecs().forEach(function(x){ var left = x.items.length - coCount(v, x.items, x.key); if (left > 0) m.push(coSecLabel(x).toLowerCase() + ' (' + left + ')'); });
   var unreported = coFixes(v).filter(function(i){ return !v.reports.some(function(r){ return r.itemKey === i.key && r.saved; }); });
   if (unreported.length) m.push(co('fixK').split(' ·')[0].toLowerCase() + ' ' + unreported.map(function(i){ return i.n; }).join(', '));
   return m;
@@ -6746,9 +7106,10 @@ function coBlockers(jobId, v){
   var out = [], close = (CO.outbox || []).filter(function(it){ return it.jobId === jobId && it.kind === 'close'; })[0];
   if (close && close.status === 'rejected') out.push({ go: 'send', t: co('whyRefused'), s: close.err || co('whyRefusedSub') });
   else if (close || v.sending) out.push({ go: 'send', t: co('whyGoing'), s: co('whyGoingSub') });
-  var ins = CO_INSPECT.length - coCount(v, CO_INSPECT, 'inspection'), cln = CO_CLEAN.length - coCount(v, CO_CLEAN, 'cleanup');
-  if (ins > 0) out.push({ go: 'inspect', t: co('inspection') + ' · ' + ins + ' ' + co('whyLeft'), s: co('whyAnswer') });
-  if (cln > 0) out.push({ go: 'cleanup', t: co('cleanup') + ' · ' + cln + ' ' + co('whyLeft'), s: co('whyAnswer') });
+  coSecs(jobId).forEach(function(x){
+    var left = x.items.length - coCount(v, x.items, x.key);
+    if (left > 0) out.push({ go: coSecScreen(x), t: coSecLabel(x) + ' · ' + left + ' ' + co('whyLeft'), s: co('whyAnswer') });
+  });
   coFixes(v).filter(function(i){ return !v.reports.some(function(r){ return r.itemKey === i.key && r.saved; }); }).forEach(function(i){
     out.push({ report: i.key, t: co('whyFix') + ' ' + i.n, s: coLabel(i) });
   });
@@ -6908,6 +7269,7 @@ function coLoadJob(jobId){
     if (r.status === 200 && r.body && r.body.id){
       r.body._at = Date.now();
       CO.job = r.body; CO.jobAt = r.body._at;
+      coAdoptForms(r.body.forms);
       try { localStorage.setItem('dbtc_co_job_' + jobId, JSON.stringify(CO.job)); } catch(e){}
       // The punch to-dos arrive in English; Spanish on screen means asking once.
       if (S.lang === 'es') coTranslateTasks(CO.job);
@@ -7410,8 +7772,10 @@ function coSendVisit(jobId){
   v.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, photoId: p.id, label: co('visitPhotos'), payload: coPayload({ label: 'INSPECTION' }, p) }); });
   var findings = roof.filter(function(r){ return r.itemKey; }).map(function(r){ return { itemKey: r.itemKey, fixedOnSite: !!r.fixed, location: r.locationWords || '', note: (r.noteEn || r.note || '').trim(), photos: (r.photos || []).length }; });
   var problems = roof.filter(function(r){ return !r.fixed; }).length;
-  items.push({ id: ref, kind: 'close', jobId: jobId, label: co('inspection') + ' + ' + co('cleanup'),
-               payload: { answers: { inspection: v.answers.inspection, cleanup: v.answers.cleanup }, notes: { inspection: v.notes.inspection || undefined, cleanup: v.notes.cleanup || undefined }, findings: findings, problemsReported: problems } });
+  var form = coForm(jobId), answers = {}, notes = {};
+  form.sections.forEach(function(x){ answers[x.key] = v.answers[x.key] || {}; notes[x.key] = (v.notes && v.notes[x.key]) || undefined; });
+  items.push({ id: ref, kind: 'close', jobId: jobId, label: form.sections.map(coSecLabel).join(' + '),
+               payload: { form: form.key, answers: answers, notes: notes, findings: findings, problemsReported: problems } });
   v.sending = true; v.sendingAt = Date.now(); coPersist();
   coEnqueue(items).then(function(){ coGo('send'); });
 }
@@ -7455,7 +7819,7 @@ function coBadge(j){
   return '<span class="badge nav">' + esc(S.lang === 'es' ? 'Inspección final' : 'Final inspection') + '</span>';
 }
 function coQueueCard(j){
-  var v = coStore.visits[j.id], k = coKindOf(j), today = v && !v.sentAt && (coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup')) > 0;
+  var v = coStore.visits[j.id], k = coKindOf(j), today = v && !v.sentAt && coFormDone(v, j.id) > 0;
   var who = j.mine ? '<span class="badge go">' + esc(co('forYou')) + '</span>' : (k === 'inspect' && !j.mine && isOpsAccount() ? '<span class="badge">' + esc(co('nobodyYet')) + '</span>' : '');
   var h = '<div class="jcard' + (today ? ' today' : '') + '">';
   // The card reads number first (T2.7, Carl 7 Oct 2026): the JobTread number
@@ -7476,11 +7840,11 @@ function coQueueCard(j){
     if (k === 'repairs' && j.mine && canTab('job')){ var here = S.open && S.job && S.job.id === j.id && !onTravel();   // driving here is not started yet (T2.22)
       act = '<button class="jact warn" data-costart="' + esc(j.id) + '"><span class="a1">' + esc(here ? co('cont') : co('start')) + '</span><span class="a2">' + esc(nRep) + '</span></button>'; }
     else if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + esc(nRep) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
-    else { var done = v ? coCount(v, CO_INSPECT, 'inspection') + coCount(v, CO_CLEAN, 'cleanup') : 0;
+    else { var done = v ? coFormDone(v, j.id) : 0;
       // Start / Continue also puts the clock on this job (coStartJob, T2.4).
       // "n of 13" counts the roof checklist; a job here for one work area's
       // inspection ahead of the rest (still in production) says only Start.
-      var tally = j.status === CO_STATUS.fi ? ' · ' + done + ' ' + esc(co('of')) + ' ' + (CO_INSPECT.length + CO_CLEAN.length) : '';
+      var tally = j.status === CO_STATUS.fi ? ' · ' + done + ' ' + esc(co('of')) + ' ' + coFormTotal(j.id) : '';
       act = '<button class="jact ok" data-costart="' + esc(j.id) + '"><span class="a1">' + esc(done ? co('cont') : co('start')) + '</span><span class="a2">' + esc(done ? co2('cont') : co2('start')) + tally + '</span></button>'; }
     h += '<div class="jrow">' + navCellHtml(j.address).replace('Directions', esc(co('directions'))) + act + '</div>';
   }
@@ -7604,15 +7968,15 @@ function coTile(key, es, en, cnt, cls){
 function coJobHtml(){
   var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), h = '';
   if (!j) return '<div class="jempty">' + esc(CO.jobLoading ? co('loading') : (CO.jobErr || co('loading'))) + '</div>';
-  var k = coKindOf(j), ins = coCount(v, CO_INSPECT, 'inspection'), cln = coCount(v, CO_CLEAN, 'cleanup');
+  var k = coKindOf(j), secs = coSecs(j.id), formDone = coFormDone(v, j.id);
   if (j.address) h += '<div class="jcard" style="margin-top:0"><a class="jnav" style="border-top:0" href="' + esc('https://maps.google.com/?q=' + encodeURIComponent(j.address)) + '" target="_blank" rel="noopener">' + ico('nav', 22) + esc(co('directions')) + ' · ' + esc(j.address) + '</a></div>';
-  var roofReps = coRoofReports(v), started = ins + cln > 0, areas = coAreas(j), multi = coMultiArea(j), line = coLineArea(j);
+  var roofReps = coRoofReports(v), started = formDone > 0, areas = coAreas(j), multi = coMultiArea(j), line = coLineArea(j);
   // With work areas the roof checklist is the line roof's, offered while it
   // is booked and not yet inspected; a job without them reads as it always did.
   var roofOpen = areas.length ? coRoofOpen(j, v) : k === 'inspect';
   if (CO.receipt && CO.receipt.jobId === j.id){
     h += coReceiptHtml(CO.receipt, j);
-  } else if (roofOpen && v.sentAt && !v.sending && !(ins + cln + roofReps.length + v.photos.length)){
+  } else if (roofOpen && v.sentAt && !v.sending && !(formDone + roofReps.length + v.photos.length)){
     // "Anything below starts a new visit" is only true with the checklist below.
     h += '<div class="rvcard" style="margin-top:0"><div class="rvstory"><span class="rk">' + esc(co('sent')) + ' · ' + esc(clockLabel(v.sentAt)) + '</span><span class="rt">' + esc(co('sentSub')) + '</span></div></div>';
   }
@@ -7638,8 +8002,8 @@ function coJobHtml(){
   if (roofOpen || started){
     if (multi && line) h += '<div class="k" style="margin-top:14px">' + esc(coAreaName(line)) + ' · ' + esc(co('areaRoofList')) + '</div>';
     h += '<div class="jcard"' + (multi && line ? ' style="margin-top:6px"' : '') + '>' +
-      coTile('inspect', co('inspection'), co2('inspection') + ' · ' + CO_INSPECT.length + ' ' + co('points'), ins + ' ' + co('of') + ' ' + CO_INSPECT.length, ins === CO_INSPECT.length ? 'all' : ins ? 'warn' : '') +
-      coTile('cleanup', co('cleanup'), co2('cleanup') + ' · ' + CO_CLEAN.length + ' ' + co('points'), cln + ' ' + co('of') + ' ' + CO_CLEAN.length, cln === CO_CLEAN.length ? 'all' : cln ? 'warn' : '') +
+      secs.map(function(x){ var c = coCount(v, x.items, x.key), n = x.items.length;
+        return coTile(coSecScreen(x), coSecLabel(x), coSecLabel2(x) + ' · ' + n + ' ' + co('points'), c + ' ' + co('of') + ' ' + n, c === n ? 'all' : c ? 'warn' : ''); }).join('') +
       coTile('problems', co('problems'), co2('problems') + ' · ' + co('optional') + ' · ' + co('withPhoto'), roofReps.length ? String(roofReps.length) : '—', roofReps.length ? 'warn' : '') +
       coTile('photos', co('visitPhotos'), co2('visitPhotos') + ' · ' + co('visitPhotosSub'), v.photos.length ? String(v.photos.length) : '—', '') + '</div>';
   }
@@ -7685,7 +8049,9 @@ function coScopeToggle(j){
   coRender();
 }
 function coListHtml(which){
-  var v = coVisit(CO.jobId), items = which === 'inspection' ? CO_INSPECT : CO_CLEAN, a = v.answers[which] || {}, h = '<div class="ckphase open" style="margin-top:0">';
+  var secs = coSecs(), si = 0;
+  secs.forEach(function(x, i){ if (x.key === which) si = i; });
+  var sec = secs[si], v = coVisit(CO.jobId), items = sec.items, a = v.answers[which] || {}, h = '<div class="ckphase open" style="margin-top:0">';
   items.forEach(function(it, i){
     var cur = a[it.key] || '';
     h += '<div class="ckq' + (i ? '' : ' first') + '"><span class="n">' + esc(it.n) + '</span><div class="bi"><span class="es">' + esc(coLabel(it)) + '</span><span class="en">' + esc(coLabel2(it)) + '</span></div></div>';
@@ -7700,9 +8066,10 @@ function coListHtml(which){
     }
   });
   h += '</div>';
-  var nk = which === 'inspection' ? 'inspection' : 'cleanup';
-  h += '<div class="story has" style="margin-top:14px"><textarea id="coListNote" data-notes="' + nk + '" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.notes[nk] || '') + '</textarea></div>';
-  h += '<button class="btn btn-nav" id="coNext" style="margin-top:16px">' + esc(which === 'inspection' ? co('next') + ': ' + co('cleanup') + ' ›' : co('next') + ': ' + co('review') + ' ›') + '</button>';
+  var nk = which, nextSec = secs[si + 1];
+  v.notes = v.notes || {};
+  h += '<div class="story has" style="margin-top:14px"><textarea id="coListNote" data-notes="' + esc(nk) + '" placeholder="' + esc(co('noteOpt')) + '" rows="2">' + esc(v.notes[nk] || '') + '</textarea></div>';
+  h += '<button class="btn btn-nav" id="coNext" data-next="' + esc(nextSec ? coSecScreen(nextSec) : 'job') + '" style="margin-top:16px">' + esc(co('next') + ': ' + (nextSec ? coSecLabel(nextSec) : co('review')) + ' ›') + '</button>';
   return h;
 }
 function coWhereChips(r){
@@ -7764,7 +8131,7 @@ function coReceiptHtml(rc, j){
 function coSendHtml(){
   // A work area's own send is followed on its own screen.
   var v = coVisit(CO.jobId), j = CO.job || coJobById(CO.jobId), items = coOutboxFor(CO.jobId).filter(function(it){ return !it.area; }), h = '';
-  var ins = coCount(v, CO_INSPECT, 'inspection'), cln = coCount(v, CO_CLEAN, 'cleanup'), fixes = coFixes(v).length;
+  var fixes = coFixes(v).length;
   var done = CO.receipt && CO.receipt.jobId === CO.jobId;
   if (done){
     h += coReceiptHtml(CO.receipt, j);
@@ -7783,8 +8150,13 @@ function coSendHtml(){
     return h;
   }
   h += '<div class="hero" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(co('allDone')) + '</span><span class="st">' + esc(co('checkSend')) + '</span><span class="ss">' + esc(co('checkSendSub')) + '</span></div>';
-  h += '<div class="rvcard"><div class="rvrow"><span class="rk">' + esc(co('inspection')) + '</span><span class="rv" style="color:var(--acc)">' + (ins - coFixes(v).filter(function(i){ return i.n.charAt(0) !== 'C'; }).length) + ' ' + esc(co('ok').toLowerCase()) + (fixes ? ' · ' + fixes + ' ' + esc(co('fix').toLowerCase()) : '') + '</span></div>' +
-       '<div class="rvrow"><span class="rk">' + esc(co('cleanup')) + '</span><span class="rv" style="color:var(--acc)">' + cln + ' ' + esc(co('of')) + ' ' + CO_CLEAN.length + '</span></div>' +
+  var secs = coSecs();
+  h += '<div class="rvcard">' + secs.map(function(x, i){
+         var c = coCount(v, x.items, x.key), fx = coFixes(v, x).length;
+         // The first section reads by its answers, the rest by how many are done — as the roof always read.
+         return '<div class="rvrow"><span class="rk">' + esc(coSecLabel(x)) + '</span><span class="rv" style="color:var(--acc)">' +
+           (i === 0 ? (c - fx) + ' ' + esc(co('ok').toLowerCase()) + (fx ? ' · ' + fx + ' ' + esc(co('fix').toLowerCase()) : '') : c + ' ' + esc(co('of')) + ' ' + x.items.length) + '</span></div>';
+       }).join('') +
        '<div class="rvrow"><span class="rk">' + esc(co('problems')) + '</span><span class="rv">' + coRoofReports(v).length + ' ' + esc(co('reportedN')) + '</span></div>' +
        '<div class="rvrow"><span class="rk">' + esc(co('visitPhotos')) + '</span><span class="rv">' + v.photos.length + '</span></div>' +
        '<div class="rvstory"><span class="rk">' + esc(co('whatNext')) + ' · ' + esc(co('whatNextSub')) + '</span><span class="rt">' + esc(coWhatNext(j, coRoofReports(v).some(function(r){ return !r.fixed; }))) + '</span></div></div>';
@@ -7926,7 +8298,7 @@ function coAreaHtml(){
 function coAfterTap(fn){ setTimeout(fn, 260); }
 
 /* ---- drawing the one view ---- */
-var CO_HEADS = { job: 'inspection', area: 'inspection', inspect: 'inspection', cleanup: 'cleanup', problems: 'problems', photos: 'visitPhotos', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
+var CO_HEADS = { job: 'inspection', area: 'inspection', problems: 'problems', photos: 'visitPhotos', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
 function coRender(){
   if (S.tab !== 'co') return;
   var sc = CO.screen, j = CO.job || coJobById(CO.jobId), queue = sc === 'queue';
@@ -7947,7 +8319,8 @@ function coRender(){
   $('coState').classList.add('hidden');
   var bar = $('coBar'), barText = '';
   if (!queue){
-    var kw = co(CO_HEADS[sc] || 'tab'), label = j ? coJobLabel(j) : '—';
+    var kw = co(CO_HEADS[sc] || 'tab'), label = j ? coJobLabel(j) : '—', scSec = coSecOfScreen(sc);
+    if (scSec) kw = coSecLabel(scSec);
     // The job screen is named for what the job is waiting on, not always
     // "Inspection" — a Punch List job is repairs, a PM Review job the PM's.
     if (sc === 'job' && j){ var jk = coKindOf(j); if (jk === 'repairs') kw = co('repairs'); else if (jk === 'review') kw = co('pmReview'); }
@@ -7971,8 +8344,9 @@ function coRender(){
     $('coSeg').innerHTML = '<button class="dlchip' + (CO.listFilter === 'mine' ? ' on' : '') + '" data-colist="mine"><span class="st' + (CO.listFilter === 'mine' ? ' sent' : '') + '"></span>' + esc(co('mineRepairs')) + ' · ' + mine + '</button>' +
                            '<button class="dlchip' + (CO.listFilter === 'all' ? ' on' : '') + '" data-colist="all"><span class="st' + (CO.listFilter === 'all' ? ' sent' : '') + '"></span>' + esc(co('everyone')) + ' · ' + tasks.length + '</button>';
   }
-  if (sc === 'inspect' || sc === 'cleanup'){
-    var v = coVisit(CO.jobId), items = sc === 'inspect' ? CO_INSPECT : CO_CLEAN, which = sc === 'inspect' ? 'inspection' : 'cleanup', cnt = coCount(v, items, which), fx = coFixes(v).filter(function(i){ return (i.n.charAt(0) === 'C') === (sc === 'cleanup'); }).length;
+  var stSec = !queue && coSecOfScreen(sc);
+  if (stSec){
+    var v = coVisit(CO.jobId), items = stSec.items, cnt = coCount(v, items, stSec.key), fx = coFixes(v, stSec).length;
     $('coState').classList.remove('hidden');
     $('coState').innerHTML = '<span class="jck ' + (cnt === items.length && !fx ? 'green' : cnt ? 'amber' : 'none') + '"><span class="dot"></span>' + cnt + ' ' + esc(co('of')) + ' ' + items.length + (fx ? ' — ' + fx + ' ' + esc(fx === 1 ? co('toReport') : co('toReportN')) : '') + '</span>';
   }
@@ -7981,8 +8355,7 @@ function coRender(){
   var body = $('coBody'), html;
   if (queue) html = coQueueHtml();
   else if (sc === 'job') html = coJobHtml();
-  else if (sc === 'inspect') html = coListHtml('inspection');
-  else if (sc === 'cleanup') html = coListHtml('cleanup');
+  else if (coSecOfScreen(sc)) html = coListHtml(coSecOfScreen(sc).key);
   else if (sc === 'problems') html = coProblemsHtml();
   else if (sc === 'photos') html = coPhotosHtml();
   else if (sc === 'area') html = coAreaHtml();
@@ -8048,7 +8421,7 @@ function coWire(){
       if (val === CO_ANS.FIX && v.answers[which][key] === val) coStartReport(key, CO.screen);
     };
   });
-  var next = $('coNext'); if (next) next.onclick = function(){ coGo(CO.screen === 'inspect' ? 'cleanup' : 'job'); };
+  var next = $('coNext'); if (next) next.onclick = function(){ coGo(next.getAttribute('data-next') || 'job'); };
   var rv = $('coReview'); if (rv) rv.onclick = function(){
     var v = coVisit(CO.jobId);
     if (coBlockers(CO.jobId, v).length) openSheet('coWhy'); else coGo('send');
