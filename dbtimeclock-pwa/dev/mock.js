@@ -588,13 +588,15 @@
     // A clock-in made with no signal (T2.31, I1), as Code.gs takes it: it
     // starts when the phone made it, counted back from now by how long it
     // waited. __MOCK_QREFUSE refuses it: words alone (a reason the phone has
-    // no name for), or { why, at } as Code.gs sends it beside its words.
+    // no name for), or { why, at } as Code.gs sends it beside its words;
+    // `open: true` also puts them on the clock at `at`, as the office did.
     __queued: function (opts, jobId, costItemId) {
       var qd = opts && opts.queued;
       if (!qd) return null;
       (window.__QUEUED = window.__QUEUED || []).push({ jobId: jobId, costItemId: costItemId, at: qd.at, sentAt: qd.sentAt });
       var qr = window.__MOCK_QREFUSE;
       if (qr && typeof qr === 'object') {
+        if (qr.open && qr.at && !(ST.open && ST.open.startedAt === new Date(qr.at).toISOString())) HANDLERS.__open(jobId, costItemId, 'Put on the clock by the office', Date.parse(qr.at));
         var said = qr.at ? new Date(qr.at).toLocaleTimeString() : '';
         var qe = new Error(qr.why === 'since' ? 'You were put on the clock at ' + said + ' while that clock-in waited.'
           : qr.why === 'until' ? 'Your day already has time on the clock until ' + said + '.' : 'Refused (' + qr.why + ').');
