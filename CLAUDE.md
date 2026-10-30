@@ -263,8 +263,8 @@ regeneration, Linux only.
   improvements I1–I9, by id. Step 1 (D1, D5, D2, D3, D4, D9, D10, D11, D12,
   D13, D17, D18, I4, I7) is T2.29 here and DB CheckOut's 30 Oct commit; Step 2
   (D6, D7, D8, D14, D16, I3) is T2.30; the first half of Step 3 (I2, D15,
-  I1) is T2.31. Next, the second half: I5 (the script out of the page), I6
-  (one translation table), I9 (My jobs redraws).
+  I1) is T2.31, live 30 Oct. Next, the second half: I5 (the script out of the
+  page), I6 (one translation table), I9 (My jobs redraws).
 - **A correction the earlier notes needed.** DB CheckOut's served form
   (41a843f) and its gutter/siding checklists, `REPAIR` photos and final notes
   (6c6d5d1) were merged and "deployed" on 29 Oct but never ran: its
@@ -434,3 +434,13 @@ regeneration, Linux only.
   rid] per call) and `__QUEUED` (each kept clock-in the API was sent). It
   dedupes by id the way Code.gs does, from a snapshot of the first answer.
 - t230-test no longer pins the app's build to T2.30; it reads `APP_BUILD`.
+- **T2.31 is live**: Carl ran the one chain (`clasp deploy … -d "T2.31"`,
+  `firebase deploy --only hosting`); db-crews.web.app has served it since
+  16:56Z on 30 Oct 2026, `index.html` and `sw.js` byte-identical to the branch
+  (cache `dbtc-t2-31`), and his Diagnostics read App and API both T2.31.
+- **The root address is cached for an hour, found after the deploy.**
+  `firebase.json` sets `no-cache` on `/index.html` but not on `/`, which is
+  the installed app's `start_url`; `/` answers `max-age=3600`. The service
+  worker's navigation fetch can take that copy, so a new build can take up to
+  an hour to reach a phone that has signal. A header rule for `/` is the fix
+  (proposed with I5, which needs the page and its script to stay in step).
