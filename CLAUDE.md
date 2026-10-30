@@ -225,8 +225,14 @@ regeneration, Linux only.
   `reviewSub` did, and the PM Review card read "Tap a card to open it".
 - **`dbtc_where` stops saving before the sign-out wipe** (`S.whereReady`),
   or the page's own leaving writes it back for the next person.
-- **The Trades Onsite list in JobTread has no Gutter Crew, Siding Crew or PM**
-  (read live, 29 Oct). The phone sends those as the list's Other plus words
-  (`fieldText`), and the server drops any option not on the list anyway.
-  Adding the three options to the field in JobTread is Carl's call; nothing
-  here changes when he does.
+- **Gutter Crew, Siding Crew and PM were added to the Trades Onsite list in
+  JobTread on 30 Oct 2026** (Carl: "add them from there"; field
+  `22PC7jNshbiK`, appended after Sales Rep through `updateCustomField`, which
+  REPLACES the options, so the whole list was sent back). The phone matches a
+  button to the field's own option by name (`dlTradesSplit`), so they became
+  real picks with no build; until then they went as Other plus words
+  (`fieldText`), and still do for anything typed. The Apps Script caches the
+  field list for six hours (`LOG_FIELDS_CACHE_SEC`) and the phone takes its
+  copy from there, so the two switch over together within that window. A
+  pave `update…` returns `root`: select the record under it with its own
+  `$: { id }`, or the call is refused before it writes.

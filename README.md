@@ -941,10 +941,11 @@ intuitive and easy to use and understand."*
 - **The day log.** Delays → *Other* opens a box for what held them up. *Who
   else was on site?* shows **Gutter Crew, Siding Crew, Sales Rep, PM and
   Other**; JobTread's other trades and a box for anyone not listed open under
-  Other. JobTread's Trades Onsite list has no Gutter Crew, Siding Crew or PM,
-  so those (and anything typed) go as the list's *Other* with the words in the
-  log — *Trades Onsite: Sales Rep, Other — Gutter Crew · PM* (`fieldText`).
-  Add them to the list in JobTread and they become real picks by themselves.
+  Other. Gutter Crew, Siding Crew and PM were added to JobTread's Trades
+  Onsite list on 30 Oct 2026 (at Carl's word), so they are real picks; a
+  button whose option the list does not carry, and anything typed, still goes
+  as the list's *Other* with the words in the log — *Trades Onsite: Sales Rep,
+  Other — Mike from the gas company* (`fieldText`).
 - **A repair needs its before photo and a note.** The note is said or typed
   (Record / Type) with its English for the office under it; *More photos*
   takes any number from the camera or the phone's own photos (sent as
