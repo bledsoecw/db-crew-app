@@ -262,8 +262,9 @@ regeneration, Linux only.
   https://claude.ai/artifact/AAcARP8W9V2hjkdRutYvPK — defects D1–D19 and
   improvements I1–I9, by id. Step 1 (D1, D5, D2, D3, D4, D9, D10, D11, D12,
   D13, D17, D18, I4, I7) is T2.29 here and DB CheckOut's 30 Oct commit; Step 2
-  (D6, D7, D8, D14, D16, I3) is T2.30. Next, in order: I2 (one outbox), D15
-  (request ids on writes), I1, I5, I6, I9.
+  (D6, D7, D8, D14, D16, I3) is T2.30; the first half of Step 3 (I2, D15,
+  I1) is T2.31. Next, the second half: I5 (the script out of the page), I6
+  (one translation table), I9 (My jobs redraws).
 - **A correction the earlier notes needed.** DB CheckOut's served form
   (41a843f) and its gutter/siding checklists, `REPAIR` photos and final notes
   (6c6d5d1) were merged and "deployed" on 29 Oct but never ran: its
@@ -372,3 +373,63 @@ regeneration, Linux only.
   the PUT answers 500 and the API path refuses), `__MOCK_PUTSTALL` (the PUT
   never answers until aborted), `__UPLOAD_TIMEOUT_MS`, `__PUTS` (the order
   files arrive), `__MOCK_BUILDS` (what `getBuilds` answers), `__UNREG`.
+
+## T2.31 (30 Oct 2026) — Step 3's first half, what the README does not say
+
+- **Request ids are a list on both sides**: `RID_FNS` in `index.html` and in
+  `Code.gs` must stay in step. A write left off the phone's list carries no
+  id and is simply done again; one left off the server's list is ignored.
+  Reads never carry one. The key is the signed-in email and the id, never the
+  function: a photo's id (`photoRid`, `ph-<photo id>`) is the same whether it
+  is filed by `finalizeCaptureUpload` or `uploadCapture`, so the second path
+  hands back the first filing. Only `{ ok: true }` answers are remembered;
+  `ridDone_` frees the id on a failure. `ridLook_` takes the script lock with
+  `tryLock(5000)` around a cache read and write only, and goes on without the
+  lock if it cannot get it rather than refuse a clock write. The phone reads
+  the "still at work" answer as `err.busy`, which the outbox lanes retry and
+  never treat as a refusal.
+- **`kept`, never `queued`, on the phone's placeholder.** The API's answer to
+  a kept clock-in carries `queued: { start, waited }`; the first cut flagged
+  the phone's own placeholder `queued` too, and the landed entry went on
+  reading as a placeholder ("saved on this phone") for good. t231-test pins
+  the label after landing.
+- **A photo waiting on its clock-in is never sent from the pump's list.** The
+  pump reads the queue once and walks it; a clock-in landing mid-walk stamps
+  the photo and saves it again, but the walk still held the old copy and
+  uploaded it without `#TE:`. Any item with `waitRid` is skipped, full stop:
+  the landing (`cqReleasePhoto`) puts the stamped copy back and runs the pump.
+  `cqOrphans()` at start lets go of a photo whose clock-in is no longer on the
+  phone.
+- **The send time is stamped as the request leaves** (`co.beforeSend`, called
+  in `apiAttempt` on every try). Stamped when the call joined its lane, a kept
+  clock-in sent behind a boot call that was retrying landed four seconds late
+  in the test; behind a slow call it would be more.
+- **What is kept and what is not.** A clock-in and an arrival's switch with no
+  answer (no signal, a dropped connection, a timeout, the API still busy) are
+  kept. Already left is not (its time is the person's answer). Clocking out, a
+  break and a move are not kept: while a clock-in waits they are held by
+  `openSheet` (`CQ_HOLDS` → the `clockq` sheet), because each needs the entry
+  the clock-in makes; with signal they go as they always did. If Carl wants a
+  clock-out kept too, it is the same store with `leftSite`'s past-time door.
+- **The roll-out notes are outbox items now**: `rollStore[job|day].daily` and
+  `.forgot`, each `{ args, rid, tries, next, sent, refused }`. The 3-day prune
+  at load still applies to them.
+- **A refused kept clock-in is the one server error the phone translates.**
+  `queuedNo_` throws the reason in English words with `refuse: { why, at }`
+  beside them (`since` · `until` · `clock` · `old` · `notime`), doPost copies
+  it onto the reply, and `cqWhy` says it in the phone's language; a reason it
+  has no name for is shown in the API's words. The words are the reason and
+  nothing else: the sheet adds "Tell the office when you started" once. The
+  first cut had the server say what to do too, so the sheet said "not added"
+  and "tell the office" twice each, in English on a Spanish phone.
+- **Close Out's first retry is 20 seconds** (was 15), the one backoff; the
+  pre-start's wake-up now sends a list waiting out its backoff (it skipped any
+  list with a timer set).
+- **The mock grew switches**: `__MOCK_NONET` (no signal: every call and
+  upload fails before it reaches anything), `__MOCK_LOSTREPLY = N` (the next
+  N writes with an id are done and their answers lost), `__MOCK_QREFUSE` (a
+  kept clock-in refused: words alone, or `{ why, at }` as Code.gs sends it),
+  and records `__RIDS` ([fn,
+  rid] per call) and `__QUEUED` (each kept clock-in the API was sent). It
+  dedupes by id the way Code.gs does, from a snapshot of the first answer.
+- t230-test no longer pins the app's build to T2.30; it reads `APP_BUILD`.

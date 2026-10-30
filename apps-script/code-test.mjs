@@ -41,7 +41,7 @@ const sandbox = {
     // One round trip for several requests, the way Apps Script offers it.
     fetchAll: (reqs) => { trips++; return reqs.map(r => sandbox.UrlFetchApp.fetch(r.url, r)); } },
   ContentService: { createTextOutput: (txt) => ({ setMimeType() { return this; }, getContent: () => txt }), MimeType: { JSON: 'application/json' } },
-  LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+  LockService: { getScriptLock: () => ({ waitLock() {}, tryLock() { return true; }, releaseLock() {} }) },
   ScriptApp: { getProjectTriggers: () => [], deleteTrigger: () => {}, newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }) }) }) },
   console,
 };
@@ -1585,6 +1585,106 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   openNow = { ...openNow, startedAt: began, notes: 'Drive to 26-1490 Courtney · from the shop', costItem: { id: 'tr9', name: 'Travel Related Labor', costCode: { number: '01GR-9', name: 'Travel' } } };
   t('…a drive is Already left\'s', /A drive starts when you leave/.test(refusedBy(() => sandbox.startedEarlier(ME, ago(10)))), true);
   t('…and the phone may ask for the partner too', sandbox.PARTNER_FNS.startedEarlier, 1);
+  fetchImpl = () => ({ code: 200, body: '{}' });
+}
+
+// ---- T2.31: request ids (D15) and the clock-in made with no signal (I1) ----
+// A write sent again with the same id is answered with the first answer and
+// written once; a failure frees the id. A clock-in the phone kept while it
+// had no signal starts when the phone made it, counted back from now.
+{
+  props = { WRITE_ENABLED: 'true', OAUTH_CLIENT_ID: 'cid' }; cacheStore = {}; fetched = [];
+  let openNow = null, day = [], n = 0;
+  const made = [], closes = [];
+  const entry = (id, startedAt, jobId, ci, notes) => ({ id, startedAt, endedAt: null, minutes: 0, notes: notes || '',
+    job: { id: jobId, name: '261490 Courtney_Roof', number: '26-1490', location: {} },
+    costItem: { id: ci, name: ci === 'tr9' ? 'Travel Related Labor' : 'Roofing', costCode: { number: ci === 'tr9' ? '01GR-9' : '07TM-1', name: 'x' } } });
+  const base = route({ member: MEMBER_ME, people: PEOPLE,
+    entries: (q) => { const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+      return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' ? (openNow ? [openNow] : []) : k === 'day' ? day.concat(openNow ? [openNow] : []) : [] } } }) }; } });
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.createTimeEntry) { const a = q.createTimeEntry.$, id = 'tq' + (++n); made.push(a); openNow = entry(id, a.startedAt, a.jobId, a.costItemId, a.notes);
+      return { code: 200, body: JSON.stringify({ createTimeEntry: { createdTimeEntry: { id } } }) }; }
+    if (q.updateTimeEntry) { const a = q.updateTimeEntry.$; closes.push(a);
+      if (openNow && openNow.id === a.id && a.endedAt) { day.push({ ...openNow, endedAt: a.endedAt }); openNow = null; }
+      return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    return base(url, opts); };
+  const postR = (fn, args, rid) => JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok', fn, args, rid }) } }).getContent());
+  const key = (rid) => 'rid|t@deitemeyerbrothers.com|' + rid;
+
+  const a1 = postR('clockIn', ['j9', 'ci1', null, 'ph_s'], 'rid-t231-0001');
+  const a2 = postR('clockIn', ['j9', 'ci1', null, 'ph_s'], 'rid-t231-0001');
+  t('D15: a clock-in sent twice with one id makes one entry, and the repeat gets the first answer',
+    [a1.ok, a2.ok, made.length, !!a2.repeat, a2.data && a2.data.id, a1.data && a1.data.id], [true, true, 1, true, 'tq1', 'tq1']);
+  t('…the answer is kept ten minutes', !!cacheStore[key('rid-t231-0001')] && JSON.parse(cacheStore[key('rid-t231-0001')]).data.id, 'tq1');
+  postR('clockIn', ['j9', 'ci1', null, 'ph_s'], 'rid-t231-0002');
+  t('…a new id is a new write', made.length, 2);
+  const f1 = postR('clockIn', ['j9', '', null, 'ph_s'], 'rid-t231-0003');
+  t('…a write that failed frees its id, so it can be tried again', [f1.ok, cacheStore[key('rid-t231-0003')]], [false, undefined]);
+  postR('getJobCodes', ['j9'], 'rid-t231-0004');
+  t('…a read is never remembered', cacheStore[key('rid-t231-0004')], undefined);
+  postR('clockIn', ['j9', 'ci1', null, 'ph_s'], 'bad id!');
+  t('…an id that is not one is ignored, and the write simply runs', [made.length, Object.keys(cacheStore).filter(k => k.indexOf('bad') > -1).length], [3, 0]);
+  const before = made.length;
+  cacheStore[key('rid-t231-0005')] = '"busy"';
+  const sleep = sandbox.Utilities.sleep;
+  sandbox.Utilities.sleep = () => { cacheStore[key('rid-t231-0005')] = JSON.stringify({ ok: true, data: { id: 'first-one' } }); };
+  const w = postR('clockIn', ['j9', 'ci1', null, 'ph_s'], 'rid-t231-0005');
+  sandbox.Utilities.sleep = sleep;
+  t('…a repeat that comes while the first is still at work waits for its answer', [w.ok, w.data && w.data.id, !!w.repeat, made.length], [true, 'first-one', true, before]);
+  cacheStore[key('rid-t231-0006')] = '"busy"';
+  sandbox.RID_WAIT_MS = 0;
+  const b = postR('clockIn', ['j9', 'ci1', null, 'ph_s'], 'rid-t231-0006');
+  sandbox.RID_WAIT_MS = 20000;
+  t('…and says so, writing nothing and leaving the first alone, when it is still at it',
+    [b.ok, !!b.busy, /Still saving/.test(b.error || ''), cacheStore[key('rid-t231-0006')], made.length], [false, true, true, '"busy"', before]);
+  t('…every clock write, Tell the PM, the alerts, the log and a photo filed carry one',
+    ['clockIn', 'switchCode', 'clockOut', 'startTravel', 'leftSite', 'startedEarlier', 'startBreak', 'endBreak', 'tellPm', 'sendSafetyAlert', 'sendDailyLog', 'addDailyLogNote', 'rollChecked', 'rollForgot', 'finalizeCaptureUpload', 'uploadCapture'].every(f => sandbox.RID_FNS[f] === 1),
+    true);
+
+  // I1: kept on the phone with no signal, sent later.
+  openNow = null; day = []; made.length = 0; closes.length = 0;
+  const waited = 42 * 60e3, sent0 = Date.now();
+  const q1 = sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: sent0 - waited, sentAt: sent0 } });
+  const started = Date.parse(made[0].startedAt);
+  t('I1: a clock-in made with no signal starts when the phone made it, and says so',
+    [Math.abs(Date.now() - waited - started) < 5000, /^Clocked in with no signal at \d+:\d\d[ap] — sent from DB Crew at \d+:\d\d[ap]\.$/.test(made[0].notes), q1.queued.waited, q1.queued.start === made[0].startedAt],
+    [true, true, waited, true]);
+  // The phone's clock can be wrong; the time it waited is what counts.
+  made.length = 0; openNow = null; day = [];
+  sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: 1000, sentAt: 1000 + 15 * 60e3 } });
+  t('…counted back from now, so a phone set to the wrong time still lands on the right minute', Math.abs(Date.now() - 15 * 60e3 - Date.parse(made[0].startedAt)) < 5000, true);
+  openNow = entry('tdrive', new Date(Date.now() - 90 * 60e3).toISOString(), 'j9', 'tr9', 'Drive to 26-1490 Courtney · from the shop'); day = []; made.length = 0; closes.length = 0;
+  const atq = Date.now() - 30 * 60e3;
+  const q2 = sandbox.switchCode(ME, 'j9', 'ci1', null, '', 'ph_s', { queued: { at: atq, sentAt: Date.now() } });
+  t('…an arrival made with no signal ends the drive and starts the work at that moment',
+    [closes[0].id, Math.abs(Date.parse(closes[0].endedAt) - atq) < 5000, made[0].startedAt, !!q2.queued], ['tdrive', true, closes[0].endedAt, true]);
+  made.length = 0; closes.length = 0; openNow = null; day = [];
+  // Refused: the reason in words, and as data (`refuse`) the phone says in its own language.
+  const refusal = (fn) => { try { fn(); return null; } catch (e) { return [e.message, JSON.parse(JSON.stringify(e.refuse || null))]; } };
+  t('…not when it waited over 16 hours', refusal(() => sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: Date.now() - 17 * 3600e3, sentAt: Date.now() } })),
+    ['That clock-in waited on the phone over 16 hours.', { why: 'old' }]);
+  t('…not when the phone\'s clock went back while it waited', refusal(() => sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: Date.now(), sentAt: Date.now() - 60e3 } })),
+    ['The phone’s clock changed while that clock-in waited.', { why: 'clock' }]);
+  t('…not without its time', refusal(() => sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: 0 } })),
+    ['That clock-in came from the phone without its time.', { why: 'notime' }]);
+  openNow = entry('tlater', new Date(Date.now() - 10 * 60e3).toISOString(), 'j1', 'ci3');
+  const rSince = refusal(() => sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: Date.now() - 30 * 60e3, sentAt: Date.now() } }));
+  t('…not under a block that began after it, which it names', [/^You were put on the clock at \d+:\d\d[ap] while that clock-in waited\.$/.test(rSince[0]), rSince[1]],
+    [true, { why: 'since', at: openNow.startedAt }]);
+  openNow = null; day = [{ ...entry('tdone', new Date(Date.now() - 60 * 60e3).toISOString(), 'j1', 'ci3'), endedAt: new Date(Date.now() - 5 * 60e3).toISOString() }];
+  const rUntil = refusal(() => sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: Date.now() - 30 * 60e3, sentAt: Date.now() } }));
+  t('…not over another block of the day, which it names', [/^Your day already has time on the clock until \d+:\d\d[ap]\.$/.test(rUntil[0]), rUntil[1]],
+    [true, { why: 'until', at: day[0].endedAt }]);
+  const rPost = postR('clockIn', ['j9', 'ci1', null, 'ph_s', { queued: { at: Date.now() - 30 * 60e3, sentAt: Date.now() } }], 'rid-t231-0009');
+  t('…and the reply carries the reason as data beside the words', [rPost.ok, rPost.refuse && rPost.refuse.why, /^Your day already has time/.test(rPost.error || '')], [false, 'until', true]);
+  t('…and nothing was written for any of them', [made.length, closes.length], [0, 0]);
+  day = []; openNow = entry('tsame', new Date(Date.now() - 31 * 60e3).toISOString(), 'j9', 'ci1');
+  const q3 = sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: Date.now() - 30 * 60e3, sentAt: Date.now() } });
+  t('…sent again after its id is forgotten, it finds the entry it made', [q3.id, made.length, closes.length], ['tsame', 0, 0]);
+  openNow = null; day = []; made.length = 0;
+  sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s');
+  t('…and a clock-in with signal starts now, as it always did', [Math.abs(Date.now() - Date.parse(made[0].startedAt)) < 5000, made[0].notes], [true, undefined]);
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
 

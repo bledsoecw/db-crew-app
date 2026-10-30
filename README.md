@@ -1103,6 +1103,57 @@ audit (Carl: *"start step 2"*):
 then the Apps Script (`getBuilds`, the push-token rule), then `firebase deploy
 --only hosting`.
 
+**Nothing is done twice, and the clock works with no signal** (T2.31, 30 Oct
+2026). The first half of Step 3 of the audit (Carl: *"go, start T2.31"*):
+
+- **A write is never done twice** (D15). Every write carries a request id,
+  the same on every try of it — the phone's own retries on a dropped
+  connection, and an outbox's tries later, which keep theirs (the day log,
+  each photo, a kept clock-in, the roll-out notes). The Apps Script remembers
+  the answer to each id for ten minutes and hands it back instead of writing
+  again; a repeat that arrives while the first is still at work waits for it
+  (up to 20 seconds), and otherwise says so. Only an answer that worked is
+  remembered, so a write that failed can still be tried again. So a lost
+  answer no longer leaves a stray clock-in entry a few seconds long, a second
+  text from Tell the PM, a photo filed twice, or an error on an Already left
+  that had worked. Close Out's writes already carried their own references
+  (DB CheckOut's re-send guard) and are untouched.
+- **One outbox** (I2). The photos, the site checks, the pre-start, the day log,
+  Close Out's waiting list, the roll-out notes and a kept clock-in are lanes of
+  one outbox: one backoff (20 seconds, a minute, three minutes, then every
+  five), one wake-up when signal or the app comes back, one count for the
+  no-signal bar and sign-out, one trimming rule (finished things stay 14 days,
+  2 on a full phone; nothing unsent is touched). Each lane keeps its items
+  where they always were, so nothing on a phone moves. What the crew sees: the
+  no-signal bar counts everything waiting, not only photos; the pre-start and
+  the roll-out notes go when signal comes back (they used to wait for the next
+  launch); a roll-out note that fails is kept and tried again (it used to be
+  lost).
+- **Clock in with no signal** (I1; Carl, 30 Oct: the phone's own time is
+  acceptable for payroll). A clock-in — or an arrival, which switches the
+  clock — that gets no answer is kept on the phone with the moment it was
+  made, its start photo and its request id. The clock runs on the phone from
+  that moment (*On the clock · saved on this phone*), a notice says it is
+  waiting, and it goes by itself as soon as there is signal. The API starts
+  the entry at that moment, counted back from its own clock by how long the
+  phone says it waited — so a phone set to the wrong time still lands on the
+  right minute — and notes it on the entry (*Clocked in with no signal at
+  7:02a — sent from DB Crew at 8:15a*). The start photo waits for the entry
+  and goes stamped with it. Until it has gone, clocking out, a break or a move
+  wait for it, and the sheet says why: each needs the entry it makes. The API
+  refuses one that would start more than 16 hours back, under a block that
+  began since, or over another block of the day; the phone says why, once (the
+  reason comes as data beside the API's words, so a Spanish phone says it in
+  Spanish), asks them to tell the office when they started, and OK lets it go
+  (its photo still goes). Already left is never kept: its time is the
+  person's answer, checked against the day there and then.
+
+`dev/t231-test.mjs` walks it; `apps-script/code-test.mjs` has the server's
+half. **Needs, in this order:** the Apps Script first (the request ids, and
+the clock-in that starts when the phone made it — a T2.30 Apps Script would
+start a kept clock-in when it arrives), then `firebase deploy --only hosting`.
+The Close Out server is not involved.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

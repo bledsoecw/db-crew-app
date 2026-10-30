@@ -3,7 +3,7 @@
    the saved copy, so the app opens at once at the edge of signal and with
    none. Same-origin assets: cache-first. Only good answers are ever saved.
    Cross-origin (the Apps Script API, JobTread's CDN, FCM): never touched. */
-var CACHE = 'dbtc-t2-30';
+var CACHE = 'dbtc-t2-31';
 var NAV_WAIT_MS = 3000;
 var SHELL = ['./', './index.html', './config.js', './manifest.json',
              './app-icon-180.png', './app-icon-192.png', './app-icon-512.png', './app-icon-maskable.png',

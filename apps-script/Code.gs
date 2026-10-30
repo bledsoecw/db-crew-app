@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.30 (2026-10-30)';
+var APP_BUILD = 'T2.31 (2026-10-30)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -363,8 +363,59 @@ function recentCalls_() {
   try { return JSON.parse(CacheService.getScriptCache().get(RECENT_CALLS_KEY) || '[]') || []; } catch (e) { return []; }
 }
 
+// ---- request ids (T2.31, audit D15) ---------------------------------------
+// A write whose answer did not reach the phone is sent again — by the phone's
+// own retry on a dropped connection, by an outbox, or by a person tapping
+// again — and each repeat used to be a second write: a clock-in left a stray
+// entry a few seconds long, Tell the PM texted twice, a photo could be filed
+// twice, a second Already left answered with an error for something that had
+// worked. Now every write carries an id, the same on every try of it, and
+// this remembers the answer to each id for ten minutes and hands it back
+// instead of writing again. A repeat that arrives while the first is still
+// at work waits for it. Only an answer that worked is remembered: a write
+// that failed may be tried again, and is.
+var RID_TTL_S = 600, RID_BUSY_S = 360, RID_WAIT_MS = 20000, RID_BUSY = '"busy"';
+var RID_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startedEarlier: 1, startBreak: 1, endBreak: 1,
+                tellPm: 1, sendSafetyAlert: 1, sendDailyLog: 1, addDailyLogNote: 1, rollChecked: 1, rollForgot: 1,
+                finalizeCaptureUpload: 1, uploadCapture: 1 };
+function ridOk_(rid) { return typeof rid === 'string' && /^[A-Za-z0-9_.:-]{6,80}$/.test(rid); }
+function ridKey_(email, rid) { return 'rid|' + String(email || '').toLowerCase() + '|' + rid; }
+/** One look, under the lock: { first } (answered before), { mine } (ours to
+ *  run, marked busy now) or { busy } (another request is running it). */
+function ridLook_(email, rid) {
+  var cache = CacheService.getScriptCache(), key = ridKey_(email, rid), lock = null, got = false;
+  try { lock = LockService.getScriptLock(); got = lock.tryLock(5000); } catch (e) {}
+  try {
+    var v = cache.get(key);
+    if (!v) { cache.put(key, RID_BUSY, RID_BUSY_S); return { mine: true }; }
+    if (v === RID_BUSY) return { busy: true };
+    try { return { first: JSON.parse(v) }; } catch (e2) { cache.put(key, RID_BUSY, RID_BUSY_S); return { mine: true }; }
+  } finally { if (got) { try { lock.releaseLock(); } catch (e3) {} } }
+}
+/** null when this request should do the write; otherwise the reply to send:
+ *  the first answer, or "still busy" if the first is still at work after
+ *  RID_WAIT_MS (inside the phone's own 25-second ceiling). */
+function ridClaim_(email, rid) {
+  var until = Date.now() + RID_WAIT_MS;
+  for (;;) {
+    var r = ridLook_(email, rid);
+    if (r.mine) return null;
+    if (r.first) return r.first;
+    if (Date.now() >= until) return { ok: false, error: 'Still saving that — give it a moment.', busy: true };
+    Utilities.sleep(500);
+  }
+}
+/** The answer to remember — only one that worked; a failure frees the id. */
+function ridDone_(email, rid, out) {
+  var cache = CacheService.getScriptCache(), key = ridKey_(email, rid);
+  if (out && out.ok) {
+    try { cache.put(key, JSON.stringify({ ok: true, data: out.data === undefined ? null : out.data }), RID_TTL_S); return; } catch (e) {}
+  }
+  try { cache.remove(key); } catch (e2) {}
+}
+
 function doPost(e) {
-  var t0 = Date.now(), tAuth = 0, tMember = 0, fn = '', email = '', out;
+  var t0 = Date.now(), tAuth = 0, tMember = 0, fn = '', email = '', out, rid = '', ridHit = false;
   PAVE_T.n = 0; PAVE_T.ms = 0;
   try {
     var body = {};
@@ -430,25 +481,32 @@ function doPost(e) {
       markNudged: markNudged
     };
 
-    var data;
-    if (fn === 'getBoot') data = getBootFor_(email);
-    else if (fn === 'exchangeSession') data = mintSessionToken_(email);
-    else if (WITH_USER[fn]) {
-      var me = memberFor_(email);
-      tMember = Date.now();
-      // Yahir's "Clock in Alberto too" (T2.21): the same write for the partner.
-      data = body.partner === true && PARTNER_FNS[fn] ? withPartner_(me, WITH_USER[fn], fn, args)
-                                                       : WITH_USER[fn].apply(null, [me].concat(args));
+    // A write sent again (T2.31, D15): the first answer, never a second write.
+    rid = RID_FNS[fn] && ridOk_(body.rid) ? body.rid : '';
+    var first = rid ? ridClaim_(email, rid) : null;
+    if (first) { ridHit = true; out = first; out.repeat = true; }
+    else {
+      var data;
+      if (fn === 'getBoot') data = getBootFor_(email);
+      else if (fn === 'exchangeSession') data = mintSessionToken_(email);
+      else if (WITH_USER[fn]) {
+        var me = memberFor_(email);
+        tMember = Date.now();
+        // Yahir's "Clock in Alberto too" (T2.21): the same write for the partner.
+        data = body.partner === true && PARTNER_FNS[fn] ? withPartner_(me, WITH_USER[fn], fn, args)
+                                                         : WITH_USER[fn].apply(null, [me].concat(args));
+      }
+      else if (PLAIN[fn]) data = PLAIN[fn].apply(null, args);
+      else throw new Error('Unknown function: ' + fn);
+      out = { ok: true, data: (data === undefined ? null : data) };
     }
-    else if (PLAIN[fn]) data = PLAIN[fn].apply(null, args);
-    else throw new Error('Unknown function: ' + fn);
-    out = { ok: true, data: (data === undefined ? null : data) };
   } catch (err) {
     var msg = (err && err.message) || String(err);
     out = { ok: false, error: msg, auth: msg === 'AUTH', readOnly: msg.indexOf('READ_ONLY') === 0,
       noAccess: msg.indexOf('NO_ACCESS') === 0 };
     if (err && err.why) out.authWhy = err.why;
     if (err && err.email) out.email = err.email;
+    if (err && err.refuse) out.refuse = err.refuse;   // a kept clock-in not added, as data (T2.31)
   }
   // Where the time went, on every reply — the sign-in check, the membership
   // lookup, the work itself and JobTread inside it — so a phone that waited
@@ -457,6 +515,7 @@ function doPost(e) {
   var now = Date.now(), tWork = tMember || tAuth;
   out.ms = { total: now - t0, auth: (tAuth || now) - t0, member: tMember ? tMember - tAuth : 0,
              fn: tWork ? now - tWork : 0, pave: PAVE_T.n, paveMs: PAVE_T.ms };
+  if (rid && !ridHit) ridDone_(email, rid, out);
   recordCall_(fn, email, out);
   return ContentService.createTextOutput(JSON.stringify(out))
     .setMimeType(ContentService.MimeType.JSON);
@@ -2477,9 +2536,60 @@ function clockIn(me, jobId, costItemId, coords, startPhotoId, opts) {
   // shop and the office are (T2.23) — asked before the entry opens, so the
   // day's own entries say whether this is the first.
   var first = isShopJob_(jobId) && !getMyDay(me).some(function (x) { return !isFuture_(x.startedAt); });
-  var e = openEntry_(me, jobId, costItemId, coords);
+  // Made with no signal (T2.31): it starts when the phone says, not now.
+  var open = opts && opts.queued ? openEntryFor_(me.userId) : undefined;
+  var q = queuedStart_(me, opts && opts.queued, jobId, costItemId, open);
+  if (q && q.already) return q.already;
+  var e = openEntry_(me, jobId, costItemId, coords, q ? q.note : null, open, q ? q.start : 0);
   if (e && !startPhotoId) markNudged(e.id);
   if (e && first) e.morning = morningCheck_(me, coords, opts);
+  if (e && q) e.queued = { start: new Date(q.start).toISOString(), waited: q.waited };
+  return e;
+}
+
+// ---- a clock-in made with no signal (T2.31, audit I1) ---------------------
+// Carl, 30 Oct 2026: the phone's own time is acceptable for payroll. A
+// clock-in, or an arrival that switches the clock, that the phone could not
+// send is kept on the phone with the moment it was made, and sent when there
+// is signal. The entry starts then — counted back from now by how long the
+// phone says it waited, so a phone whose clock is set wrong still lands on
+// the right minute — and its notes say so. Bounded: never more than 16 hours
+// back, never over another block of the day, never before the block that is
+// running began. A repeat that comes after its request id is forgotten finds
+// the entry it opened rather than opening another.
+var QUEUED_MAX_MS = 16 * 3600 * 1000, QUEUED_SAME_MS = 5 * 60 * 1000;
+function queuedStart_(me, q, jobId, costItemId, open) {
+  if (!q || typeof q !== 'object') return null;
+  var at = Number(q.at), sent = Number(q.sentAt), now = Date.now();
+  if (!isFinite(at) || !isFinite(sent) || !at || !sent) throw queuedNo_('notime', 'That clock-in came from the phone without its time.');
+  var waited = sent - at;
+  if (waited < 0) throw queuedNo_('clock', 'The phone’s clock changed while that clock-in waited.');
+  if (waited > QUEUED_MAX_MS) throw queuedNo_('old', 'That clock-in waited on the phone over 16 hours.');
+  var start = now - waited, said = clockWords_(new Date(start));
+  if (open === undefined) open = openEntryFor_(me.userId);
+  if (open && !isFuture_(open.startedAt) && open.job && open.job.id === jobId && open.code && open.code.id === costItemId &&
+      Math.abs(Date.parse(open.startedAt) - start) <= QUEUED_SAME_MS) return { already: open };
+  if (open && !isFuture_(open.startedAt) && Date.parse(open.startedAt) > start)
+    throw queuedNo_('since', 'You were put on the clock at ' + clockWords_(new Date(Date.parse(open.startedAt))) +
+                    ' while that clock-in waited.', open.startedAt);
+  var clash = getMyDay(me).filter(function (x) {
+    if ((open && x.id === open.id) || isFuture_(x.startedAt)) return false;
+    var end = Date.parse(x.endedAt || '');
+    return !isNaN(end) && end > start;
+  })[0];
+  if (clash) throw queuedNo_('until', 'Your day already has time on the clock until ' + clockWords_(new Date(Date.parse(clash.endedAt))) + '.',
+                             clash.endedAt);
+  return { start: start, waited: waited,
+           note: 'Clocked in with no signal at ' + said + ' — sent from DB Crew at ' + clockWords_(new Date(now)) + '.' };
+}
+
+/** Why a kept clock-in was not added: the reason in words, and as data the
+ *  phone says in its own language (`refuse` on the reply). The phone adds what
+ *  to do about it, so the words here are the reason and nothing else. */
+function queuedNo_(why, words, at) {
+  var e = new Error(words);
+  e.refuse = { why: why };
+  if (at) e.refuse.at = at;
   return e;
 }
 
@@ -2487,20 +2597,20 @@ function clockIn(me, jobId, costItemId, coords, startPhotoId, opts) {
  *  on two clocks at once is a payroll problem. `notes` rides the new block
  *  (a drive says where to); `known` is the open entry when the caller has
  *  just read it, which saves asking again. */
-function openEntry_(me, jobId, costItemId, coords, notes, known) {
+function openEntry_(me, jobId, costItemId, coords, notes, known, startMs) {
   var open = known !== undefined ? known : openEntryFor_(me.userId);
   // On a break the open entry is the block planned for after it, starting in
   // the future: closing it would end it before it began. Starting work ends
   // the break early, so it goes — what JobTread's own app does.
   if (open && isFuture_(open.startedAt)) { deleteEntry_(open.id); forgetBreak_(me.userId); }
-  else if (open) closeEntry_(open.id, coords);
+  else if (open) closeEntry_(open.id, coords, startMs);
 
   var args = {
     organizationId: ORG,
     jobId: jobId,
     userId: me.userId,
     costItemId: costItemId,
-    startedAt: new Date().toISOString(),
+    startedAt: new Date(startMs || Date.now()).toISOString(),
     type: ENTRY_TYPE
   };
   if (notes) args.notes = String(notes).slice(0, 500);
@@ -2513,8 +2623,8 @@ function openEntry_(me, jobId, costItemId, coords, notes, known) {
   return openEntryFor_(me.userId);
 }
 
-function closeEntry_(entryId, coords) {
-  var args = { id: entryId, endedAt: new Date().toISOString() };
+function closeEntry_(entryId, coords, endMs) {
+  var args = { id: entryId, endedAt: new Date(endMs || Date.now()).toISOString() };
   var ec = coordArg_(coords);
   if (ec) args.endCoordinates = ec;
   pave({ updateTimeEntry: { '$': args } });
@@ -2553,9 +2663,14 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId, opt
   var open = openEntryFor_(me.userId);
   if (!startPhotoId && startPhotoOwed_(me, jobId, open)) requirePhoto_(startPhotoId, 'A start photo is required to start work at this job.');
   assertWrite_(jobId);
-  var notes = opts && opts.notes ? String(opts.notes).trim().slice(0, 200) : null;
-  var e = openEntry_(me, jobId, costItemId, coords, notes, open);   // closes what is running, then opens
+  // An arrival made with no signal (T2.31): the drive ends, and the work
+  // starts, when the phone says.
+  var q = queuedStart_(me, opts && opts.queued, jobId, costItemId, open);
+  if (q && q.already) return q.already;
+  var notes = [opts && opts.notes ? String(opts.notes).trim().slice(0, 200) : '', q ? q.note : ''].filter(Boolean).join(' ') || null;
+  var e = openEntry_(me, jobId, costItemId, coords, notes, open, q ? q.start : 0);   // closes what is running, then opens
   if (e && !startPhotoId) markNudged(e.id);
+  if (e && q) e.queued = { start: new Date(q.start).toISOString(), waited: q.waited };
   return e;
 }
 

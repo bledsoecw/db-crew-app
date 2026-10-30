@@ -574,7 +574,10 @@
       if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to clock in.');
       var today = new Date(); today.setHours(0, 0, 0, 0);
       var first = jobId === SHOP.id && !ST.entries.some(function (e) { return Date.parse(e.startedAt) >= today.getTime() && Date.parse(e.startedAt) <= Date.now(); });
-      var e = HANDLERS.__open(jobId, costItemId);
+      var q = HANDLERS.__queued(opts, jobId, costItemId);
+      if (q && q.already) return q.already;
+      var e = HANDLERS.__open(jobId, costItemId, q ? q.note : '', q ? q.start : 0);
+      if (q) e.queued = { start: e.startedAt, waited: q.waited };
       // __MOCK_AWAY: the morning clock-in somewhere else (T2.23).
       if (first) {
         e.morning = window.__MOCK_AWAY ? { ok: false, where: window.__MOCK_AWAY === 'noloc' ? 'with no location from the phone' : 'about 3.2 miles from the shop on Monroe St' } : { ok: true, at: 'the shop on Monroe St' };
@@ -582,17 +585,45 @@
       }
       return e;
     },
-    __open: function (jobId, costItemId, notes) {
+    // A clock-in made with no signal (T2.31, I1), as Code.gs takes it: it
+    // starts when the phone made it, counted back from now by how long it
+    // waited. __MOCK_QREFUSE refuses it: words alone (a reason the phone has
+    // no name for), or { why, at } as Code.gs sends it beside its words.
+    __queued: function (opts, jobId, costItemId) {
+      var qd = opts && opts.queued;
+      if (!qd) return null;
+      (window.__QUEUED = window.__QUEUED || []).push({ jobId: jobId, costItemId: costItemId, at: qd.at, sentAt: qd.sentAt });
+      var qr = window.__MOCK_QREFUSE;
+      if (qr && typeof qr === 'object') {
+        var said = qr.at ? new Date(qr.at).toLocaleTimeString() : '';
+        var qe = new Error(qr.why === 'since' ? 'You were put on the clock at ' + said + ' while that clock-in waited.'
+          : qr.why === 'until' ? 'Your day already has time on the clock until ' + said + '.' : 'Refused (' + qr.why + ').');
+        qe.refuse = qr.at ? { why: qr.why, at: qr.at } : { why: qr.why };
+        throw qe;
+      }
+      if (qr) throw new Error(String(qr));
+      var waited = Number(qd.sentAt) - Number(qd.at);
+      if (!(waited >= 0)) { var ce = new Error('The phone’s clock changed while that clock-in waited.'); ce.refuse = { why: 'clock' }; throw ce; }
+      var start = Date.now() - waited;
+      if (ST.open && ST.open.job && ST.open.job.id === jobId && ST.open.code && ST.open.code.id === costItemId && Math.abs(Date.parse(ST.open.startedAt) - start) <= 300000) return { already: ST.open };
+      return { start: start, waited: waited, note: 'Clocked in with no signal at ' + new Date(start).toLocaleTimeString() + ' — sent from DB Crew.' };
+    },
+    __open: function (jobId, costItemId, notes, startMs) {
       HANDLERS.__dropPlanned();
-      if (ST.open) ST.open.endedAt = new Date().toISOString();
-      ST.open = { id: 'open' + (++ST.n), startedAt: new Date().toISOString(), endedAt: null, minutes: 0, notes: notes || '', job: jobById(jobId) || JOB, code: code(costItemId) };
+      var at = new Date(startMs || Date.now()).toISOString();
+      if (ST.open) ST.open.endedAt = at;
+      ST.open = { id: 'open' + (++ST.n), startedAt: at, endedAt: null, minutes: 0, notes: notes || '', job: jobById(jobId) || JOB, code: code(costItemId) };
       ST.entries = [ST.open].concat(ST.entries);
       return ST.open;
     },
     switchCode: function (jobId, costItemId, coords, endPhotoId, startPhotoId, opts) {
       (window.__CLOCK = window.__CLOCK || []).push(['switchCode', jobId, costItemId, endPhotoId || null, startPhotoId || null, (opts && opts.notes) || null]);
       if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to start work at this job.');
-      return HANDLERS.__open(jobId, costItemId, opts && opts.notes);
+      var q = HANDLERS.__queued(opts, jobId, costItemId);
+      if (q && q.already) return q.already;
+      var e = HANDLERS.__open(jobId, costItemId, [opts && opts.notes, q && q.note].filter(Boolean).join(' '), q ? q.start : 0);
+      if (q) e.queued = { start: e.startedAt, waited: q.waited };
+      return e;
     },
     // Rolled out without the shop checks done (T2.20): the PM and the Ops
     // Director are told.
@@ -904,12 +935,26 @@
     return r;
   };
   var __TOKENS = window.__TOKENS = [];
+  // Request ids (T2.31, D15), as Code.gs keeps them: the first answer to an
+  // id that worked is handed back, and the write is not done again.
+  // __RIDS records [fn, rid] for every call. __MOCK_NONET: no signal at all —
+  // every call and upload fails before it reaches anything. __MOCK_LOSTREPLY
+  // = N: the next N writes that carry an id are done, and their answers lost
+  // on the way back, the way a dropped connection loses them.
+  var __RIDS = window.__RIDS = [], RID_SEEN = {};
+  var noNet = function () { return Promise.reject(new TypeError('Failed to fetch')); };
   var realFetch = window.fetch.bind(window);
   window.fetch = function (url, opts) {
     var u = String(url);
     if (u.indexOf('mock.local/exec') !== -1) {
       var body = JSON.parse((opts && opts.body) || '{}');
+      if (window.__MOCK_NONET) return noNet();
       __TOKENS.push({ fn: body.fn, t: body.t });
+      __RIDS.push([body.fn, body.rid || null]);
+      if (body.rid && RID_SEEN[body.rid]) {
+        var again = JSON.stringify(Object.assign({}, RID_SEEN[body.rid], { repeat: true }));
+        return Promise.resolve({ ok: true, status: 200, text: function () { return Promise.resolve(again); }, json: function () { return Promise.resolve(JSON.parse(again)); } });
+      }
       // Sign-in (T2.8):
       //   a token with BAD in it      refused as a personal account (authWhy not-allowed)
       //   __MOCK_EXCHANGE_FAIL = N    the first N trades of a token answer like an overloaded /exec
@@ -945,10 +990,13 @@
         }
       } catch (err) {
         out = { ok: false, error: String(err && err.message || err), readOnly: /^READ_ONLY/.test(String(err && err.message || '')) };
+        if (err && err.refuse) out.refuse = err.refuse;   // a kept clock-in not added, as Code.gs says it (T2.31)
       }
       // Every real reply says where its time went; the Build panel shows it.
       out.ms = { total: 1840, auth: 60, member: 380, fn: 1400, pave: body.fn === 'getStart' ? 3 : 1, paveMs: 1250 };
       __CALLS.push(body.fn);
+      if (body.rid && out.ok) RID_SEEN[body.rid] = JSON.parse(JSON.stringify({ ok: true, data: out.data === undefined ? null : out.data }));
+      if (body.rid && Number(window.__MOCK_LOSTREPLY) > 0) { window.__MOCK_LOSTREPLY--; return noNet(); }
       // A real Response, near enough: apiCall reads the body as text and parses
       // it itself, so that it can tell a page from JSON. A stub with only
       // json() silently breaks every screen in the harness.
@@ -971,6 +1019,7 @@
     // pattern on the file name) answers 500; __MOCK_PUTSTALL never answers
     // until the app gives up on it.
     if (u.indexOf('mock.local/put') !== -1) {
+      if (window.__MOCK_NONET) return noNet();
       var nm = decodeURIComponent(u.split('?n=')[1] || '');
       (window.__PUTS = window.__PUTS || []).push(nm);
       if (window.__MOCK_PUTREFUSED) return Promise.reject(new TypeError('Failed to fetch'));

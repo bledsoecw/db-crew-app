@@ -219,7 +219,9 @@ const queued = (page) => page.evaluate(() => idbAll().then((a) => a.map((x) => x
   const { ctx, page, errs } = await boot("window.__MOCK_ROLE='service';");
   await page.evaluate(() => setTab('diag')); await page.waitForTimeout(900);
   const tbl = await txt(page, '#verTbl');
-  check('I3: the phone, the API and the Close Out server, side by side', [/App\s*T2\.30/.test(tbl), /Close Out\s*9a4dfd9 · built on deploy · contract 1/.test(tbl), await page.locator('#verWarn').isHidden()], [true, true, true]);
+  // The phone's own build, whatever it is now (T2.31: not pinned to T2.30).
+  const appBuild = await page.evaluate(() => APP_BUILD);
+  check('I3: the phone, the API and the Close Out server, side by side', [tbl.replace(/\s+/g, '').indexOf('App' + appBuild.replace(/\s+/g, '')) > -1, /Close Out\s*9a4dfd9 · built on deploy · contract 1/.test(tbl), await page.locator('#verWarn').isHidden()], [true, true, true]);
   await page.evaluate(() => {
     window.__MOCK_BUILDS = { api: 'T2.29 (2026-10-30)', closeOut: { configured: true, ok: true, build: { source: 'x', on: 'local', commit: '6c6d5d1' }, deployed: '6c6d5d1', contract: 0 } };
     return loadBuilds();
@@ -227,11 +229,11 @@ const queued = (page) => page.evaluate(() => idbAll().then((a) => a.map((x) => x
   await page.waitForTimeout(300);
   const w = await txt(page, '#verWarn');
   check('…a server behind the phone is warned about, in words that say what to deploy',
-    [await page.locator('#verWarn').isVisible(), /newer than the API \(T2\.29\)\. Deploy the Apps Script/.test(w), /Close Out server is older than this app needs \(contract 0, needs 1\)/.test(w), /not built on its deploy \(local\)/.test(w)],
+    [await page.locator('#verWarn').isVisible(), /newer than the API \(T2\.29\)\. Deploy the Apps Script/.test(w), /Close Out server is older than this app needs \(contract 0, needs \d+\)/.test(w), /not built on its deploy \(local\)/.test(w)],
     [true, true, true, true]);
   check('…every build row says its whole name, however long its value',
     await page.evaluate(() => [...document.querySelectorAll('#verTbl .trow .nm')].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent)), []);
-  await page.evaluate(() => { window.__MOCK_BUILDS = { api: 'T2.30 (2026-10-30)', closeOut: { configured: true, ok: true, build: { on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: null } }; return loadBuilds(); });
+  await page.evaluate(() => { window.__MOCK_BUILDS = { api: APP_BUILD, closeOut: { configured: true, ok: true, build: { on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: null } }; return loadBuilds(); });
   await page.waitForTimeout(300);
   check('a server that does not report a level yet is not called behind', await page.locator('#verWarn').isHidden(), true);
   check('no page errors (I3)', errs, []);

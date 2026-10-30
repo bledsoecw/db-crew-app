@@ -115,9 +115,9 @@ button[disabled]{cursor:default}
 .cardbtn{min-height:60px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 18px;background:var(--surf2);border-top:1px solid var(--line);font:600 11px/1 var(--mono);letter-spacing:.99px;text-transform:uppercase;color:var(--mut)}
 
 #band{background:var(--band);border:1px solid var(--bandline);border-radius:8px;padding:20px 18px 18px;display:flex;flex-direction:column;gap:14px;margin-top:14px}
-#band .live{display:flex;align-items:center;gap:9px}
-#band .dot{width:11px;height:11px;border-radius:50%;background:var(--live);animation:pulse 1.6s ease-in-out infinite}
-#band .lbl{font:600 11px/1 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:var(--livetext)}
+#band .live{display:flex;align-items:flex-start;gap:9px}
+#band .dot{flex:none;margin-top:2px;width:11px;height:11px;border-radius:50%;background:var(--live);animation:pulse 1.6s ease-in-out infinite}
+#band .lbl{font:600 11px/1.35 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:var(--livetext)}
 #elapsed{font:800 62px/1 var(--head);letter-spacing:-1.86px;color:#fff}
 #bandCode{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 #bandCodeN{font:600 15px/1 var(--mono);letter-spacing:.9px;color:#7ba4dd}
@@ -1121,7 +1121,7 @@ html{touch-action:manipulation}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.30 (2026-10-30)';
+var APP_BUILD = 'T2.31 (2026-10-30)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1143,7 +1143,11 @@ var BOARD_WAIT_MS = 20000;
    remembered this long, so a crew lead isn't nudged every morning about a
    list they cannot sign. */
 var CHECKS_SAVE_DEBOUNCE_MS = 1500;
-var CHECKS_RETRY_MS = [20000, 60000, 180000, 300000];
+/* One backoff for everything the phone keeps to send later (T2.31, I2):
+   20 seconds, a minute, three minutes, then every five. Each lane counts its
+   own tries; this is how long each try waits. */
+var OB_RETRY_MS = [20000, 60000, 180000, 300000];
+function obRetryMs(tries){ return OB_RETRY_MS[Math.min(Math.max(1, tries || 1), OB_RETRY_MS.length) - 1]; }
 var CHECKS_RO_MEMORY_MS = 7 * 24 * 3600 * 1000;
 
 /* =========================================================
@@ -1382,10 +1386,13 @@ function apiAttempt(fn, args, attempt, co){
   };
   arm(limit);
   var sentTok = AUTH.token;
+  // A write that says when it was sent stamps it now, as it leaves, on every
+  // try (T2.31): it may have waited in its lane behind a slow call.
+  if (co.beforeSend) co.beforeSend();
   var opts = {
     method:'POST',
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },  // avoids the CORS preflight Apps Script can't answer
-    body: JSON.stringify({ t: sentTok, fn: fn, args: args || [], partner: co.partner ? true : undefined })
+    body: JSON.stringify({ t: sentTok, fn: fn, args: args || [], partner: co.partner ? true : undefined, rid: co.rid || undefined })
   };
   if (ctl) opts.signal = ctl.signal;
 
@@ -1418,6 +1425,8 @@ function apiAttempt(fn, args, attempt, co){
     err.authInfo = j;
     err.readOnly = !!(j && j.readOnly);
     err.noAccess = !!(j && j.noAccess);
+    err.busy = !!(j && j.busy);   // the same write is still at work there (T2.31): ask again later
+    err.refuse = (j && j.refuse) || null;   // why a kept clock-in was not added, as data (T2.31)
     err.answered = true;   // the server gave a real reply; asking again changes nothing
     throw err;
   }).catch(function(e){
@@ -1468,11 +1477,26 @@ var apiBusy = 0;      // calls out right now; a new build waits for zero before 
    clock is where this one was, and says when it was not. Two people's writes
    take longer, so the ceiling is longer. */
 var PARTNER_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startedEarlier: 1, startBreak: 1, endBreak: 1 };
+/* Request ids (T2.31, D15). A write whose answer did not arrive was sent
+   again as a second write: a clock-in left a stray entry, Tell the PM texted
+   twice, a photo could be filed twice. Every write now carries an id, the
+   same on every try of it — the retries below, and an outbox's tries later,
+   which pass their own (`co.rid`) — and the API remembers the answer to each
+   id for ten minutes and hands it back instead of writing again. Keep this
+   list in step with RID_FNS in Code.gs. */
+var RID_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startedEarlier: 1, startBreak: 1, endBreak: 1,
+                tellPm: 1, sendSafetyAlert: 1, sendDailyLog: 1, addDailyLogNote: 1, rollChecked: 1, rollForgot: 1,
+                finalizeCaptureUpload: 1, uploadCapture: 1 };
+function newRid(){ return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 function apiCall(fn, args, co){
   if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
   co = co || {};
   if (co.timeout == null && API_TIMEOUTS[fn]) co.timeout = API_TIMEOUTS[fn];
-  if (PARTNER_FNS[fn] && S.partner && S.partnerOn){ co.partner = true; co.timeout = Math.max(co.timeout || API_TIMEOUT_MS, 50000); }
+  if (RID_FNS[fn] && !co.rid) co.rid = newRid();
+  // A write kept for later says itself whether it was for the partner too
+  // (T2.31); otherwise the box, as it is now.
+  if (co.partner == null && PARTNER_FNS[fn] && S.partner && S.partnerOn) co.partner = true;
+  if (co.partner) co.timeout = Math.max(co.timeout || API_TIMEOUT_MS, 50000);
   var lane = co.lane || API_LANE[fn] || 'main';
   var queuedAt = Date.now(), t0 = 0;
   var run = function(){ t0 = Date.now(); apiBusy++; return apiAttempt(fn, args, 1, co); };
@@ -1558,33 +1582,18 @@ function storeSet(key, value, quiet){
    a Close Out job copy after 7 days unless there is work on that job still on
    the phone; a finished visit after 14 days; a finished repair's extra photo
    thumbnails at once. Anything not yet sent is never touched. */
+/* One trimming rule (T2.31, I2): what is finished stays 14 days — 2 when
+   the phone is full — and anything not yet sent is never touched. Each lane
+   of the outbox says what of its own is finished; copies the phone can fetch
+   again (Close Out's job copies) go sooner. */
 function storeTrim(full){
   storeTrimming = true;
-  var now = Date.now(), changed;
+  var now = Date.now(), keep = (full ? 2 : 14) * DAY_MS;
   try {
-    if (typeof dlStore === 'object' && dlStore){
-      var dlKeep = (full ? 2 : 14) * DAY_MS; changed = false;
-      for (var k in dlStore){
-        var e = dlStore[k]; if (!e) continue;
-        var age = now - new Date((e.date || '1970-01-01') + 'T12:00:00').getTime();
-        if (age > dlKeep && !e.sending && (e.sent || (!e.wantSend && !dlHasContent(e)))){ delete dlStore[k]; changed = true; }
-      }
-      if (changed) dlPersist();
-    }
+    (typeof OB_LANES === 'object' ? OB_LANES : []).forEach(function(l){ if (l.trim){ try { l.trim(keep, now); } catch(e){} } });
     var busy = {};
     if (typeof CO === 'object' && CO){ (CO.outbox || []).forEach(function(it){ busy[it.jobId] = 1; }); if (CO.jobId) busy[CO.jobId] = 1; }
     var visits = (typeof coStore === 'object' && coStore && coStore.visits) || {};
-    changed = false;
-    for (var jid in visits){
-      var v = visits[jid]; if (!v) continue;
-      for (var tid in (v.repairMore || {})){ if (v.doneTasks && v.doneTasks[tid]){ delete v.repairMore[tid]; changed = true; } }
-      if (busy[jid] || !coVisitIdle(v)) continue;
-      var last = Math.max(v.sentAt || 0, v.startedAt || 0);
-      for (var dt in (v.doneTasks || {})) last = Math.max(last, v.doneTasks[dt] || 0);
-      for (var ak in (v.areas || {})) last = Math.max(last, (v.areas[ak] && v.areas[ak].sentAt) || 0);
-      if (now - last > 14 * DAY_MS){ delete visits[jid]; changed = true; }
-    }
-    if (changed) coPersist();
     var copyKeep = (full ? 1 : 7) * DAY_MS, keys = [];
     for (var i = 0; i < localStorage.length; i++){ var key = localStorage.key(i); if (/^dbtc_co_job_/.test(key)) keys.push(key); }
     keys.forEach(function(key){
@@ -1595,6 +1604,35 @@ function storeTrim(full){
     });
   } catch(e){}
   storeTrimming = false;
+}
+/* The day log's finished logs: sent, or empty and never asked to go. */
+function dlTrim(keep, now){
+  if (typeof dlStore !== 'object' || !dlStore) return;
+  var changed = false;
+  for (var k in dlStore){
+    var e = dlStore[k]; if (!e) continue;
+    var age = now - new Date((e.date || '1970-01-01') + 'T12:00:00').getTime();
+    if (age > keep && !e.sending && (e.sent || (!e.wantSend && !dlHasContent(e)))){ delete dlStore[k]; changed = true; }
+  }
+  if (changed) dlPersist();
+}
+/* Close Out's finished visits: a repair done lets go of its extra photo
+   thumbnails at once; a visit with nothing left to send, after `keep`. */
+function coTrim(keep, now){
+  if (typeof coStore !== 'object' || !coStore || !coStore.visits) return;
+  var busy = {};
+  if (typeof CO === 'object' && CO){ (CO.outbox || []).forEach(function(it){ busy[it.jobId] = 1; }); if (CO.jobId) busy[CO.jobId] = 1; }
+  var visits = coStore.visits, changed = false;
+  for (var jid in visits){
+    var v = visits[jid]; if (!v) continue;
+    for (var tid in (v.repairMore || {})){ if (v.doneTasks && v.doneTasks[tid]){ delete v.repairMore[tid]; changed = true; } }
+    if (busy[jid] || !coVisitIdle(v)) continue;
+    var last = Math.max(v.sentAt || 0, v.startedAt || 0);
+    for (var dt in (v.doneTasks || {})) last = Math.max(last, v.doneTasks[dt] || 0);
+    for (var ak in (v.areas || {})) last = Math.max(last, (v.areas[ak] && v.areas[ak].sentAt) || 0);
+    if (now - last > keep){ delete visits[jid]; changed = true; }
+  }
+  if (changed) coPersist();
 }
 /* A Close Out visit with nothing on it that has not gone: no photos, no
    unsent report, no answers, no repair photos, no area work. */
@@ -1987,7 +2025,10 @@ function render(){
 
   var ob = $('offlineBar');
   ob.classList.toggle('hidden', S.online);
-  ob.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l20 20M8.6 16.5a5 5 0 0 1 6.8 0M5 12.6a10 10 0 0 1 4.6-2.4M19.7 12.6a10 10 0 0 0-4.3-2.5"/><path d="M12 20h.01"/></svg><span>' + (S.queued ? Lf(S.queued === 1 ? 'No signal · {n} item queued' : 'No signal · {n} items queued', { n: S.queued }) : L('No signal · nothing waiting')) + '</span>';
+  // Everything waiting to send, from every lane of the outbox (T2.31) — it
+  // used to count photos only, and said "nothing waiting" over a day log.
+  var obN = typeof OB_LANES === 'object' ? obWaiting().total : (S.queued || 0);
+  ob.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l20 20M8.6 16.5a5 5 0 0 1 6.8 0M5 12.6a10 10 0 0 1 4.6-2.4M19.7 12.6a10 10 0 0 0-4.3-2.5"/><path d="M12 20h.01"/></svg><span>' + (obN ? Lf(obN === 1 ? 'No signal · {n} item queued' : 'No signal · {n} items queued', { n: obN }) : L('No signal · nothing waiting')) + '</span>';
   var rb = $('roBar');
   // Unknown until the API says (null): no bar, rather than a wrong one.
   rb.classList.toggle('hidden', S.writeEnabled !== false);
@@ -2181,6 +2222,14 @@ function renderClock(){
   var n = codePhotos().length;
   $('bandSub').textContent = Lf(hasTag('before') ? 'Started {t} with a start photo' : 'Started {t}', { t: clockLabel(S.open.startedAt) }) +
                              ' · ' + Lf(n === 1 ? '{n} photo on this code' : '{n} photos on this code', { n: n });
+  // Kept on the phone with no signal (T2.31): the clock runs, and says so.
+  if (S.open.kept){
+    var qw = cqWaiting();
+    $('band').querySelector('.lbl').textContent = L('On the clock · saved on this phone');
+    $('bandSub').textContent = Lf('Started {t}', { t: clockLabel(S.open.startedAt) }) + ' · ' +
+      (qw && qw.inflight ? L('Sending…') : !S.online ? L('Sends when there’s signal')
+       : qw && qw.tries && qw.next > Date.now() ? Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(qw.next) }) : L('Sends in a moment'));
+  }
   $('leaveLbl').textContent = L(atShop() ? 'Leave the shop' : 'Leave the site');
   // On the clock at a Close Out job (T2.27): one tap back into its work.
   var cja = !atShop() ? coArrival(S.job) : '';
@@ -2189,8 +2238,9 @@ function renderClock(){
   // Tell the PM (T2.27) is about a job; the shop has no PM to tell.
   $('tpmBtn').classList.toggle('hidden', atShop());
   $('tpmBtn').parentNode.classList.toggle('one', atShop());
-  $('earlierBtn').classList.toggle('hidden', !earlierBlock());
-  $('stopFoot').textContent = L(atShop() ? 'At the shop no photo is asked for.'
+  $('earlierBtn').classList.toggle('hidden', !earlierBlock() || !!S.open.kept);
+  $('stopFoot').textContent = S.open.kept ? L('Your clock-in is on this phone. Clocking out, a break and moving wait until it has gone to JobTread.')
+    : L(atShop() ? 'At the shop no photo is asked for.'
     : 'A start photo when you start here, an end photo when you leave for the day — nothing in between.');
 }
 
@@ -2451,20 +2501,9 @@ function forceUpdate(){
    three IndexedDB stores — so the next person starts clean, and Google's
    One Tap is told not to pick the account that just left. */
 var signOutArmed = 0;
-function waitingToSend(){
-  var n = [];
-  if (S.queued) n.push(S.queued + (S.queued === 1 ? ' photo' : ' photos'));
-  var ck = 0; for (var t in ckStore){ if (ckStore[t] && ckStore[t].dirty) ck++; }
-  if (ck) n.push(ck + ' site-check save' + (ck === 1 ? '' : 's'));
-  // The pre-start keeps its own store (T2.25) and was never counted (T2.30).
-  var pr = 0; for (var tp in prStore){ if (prStore[tp] && prStore[tp].dirty) pr++; }
-  if (pr) n.push(pr + ' pre-start save' + (pr === 1 ? '' : 's'));
-  var dl = 0; for (var k in dlStore){ var e = dlStore[k]; if (e && e.wantSend && !e.sent) dl++; }
-  if (dl) n.push(dl + ' day log' + (dl === 1 ? '' : 's'));
-  var co = ((window.CO && CO.outbox) || []).filter(function(it){ return it.status !== 'rejected'; }).length;
-  if (co) n.push(co + ' close-out item' + (co === 1 ? '' : 's'));
-  return n;
-}
+/* Every lane of the one outbox (T2.31): the same count the no-signal bar
+   shows, read fresh for the lanes kept in IndexedDB. */
+function waitingToSend(){ return obWaiting().parts.map(function(p){ return p.words; }); }
 function wipePhoneState(){
   // Where-you-were (T2.27) stops saving first, or the page's own leaving
   // writes it back for the next person.
@@ -2486,11 +2525,11 @@ function wipePhoneState(){
   }).catch(function(){});
 }
 function signOut(){
-  // The photos are counted from the phone's own store (T2.30), never from
-  // the number the upload loop last left: that loop does not run without
-  // signal, so a phone opened in a dead spot read "nothing waiting" and two
-  // taps erased yesterday's START and END photos.
-  qCount().then(signOutStep);
+  // Counted from the phone's own stores (T2.30), never from the number an
+  // upload loop last left: that loop does not run without signal, so a phone
+  // opened in a dead spot read "nothing waiting" and two taps erased
+  // yesterday's START and END photos. Every lane, read fresh (T2.31).
+  obFresh().then(signOutStep);
 }
 function signOutStep(){
   var btn = $('signOutBtn'), foot = $('signOutFoot');
@@ -3338,11 +3377,10 @@ function ckAdopt(e, checks, sentSeq){
 function ckRetryLater(tid){
   var n = ckRetries[tid] || 0;
   ckRetries[tid] = n + 1;
-  ckSchedule(tid, CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)]);
+  ckSchedule(tid, obRetryMs(n + 1));
 }
 /* On open, on reconnect, on waking: anything unsaved goes now. */
 function ckRetryPending(){
-  prRetryPending();
   var i = 0;
   for (var tid in ckStore){
     var e = ckStore[tid];
@@ -3456,9 +3494,13 @@ function prFlush(tid){
 }
 function prRetryLater(tid){
   var n = prRetries[tid] || 0; prRetries[tid] = n + 1;
-  clearTimeout(prTimers[tid]); prTimers[tid] = setTimeout(function(){ delete prTimers[tid]; prFlush(tid); }, CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)]);
+  clearTimeout(prTimers[tid]); prTimers[tid] = setTimeout(function(){ delete prTimers[tid]; prFlush(tid); }, obRetryMs(n + 1));
 }
-function prRetryPending(){ for (var tid in prStore){ var e = prStore[tid]; if (e && e.dirty && !e.inflight && !prTimers[tid]) prFlush(tid); } }
+/* Signal back (T2.31): every unsaved list goes now, even one waiting out its
+   backoff — it used to skip any list with a retry timer set. */
+function prRetryPending(){
+  for (var tid in prStore){ var e = prStore[tid]; if (e && e.dirty && !e.inflight){ prRetries[tid] = 0; prFlush(tid); } }
+}
 function prFlushAll(){ for (var tid in prStore){ var e = prStore[tid]; if (e && e.dirty && !e.inflight) prFlush(tid); } }
 /* A fresh answer from the board: a clean copy of ours hands back to it. */
 function prReconcile(a){
@@ -3670,6 +3712,10 @@ function nudgeItems(){
   if (stuck && canTab('job') && S.writeEnabled !== false){
     items.push({ kind: 'photos', k: L('Photos'), at: Date.now(), text: stuck === 1 ? L('1 photo hasn’t sent — tap to see it') : Lf('{n} photos haven’t sent — tap to see them', { n: stuck }), go: openPhotoQ });
   }
+  // A clock-in kept on the phone (T2.31): waiting, or refused — said until it goes.
+  var cqw = cqWaiting(), cqr = cqRefused();
+  if (cqr && canTab('job')) items.push({ kind: 'clockq-no', k: L('Clock-in'), at: cqr.at, text: Lf('Your {t} clock-in wasn’t added — tap to see why', { t: clockLabel(cqr.at) }), go: function(){ openSheet('clockq'); } });
+  else if (cqw && canTab('job')) items.push({ kind: 'clockq', k: L('Clock-in'), at: cqw.at, text: Lf('Your {t} clock-in is on this phone — it goes when there’s signal', { t: clockLabel(cqw.at) }), go: function(){ openSheet('clockq'); } });
   // Still on the clock from a day before (T2.19): first, above everything.
   if (canTab('job') && leftOvernight()){
     var b0 = new Date(S.open.startedAt);
@@ -3677,7 +3723,7 @@ function nudgeItems(){
   }
   // Most pressing kind first; within a kind, the most recent moment first —
   // the roof you just left, before the one you handed over this morning.
-  var rank = { 'left-open': -1, 'log-now': 0, 'photos': 0.5, 'unsigned': 1, 'log-late': 2 };
+  var rank = { 'clockq-no': -2, 'left-open': -1, 'clockq': -0.5, 'log-now': 0, 'photos': 0.5, 'unsigned': 1, 'log-late': 2 };
   items.sort(function(a, b){ return (rank[a.kind] - rank[b.kind]) || ((b.at || 0) - (a.at || 0)); });
   return items;
 }
@@ -4232,6 +4278,8 @@ window.addEventListener('popstate', function(){
 });
 
 function openSheet(kind, promptKind){
+  // A clock-in still on the phone (T2.31): what changes the clock waits for it.
+  if (CQ_HOLDS[kind] && cqWaiting()) kind = 'clockq';
   if (!S.sheet){ S.sheetFocus = document.activeElement; sheetHistPush(); }
   S.sheet = kind; S.promptKind = promptKind || null;
   var title = kind==='codes' ? (S.pendingJob ? Lf('Code at {p}', { p: S.pendingJob.customer || streetOf(S.pendingJob.address) || L('the next job') }) : L(S.open && !onTravel() ? 'Change code' : 'What are you doing?'))
@@ -4246,6 +4294,7 @@ function openSheet(kind, promptKind){
             : kind==='coWhy' ? co('whyTitle')
             : kind==='coPhoto' ? co('photoTitle')
             : kind==='photoQ' ? L('Photos waiting to send')
+            : kind==='clockq' ? L(cqWaiting() ? 'Clock-in not sent yet' : 'Clock-in not added')
             : kind==='dest' ? L('Where are you going?')
             : kind==='left' ? L('When did you leave?')
             : kind==='earlier' ? L('When did you start?')
@@ -4267,6 +4316,7 @@ function openSheet(kind, promptKind){
                             : kind==='coWhy' ? coWhyHtml()
                             : kind==='coPhoto' ? coPhotoSheetHtml()
                             : kind==='photoQ' ? photoQHtml()
+                            : kind==='clockq' ? clockqHtml()
                             : kind==='dest' ? destHtml()
                             : kind==='left' ? leftHtml()
                             : kind==='earlier' ? earlierHtml()
@@ -4620,6 +4670,10 @@ function wireSheet(){
     };
   });
   if ($('pqAll')) $('pqAll').onclick = function(){ qRetryNow(); toast(L('Trying again…')); setTimeout(openPhotoQ, 500); };
+  // A clock-in kept on the phone (T2.31).
+  if ($('cqSend')) $('cqSend').onclick = function(){ var w = cqWaiting(); if (w) w.next = 0; cqSend(); openSheet('clockq'); };
+  if ($('cqClose')) $('cqClose').onclick = function(){ closeSheet(); };
+  if ($('cqOk')) $('cqOk').onclick = cqDismiss;
   if ($('coPhotoRm')) $('coPhotoRm').onclick = function(){
     var view = S.coPhotoView, b = $('coPhotoRm'); if (!view) return;
     if (!view.armed || Date.now() - view.armed > 4000){ view.armed = Date.now(); b.textContent = co('photoRemoveSure'); return; }
@@ -4950,24 +5004,209 @@ function coLandJob(jobId){
   if (one && one.form !== 'roof'){ CO.areaKey = one.key; coGo('area'); }
 }
 
+/* =========================================================
+   CLOCK IN WITH NO SIGNAL (T2.31, audit I1)
+   Clocking in needed signal at that moment: with none the phone tried for
+   about six seconds, showed the browser's raw error and threw the start
+   photo away, and the crew clocked in again later and fixed the time with
+   Started earlier. Carl, 30 Oct 2026: the phone's own time is acceptable for
+   payroll. So a clock-in — or an arrival, which switches the clock — that
+   gets no answer is kept here with the moment it was made, its start photo
+   and its request id, and sent by the outbox as soon as there is signal.
+   The API starts the entry at that moment, counted back from its own clock
+   by how long the phone says it waited (a phone set to the wrong time still
+   lands on the right minute), and notes it on the entry. Until it has gone
+   the clock runs on the phone from that moment, and clocking out, a break or
+   a move waits for it: each needs the entry it makes. A clock-in the API
+   refuses (the day already has a block there) is said, with its reason.
+   ========================================================= */
+var CQ_KEY = 'dbtc_clockq';
+var clockQ = (function(){ try { var a = JSON.parse(localStorage.getItem(CQ_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } })();
+clockQ.forEach(function(it){ it.inflight = false; });   // in flight is a page's, never a phone's
+var cqTimer = null;
+function cqPersist(){ storeSet(CQ_KEY, JSON.stringify(clockQ)); }
+function cqWaiting(){ return clockQ.filter(function(it){ return !it.refused; })[0] || null; }
+function cqRefused(){ return clockQ.filter(function(it){ return it.refused; })[0] || null; }
+function cqHas(rid){ return !!rid && clockQ.some(function(it){ return it.rid === rid; }); }
+/* The clock as the phone shows it meanwhile: running since it was made.
+   `kept`, never `queued` — the API's own answer carries a `queued` field. */
+function cqOpen(it){ return { id: 'q:' + it.rid, job: it.job, code: it.code, startedAt: new Date(it.at).toISOString(), endedAt: null, minutes: 0, notes: '', kept: true }; }
+function cqOverlay(){ var w = cqWaiting(); if (w) S.open = cqOpen(w); }
+/* A photo still marked for a clock-in the phone no longer holds goes as it is. */
+function cqOrphans(){
+  return idbAll().then(function(items){
+    var gone = {};
+    items.forEach(function(x){ if (x.waitRid && !cqHas(x.waitRid)) gone[x.waitRid] = 1; });
+    return Promise.all(Object.keys(gone).map(function(rid){ return cqReleasePhoto(rid, null); }));
+  }).catch(function(){});
+}
+/* No answer, or the API still at it, is kept; anything the API answered is shown. */
+function cqCanQueue(e){ return !!e && !e.auth && !e.readOnly && !e.noAccess && (!e.answered || !!e.busy); }
+function cqJobSnap(j){ return { id: j.id, number: j.number || '', name: j.name || '', customer: j.customer || '', address: j.address || '' }; }
+function cqCodeSnap(c){ return { id: c.id, number: c.number || '', name: c.name || '' }; }
+/* Kept: the clock runs on the phone, the photo waits for the entry. */
+function startKept(keep, item, rec, code, prev){
+  // Its own next try, on the outbox's backoff: a phone that still thinks it
+  // has signal (a bar, no data) never says "online" again.
+  keep.tries = keep.tries || 0; keep.next = Date.now() + obRetryMs(1);
+  clockQ.push(keep); cqPersist();
+  S.open = cqOpen(keep);
+  if (item){
+    item.entryId = ''; item.codeLabel = codeLabel(code); item.waitRid = keep.rid;
+    rec.codeId = code.id; rec.waitRid = keep.rid;
+    S.photos.push(rec);
+  }
+  S.clockGate = null; S.gateCode = null; S.switching = null; S.onBreak = null;
+  if (S.pendingJob){
+    S.job = S.pendingJob; S.pendingJob = null; S.moving = false;
+    S.dlJobId = S.job.id; S.jobPickedDay = isoLocal();
+    if (prev && prev.id !== S.job.id) dlPromptFor(prev.id, 'switch');
+  }
+  dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
+  S.rollPending = null;
+  savePrefs();
+  if (item) enqueueUpload(item);
+  toast(Lf('No signal — your {t} clock-in is saved on this phone and goes when there’s signal', { t: clockLabel(keep.at) }));
+  render();
+  cqSchedule();
+}
+function cqSend(){
+  clearTimeout(cqTimer);
+  var it = cqWaiting();
+  if (!it || it.inflight || !S.online || !API_URL) return Promise.resolve();
+  if (it.next && it.next > Date.now()){ cqSchedule(); return Promise.resolve(); }
+  it.inflight = true; it.err = ''; render();
+  var opts = {}; for (var k in (it.opts || {})) opts[k] = it.opts[k];
+  opts.queued = { at: it.at, sentAt: Date.now() };
+  // How long it waited is counted to the moment it leaves, not to when it
+  // joined the lane (a boot call retrying ahead of it is seconds).
+  var co = { rid: it.rid, partner: !!it.partner, beforeSend: function(){ opts.queued.sentAt = Date.now(); } };
+  var call = it.kind === 'switch'
+    ? apiCall('switchCode', [it.jobId, it.costItemId, it.coords || null, it.endPhotoId || '', it.startPhotoId || '', opts], co)
+    : apiCall('clockIn', [it.jobId, it.costItemId, it.coords || null, it.startPhotoId || '', opts], co);
+  return call.then(function(open){ it.inflight = false; cqLanded(it, open); }, function(e){ cqFailed(it, e); });
+}
+function cqSchedule(){
+  clearTimeout(cqTimer);
+  var it = cqWaiting();
+  if (it && it.next) cqTimer = setTimeout(cqSend, Math.max(3000, it.next - Date.now()));
+}
+function cqLanded(it, open){
+  clockQ = clockQ.filter(function(x){ return x.rid !== it.rid; }); cqPersist();
+  if (open && (!S.open || S.open.kept)) S.open = open;
+  cqReleasePhoto(it.rid, open);
+  if (open && open.morning && open.morning.ok === false && !open.morning.quiet)
+    toast(open.morning.where && /no location/.test(open.morning.where) ? 'No location from the phone · your PM and the Ops Director are told' : 'Not at the shop or the office · your PM and the Ops Director are told', true);
+  if (it.rollForgot) rollForgot(it.rollForgot);
+  toast(Lf('Your {t} clock-in has reached JobTread', { t: clockLabel(it.at) }));
+  savePrefs(); enablePush(); refreshDayLater(); render();
+  if (S.sheet === 'clockq') closeSheet();
+}
+function cqFailed(it, e){
+  it.inflight = false;
+  it.err = String((e && e.message) || e || '').slice(0, 200);
+  if (cqCanQueue(e) || /^Pave/.test(it.err)){
+    it.tries = (it.tries || 0) + 1; it.next = Date.now() + obRetryMs(it.tries);
+    cqPersist(); cqSchedule(); render();
+    if (S.sheet === 'clockq') openSheet('clockq');
+    return;
+  }
+  // Refused: the phone said they were on the clock, and they are not —
+  // what the API does have is read again, and the reason is said.
+  it.refused = true; it.refuse = (e && e.refuse) || null; cqPersist();
+  if (S.open && S.open.id === 'q:' + it.rid) S.open = null;
+  apiCall('getStart', [(S.job && S.job.id) || null]).then(function(d){ if (d){ S.open = d.open; S.entries = d.entries || S.entries; } render(); }).catch(function(){});
+  toast(Lf('Your {t} clock-in wasn’t added — tap the notice to see why', { t: clockLabel(it.at) }), true);
+  render();
+  if (S.sheet === 'clockq') openSheet('clockq');
+}
+/* The start photo waited for its entry: stamped with it and sent. A refused
+   clock-in lets it go as it is — it still shows where they were. */
+function cqReleasePhoto(rid, open){
+  return idbAll().then(function(items){
+    return Promise.all(items.filter(function(x){ return x.waitRid === rid; }).map(function(x){
+      delete x.waitRid;
+      if (open && open.id){ x.entryId = open.id; x.codeLabel = codeLabel(open.code); }
+      var p = photoRec(x.id); if (p) delete p.waitRid;
+      return idbPut(x);
+    }));
+  }).then(function(){ savePrefs(); pump(); }).catch(function(){});
+}
+/* OK on a refused clock-in: it goes, and its photo with it. */
+function cqDismiss(){
+  var it = cqRefused(); if (!it) return;
+  clockQ = clockQ.filter(function(x){ return x.rid !== it.rid; }); cqPersist();
+  cqReleasePhoto(it.rid, null);
+  closeSheet(); render();
+}
+/* A clock-out, a break or a move while a clock-in waits: it needs the entry
+   the clock-in makes, so the sheet says what is waiting instead. */
+var CQ_HOLDS = { codes: 1, jobs: 1, leave: 1, outhow: 1, break: 1, earlier: 1, left: 1, dest: 1, moveHow: 1, travelCodes: 1 };
+/* Why a kept clock-in was not added (T2.31). The API sends the reason as data
+   beside its words, so it is said in the phone's language; anything it has
+   no name for is the API's own words. What to do about it follows on the
+   sheet, once. */
+function cqWhy(it){
+  var r = it.refuse || {}, t = r.at ? clockLabel(r.at) : '';
+  if (r.why === 'since' && t) return Lf('You were put on the clock at {t} while this clock-in waited.', { t: t });
+  if (r.why === 'until' && t) return Lf('Your day already has time on the clock until {t}.', { t: t });
+  if (r.why === 'clock') return L('The phone’s clock changed while this clock-in waited.');
+  if (r.why === 'old') return L('This clock-in waited on the phone over 16 hours.');
+  if (r.why === 'notime') return L('This clock-in left the phone without its time.');
+  return it.err || L('JobTread didn’t take it.');
+}
+function clockqHtml(){
+  var it = cqWaiting() || cqRefused();
+  if (!it) return '<div class="sheetpad"><div class="jempty">' + esc(L('Nothing waiting')) + '</div></div>';
+  var what = Lf('{t} · {code} at {p}', { t: clockLabel(it.at), code: codeLabel(it.code), p: pw(it.job) });
+  if (it.refused){
+    return '<div class="sheetpad"><div class="body"><b>' + esc(what) + '</b></div>' +
+      '<div class="body" style="margin-top:10px">' + esc(cqWhy(it)) + '</div>' +
+      '<div class="body" style="margin-top:10px">' + esc(L('Tell the office when you started. Your start photo still goes.')) + '</div>' +
+      '<button class="btn btn-go" id="cqOk" style="margin-top:16px">' + esc(L('OK')) + '</button></div>';
+  }
+  var st = it.inflight ? L('Sending…') : !S.online ? L('Waiting for signal')
+         : it.tries && it.next > Date.now() ? Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(it.next) }) : L('Sends in a moment');
+  return '<div class="sheetpad"><div class="body"><b>' + esc(what) + '</b></div>' +
+    '<div class="body" style="margin-top:10px">' + esc(Lf('It goes to JobTread as soon as there’s signal — your hours start at {t} either way.', { t: clockLabel(it.at) })) + '</div>' +
+    '<div class="body" style="margin-top:10px">' + esc(L('Clocking out, a break and moving wait until it has gone.')) + '</div>' +
+    '<div class="body" style="margin-top:10px;color:var(--mut)">' + esc(st) + (it.err && !it.inflight ? ' · ' + esc(it.err) : '') + '</div>' +
+    (S.online && !it.inflight ? '<button class="btn btn-go" id="cqSend" style="margin-top:16px">' + esc(L('Send it now')) + '</button>' : '') +
+    '<button class="btn btn-out" id="cqClose" style="margin-top:12px">' + esc(L('OK')) + '</button></div>';
+}
+
 /* The start photo opens the entry — a clock-in, or the switch it completes
    (one call closes the code just ended and opens this one). The photo is
-   queued only once the entry exists, stamped with its id. */
+   queued only once the entry exists, stamped with its id — or, with no
+   signal (T2.31), kept beside the clock-in until it has one. */
 function commitStart(item, rec){
   var code = S.gateCode, sw = S.switching, target = S.pendingJob || S.job, prev = S.job;
   if (!code || !target){ S.clockGate = null; clockFlowDone(); return; }
   // No photo was owed (T2.23): the same call, with none.
   var pid = rec ? rec.id : '';
   var swOpts = sw && sw.wrong ? { notes: 'Changed from ' + sw.wrong + ' in DB Crew — wrong job' } : undefined;
+  var rid = newRid(), madeAt = Date.now();
   busy(true, sw ? 'Switching…' : 'Clocking in…');
   withCoords(function(coords){
+    // What a clock-in with no signal keeps (T2.31): everything the call
+    // needs, the moment it was made, and its id — the same id this first
+    // try carries, so a try that did land is found, never made twice.
+    // Already left is never kept: its time is the person's answer, checked
+    // against the day there and then.
+    var keep = sw && sw.leftAt ? null : {
+      rid: rid, kind: sw ? 'switch' : 'in', jobId: target.id, costItemId: code.id, coords: coords || null,
+      startPhotoId: pid, endPhotoId: sw ? (sw.endPhotoId || '') : '',
+      opts: sw ? (swOpts || {}) : { todayJobId: todayJobForNotice() },
+      at: madeAt, job: cqJobSnap(target), code: cqCodeSnap(code), partner: !!(S.partner && S.partnerOn),
+      rollForgot: S.rollPending && S.rollPending === target.id ? target.id : '', tries: 0 };
+    if (keep && !S.online){ startKept(keep, item, rec, code, prev); busy(false); clockFlowDone(); return; }
     // Already left the last job (T2.19): it ends when they left, the drive
     // from then to now on this job's travel line, and the work from now.
     var travel = sw && sw.leftAt ? S.codes.filter(isTravelCode)[0] : null;
     var call = sw && sw.leftAt ? apiCall('leftSite', [sw.leftAt, coords, { kind: 'work', jobId: target.id, costItemId: code.id, travelItemId: travel ? travel.id : null, startPhotoId: pid,
                                    notes: 'Drive to ' + jobWord(target) + (prev && prev.id !== target.id ? ' · from ' + (atShop() ? 'the shop' : jobWord(prev)) : '') }]).then(function(r){ if (r && r.entries) S.entries = r.entries; return r.open; })
-             : sw ? apiCall('switchCode', [target.id, code.id, coords, sw.endPhotoId || '', pid, swOpts])
-                  : apiCall('clockIn', [target.id, code.id, coords, pid, { todayJobId: todayJobForNotice() }]);
+             : sw ? apiCall('switchCode', [target.id, code.id, coords, sw.endPhotoId || '', pid, swOpts], { rid: rid })
+                  : apiCall('clockIn', [target.id, code.id, coords, pid, { todayJobId: todayJobForNotice() }], { rid: rid });
     call.then(function(open){
       S.open = open;
       if (item){
@@ -5001,6 +5240,9 @@ function commitStart(item, rec){
     }).catch(function(e){
       // The API wanted the photo after all: the camera, for the same start.
       if (!rec && photoRefused(e, 'start')){ busy(false); return 'camera'; }
+      // No answer (T2.31): kept on the phone with its moment and its photo,
+      // sent when there is signal; the clock runs from that moment meanwhile.
+      if (keep && cqCanQueue(e)){ startKept(keep, item, rec, code, prev); return; }
       // Nothing opened: the photo is not kept, and the clock is as it was.
       S.clockGate = null; S.gateCode = null;
       if (S.pendingJob) cancelMove();
@@ -5344,6 +5586,8 @@ function earlierBlock(){
   var began = Date.parse(o.startedAt);
   if (isNaN(began) || Date.now() - began > EARLIER_WINDOW_MS) return null;
   if (/Started earlier —/.test(o.notes || '')) return null;
+  // Made with no signal (T2.31): its time is the phone's own, nothing to fix.
+  if (o.kept || /Clocked in with no signal/.test(o.notes || '')) return null;
   // Off the clock before it: anything else today ended a while before.
   var floor = earlierFloor();
   if (floor && began - floor < 3 * 60000) return null;
@@ -5467,6 +5711,10 @@ function rollDailyLines(){
   return [{ key: 'tarps', label: t ? t.label : 'Tarps checked and loaded — four sound 20×40s with tie-downs' }, { key: 'today', label: ROLL_TODAY_LINE }];
 }
 /* Written down once per roof per morning, as the truck leaves. */
+/* Both of the roll-out's writes go through the outbox (T2.31, I2): written
+   down here with everything the call needs and its request id, and sent
+   until the API has them. A failed one used to be gone — the morning record
+   waited for the next time the truck left, the notice was simply lost. */
 function rollSendDaily(){
   var today = isoLocal();
   rollVisitsToday().filter(rollDailyDue).forEach(function(v){
@@ -5474,10 +5722,47 @@ function rollSendDaily(){
     if (!d || d.sentAt) return;
     var lines = rollDailyLines().filter(function(l){ return d[l.key]; }).map(function(l){ return l.label; });
     if (!lines.length) return;
-    d.sentAt = Date.now(); rollPersist();
-    apiCall('rollChecked', [v.jobId, v.checks.taskId, jobLabelOf(v), stayDayOf(ckStay(v).first, today), lines, d.bring || ''], { lane: 'reads' })
-      .catch(function(e){ d.sentAt = 0; rollPersist(); failed('shop checks record', e, true); });
+    d.sentAt = Date.now();
+    d.daily = { args: [v.jobId, v.checks.taskId, jobLabelOf(v), stayDayOf(ckStay(v).first, today), lines, d.bring || ''], rid: newRid(), tries: 0 };
+    rollPersist();
   });
+  rollFlush();
+}
+function rollWrites(){
+  var out = [];
+  for (var k in rollStore){
+    var d = rollStore[k]; if (!d) continue;
+    ['forgot', 'daily'].forEach(function(kind){ var w = d[kind]; if (w && w.args && !w.sent && !w.refused) out.push({ kind: kind, w: w }); });
+  }
+  return out;
+}
+var rollSending = false, rollTimer = null;
+function rollFlush(){
+  if (rollSending || !S.online || !API_URL) return Promise.resolve();
+  clearTimeout(rollTimer);
+  var now = Date.now(), due = rollWrites().filter(function(x){ return !(x.w.next > now); });
+  if (!due.length){ rollSchedule(); return Promise.resolve(); }
+  rollSending = true;
+  return due.reduce(function(chain, x){
+    return chain.then(function(){
+      return apiCall(x.kind === 'daily' ? 'rollChecked' : 'rollForgot', x.w.args, { lane: 'reads', rid: x.w.rid }).then(function(){
+        x.w.sent = Date.now(); x.w.err = ''; rollPersist();
+      }, function(e){
+        x.w.err = String((e && e.message) || e || '').slice(0, 160);
+        // The API refusing it is final; a missing answer or a JobTread hiccup is tried again.
+        if (e && e.answered && !e.busy && !/^Pave/.test(x.w.err)) x.w.refused = true;
+        else { x.w.tries = (x.w.tries || 0) + 1; x.w.next = Date.now() + obRetryMs(x.w.tries); }
+        rollPersist();
+        failed(x.kind === 'daily' ? 'shop checks record' : 'roll-out notice', e, true);
+      });
+    });
+  }, Promise.resolve()).then(function(){ rollSending = false; rollSchedule(); render(); });
+}
+function rollSchedule(){
+  clearTimeout(rollTimer);
+  var soon = Infinity;
+  rollWrites().forEach(function(x){ soon = Math.min(soon, x.w.next || 0); });
+  if (soon < Infinity) rollTimer = setTimeout(rollFlush, Math.max(3000, soon - Date.now()));
 }
 /* The same morning, in that day's log. */
 function rollForLog(jobId, date){
@@ -5555,7 +5840,11 @@ function rollForgot(jobId){
   S.rollTold[jobId + '|' + isoLocal()] = true;
   savePrefs();
   if (!x) return;
-  apiCall('rollForgot', [jobId, jobLabelOf(x.v), x.miss.map(function(m){ return m.label; })], { lane: 'reads' }).catch(function(e){ failed('roll-out notice', e, true); });
+  var k = jobId + '|' + isoLocal(), d = rollStore[k] || (rollStore[k] = {});
+  if (d.forgot) return;
+  d.forgot = { args: [jobId, jobLabelOf(x.v), x.miss.map(function(m){ return m.label; })], rid: newRid(), tries: 0 };
+  rollPersist();
+  rollFlush();
 }
 
 /* I'm here: the job's code and its start photo. Back at the shop at the end
@@ -5933,13 +6222,13 @@ function qCount(){ return idbAll().then(function(items){ S.queued = items.length
    on its own backoff and the rest go. After PHOTO_STUCK_TRIES it says so on
    the Clock tab, with Try again and Discard. Kept beside the queue, small,
    so a failure never rewrites a photo's file. */
-var QRETRY_KEY = 'dbtc_qretry', PHOTO_RETRY_MS = [20000, 60000, 180000, 300000], PHOTO_STUCK_TRIES = 4;
+var QRETRY_KEY = 'dbtc_qretry', PHOTO_STUCK_TRIES = 4;
 var qRetry = (function(){ try { return JSON.parse(localStorage.getItem(QRETRY_KEY) || '{}') || {}; } catch(e){ return {}; } })();
 function qRetrySave(){ storeSet(QRETRY_KEY, JSON.stringify(qRetry), true); }
 function qRetryFail(id, e){
   var r = qRetry[id] || { tries: 0 };
   r.tries++;
-  r.next = Date.now() + PHOTO_RETRY_MS[Math.min(r.tries - 1, PHOTO_RETRY_MS.length - 1)];
+  r.next = Date.now() + obRetryMs(r.tries);
   r.err = (e && e.readOnly) ? 'read-only build' : String((e && e.message) || 'upload failed').slice(0, 160);
   qRetry[id] = r; qRetrySave();
 }
@@ -5967,6 +6256,10 @@ function pump(){
       return chain.then(function(){
         var r = qRetry[item.id];
         if ((r && r.next > now) || !S.online) return;
+        // Its clock-in is still on the phone (T2.31): it goes once that has —
+        // and never from this list, read before the clock-in may have landed:
+        // landing stamps it with the entry, saves it again and runs the pump.
+        if (item.waitRid) return;
         pumpCur = item.id;
         return sendOne(item).then(function(){
           if (qRetry[item.id]){ delete qRetry[item.id]; qRetrySave(); }
@@ -5996,9 +6289,11 @@ function pump(){
       // Still something waiting: the next run is when the soonest photo is
       // due — one added during this run now, a failing one on its own
       // backoff — and a log waiting on them is told rather than left hanging.
+      // A photo waiting on its clock-in is no reason to run again: the
+      // clock-in landing runs the pump.
       var soon = Infinity;
-      rest.forEach(function(it){ var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
-      pumpTimer = setTimeout(pump, Math.max(3000, soon - Date.now()));
+      rest.forEach(function(it){ if (it.waitRid) return; var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
+      if (soon < Infinity) pumpTimer = setTimeout(pump, Math.max(3000, soon - Date.now()));
       dlRetryPending();
     });
   });
@@ -6031,7 +6326,7 @@ var TAG_UI = { before: 'Start', during: 'During', after: 'End' };
 function openPhotoQ(){
   return qCount().then(function(items){
     items.sort(function(a, b){ return (a.at || 0) - (b.at || 0); });
-    S.pqItems = items.map(function(it){ return { id: it.id, at: it.at, tag: it.tag, jobId: it.jobId }; });
+    S.pqItems = items.map(function(it){ return { id: it.id, at: it.at, tag: it.tag, jobId: it.jobId, waitRid: it.waitRid || '' }; });
     openSheet('photoQ');
   });
 }
@@ -6053,7 +6348,8 @@ function photoQHtml(){
     var what = L(TAG_UI[it.tag] || 'Photo') + (when ? ' · ' + when : '');
     var job = jobLabelById(it.jobId), st, cls = '', btns = '';
     if (r && r.tries) anyFailed = true;
-    if (!S.online) st = L('Waiting for signal');
+    if (it.waitRid) st = L('Goes after its clock-in');
+    else if (!S.online) st = L('Waiting for signal');
     else if (pumpCur === it.id) st = L('Sending…');
     else if (r && r.tries >= PHOTO_STUCK_TRIES){ st = Lf('Couldn’t send · tried {n} times', { n: r.tries }); cls = ' bad'; }
     else if (r && r.tries) st = Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(r.next) });
@@ -6098,6 +6394,9 @@ function fetchTimed(url, opts, ms){
   });
 }
 
+/* One request id per photo, whichever way it goes (T2.31): filing it again
+   after an answer was lost hands back the first filing, never a second file. */
+function photoRid(item){ return ('ph-' + item.id).replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 80); }
 function sendOne(item){
   var name = fileName(item);
   var desc = fileDescription(item);
@@ -6111,11 +6410,11 @@ function sendOne(item){
           .then(function(r){ if (!r.ok) throw new Error('Upload failed (' + r.status + ')'); return req.uploadRequestId; })
           .catch(function(e){ e.directPut = true; throw e; });
       })
-      .then(function(reqId){ return apiCall('finalizeCaptureUpload', [item.jobId, reqId, name, desc]); });
+      .then(function(reqId){ return apiCall('finalizeCaptureUpload', [item.jobId, reqId, name, desc], { rid: photoRid(item) }); });
   };
   var viaApi = function(){
     return blobToBase64(item.blob).then(function(b64){
-      return apiCall('uploadCapture', [item.jobId, b64, item.mime, name, desc]);
+      return apiCall('uploadCapture', [item.jobId, b64, item.mime, name, desc], { rid: photoRid(item) });
     });
   };
   return direct()
@@ -6569,6 +6868,33 @@ esAdd({
   '1 photo hasn’t sent — tap to see it': '1 foto no se ha enviado — toca para verla',
   '{n} photos haven’t sent — tap to see them': '{n} fotos no se han enviado — toca para verlas'
 }); /* T2.30-ES */
+esAdd({
+  'On the clock · saved on this phone': 'En el reloj · guardado en este teléfono',
+  'Sends when there’s signal': 'Se envía cuando haya señal',
+  'Your clock-in is on this phone. Clocking out, a break and moving wait until it has gone to JobTread.': 'Tu entrada está en este teléfono. Marcar salida, un descanso y cambiar de trabajo esperan a que llegue a JobTread.',
+  'Clock-in': 'Entrada',
+  'Your {t} clock-in wasn’t added — tap to see why': 'Tu entrada de las {t} no se agregó — toca para ver por qué',
+  'Your {t} clock-in is on this phone — it goes when there’s signal': 'Tu entrada de las {t} está en este teléfono — se envía cuando haya señal',
+  'Clock-in not sent yet': 'Entrada sin enviar',
+  'Clock-in not added': 'Entrada no agregada',
+  'No signal — your {t} clock-in is saved on this phone and goes when there’s signal': 'Sin señal — tu entrada de las {t} quedó guardada en este teléfono y se envía cuando haya señal',
+  'Your {t} clock-in has reached JobTread': 'Tu entrada de las {t} ya llegó a JobTread',
+  'Your {t} clock-in wasn’t added — tap the notice to see why': 'Tu entrada de las {t} no se agregó — toca el aviso para ver por qué',
+  'Nothing waiting': 'Nada pendiente',
+  '{t} · {code} at {p}': '{t} · {code} en {p}',
+  'You were put on the clock at {t} while this clock-in waited.': 'Te pusieron en el reloj a las {t} mientras esta entrada esperaba.',
+  'Your day already has time on the clock until {t}.': 'Tu día ya tiene tiempo en el reloj hasta las {t}.',
+  'The phone’s clock changed while this clock-in waited.': 'El reloj del teléfono cambió mientras esta entrada esperaba.',
+  'This clock-in waited on the phone over 16 hours.': 'Esta entrada esperó en el teléfono más de 16 horas.',
+  'This clock-in left the phone without its time.': 'Esta entrada salió del teléfono sin su hora.',
+  'JobTread didn’t take it.': 'JobTread no la aceptó.',
+  'Tell the office when you started. Your start photo still goes.': 'Dile a la oficina a qué hora empezaste. Tu foto de inicio se envía de todos modos.',
+  'OK': 'OK',
+  'It goes to JobTread as soon as there’s signal — your hours start at {t} either way.': 'Se envía a JobTread en cuanto haya señal — tus horas empiezan a las {t} de todos modos.',
+  'Clocking out, a break and moving wait until it has gone.': 'Marcar salida, un descanso y cambiar de trabajo esperan a que se haya enviado.',
+  'Send it now': 'Enviarla ahora',
+  'Goes after its clock-in': 'Se envía después de su entrada'
+}); /* T2.31-ES */
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
@@ -6936,7 +7262,7 @@ var dlTimers = {}, dlRetries = {};
 function dlSchedule(k, ms){ clearTimeout(dlTimers[k]); dlTimers[k] = setTimeout(function(){ delete dlTimers[k]; dlFlush(k); }, ms); }
 function dlRetryLater(k){
   var n = dlRetries[k] || 0; dlRetries[k] = n + 1;
-  var ms = CHECKS_RETRY_MS[Math.min(n, CHECKS_RETRY_MS.length - 1)];
+  var ms = obRetryMs(n + 1);
   if (dlStore[k]) dlStore[k].nextTry = Date.now() + ms;
   dlSchedule(k, ms);
 }
@@ -6977,9 +7303,11 @@ function dlFlush(k){
   e.photosPending = pend.length - lost;
   e.photosFailed = lost;
   e.sending = true; e.err = ''; e.lastTry = Date.now();
+  // One request id for every try of this log (T2.31), kept with it.
+  if (!e.rid) e.rid = newRid();
   dlPersist();
   renderLogStatus();
-  return apiCall('sendDailyLog', [dlPayload(e)]).then(function(r){
+  return apiCall('sendDailyLog', [dlPayload(e)], { rid: e.rid }).then(function(r){
     e.sending = false;
     r = r || {};
     e.sent = { at: Date.now(), id: r.dailyLogId || '', assigned: r.assigned || [], unresolved: r.unresolved || [],
@@ -7615,10 +7943,12 @@ function start(){
   measureTabs();
   meRecall();
   var lastJob = loadPrefs();
+  cqOverlay();   // a clock-in kept with no signal last time runs at once (T2.31)
   // What is finished goes, and the photos waiting are counted from the
   // phone's own store before anything needs signal (T2.30).
   storeTrim(false);
   qCount().then(function(){ render(); });
+  cqOrphans();
   storeEstimate();
   loadLogFields();
   S.checksRO = ckLoadRO();
@@ -7638,7 +7968,6 @@ function start(){
     landWhere();           // where they were, else the service crew opens on Close Out (T2.4)
     seedTodayJob();        // from the schedule already on the phone, if any
     render();
-    pump();
     handleShootParam();
     // Deliberately after render(), and not in the chain above: the board is a
     // second system and the clock must be usable before it answers, or not.
@@ -7646,11 +7975,9 @@ function start(){
     // on the other.
     loadAssignments();
     loadExtras();
-    // Anything ticked in a dead spot last time goes now — after the clock's
-    // own calls, never ahead of them. A log that was waiting, likewise.
-    ckRetryPending();
-    dlRetryPending();
-    coRetryPending();
+    // Anything kept in a dead spot last time goes now — after the clock's
+    // own calls, never ahead of them: every lane of the outbox (T2.31).
+    obWake();
     // Re-register on every launch: FCM tokens rotate, and a stale one is a
     // nudge that silently goes nowhere. Once permission is granted this needs
     // no gesture — requestPermission is never reached — so it can run at boot
@@ -7674,6 +8001,7 @@ function bootStart(lastJob, attempt){
     // A session over a week old is renewed in the background (T2.8).
     ensureSession(false).catch(function(){});
     S.open = d.open;
+    cqOverlay();   // the API has not had it yet: the phone's clock-in stands (T2.31)
     S.job = d.job;
     S.entries = d.entries || [];
     S.recent = d.recent || [];
@@ -7692,8 +8020,7 @@ function bootStart(lastJob, attempt){
       // The schedule was asked for alongside the first attempt; if that ask
       // came back as the recent-jobs fallback, the board gets a second chance.
       if (!S.assignLoading && (!S.assign || S.assign.source === 'fallback')) loadAssignments();
-      ckRetryPending();
-      dlRetryPending();
+      obWake();
       toast('Connected');
     }
   }).catch(function(e){
@@ -7813,7 +8140,6 @@ function renderRoleChrome(){
    until the crew discards it.
    ========================================================= */
 var CO_KEY = 'dbtc_co', CO_QUEUE_KEY = 'dbtc_co_queue';
-var CO_RETRY_MS = [15000, 45000, 120000, 300000];
 var CO_PHOTO_MAX = 1600, CO_PHOTO_Q = 0.72;
 var CO_QUEUE_STALE_MS = 10 * 60 * 1000;
 
@@ -8803,7 +9129,7 @@ function coPump(){
     var waiting = CO.outbox.filter(function(it){ return it.status !== 'rejected'; });
     if (landed.length){ CO.pumpFails = 0; if (CO.jobId) coLoadJob(CO.jobId); coLoadQueue(true); }
     if (waiting.length && (stopped || waiting.some(function(it){ return it.status === 'held'; }))){
-      var ms = CO_RETRY_MS[Math.min(CO.pumpFails++, CO_RETRY_MS.length - 1)];
+      var ms = obRetryMs(++CO.pumpFails);
       CO.pumpTimer = setTimeout(coPump, ms);
     }
     coRender(); render();
@@ -10001,7 +10327,60 @@ $('photoQBtn').onclick = openPhotoQ;
   b.onclick = function(){ if (S.clockGate) return; S.capture = b.getAttribute('data-tag'); renderCam(); };
 });
 
-window.addEventListener('online', function(){ S.online = true; render(); qWake(); pump(); ckRetryPending(); dlRetryPending(); coRetryPending(); });
+/* =========================================================
+   ONE OUTBOX (T2.31, audit I2)
+   Everything the phone keeps to send later — the photos, the site checks,
+   the pre-start, the day log, Close Out's waiting list, the roll-out notes
+   and a clock-in made with no signal — is a lane of this one outbox. Each
+   lane keeps its items where they always were, so nothing already on a
+   phone has to move, and says three things: how many are waiting, how to
+   send what is due, and what it can let go of. The outbox does the rest
+   once for all of them: one backoff after a failed send (obRetryMs), one
+   wake-up when signal or the app comes back (obWake), one count for the
+   no-signal bar and sign-out (obWaiting), one trimming rule (storeTrim asks
+   each lane). Each used to have its own, and the copies drifted: the
+   pre-start and the roll-out notes were never woken by signal coming back,
+   the bar counted only photos, and a failed roll-out note was simply lost.
+   ========================================================= */
+var OB_LANES = [];
+function obLane(l){ OB_LANES.push(l); }
+/* What is waiting, lane by lane, from what the phone holds right now. */
+function obWaiting(){
+  var parts = [], total = 0;
+  OB_LANES.forEach(function(l){
+    var n = 0; try { n = l.count() || 0; } catch(e){}
+    if (n){ parts.push({ key: l.key, n: n, words: l.words(n) }); total += n; }
+  });
+  return { total: total, parts: parts };
+}
+/* The same, after the lanes kept in IndexedDB have been read again — for
+   sign-out, which must never take a stale number. */
+function obFresh(){
+  return Promise.all(OB_LANES.map(function(l){ return l.fresh ? Promise.resolve().then(l.fresh).catch(function(){}) : null; })).then(obWaiting);
+}
+/* Signal back, the app back in front, a launch: every lane sends what it has. */
+function obWake(){
+  OB_LANES.forEach(function(l){ try { l.wake(); } catch(e){ failed('outbox · ' + l.key, e, true); } });
+}
+var obPlural = function(n, one, many){ return n + ' ' + (n === 1 ? one : many); };
+obLane({ key: 'clock', count: function(){ return cqWaiting() ? 1 : 0; }, words: function(){ return 'a clock-in'; },
+         wake: function(){ var w = cqWaiting(); if (w) w.next = 0; cqSend(); } });
+obLane({ key: 'photos', count: function(){ return S.queued || 0; }, words: function(n){ return obPlural(n, 'photo', 'photos'); },
+         fresh: qCount, wake: function(){ qWake(); pump(); } });
+obLane({ key: 'checks', count: function(){ var n = 0; for (var t in ckStore){ if (ckStore[t] && ckStore[t].dirty) n++; } return n; },
+         words: function(n){ return obPlural(n, 'site-check save', 'site-check saves'); }, wake: ckRetryPending,
+         trim: function(keep, now){ var ch = false; for (var t in ckStore){ var e = ckStore[t]; if (e && !e.dirty && !e.inflight && now - (e.at || 0) > keep){ delete ckStore[t]; ch = true; } } if (ch) ckPersist(); } });
+obLane({ key: 'prestart', count: function(){ var n = 0; for (var t in prStore){ if (prStore[t] && prStore[t].dirty) n++; } return n; },
+         words: function(n){ return obPlural(n, 'pre-start save', 'pre-start saves'); }, wake: prRetryPending,
+         trim: function(keep, now){ var ch = false; for (var t in prStore){ var e = prStore[t]; if (e && !e.dirty && !e.inflight && now - (e.at || 0) > keep){ delete prStore[t]; ch = true; } } if (ch) prPersist(); } });
+obLane({ key: 'log', count: function(){ var n = 0; for (var k in dlStore){ var e = dlStore[k]; if (e && e.wantSend && !e.sent) n++; } return n; },
+         words: function(n){ return obPlural(n, 'day log', 'day logs'); }, wake: dlRetryPending, trim: dlTrim });
+obLane({ key: 'closeout', count: function(){ return ((window.CO && CO.outbox) || []).filter(function(it){ return it.status !== 'rejected'; }).length; },
+         words: function(n){ return obPlural(n, 'close-out item', 'close-out items'); }, fresh: coRefreshOutbox, wake: coRetryPending, trim: coTrim });
+obLane({ key: 'roll', count: function(){ return rollWrites().length; }, words: function(n){ return obPlural(n, 'roll-out note', 'roll-out notes'); },
+         wake: function(){ rollWrites().forEach(function(x){ x.w.next = 0; }); rollFlush(); } });
+
+window.addEventListener('online', function(){ S.online = true; render(); obWake(); });
 window.addEventListener('offline', function(){ S.online = false; render(); });
 window.addEventListener('resize', measureTabs);
 // A phone going in a pocket mid-list: send what is unsaved now, best effort.
@@ -10009,16 +10388,11 @@ window.addEventListener('resize', measureTabs);
 window.addEventListener('pagehide', function(){ ckFlushAll(); whereSave(); });
 document.addEventListener('visibilitychange', function(){
   if (document.visibilityState !== 'visible'){ ckFlushAll(); dlRecStop(); whereSave(); return; }
-  ckRetryPending();
-  dlRetryPending();
-  // Close Out's waiting list too (T2.29): a send made with no signal used to
-  // wait for the next send or the next launch.
-  coRetryPending();
   // A phone that spent an hour in a pocket should show the right number
-  // immediately. The photos waiting are due now too, each keeping its tries.
+  // immediately, and everything waiting goes now (T2.31: one outbox, every
+  // lane — the pre-start and the roll-out notes were never woken here).
   render();
-  qWake();
-  pump();
+  obWake();
   refreshDay().then(render);
 });
 
