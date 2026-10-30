@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-build="T2.32">
 <head>
 <meta charset="utf-8">
 <title>DB Crew</title>
@@ -92,6 +92,11 @@ button[disabled]{cursor:default}
 #gateBusy .spin{width:22px;height:22px;border-radius:50%;border:3px solid var(--line2);border-top-color:var(--go);animation:gspin .8s linear infinite}
 @keyframes gspin{to{transform:rotate(360deg)}}
 #gateHint{font:400 12.5px/1.5 var(--sans);color:var(--lab);max-width:300px}
+/* The app's script is its own file (T2.32). If it never arrives, this says so
+   after six seconds instead of leaving a gate with no button. The script takes
+   it away the moment it runs; no script is needed to show it. */
+#gateSlow{font:400 13px/1.5 var(--sans);color:var(--lab);max-width:300px;opacity:0;animation:gateSlowIn .4s ease 6s forwards}
+@keyframes gateSlowIn{to{opacity:1}}
 
 /* ---------------- header ---------------- */
 #hdr,#hdrCo,#hdrPeople{padding:calc(var(--sat) + 3px) 8px 6px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none}
@@ -623,6 +628,14 @@ html{touch-action:manipulation}
 /* The wait curtain (T2.5): up the instant a tap starts work the phone has to
    wait on, down when it resolves or fails. Nothing underneath takes a tap. */
 #wait{position:fixed;inset:0;z-index:150;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.58)}
+/* On a computer screen (T2.32, audit D19): the phone's layout in a centered
+   column instead of edge to edge — the Clock in button was 1,240 px wide on a
+   1280 px screen. Every screen is placed inside body, so the column carries
+   them all; the sheet, which rises over the whole window, follows it. */
+@media (min-width:720px){
+  body{max-width:640px;margin:0 auto;box-shadow:0 0 0 1px var(--line)}
+  #sheet{width:100%;max-width:640px;margin:0 auto}
+}
 #wait.on{display:flex}
 #wait .wbox{display:flex;flex-direction:column;align-items:center;gap:14px;padding:26px 28px;border-radius:12px;background:var(--surf);border:1px solid var(--line);min-width:220px;max-width:86vw;text-align:center}
 #wait .wspin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--acc);animation:wspin .8s linear infinite}
@@ -763,6 +776,7 @@ html{touch-action:manipulation}
   <div id="gateBusy" class="hidden"><span class="spin"></span><span id="gateBusyT">Signing you in…</span></div>
   <div id="gateErr"></div>
   <div id="gateHint">Google may send you to the Gmail app to confirm. Come back here after. If nothing happens, tap the button again — that is safe.</div>
+  <div id="gateSlow">Still loading. If this stays, close DB Crew and open it again where there’s signal.<br>Sigue cargando. Si no cambia, cierra DB Crew y ábrelo otra vez donde haya señal.</div>
 </div>
 
 <div id="app" class="hidden">
@@ -1113,6 +1127,6 @@ html{touch-action:manipulation}
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?b=T2.32"></script>
 </body>
 </html>

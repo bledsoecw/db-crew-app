@@ -1,11 +1,15 @@
-/* DB Crew service worker — T1.1 (2026-07-28), T2.30 (2026-10-30)
+/* DB Crew service worker — T1.1 (2026-07-28), T2.30, T2.32 (2026-10-30)
    Navigation: the network first, for three seconds (a fresh build wins), then
    the saved copy, so the app opens at once at the edge of signal and with
    none. Same-origin assets: cache-first. Only good answers are ever saved.
-   Cross-origin (the Apps Script API, JobTread's CDN, FCM): never touched. */
-var CACHE = 'dbtc-t2-31';
+   Cross-origin (the Apps Script API, JobTread's CDN, FCM): never touched.
+   Since T2.32 the page's script is its own file, app.js?b=<build>: the page
+   and its script are saved as a pair, never one without the other. */
+var BUILD = 'T2.32';   // index.html's data-build and app.js?b=, and APP_BUILD in app.js — one build, every deploy a new one
+var CACHE = 'dbtc-' + BUILD.toLowerCase().replace(/\./g, '-');
 var NAV_WAIT_MS = 3000;
-var SHELL = ['./', './index.html', './config.js', './manifest.json',
+var SCRIPT_RE = /<script src="(app\.js\?b=[^"]+)"/;
+var SHELL = ['./', './index.html', './app.js?b=' + BUILD, './config.js', './manifest.json',
              './app-icon-180.png', './app-icon-192.png', './app-icon-512.png', './app-icon-maskable.png',
              './fonts/archivo-700.woff2', './fonts/archivo-800.woff2',
              './fonts/barlow-400.woff2', './fonts/barlow-600.woff2', './fonts/barlow-700.woff2',
@@ -21,6 +25,26 @@ self.addEventListener('activate', function (e) {
 });
 /* A response worth keeping: this site's own, and a success. */
 function good(res) { return !!res && res.ok && res.type === 'basic'; }
+/* A fresh page is saved only once the script it names is saved beside it
+   (T2.32). Saved alone, a page whose script never arrived would open to
+   nothing the next time there is no signal; kept back, the last good pair
+   still opens. A page naming no script is saved as it is. */
+function keepPage(copy) {
+  return copy.clone().text().then(function (html) {
+    var m = SCRIPT_RE.exec(html);
+    return caches.open(CACHE).then(function (c) {
+      if (!m) return c.put('./index.html', copy);
+      var js = new URL(m[1], self.location.href).href;
+      return c.match(js).then(function (hit) {
+        if (hit) return;
+        return fetch(js).then(function (r) {
+          if (!good(r)) throw new Error('script not saved');
+          return c.put(js, r);
+        });
+      }).then(function () { return c.put('./index.html', copy); });
+    });
+  }).catch(function () {});
+}
 
 self.addEventListener('fetch', function (e) {
   var req = e.request;
@@ -33,7 +57,7 @@ self.addEventListener('fetch', function (e) {
     // saved copy opens, and the late answer still refreshes it for next time.
     // An error page, or a hotspot's sign-in page, is never saved as the app.
     var net = fetch(req).then(function (res) {
-      if (good(res)) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put('./index.html', copy); }); }
+      if (good(res)) keepPage(res.clone());
       return res;
     });
     e.waitUntil(net.catch(function () {}));

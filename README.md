@@ -797,7 +797,7 @@ Spanish that stopped at Close Out):
   breaks, Where are you going?, When did you leave?, When did you start?,
   Before you roll out, sign off), the toasts and the wait curtain, My jobs and
   the checklist screen's own words are looked up by their English (`L('Clock
-  out')`, `Lf('Driving to {p}', …)` in `index.html`); a word with no Spanish
+  out')`, `Lf('Driving to {p}', …)` in `app.js`); a word with no Spanish
   stays English rather than going blank. The board's material line is
   translated one line for one (*Ordered — no drop date yet* → *Pedido — sin
   fecha de entrega todavía*), never two states merged into one sentence; a
@@ -1154,6 +1154,57 @@ the clock-in that starts when the phone made it — a T2.30 Apps Script would
 start a kept clock-in when it arrives), then `firebase deploy --only hosting`.
 The Close Out server is not involved.
 
+**The script is its own file, and the rest of Step 3** (T2.32, 30 Oct 2026;
+Carl: *"go, start T2.32"*):
+
+- **The app's script is its own file** (I5). What was the 600 KB `<script>`
+  inside `index.html` is `public/app.js`, so a phone keeps it compiled
+  between launches instead of reading it afresh every time; `index.html` is
+  the markup and the styles. The two are one build: the page says which
+  (`<html data-build>`) and asks for `app.js?b=<build>`, and the service
+  worker keeps them as a pair — a fresh page is saved only once the script it
+  names is saved beside it, so a page whose script never arrived is never the
+  copy that opens with no signal. The script checks the page's build against
+  its own on its first line; a mismatch loads once more, fresh, and
+  Diagnostics warns if it persists. If the script never arrives at all, the
+  sign-in gate says so after six seconds, in English and Spanish. Every
+  deploy is a new build, written the same in four places (SETUP.md, *Updating
+  later*); `check-build.mjs`, a predeploy hook beside `check-config.mjs`,
+  stops a deploy whose four disagree, or whose `app.js` changed while the
+  build stayed the live site's.
+- **The start address is never an hour old** (D20). The installed app opens
+  `/`, which was served `max-age=3600` while `/index.html` was `no-cache`; it
+  is `no-cache` too now, so a deploy reaches a phone the next time it opens
+  with signal.
+- **The security policy, report-only** (D13). The page goes out with a
+  `Content-Security-Policy-Report-Only` header (`firebase.json`): script only
+  from the site itself, Google sign-in and the Firebase SDK, no inline script
+  and no eval; the API, Google's services and https images allowed. It blocks
+  nothing yet. The phone keeps what it *would* have blocked — the rule and the
+  site, never the whole address — and **Diagnostics → Security** says whether
+  the policy was sent and lists what it would block. Switched on in a later
+  build, once phones in use show nothing there: the same value under
+  `Content-Security-Policy`. With it enforced, the tests' clock-in, photo and
+  every tab draw with nothing blocked.
+- **My jobs is drawn again only when it changed** (I9). The list and its
+  week strip were rebuilt on every sync, toast and reconnect, which could take
+  a card's button out from under a finger — what T2.14 found in Close Out.
+- **One rule for every translation table** (I6). A key added again with
+  different words is refused and named (`I18N_CLASH`), never silently
+  replacing the first; `spanish-test` fails while anything clashes, and now
+  covers Close Out's keys and the small `T()` table as well as `L`/`Lf`. The
+  one clash there was — Close Out's `beforeSub`, overridden since T2.27 to say
+  a repair's before photo is required — was folded into the table, so nothing
+  on screen changed.
+- **A centered column on a computer** (D19): 640 px, its sheets with it. The
+  phone layout is unchanged.
+
+`dev/t232-test.mjs` walks it and `dev/sw-test.mjs` the service worker's half.
+**Needs, in this order:** the Apps Script (only its build number moved, so
+Diagnostics reads App and API the same), then `firebase deploy --only
+hosting`, which runs `check-build.mjs` first. The Close Out server is not
+involved.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
@@ -1436,7 +1487,7 @@ Two design points worth knowing:
 capture is stamped `#START #TE:<timeEntryId> 04MA Masonry Labor` in its
 JobTread description. The sweep greps for that, so a phone that lied, crashed
 or never came back online can't suppress the nudge. `fileDescription()` in
-`index.html` and `entryIdsWithBeforePhoto_()` in `Code.gs` are the two halves —
+`app.js` and `entryIdsWithBeforePhoto_()` in `Code.gs` are the two halves —
 keep them in step.
 
 **It costs two Pave calls per sweep no matter how big the crew is.** One for
@@ -1474,8 +1525,8 @@ at it.
 
 | Question | Shipped as | Where |
 | --- | --- | --- |
-| Who the 5-minute notification names | "the office" | `ESCALATION_CONTACT` in `index.html` |
-| How long the grace period is | 5 minutes | `BEFORE_GRACE_SEC` in `index.html` **and** `PUSH_GRACE_MINUTES` in `Code.gs` — keep them equal |
+| Who the 5-minute notification names | "the office" | `ESCALATION_CONTACT` in `app.js` |
+| How long the grace period is | 5 minutes | `BEFORE_GRACE_SEC` in `app.js` **and** `PUSH_GRACE_MINUTES` in `Code.gs` — keep them equal |
 | Should the push repeat if ignored | no, once per entry | the marker check in `sweepBeforePhotoNudges` |
 | When a progress photo is asked for | 45 minutes in | `DURING_AFTER_SEC` |
 | Can a foreman override a missing after photo | no, the block is absolute | not implemented — say the word |

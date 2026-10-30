@@ -192,7 +192,7 @@ Two Pave calls per sweep regardless of crew size, so this stays well inside
 Apps Script's quota at a 5-minute cadence.
 
 **Keep the grace periods in step.** `PUSH_GRACE_MINUTES` in `Code.gs` and
-`BEFORE_GRACE_SEC` in `index.html` should agree, or the in-app prompt and the
+`BEFORE_GRACE_SEC` in `app.js` should agree, or the in-app prompt and the
 push will disagree about when the clock started ticking.
 
 ## 4c. Assigned jobs — connecting the Production Board
@@ -291,8 +291,14 @@ can mistake a test build for the real thing.
 ## Updating later
 
 New builds are new files in `public/`. Run `firebase deploy --only hosting`.
-Bump `CACHE` in `public/sw.js` when you change the shell, or phones will keep
-serving the old one. For server changes, publish a new Apps Script deployment
+Every deploy is a new build, written the same in four places (T2.32): the
+`APP_BUILD` in `public/app.js`, `data-build` and the script's `app.js?b=` in
+`public/index.html`, and `BUILD` in `public/sw.js` (the cache is named from
+it). The service worker keeps the page and its script as a pair and serves
+the script from its cache, so a changed `app.js` under the same build would
+never reach a phone that already has it. `check-build.mjs` runs before every
+deploy and stops one whose build differs between the four, or whose `app.js`
+changed while the build stayed the same as the live site's. For server changes, publish a new Apps Script deployment
 **version** on the SAME deployment so the `/exec` URL stays stable.
 
 ## Previewing without JobTread

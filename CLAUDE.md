@@ -108,7 +108,7 @@ regeneration, Linux only.
 ## Phase 2 (T2.24, 29 Oct 2026) — what the README does not say
 
 - **Spanish is a lookup by the English, not a second copy of the screens.**
-  `L('Clock out')` and `Lf('Driving to {p}', { p })` in `index.html`; the
+  `L('Clock out')` and `Lf('Driving to {p}', { p })` in `app.js`; the
   Spanish lives in the `esAdd({...})` blocks beside `L10N`. English output is
   byte-identical to before (Lf in English only fills the `{}`), which is why no
   English test changed. Static words carry `data-l` and `renderLang()` fills
@@ -263,8 +263,9 @@ regeneration, Linux only.
   improvements I1–I9, by id. Step 1 (D1, D5, D2, D3, D4, D9, D10, D11, D12,
   D13, D17, D18, I4, I7) is T2.29 here and DB CheckOut's 30 Oct commit; Step 2
   (D6, D7, D8, D14, D16, I3) is T2.30; the first half of Step 3 (I2, D15,
-  I1) is T2.31, live 30 Oct. Next, the second half: I5 (the script out of the
-  page), I6 (one translation table), I9 (My jobs redraws).
+  I1) is T2.31, live 30 Oct; the second half (I5, I6, I9, with D13
+  report-only, D19 and D20) is T2.32. What is left: switching the security
+  policy on, once Diagnostics on phones in use shows nothing it would block.
 - **A correction the earlier notes needed.** DB CheckOut's served form
   (41a843f) and its gutter/siding checklists, `REPAIR` photos and final notes
   (6c6d5d1) were merged and "deployed" on 29 Oct but never ran: its
@@ -376,7 +377,7 @@ regeneration, Linux only.
 
 ## T2.31 (30 Oct 2026) — Step 3's first half, what the README does not say
 
-- **Request ids are a list on both sides**: `RID_FNS` in `index.html` and in
+- **Request ids are a list on both sides**: `RID_FNS` in `app.js` and in
   `Code.gs` must stay in step. A write left off the phone's list carries no
   id and is simply done again; one left off the server's list is ignored.
   Reads never carry one. The key is the signed-in email and the id, never the
@@ -444,3 +445,61 @@ regeneration, Linux only.
   worker's navigation fetch can take that copy, so a new build can take up to
   an hour to reach a phone that has signal. A header rule for `/` is the fix
   (proposed with I5, which needs the page and its script to stay in step).
+
+## T2.32 (30 Oct 2026) — Step 3's second half, what the README does not say
+
+- **The script is `public/app.js`; `index.html` is markup and styles.** The
+  split was mechanical: the one inline `<script>` body moved byte for byte,
+  the tag became `<script src="app.js?b=T2.32"></script>` at the same place
+  (end of body, no `defer`, so it runs exactly when the inline one did).
+  Code references in these notes, the README and SETUP.md now say `app.js`;
+  `CREW-ASSIGNMENTS-API.md` still says `index.html` in four narrative places
+  and was left alone, because it must stay byte-identical with the board's
+  copy.
+- **One build, four places, every deploy**: `APP_BUILD` in `app.js`,
+  `data-build` and `?b=` in `index.html`, `BUILD` in `sw.js` (the cache name
+  is derived from it). `check-build.mjs` (predeploy) refuses a mismatch, an
+  inline `<script>` in the page, or an `app.js` that changed while the build
+  stayed the live site's — it fetches the live `sw.js` and `app.js?b=` to
+  compare (line endings normalized), and only warns when the live site is out
+  of reach. `DBC_LIVE_URL` points it elsewhere (an emulator). The old habit of
+  redeploying a fix under the same build (the T2.30 Back fix did) is exactly
+  what it now stops: the worker serves `app.js` cache-first by that URL.
+- **The pairing guard** at the top of `app.js` compares `PAGE_BUILD` with
+  `APP_BUILD`; a mismatch sets `sessionStorage.dbtc_buildfix` to
+  `"<page>><script>"`, reloads and throws to stop the stale script. A second
+  mismatch of the same pair carries on and `buildWarnings()` says so.
+- **`#gateSlow`** is in the page markup and shown by CSS alone after six
+  seconds; the script's second statement removes it. Never give it `data-l`
+  or a render function: it exists for when no script runs.
+- **The security policy's `connect-src` does not name the photo upload
+  host.** JobTread's `createUploadRequest` answers it, and finding it out
+  would mean creating an upload request in the live org. Report-only will name
+  it (Diagnostics → Security: `connect-src https://…`); add it before the
+  policy is switched on. Switching on = copy the report-only value to
+  `Content-Security-Policy` on both sources in `firebase.json`.
+- **Measured, not assumed**: Chrome fires `securitypolicyviolation` for a
+  report-only policy with no `report-uri`, so the policy sends nothing
+  anywhere and has no endpoint; and a `firebase.json` header `"source": "/"`
+  matches the root — checked with the Firebase hosting emulator
+  (firebase-tools 13.35.1), which served `/` and `/index.html` with
+  `no-cache` and the policy. The phone reads whether the policy was sent with
+  a `HEAD` of `./` when Diagnostics opens (`cspCheck`, past the service worker
+  because it is not a GET).
+- **`_drawn` on `#jobsList` and `#weekStrip`** holds the HTML last drawn
+  there (I9). Anything else that ever writes into either element must clear
+  it, or the next render will think nothing changed.
+- **`i18nPut` keeps the FIRST words** of a clashing key and names it in
+  `I18N_CLASH`; to change a sentence, change it where it is. `beforeSub` was
+  the only clash and now lives in `CO_L10N` with its T2.27 words.
+- **t232-test serves the page with headers through `page.route`** (the local
+  `http.server` sends none): enforced and report-only policies, and a page of
+  another build. Its enforced walk is the evidence that switching the policy
+  on would not block the app's own code; it cannot speak for the real
+  network (the mock answers in the page), which is what report-only is for.
+- **A Playwright script in the scratchpad finds `playwright` through
+  `scratchpad/node_modules`, a link to `/opt/node-tools/node_modules`.** An
+  `npm install` there replaces the link with a real folder and every script
+  stops resolving it; install tools in a subfolder with its own
+  `package.json`.
+

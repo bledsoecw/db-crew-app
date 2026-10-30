@@ -55,8 +55,10 @@ const missing = async (page) => page.evaluate((notOurs) => {
 
 // ---- the source: every literal handed to L( or Lf( has its Spanish ----
 // The walk below only reaches the screens it opens; this reads them all.
+// The script is its own file since T2.32 (app.js); the page is markup.
+const SRC = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
 {
-  const src = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const src = SRC;
   const lits = new Set(), re = /(?<![A-Za-z0-9_$.])(L|Lf)\(/g;
   let m;
   while ((m = re.exec(src))){
@@ -83,6 +85,37 @@ const missing = async (page) => page.evaluate((notOurs) => {
   // Ternary conditions ('start', 'end-out'…) are not words.
   const words = [...lits].filter((k) => /[\s·?.!—…]/.test(k) || /^[A-Z]/.test(k));
   check('every literal looked up has its Spanish (' + words.length + ' of them)', words.filter((k) => !(k in ES)), []);
+}
+
+// ---- every table, one rule (T2.32, audit I6) ----
+// A key added again with different words is refused (I18N_CLASH); every
+// co('key') Close Out draws, and every T('key'), has its English and its
+// Spanish; and no key is written twice inside one table, where JavaScript
+// would keep the last without a word.
+{
+  const { ctx, page, errs } = await boot();
+  check('no translation key added twice with different words', await page.evaluate(() => I18N_CLASH), []);
+  const keysOf = (re) => [...new Set([...SRC.matchAll(re)].map((m) => m[1]))];
+  const coKeys = keysOf(/(?<![A-Za-z0-9_$.])co\('([A-Za-z0-9_]+)'\)/g), tKeys = keysOf(/(?<![A-Za-z0-9_$.])T\('([A-Za-z0-9_]+)'\)/g);
+  check('every Close Out key has its English and Spanish (' + coKeys.length + ' of them)',
+    await page.evaluate((ks) => ks.filter((k) => !(k in CO_L10N.en) || !(k in CO_L10N.es)), coKeys), []);
+  check('every T() key has its English and Spanish (' + tKeys.length + ' of them)',
+    await page.evaluate((ks) => ks.filter((k) => !(k in L10N.en) || !(k in L10N.es)), tKeys), []);
+  // Inside one object literal, the parser keeps the second of a key silently.
+  const twice = [];
+  for (const name of ['L10N', 'CO_L10N']){
+    const at = SRC.indexOf('var ' + name + ' = {');
+    for (const lang of ['en', 'es']){
+      const open = SRC.indexOf('{', SRC.indexOf(lang + ':', at)); let d = 0, q = null, end = open;
+      for (let i = open; i < SRC.length; i++){ const c = SRC[i]; if (q){ if (c === '\\') i++; else if (c === q) q = null; continue; }
+        if (c === "'" || c === '"'){ q = c; continue; } if (c === '{') d++; else if (c === '}' && --d === 0){ end = i; break; } }
+      const seen = {};
+      for (const m of SRC.slice(open, end).matchAll(/(?:^|[,{]\s*)([A-Za-z_$][\w$]*)\s*:/gm)){ if (seen[m[1]]) twice.push(name + '.' + lang + ' ' + m[1]); seen[m[1]] = 1; }
+    }
+  }
+  check('no key written twice inside one table', twice, []);
+  check('no page errors (tables)', errs, []);
+  await ctx.close();
 }
 
 // ---- a site manager: English until the switch, then all of it Spanish ----

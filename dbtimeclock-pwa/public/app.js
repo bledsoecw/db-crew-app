@@ -2,10 +2,50 @@
 /* ===========================================================
    DB CREW — T1.1 (DB TIME CLOCK until T2.0, 2026-10-05: one app for
    the clock, My jobs, the day log, the site checks and Close Out)
-   Same shape as DB Cam Mobile: vanilla JS, no build step, one
-   file. Google sign-in -> Apps Script JSON API -> JobTread.
+   Same shape as DB Cam Mobile: vanilla JS, no build step. The page
+   (index.html: markup and styles) and this script were one file until
+   T2.32; they still ship as one build. Google sign-in -> Apps Script
+   JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.31 (2026-10-30)';
+var APP_BUILD = 'T2.32 (2026-10-30)';
+/* The page and this script are one build (T2.32, audit I5). The page names
+   its build on <html data-build> and asks for app.js?b=<build>; this file
+   names its own. A saved page meeting a newer script, or the other way round,
+   would draw screens this script does not know — so it loads once more,
+   fresh, and stops here. Once only: a phone that cannot reach the site
+   carries on with what it has rather than loading for ever. */
+var PAGE_BUILD = document.documentElement.getAttribute('data-build') || '';
+(function(){
+  var mine = APP_BUILD.split(' ')[0];
+  if (!PAGE_BUILD || PAGE_BUILD === mine) return;
+  var pair = PAGE_BUILD + '>' + mine, tried = '';
+  try { tried = sessionStorage.getItem('dbtc_buildfix') || ''; } catch(e){}
+  if (tried === pair) return;
+  try { sessionStorage.setItem('dbtc_buildfix', pair); } catch(e){}
+  location.reload();
+  throw new Error('The page (' + PAGE_BUILD + ') and its script (' + mine + ') are from different builds — loading again.');
+})();
+(function(){ var g = document.getElementById('gateSlow'); if (g) g.parentNode.removeChild(g); })();   // the script is here (T2.32)
+/* The security policy (T2.32, audit D13) goes out report-only first: it
+   blocks nothing, and this keeps what it WOULD have blocked — the rule and
+   the site, how often, when last — so Diagnostics can say whether switching
+   it on would break anything. Never the whole address (an upload's carries
+   a signed token), never sent anywhere, twenty kinds at most. Listening
+   from the first line of the script, so a boot's own loads are counted. */
+var CSP_KEY = 'dbtc_csp', CSP_MAX = 20;
+var cspSeen = (function(){ try { var a = JSON.parse(localStorage.getItem(CSP_KEY) || '[]'), old = Date.now() - 14 * 864e5;
+  return Array.isArray(a) ? a.filter(function(x){ return x && x.at > old; }) : []; } catch(e){ return []; } })();
+var cspMode = '';   // what the server sends with the page: 'report-only', 'enforced', 'none' — read when Diagnostics opens
+document.addEventListener('securitypolicyviolation', function(e){
+  var where = String(e.blockedURI || '');
+  if (/^(https?|wss?):/.test(where)){ try { where = new URL(where).origin; } catch(x){ where = where.split('?')[0]; } }
+  var key = (e.effectiveDirective || e.violatedDirective || '?') + ' ' + (where || 'inline');
+  var hit = cspSeen.filter(function(x){ return x.k === key; })[0];
+  if (hit){ hit.n++; hit.at = Date.now(); hit.how = e.disposition || ''; }
+  else { cspSeen.push({ k: key, n: 1, at: Date.now(), how: e.disposition || '' }); if (cspSeen.length > CSP_MAX) cspSeen.shift(); }
+  // Saved once the script has finished loading: storeSet leans on what comes after.
+  setTimeout(function(){ storeSet(CSP_KEY, JSON.stringify(cspSeen), true); }, 0);
+});
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1251,8 +1291,30 @@ function loadBuilds(){
     .then(function(r){ S.builds = r || null; }, function(e){ S.builds = { error: String((e && e.message) || e) }; })
     .then(renderVersion);
 }
+/* Whether the server sends the security policy with the page (T2.32): a
+   HEAD of the page itself, past the service worker, read when Diagnostics
+   opens. Without it, "nothing it would block" would say nothing at all. */
+function cspCheck(){
+  if (!S.online) return Promise.resolve();
+  return fetch('./', { method: 'HEAD', cache: 'no-store' }).then(function(r){
+    cspMode = r.headers.get('content-security-policy') ? 'enforced'
+            : r.headers.get('content-security-policy-report-only') ? 'report-only' : 'none';
+  }, function(){});
+}
+function cspWords(){
+  var n = cspSeen.length, on = cspMode === 'enforced';
+  var mode = on ? 'on' : cspMode === 'report-only' ? 'report-only' : cspMode === 'none' ? 'not sent' : 'not checked yet';
+  return mode + ' · ' + (n ? n + (n === 1 ? ' kind ' : ' kinds ') + (on ? 'blocked' : 'it would block') : (on ? 'nothing blocked' : 'nothing it would block') + ' so far');
+}
+function cspRowsHtml(){
+  return cspSeen.slice().reverse().map(function(x){
+    return '<div class="trow"><span class="nm"></span><span class="d tabular">' + esc(x.k + ' · ' + x.n + '× · ' + clockLabel(x.at)) + '</span></div>';
+  }).join('');
+}
 function buildWarnings(){
   var out = [], api = (S.builds && S.builds.api) || (S.me && S.me.build) || '';
+  if (PAGE_BUILD && PAGE_BUILD !== APP_BUILD.split(' ')[0])
+    out.push('This page (' + PAGE_BUILD + ') and its script (' + APP_BUILD.split(' ')[0] + ') are from different builds. Close DB Crew and open it again where there\u2019s signal.');
   if (buildNum(api) && buildNum(APP_BUILD) > buildNum(api))
     out.push('This app (' + APP_BUILD.split(' ')[0] + ') is newer than the API (' + api.split(' ')[0] + '). Deploy the Apps Script: clasp push, then a new version of the web app.');
   var co = S.builds && S.builds.closeOut;
@@ -1293,6 +1355,8 @@ function renderVersion(){
     // browser says it holds in all, photos and files included.
     '<div class="trow"><span class="nm">Storage</span><span class="d tabular">' + esc(fmtBytes(S.storeUseBytes || 0) + ' saved' +
       (S.storeEst && S.storeEst.quota ? ' · ' + fmtBytes(S.storeEst.usage) + ' of ' + fmtBytes(S.storeEst.quota) + ' in use' : '')) + '</span></div>' +
+    // The security policy (T2.32, D13): sent or not, and what it would block.
+    '<div class="trow"><span class="nm">Security</span><span class="d tabular">' + esc(cspWords()) + '</span></div>' + cspRowsHtml() +
     (a && a.boardMs != null
       ? '<div class="trow"><span class="nm">Board time</span><span class="d tabular">' +
         (a.boardMs >= 1000 ? (a.boardMs/1000).toFixed(1) + 's' : a.boardMs + 'ms') + '</span></div>'
@@ -1778,8 +1842,9 @@ function renderWeekStrip(vs, today){
             '<span class="dn">' + dow3(d) + '</span><span class="dd">' + d.getDate() + '</span>' +
             '<span class="dots">' + on.slice(0, 3).map(function(){ return '<i></i>'; }).join('') + '</span></button>';
   }
-  el.innerHTML = html;
   el.classList.toggle('hidden', !vs.length);
+  if (el._drawn === html) return;   // the same strip stays put (T2.32, I9)
+  el.innerHTML = html; el._drawn = html;
   [].forEach.call(el.querySelectorAll('[data-day]'), function(b){
     b.onclick = function(){
       var h = document.getElementById('day-' + b.getAttribute('data-day'));
@@ -1849,8 +1914,14 @@ function renderJobs(){
     }
     if (board && S.assignAt) html += '<div class="foot" style="margin-top:14px">' + esc(Lf('From the production board at {t}. If a job is missing, the office hasn’t put it on the board yet.', { t: clockLabel(S.assignAt) })) + '</div>';
   }
-  $('jobsList').innerHTML = html;
   renderWeekStrip(vs, today);
+  // Drawn again only when what it shows has changed (T2.32, audit I9).
+  // render() runs on every sync, toast and reconnect, and rebuilding the list
+  // each time could take the button out from under a finger mid-tap — what
+  // T2.14 found in Close Out. The same list is left as it is, buttons and all.
+  var list = $('jobsList');
+  if (list._drawn === html) return;
+  list.innerHTML = html; list._drawn = html;
   [].forEach.call($('jobsList').querySelectorAll('[data-log]'), function(b){
     b.onclick = function(){ openLog(b.getAttribute('data-log'), b.getAttribute('data-date')); };
   });
@@ -3088,7 +3159,7 @@ function setTab(t){
   // clock stays where it is, and Leave starts it again.
   if (S.tab === 'log' && t !== 'log' && S.leaveAfterLog && !(dlGet(S.leaveAfterLog.jobId, isoLocal()) || {}).wantSend){ S.leaveAfterLog = null; S.leaveMode = null; S.leaveTo = null; }
   S.tab = t;
-  if (t === 'diag'){ S.storeUseBytes = storeUse(); storeEstimate().then(renderVersion); loadBuilds(); }
+  if (t === 'diag'){ S.storeUseBytes = storeUse(); storeEstimate().then(renderVersion); loadBuilds(); cspCheck().then(renderVersion); }
   $('vClock').classList.toggle('on', t==='job');
   $('vJobs').classList.toggle('on', t==='jobs');
   $('vChecks').classList.toggle('on', t==='checks');
@@ -5425,7 +5496,18 @@ function T(key){ return (L10N[S.lang] || L10N.en)[key]; }
    notes, comments and logs still go to JobTread in English, and the board's
    checklist lines arrive in the board's own words. */
 var ES = {};
-function esAdd(o){ for (var k in o) ES[k] = o[k]; }
+/* One rule for every table (T2.32, audit I6): a key added again with
+   DIFFERENT words is refused and named here, never silently replacing the
+   first — coAdd once replaced reviewSub, and the PM Review card read "Tap a
+   card to open it". The same words twice are harmless and pass. Changing a
+   sentence means changing it where it is, not adding it again later.
+   spanish-test fails while this holds anything. */
+var I18N_CLASH = [];
+function i18nPut(table, name, k, v){
+  if (Object.prototype.hasOwnProperty.call(table, k) && table[k] !== v){ I18N_CLASH.push(name + ' ' + k); return; }
+  table[k] = v;
+}
+function esAdd(o){ for (var k in o) i18nPut(ES, 'ES', k, o[k]); }
 function L(en){ return S.lang === 'es' && Object.prototype.hasOwnProperty.call(ES, en) ? ES[en] : en; }
 function Lf(en, vars){
   var s = L(en);
@@ -7173,7 +7255,7 @@ var CO_L10N = {
         sentSub:'Lo de abajo empieza una visita nueva.', queued:'Por enviar', rejected:'rechazado', rejectedN:'rechazados', tapToSee:'toca para ver', discard:'Quitar',
         retry:'Reintentar', mineRepairs:'Míos', everyone:'Todos', nothingForYou:'Nada para ti en este trabajo. Toca Todos para ver el resto.', noRepairs:'No hay reparaciones en este trabajo.',
         ready:'listas', readyOne:'lista', assignedTo:'Para', beforeAfter:'Foto de antes y después en cada reparación', lastCloses:'La última reparación cerrada manda el trabajo a PM Review.',
-        whatToDo:'Qué hacer', whatToDoSub:'what to do', autoTranslated:'Traducción automática · toca EN arriba para el original', assignedBy:'Para el', before:'Foto de antes', beforeSub:'opcional',
+        whatToDo:'Qué hacer', whatToDoSub:'what to do', autoTranslated:'Traducción automática · toca EN arriba para el original', assignedBy:'Para el', before:'Foto de antes', beforeSub:'Obligatoria — antes de empezar',
         after:'Foto de después', afterSub:'Obligatoria para terminar', done:'Terminado', doneSub:'Toma la foto de después para terminar', pmChecks:'El PM lo revisa y lo cierra en JobTread', doneLast:'Terminar y mandar al PM', doneLastSub:'Es la última reparación del trabajo. Al terminarla, el trabajo pasa al PM para revisar.', fromPhone:'De mis fotos', phoneTag:'Teléfono', noTime:'Sin hora', afterNoTime:'Esa foto no tiene fecha, así que no muestra que la reparación se hizo. Toma la foto de después con la cámara.', afterTooOld:'Esa foto se tomó antes de que se pidiera la reparación ({when}), así que no muestra el arreglo. Escoge una más nueva o usa la cámara.', repairsSent:'Reparaciones listas', repairsSentSub:'Mandado al PM para revisar. No queda nada para el equipo en este trabajo.',
         repairDone:'Reparación terminada', noteOpt:'Nota (opcional)', soldScope:'Trabajo vendido', soldScopeSub:'lo que se vendió, en pocas palabras', loading:'Cargando…',
         lastCopy:'Sin conexión — mostrando la última copia', notConfigured:'Close Out no está conectado todavía — pide a la oficina que ponga CLOSEOUT_API_URL.',
@@ -7208,7 +7290,7 @@ var CO_L10N = {
         sentSub:'Anything below starts a new visit.', queued:'Waiting to send', rejected:'rejected', rejectedN:'rejected', tapToSee:'tap to see', discard:'Discard',
         retry:'Retry', mineRepairs:'Mine', everyone:'Everyone', nothingForYou:'Nothing here is yours. Tap Everyone to see the rest.', noRepairs:'No repairs on this job.',
         ready:'done', readyOne:'done', assignedTo:'For', beforeAfter:'Before & after photo on every repair', lastCloses:'The last repair closed moves the job to PM Review.',
-        whatToDo:'What to do', whatToDoSub:'qué hacer', autoTranslated:'Machine translation · tap ES above for the Spanish', assignedBy:'Due', before:'Before photo', beforeSub:'optional',
+        whatToDo:'What to do', whatToDoSub:'qué hacer', autoTranslated:'Machine translation · tap ES above for the Spanish', assignedBy:'Due', before:'Before photo', beforeSub:'Required — before you start',
         after:'After photo', afterSub:'Required to finish', done:'Done', doneSub:'Take the after photo to finish', pmChecks:'The PM checks it and closes it in JobTread', doneLast:'Finish & send to PM', doneLastSub:'This is the last repair on the job. Finishing it sends the job to the PM for review.', fromPhone:'From my photos', phoneTag:'Phone', noTime:'No time', afterNoTime:'That photo has no date on it, so it cannot show the repair was done. Take the after photo with the camera.', afterTooOld:'That photo was taken before the repair was asked for ({when}), so it cannot show the fix. Pick a newer one or use the camera.', repairsSent:'All repairs done', repairsSentSub:'Sent to the PM for review. Nothing left for the crew on this job.',
         repairDone:'Repair finished', noteOpt:'Note (optional)', soldScope:'Sold scope', soldScopeSub:'what was sold, in a few words', loading:'Loading…',
         lastCopy:'No connection — showing the last saved copy', notConfigured:'Close Out is not connected yet — ask the office to set CLOSEOUT_API_URL.',
@@ -7222,15 +7304,15 @@ var CO_L10N = {
 function co(k){ return (CO_L10N[S.lang] || CO_L10N.en)[k] || CO_L10N.en[k] || k; }
 function co2(k){ return (CO_L10N[S.lang === 'es' ? 'en' : 'es'])[k] || ''; }
 /* More of the vocabulary, in both languages (T2.27). */
-function coAdd(o){ ['en', 'es'].forEach(function(l){ for (var k in o[l]) CO_L10N[l][k] = o[l][k]; }); }
+function coAdd(o){ ['en', 'es'].forEach(function(l){ for (var k in o[l]) i18nPut(CO_L10N[l], 'CO.' + l, k, o[l][k]); }); }   // the I6 rule, above ES
 coAdd({
   en: { tellPm: 'Tell the PM', tellPmSub: 'a text to the PM, and a note on the job' },
   es: { tellPm: 'Avisar al PM', tellPmSub: 'un mensaje de texto al PM, y una nota en el trabajo' }
 });
 coAdd({
-  en: { beforeSub: 'Required — before you start', doneSubAll: 'Missing', repairNoteK: 'What you did', repairNotePh: 'Say or type what you fixed', morePhotos: 'More photos', morePhotosSub: 'optional · during the repair, the materials, anything worth showing',
+  en: { doneSubAll: 'Missing', repairNoteK: 'What you did', repairNotePh: 'Say or type what you fixed', morePhotos: 'More photos', morePhotosSub: 'optional · during the repair, the materials, anything worth showing',
         needBefore: 'before photo', needAfter: 'after photo', needNote: 'a note' },
-  es: { beforeSub: 'Obligatoria — antes de empezar', doneSubAll: 'Falta', repairNoteK: 'Lo que hiciste', repairNotePh: 'Di o escribe lo que arreglaste', morePhotos: 'Más fotos', morePhotosSub: 'opcional · durante la reparación, el material, lo que valga la pena mostrar',
+  es: { doneSubAll: 'Falta', repairNoteK: 'Lo que hiciste', repairNotePh: 'Di o escribe lo que arreglaste', morePhotos: 'Más fotos', morePhotosSub: 'opcional · durante la reparación, el material, lo que valga la pena mostrar',
         needBefore: 'foto de antes', needAfter: 'foto de después', needNote: 'una nota' }
 });
 coAdd({
