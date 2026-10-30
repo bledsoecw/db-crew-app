@@ -1046,6 +1046,63 @@ sign-in is gone; T2.27 and later must not reach the phones before it, or
 repair photos are refused and the required final notes dropped. Then the Apps
 Script, then `firebase deploy --only hosting`.
 
+**Nothing the crew did is lost quietly** (T2.30, 30 Oct 2026). Step 2 of the
+audit (Carl: *"start step 2"*):
+
+- **Sign-out counts the photos from the phone's own store** (`qCount`), never
+  from the number the upload loop last left — that loop does not run without
+  signal, so a phone opened in a dead spot read *nothing waiting* and two
+  taps erased yesterday's START and END photos. An unsaved pre-start is
+  counted too. Signing out lets go of this phone's notifications
+  (`unregisterPushToken` with the phone's token), and on the server a
+  phone's token belongs to whoever registered on it last, so a shared phone
+  stops getting the last person's reminders even after a sign-out with no
+  signal.
+- **One photo that will not go no longer holds the rest.** The queue goes
+  oldest first (ids start with random letters, so the store's order was a
+  lottery); a failure steps aside on its own backoff (20s, 1m, 3m, then every
+  5m — `dbtc_qretry`) and the photos behind it go; the direct upload gives up
+  after a minute and a half plus a second per 64 KB, then tries the API path.
+  After four tries the Clock tab says *1 photo hasn't sent — tap to see it*:
+  **Photos waiting to send** lists every photo still on the phone, oldest
+  first, saying what it is doing, with *Try again*, and *Discard* (asked
+  twice) on one that is stuck. A discarded photo is marked, so the day's log
+  stops waiting on it. Diagnostics opens the same list.
+- **The phone lets go of what is finished** (`storeTrim`, at every start): a
+  sent day log after 14 days, an empty one nobody sent likewise; a Close Out
+  job copy after 7 days unless there is work on that job still on the phone;
+  a finished visit after 14 days; a finished repair's extra photo thumbnails
+  at once. Anything not yet sent is never touched. **Every save goes through
+  `storeSet`**: a full phone used to refuse a save in silence — ticks and logs
+  typed with no signal lived only in memory — and now a refused save trims
+  harder and tries again, and if it still cannot, the person is told to keep
+  the app open until it sends. Diagnostics says what the phone keeps.
+- **Accessibility basics.** Pinch-zoom is on (every box is 16px or more, so
+  iOS never zooms in on its own; `touch-action: manipulation` keeps a double
+  tap two taps). Toasts are read out (`#srLive`). A sheet is a dialog: focus
+  goes in, comes back to the button that opened it, and Android's Back closes
+  it instead of leaving the app. Toggles say whether they are pressed
+  (`aria-pressed`) and the tab bar which tab is open. The Day log's EN/ES is
+  44px tall.
+- **App updates.** A launch waits three seconds for the network, then opens
+  the saved copy (the late answer still refreshes it); only a good answer is
+  ever saved — never an error page or a hotspot's sign-in page. An update
+  never reloads the page under the camera, a clock step, a sheet, a box being
+  typed in, a recording or a call in flight; it waits for a quiet moment.
+- **Diagnostics names what each system is running**: the app, the API
+  (`getBuilds`) and the Close Out server (its commit, whether Vercel built it,
+  its contract level), and warns in words when one is behind the phone — *This
+  app (T2.30) is newer than the API (T2.29). Deploy the Apps Script…* The
+  phone carries `CO_CONTRACT_NEED`; DB CheckOut's `/health` reports
+  `contract`. Raise them together, in the change that starts to depend on
+  something new from that server.
+
+`dev/t230-test.mjs` walks it and `dev/sw-test.mjs` the service worker.
+**Needs, in this order:** DB CheckOut's `main` (it adds `contract` to
+`/health`; until then Diagnostics shows no level and warns about nothing),
+then the Apps Script (`getBuilds`, the push-token rule), then `firebase deploy
+--only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

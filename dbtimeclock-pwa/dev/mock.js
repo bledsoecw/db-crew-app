@@ -702,12 +702,14 @@
       return true;
     },
     // A read-only build refuses the upload request the way Code.gs does.
-    createCaptureUploadRequest: function () {
+    createCaptureUploadRequest: function (jobId, mime, size, name) {
       if (window.__MOCK_READONLY) throw new Error('READ_ONLY: this deployment cannot post to JobTread yet.');
-      return { uploadRequestId: 'ur1', url: 'https://mock.local/put', method: 'PUT', headers: {} };
+      return { uploadRequestId: 'ur1', url: 'https://mock.local/put?n=' + encodeURIComponent(name || ''), method: 'PUT', headers: {} };
     },
     // The base64 path the app falls back to when the direct PUT is refused.
     uploadCapture: function (jobId, b64, mime, name, desc) {
+      // T2.30: __MOCK_PUTFAIL (a pattern on the file name) refuses this path too.
+      if (window.__MOCK_PUTFAIL && new RegExp(window.__MOCK_PUTFAIL).test(name)) throw new Error('JobTread refused the file');
       window.__VIAAPI = window.__VIAAPI || [];
       window.__VIAAPI.push({ jobId: jobId, bytes: b64.length, mime: mime, name: name });
       (window.__FILES = window.__FILES || []).push({ name: name, desc: desc });
@@ -774,7 +776,12 @@
       return { ok: true, id: 'cn' + window.__LOGNOTES.length };
     },
     registerPushToken: function (token, platform) { ST.pushToken = { token: token, platform: platform }; return { ok: true }; },
-    unregisterPushToken: function () { ST.pushToken = null; return { ok: true }; },
+    unregisterPushToken: function (token) { window.__UNREG = (window.__UNREG || []).concat([token || '']); ST.pushToken = null; return { ok: true }; },
+    // T2.30: what each system is running. A test sets __MOCK_BUILDS to try a
+    // server behind the phone.
+    getBuilds: function () {
+      return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 1 } };
+    },
     markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
     exchangeSession: function () { return { token: 'h.' + payload + '.s', exp: 4102444800 }; },
 
@@ -960,7 +967,20 @@
       return new Promise(function (ok) { setTimeout(function () { ok(res); }, hold); });
     }
     // __MOCK_PUTREFUSED: the signed URL refuses the browser's PUT (a CORS answer).
-    if (u.indexOf('mock.local/put') !== -1) return window.__MOCK_PUTREFUSED ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve({ ok: true, status: 200 });
+    // T2.30: __PUTS records the order the files arrive in; __MOCK_PUTFAIL (a
+    // pattern on the file name) answers 500; __MOCK_PUTSTALL never answers
+    // until the app gives up on it.
+    if (u.indexOf('mock.local/put') !== -1) {
+      var nm = decodeURIComponent(u.split('?n=')[1] || '');
+      (window.__PUTS = window.__PUTS || []).push(nm);
+      if (window.__MOCK_PUTREFUSED) return Promise.reject(new TypeError('Failed to fetch'));
+      if (window.__MOCK_PUTFAIL && new RegExp(window.__MOCK_PUTFAIL).test(nm)) return Promise.resolve({ ok: false, status: 500 });
+      if (window.__MOCK_PUTSTALL) return new Promise(function (res, rej) {
+        var sg = opts && opts.signal;
+        if (sg) sg.addEventListener('abort', function () { var e = new Error('The operation was aborted.'); e.name = 'AbortError'; rej(e); });
+      });
+      return Promise.resolve({ ok: true, status: 200 });
+    }
     return realFetch(url, opts);
   };
 })();

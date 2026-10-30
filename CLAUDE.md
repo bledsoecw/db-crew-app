@@ -261,9 +261,9 @@ regeneration, Linux only.
 - **The audit report** is a private page on Carl's account:
   https://claude.ai/artifact/AAcARP8W9V2hjkdRutYvPK — defects D1–D19 and
   improvements I1–I9, by id. Step 1 (D1, D5, D2, D3, D4, D9, D10, D11, D12,
-  D13, D17, D18, I4, I7) is T2.29 here and DB CheckOut's 30 Oct commit. Next,
-  in order: D6, D7, D8, D14, D16 and I3; then I2 (one outbox), D15 (request
-  ids on writes), I1, I5, I6, I9.
+  D13, D17, D18, I4, I7) is T2.29 here and DB CheckOut's 30 Oct commit; Step 2
+  (D6, D7, D8, D14, D16, I3) is T2.30. Next, in order: I2 (one outbox), D15
+  (request ids on writes), I1, I5, I6, I9.
 - **A correction the earlier notes needed.** DB CheckOut's served form
   (41a843f) and its gutter/siding checklists, `REPAIR` photos and final notes
   (6c6d5d1) were merged and "deployed" on 29 Oct but never ran: its
@@ -295,7 +295,8 @@ regeneration, Linux only.
   first (I5); one with `'unsafe-inline'` would not. D14's zoom: the lock has a
   reason — iOS zooms into any input under 16px and stays zoomed, which broke
   the camera layout in the retired Close Out app (its `fix-web-html.mjs` said
-  so) — so allowing zoom needs every input at 16px or more first.
+  so) — so allowing zoom needs every input at 16px or more first. (T2.30 did
+  exactly that: every box was already 16px or more, which t230-test pins.)
 - **D9 reads the phone's role** (site manager or Operations); the board's own
   sign rule also admits a roster crew flagged Site Manager. If that ever
   differs, the board sending `canSign` on `checks` is the fix (both repos'
@@ -313,3 +314,44 @@ regeneration, Linux only.
   (6/14, the test setup serves no Firebase files) and code-test's "…and back
   to work opens a new one". Not the app; checked by running both against
   T2.26.
+
+## T2.30 (30 Oct 2026) — Step 2 of the audit, what the README does not say
+
+- **The photo counter is not the truth; the store is.** `S.queued` is only
+  what the upload loop last saw. Anything that decides on it (sign-out, the
+  no-signal bar at start) calls `qCount()` first. `signout-test` used to fake
+  a queue by setting `S.queued = 2`; it now puts two real items in the store,
+  because faking the counter is the very thing D6 stopped trusting.
+- **Each photo has its own tries, beside the queue** (`qRetry`, saved as
+  `dbtc_qretry`), never written into the queued item — a failure must not
+  rewrite a video. `pumpFails` and `PUMP_RETRY_MS` are gone; the next run is
+  the soonest photo's due time. `qWake()` (signal back, app in front) makes
+  everything due without forgetting the tries, so a stuck photo stays said.
+- **Every write to localStorage goes through `storeSet(key, value, quiet)`**
+  — `quiet` for copies the phone can fetch again (codes, the schedule, job
+  copies, the queue, `me`, forms, where-you-were, the token), never for work.
+  A new `localStorage.setItem` in a try/catch is the bug D8 removed; only the
+  sign-in gate's `PICK_ACCOUNT_KEY` writes stay direct.
+- **Sheets own a history entry while open** (`sheetHistPush` / `sheetHistPop`,
+  `popstate` → `backOutOfSheet`). `closeSheet()` takes the entry back on a
+  timeout unless another sheet opened in its place, so the common
+  `closeSheet(); openSheet('x')` keeps one entry, never two. A test can press
+  Back with `page.goBack()`. Focus goes back to the opener only when it is not
+  a text box — iOS leaves focus in a textarea under a tapped button, and
+  restoring it would raise the keyboard after every sheet.
+- **An update never reloads mid-step** (`swQuiet`): the old 15-second cap is
+  gone on purpose. A sheet left open forever only means the new build waits
+  for the next open, which navigation already serves fresh.
+- **The Close Out contract level.** DB CheckOut's `/health` reports
+  `contract` (`PHONE_CONTRACT` in `apps/sync/src/routes.ts`, 1 since 30 Oct);
+  the phone carries `CO_CONTRACT_NEED`. Raise the server's in the change that
+  gives the phone something new to depend on, and the phone's when it starts
+  using it — Diagnostics warns while the server is behind. A server that
+  reports no level is only called behind once the phone needs more than 1.
+- **The server half of the shared-phone fix** reads every Script Property
+  (`getProperties()`) to find the same token under someone else. Fine at this
+  size; it is O(properties) per registration.
+- **The mock grew switches**: `__MOCK_PUTFAIL` (a pattern on the file name:
+  the PUT answers 500 and the API path refuses), `__MOCK_PUTSTALL` (the PUT
+  never answers until aborted), `__UPLOAD_TIMEOUT_MS`, `__PUTS` (the order
+  files arrive), `__MOCK_BUILDS` (what `getBuilds` answers), `__UNREG`.

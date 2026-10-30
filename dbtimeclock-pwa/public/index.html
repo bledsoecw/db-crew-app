@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>DB Crew</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -513,7 +513,7 @@ button[disabled]{cursor:default}
 .dlchip .st.sent{background:var(--go)}
 .dlchip .st.draft{background:var(--ckamber)}
 #langTog{display:flex;border:1px solid var(--line2);border-radius:3px;overflow:hidden}
-#langTog button{padding:8px 10px;color:var(--mut)}
+#langTog button{padding:8px 12px;color:var(--mut);min-height:44px;min-width:44px}
 #langTog button.on{background:var(--nav);color:#fff}
 .dlh{font:800 21px/1.1 var(--head);letter-spacing:.2px;text-transform:uppercase;color:var(--fg);margin-top:24px}
 .dlh.first{margin-top:8px}
@@ -608,6 +608,10 @@ button[disabled]{cursor:default}
 .tab{flex:1;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-top:3px solid transparent;margin-top:-1px;color:rgba(255,255,255,.74)}
 .tab.on{color:#fff;border-top-color:var(--go)}
 .tab .tl{font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
+/* Pinch-zoom is allowed (T2.30, D14) — every box is 16px or more, so iOS
+   never zooms in on its own — but a double tap is still two taps. */
+html{touch-action:manipulation}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 #toast{position:absolute;left:16px;right:16px;bottom:calc(var(--tabh,96px) + 20px);z-index:90;display:none;justify-content:center;pointer-events:none}
 #toast span{background:var(--go);color:var(--goink);border-radius:5px;padding:14px 16px;font:600 11px/1.3 var(--mono);letter-spacing:.99px;text-transform:uppercase;text-align:center}
 #toast.err span{background:var(--rec);color:#fff}
@@ -686,6 +690,21 @@ button[disabled]{cursor:default}
 .phrow2>*{flex:1;min-width:0}
 .galsm{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:6px;background:var(--surf);border:1px dashed var(--line2);color:var(--fg);font:600 10px/1.2 var(--mono);letter-spacing:.8px;text-transform:uppercase;padding:0 8px}
 .cophoto{display:block;width:100%;max-height:62vh;object-fit:contain;border-radius:6px;background:#000}
+/* Photos waiting to send (T2.30) */
+.pqlist{border:1px solid var(--line);border-radius:6px;background:var(--surf)}
+.pqrow{display:flex;align-items:flex-start;gap:12px;padding:12px;border-top:1px solid var(--line)}
+.pqrow:first-child{border-top:0}
+.pqth{flex:none;width:56px;height:56px;border-radius:5px;background:var(--surf2) center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:var(--mut)}
+.pqt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;font:400 14px/1.35 var(--sans);color:var(--mut)}
+.pqt b{font:700 15px/1.25 var(--sans);color:var(--fg)}
+.pqst{color:var(--fg)}
+.pqst.bad{color:var(--rec);font-weight:600}
+.pqerr{font-size:12.5px;overflow-wrap:anywhere}
+.pqbtns{flex:none;display:flex;flex-direction:column;gap:8px}
+.pqbtns button{min-height:44px;padding:0 12px;border:1.5px solid var(--line2);border-radius:5px;font:600 11px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase;color:var(--fg)}
+.pqbtns button.rm{border-color:var(--rec);color:var(--rec)}
+/* Diagnostics: a system behind the phone (T2.30) */
+.verwarn{margin-top:12px;padding:12px 14px;border-radius:6px;background:var(--warn);color:var(--warnink);font:600 14px/1.4 var(--sans);display:flex;flex-direction:column;gap:8px}
 .ph .rm{position:absolute;right:4px;top:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;display:flex;align-items:center;justify-content:center}
 .ph.add{background:var(--surf);border:2px dashed var(--line2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg);font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
 .ph.add.soon{color:var(--mut);border-style:dotted;text-align:center;padding:0 6px;line-height:1.25}
@@ -972,6 +991,8 @@ button[disabled]{cursor:default}
     <div class="scroll" style="padding:0 20px 26px">
       <div class="k">Build</div>
       <div class="tbl" id="verTbl"></div>
+      <div id="verWarn" class="verwarn hidden" role="alert"></div>
+      <button class="btn btn-out diagbtn hidden" id="photoQBtn">Photos waiting to send</button>
       <button class="btn btn-out diagbtn hidden" id="pushBtn">Turn on notifications</button>
       <div class="k hidden" id="apiK" style="margin-top:22px">API calls · this phone</div>
       <div id="apiBox" class="hidden"></div>
@@ -1069,15 +1090,16 @@ button[disabled]{cursor:default}
   </div>
 
   <div id="toast"><span></span></div>
+  <div id="srLive" class="sr" role="status" aria-live="polite"></div>
   <div id="wait"><div class="wbox"><div class="wspin"></div><div class="wt" id="waitT">Working…</div><div class="ws" id="waitS"></div></div></div>
 </div>
 
 <!-- ============ SHEET ============ -->
 <div id="scrim">
   <div id="scrimTap"></div>
-  <div id="sheet">
+  <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <div id="sheetHead">
-      <div id="sheetTitle"></div>
+      <div id="sheetTitle" tabindex="-1"></div>
       <button id="sheetClose" aria-label="Close">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
@@ -1094,7 +1116,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.29 (2026-10-30)';
+var APP_BUILD = 'T2.30 (2026-10-30)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -1137,7 +1159,7 @@ function authFresh(){ return AUTH.token && (AUTH.exp - Date.now()/1000) > 90; }
 function authStore(tok){
   AUTH.token = tok;
   try { AUTH.exp = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp || 0; } catch(e){ AUTH.exp = 0; }
-  try { localStorage.setItem('dbtc_auth', JSON.stringify({ token:AUTH.token, exp:AUTH.exp })); } catch(e){}
+  storeSet('dbtc_auth', JSON.stringify({ token:AUTH.token, exp:AUTH.exp }), true);
   try { if (S.started) renderVersion(); } catch(e){}
   var w = AUTH.waiters; AUTH.waiters = [];
   w.forEach(function(fn){ fn(); });
@@ -1507,9 +1529,97 @@ var S = {
   apiLog:[], errs:[], recent:[]
 };
 
+/* =========================================================
+   WHAT THE PHONE KEEPS (T2.30, D8)
+   Every save goes through storeSet. A full phone used to refuse a save in
+   silence: ticks and logs typed with no signal lived only in memory, and a
+   renewed sign-in was never kept, so the next launch asked again. Now a
+   refused save trims what the phone keeps for convenience and tries once
+   more, and if it still cannot, the person is told (once a minute at most).
+   `quiet` is for copies the phone can fetch again — never for work.
+   ========================================================= */
+var storeWarnAt = 0, storeTrimming = false, DAY_MS = 86400000;
+function storeSet(key, value, quiet){
+  try { localStorage.setItem(key, value); return true; } catch(e){}
+  if (!storeTrimming){ storeTrim(true); try { localStorage.setItem(key, value); return true; } catch(e2){} }
+  if (!quiet && Date.now() - storeWarnAt > 60000){
+    storeWarnAt = Date.now();
+    try { toast(L('Phone storage is full — this isn’t saved on the phone. Keep the app open until it sends, and free up space.'), true); } catch(e3){}
+  }
+  return false;
+}
+/* Let go of what is finished (at every start, and harder when a save was
+   refused): a sent day log after 14 days, an empty one nobody sent likewise;
+   a Close Out job copy after 7 days unless there is work on that job still on
+   the phone; a finished visit after 14 days; a finished repair's extra photo
+   thumbnails at once. Anything not yet sent is never touched. */
+function storeTrim(full){
+  storeTrimming = true;
+  var now = Date.now(), changed;
+  try {
+    if (typeof dlStore === 'object' && dlStore){
+      var dlKeep = (full ? 2 : 14) * DAY_MS; changed = false;
+      for (var k in dlStore){
+        var e = dlStore[k]; if (!e) continue;
+        var age = now - new Date((e.date || '1970-01-01') + 'T12:00:00').getTime();
+        if (age > dlKeep && !e.sending && (e.sent || (!e.wantSend && !dlHasContent(e)))){ delete dlStore[k]; changed = true; }
+      }
+      if (changed) dlPersist();
+    }
+    var busy = {};
+    if (typeof CO === 'object' && CO){ (CO.outbox || []).forEach(function(it){ busy[it.jobId] = 1; }); if (CO.jobId) busy[CO.jobId] = 1; }
+    var visits = (typeof coStore === 'object' && coStore && coStore.visits) || {};
+    changed = false;
+    for (var jid in visits){
+      var v = visits[jid]; if (!v) continue;
+      for (var tid in (v.repairMore || {})){ if (v.doneTasks && v.doneTasks[tid]){ delete v.repairMore[tid]; changed = true; } }
+      if (busy[jid] || !coVisitIdle(v)) continue;
+      var last = Math.max(v.sentAt || 0, v.startedAt || 0);
+      for (var dt in (v.doneTasks || {})) last = Math.max(last, v.doneTasks[dt] || 0);
+      for (var ak in (v.areas || {})) last = Math.max(last, (v.areas[ak] && v.areas[ak].sentAt) || 0);
+      if (now - last > 14 * DAY_MS){ delete visits[jid]; changed = true; }
+    }
+    if (changed) coPersist();
+    var copyKeep = (full ? 1 : 7) * DAY_MS, keys = [];
+    for (var i = 0; i < localStorage.length; i++){ var key = localStorage.key(i); if (/^dbtc_co_job_/.test(key)) keys.push(key); }
+    keys.forEach(function(key){
+      var id = key.slice(12), vv = visits[id];
+      if (busy[id] || (vv && !coVisitIdle(vv))) return;   // work in hand needs its job with no signal
+      var m = /"_at":(\d+)/.exec(localStorage.getItem(key) || '');
+      if (!m || now - Number(m[1]) > copyKeep) localStorage.removeItem(key);
+    });
+  } catch(e){}
+  storeTrimming = false;
+}
+/* A Close Out visit with nothing on it that has not gone: no photos, no
+   unsent report, no answers, no repair photos, no area work. */
+function coVisitIdle(v){
+  if ((v.photos || []).length || v.sending) return false;
+  if ((v.reports || []).some(function(r){ return !r.sentAt; })) return false;
+  if (Object.keys(v.before || {}).length || Object.keys(v.after || {}).length || Object.keys(v.repairMore || {}).length) return false;
+  for (var a in (v.answers || {})) if (Object.keys(v.answers[a] || {}).length) return false;
+  for (var ak in (v.areas || {})){ var av = v.areas[ak] || {}; if ((av.photos || []).length || av.note) return false; }
+  return true;
+}
+/* For Diagnostics: what the app keeps in its saved settings, and what the
+   browser says the photos and files take. */
+function storeUse(){
+  var n = 0;
+  try { for (var i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); if (/^dbtc_/.test(k)) n += (k.length + (localStorage.getItem(k) || '').length) * 2; } } catch(e){}
+  return n;
+}
+function storeEstimate(){
+  if (!navigator.storage || !navigator.storage.estimate) return Promise.resolve();
+  return navigator.storage.estimate().then(function(est){ S.storeEst = est; }).catch(function(){});
+}
+function fmtBytes(n){
+  n = Number(n) || 0;
+  return n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB' : n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+}
+
 function savePrefs(){
-  try { localStorage.setItem('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, push:pushState, jobPickedDay:S.jobPickedDay,
-                                                            lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs, shop:S.shop, partner:S.partner, partnerOn:S.partnerOn, rollTold:S.rollTold, recentCodes:S.recentCodes })); } catch(e){}
+  storeSet('dbtc_prefs', JSON.stringify({ sun:S.sun, jobId: S.job && S.job.id, photos:S.photos, notes:S.notes, push:pushState, jobPickedDay:S.jobPickedDay,
+                                          lang:S.lang, langSet:S.langSet, talkHinted:S.talkHinted, onBreak:S.onBreak, brk:S.brk, viewAs:S.viewAs, shop:S.shop, partner:S.partner, partnerOn:S.partnerOn, rollTold:S.rollTold, recentCodes:S.recentCodes }));
 }
 function loadPrefs(){
   try {
@@ -1590,7 +1700,7 @@ function codesRemember(jobId, codes){
   if (!jobId || !Array.isArray(codes)) return;
   var m = codesCache(); m[jobId] = { at: Date.now(), v: CODES_V, codes: codes };
   Object.keys(m).sort(function(a, b){ return m[b].at - m[a].at; }).slice(CODES_KEEP).forEach(function(k){ delete m[k]; });
-  try { localStorage.setItem('dbtc_codes', JSON.stringify(m)); } catch(e){}
+  storeSet('dbtc_codes', JSON.stringify(m), true);
 }
 /* Resolves with the list: the phone's copy at once when it has one (the
    API's answer still lands in S.codes behind it), else the API's — on its
@@ -1660,6 +1770,8 @@ var toastT = null;
 function toast(msg, isErr){
   var t = $('toast');
   t.querySelector('span').textContent = L(msg);
+  // Read out as well (T2.30): the toast itself comes and goes with display.
+  var sr = $('srLive'); if (sr){ sr.textContent = ''; setTimeout(function(){ sr.textContent = L(msg); }, 60); }
   t.classList.toggle('err', !!isErr);
   t.style.display = 'flex';
   clearTimeout(toastT);
@@ -1717,6 +1829,7 @@ var FB_VERSION_DEFAULT = '12.19.0';
    nobody states, and it silently fell back the moment anything set it later. */
 function fbVersion(){ return String((window.DBTC_CONFIG || {}).fbVersion || FB_VERSION_DEFAULT); }
 var pushState = 'unknown';   // unknown | unsupported | needs-install | off | on
+var PUSH_TOK_KEY = 'dbtc_pushtok';   // this phone's FCM token, for sign-out (T2.30)
 
 function pushConfigured(){
   var c = (window.DBTC_CONFIG || {});
@@ -1819,6 +1932,8 @@ function enablePush(){
     })
     .then(function(token){
       if (!token) throw new Error('Firebase returned no device token. Usually the vapidKey in config.js is not this project\u2019s Web Push key.');
+      // Kept for sign-out (T2.30), which names this phone's token to let go of.
+      storeSet(PUSH_TOK_KEY, token, true);
       step = 'registering the token';
       return apiCall('registerPushToken', [token, isIOS() ? 'ios' : 'android', S.lang]);
     })
@@ -1886,7 +2001,24 @@ function render(){
   renderTodayPick();
   coRender();
   renderPeople();
+  syncPressed();
 }
+/* State in words for a screen reader (T2.30, D14): a toggle says whether it
+   is pressed, and the tab bar which tab is open — they showed it by color
+   alone. After every redraw, and after any tap (some toggles flip their
+   class in place without a redraw). */
+var PRESS_SEL = '.ynbtn, .dlchip, .ckrow, .whychip, .pairrow, .tagbtn, .jwh-btn, .ans button, [data-lang], [data-earlier], [data-leftat]';
+function syncPressed(){
+  [].forEach.call(document.querySelectorAll(PRESS_SEL), function(b){
+    if (b.tagName !== 'BUTTON') return;
+    var on = b.classList.contains('on') ? 'true' : 'false';
+    if (b.getAttribute('aria-pressed') !== on) b.setAttribute('aria-pressed', on);
+  });
+  [].forEach.call(document.querySelectorAll('#tabs .tab'), function(t){
+    if (t.classList.contains('on')) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+  });
+}
+document.addEventListener('click', function(){ setTimeout(syncPressed, 0); }, true);
 
 /* JobTread returns a full formatted address ("408 Euclid Ave, Van Wert, OH
    45891, USA"). The street line is the part a crew member reads at a glance,
@@ -2167,8 +2299,44 @@ function pushWords(){
   }
 }
 
+/* What each system is running (T2.30, I3). The phone carries the Close Out
+   contract level it needs; DB CheckOut's /health says the level it offers.
+   Raise CO_CONTRACT_NEED in the change that starts to depend on something
+   new from that server, and Diagnostics warns while the server is behind —
+   the way a stale server went unseen for days in October. */
+var CO_CONTRACT_NEED = 1;
+function buildNum(b){ var m = /T(\d+)\.(\d+)/.exec(String(b || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
+function loadBuilds(){
+  if (!S.me || !API_URL || !S.online) return Promise.resolve();
+  return apiCall('getBuilds', [], { lane: 'now', timeout: 15000 })
+    .then(function(r){ S.builds = r || null; }, function(e){ S.builds = { error: String((e && e.message) || e) }; })
+    .then(renderVersion);
+}
+function buildWarnings(){
+  var out = [], api = (S.builds && S.builds.api) || (S.me && S.me.build) || '';
+  if (buildNum(api) && buildNum(APP_BUILD) > buildNum(api))
+    out.push('This app (' + APP_BUILD.split(' ')[0] + ') is newer than the API (' + api.split(' ')[0] + '). Deploy the Apps Script: clasp push, then a new version of the web app.');
+  var co = S.builds && S.builds.closeOut;
+  if (co && co.configured && co.ok){
+    if (co.contract == null ? CO_CONTRACT_NEED > 1 : co.contract < CO_CONTRACT_NEED)
+      out.push('The Close Out server is older than this app needs (contract ' + (co.contract == null ? 'not reported' : co.contract) + ', needs ' + CO_CONTRACT_NEED + '). Deploy DB CheckOut\u2019s main.');
+    if (co.build && co.build.on && co.build.on !== 'vercel')
+      out.push('The Close Out server was not built on its deploy (' + co.build.on + '), so it may be running older code than its repo.');
+  }
+  return out;
+}
+function closeOutWords(){
+  var co = S.builds && S.builds.closeOut;
+  if (!S.builds) return 'not checked yet';
+  if (S.builds.error) return 'not reached';
+  if (!co || !co.configured) return 'not set up';
+  if (!co.ok) return 'unreachable' + (co.error ? ' (' + co.error + ')' : '');
+  var b = co.build || {};
+  return (b.commit || co.deployed || 'unknown build') + (b.on === 'vercel' ? ' · built on deploy' : b.on ? ' · ' + b.on : '') +
+         (co.contract != null ? ' · contract ' + co.contract : '');
+}
 function renderVersion(){
-  var api = (S.me && S.me.build) || '';
+  var api = (S.builds && S.builds.api) || (S.me && S.me.build) || '';
   var a = S.assign;
   var board = !a ? '—'
             : a.source === 'board' ? (a.crew ? a.crew.name : 'connected, no crew')
@@ -2178,14 +2346,25 @@ function renderVersion(){
   $('verTbl').innerHTML =
     '<div class="trow"><span class="nm">App</span><span class="d tabular">' + esc(APP_BUILD) + '</span></div>' +
     '<div class="trow"><span class="nm">API</span><span class="d tabular">' + esc(api || 'not reached') + '</span></div>' +
+    '<div class="trow"><span class="nm">Close Out</span><span class="d tabular">' + esc(closeOutWords()) + '</span></div>' +
     '<div class="trow"><span class="nm">Session</span><span class="d tabular">' + esc(sessionWords()) + '</span></div>' +
     '<div class="trow"><span class="nm">Board</span><span class="d tabular">' + esc(board) + '</span></div>' +
     '<div class="trow"><span class="nm">Push</span><span class="d tabular">' + esc(pushWords()) + '</span></div>' +
+    // What the phone keeps (T2.30): the app's saved settings, and what the
+    // browser says it holds in all, photos and files included.
+    '<div class="trow"><span class="nm">Storage</span><span class="d tabular">' + esc(fmtBytes(S.storeUseBytes || 0) + ' saved' +
+      (S.storeEst && S.storeEst.quota ? ' · ' + fmtBytes(S.storeEst.usage) + ' of ' + fmtBytes(S.storeEst.quota) + ' in use' : '')) + '</span></div>' +
     (a && a.boardMs != null
       ? '<div class="trow"><span class="nm">Board time</span><span class="d tabular">' +
         (a.boardMs >= 1000 ? (a.boardMs/1000).toFixed(1) + 's' : a.boardMs + 'ms') + '</span></div>'
       : '');
   renderApiBox();
+  var warn = buildWarnings(), vw = $('verWarn');
+  vw.classList.toggle('hidden', !warn.length);
+  vw.innerHTML = warn.map(function(w){ return '<div>' + esc(w) + '</div>'; }).join('');
+  var pq = $('photoQBtn');
+  pq.classList.toggle('hidden', !S.queued);
+  pq.textContent = 'Photos waiting to send · ' + S.queued + (photoStuck() ? ' · ' + photoStuck() + ' stuck' : '');
 
   // Registering a device used to happen only on a successful clock-in — the
   // one moment it is relevant, but also impossible while writes are off, and
@@ -2272,6 +2451,9 @@ function waitingToSend(){
   if (S.queued) n.push(S.queued + (S.queued === 1 ? ' photo' : ' photos'));
   var ck = 0; for (var t in ckStore){ if (ckStore[t] && ckStore[t].dirty) ck++; }
   if (ck) n.push(ck + ' site-check save' + (ck === 1 ? '' : 's'));
+  // The pre-start keeps its own store (T2.25) and was never counted (T2.30).
+  var pr = 0; for (var tp in prStore){ if (prStore[tp] && prStore[tp].dirty) pr++; }
+  if (pr) n.push(pr + ' pre-start save' + (pr === 1 ? '' : 's'));
   var dl = 0; for (var k in dlStore){ var e = dlStore[k]; if (e && e.wantSend && !e.sent) dl++; }
   if (dl) n.push(dl + ' day log' + (dl === 1 ? '' : 's'));
   var co = ((window.CO && CO.outbox) || []).filter(function(it){ return it.status !== 'rejected'; }).length;
@@ -2299,6 +2481,13 @@ function wipePhoneState(){
   }).catch(function(){});
 }
 function signOut(){
+  // The photos are counted from the phone's own store (T2.30), never from
+  // the number the upload loop last left: that loop does not run without
+  // signal, so a phone opened in a dead spot read "nothing waiting" and two
+  // taps erased yesterday's START and END photos.
+  qCount().then(signOutStep);
+}
+function signOutStep(){
   var btn = $('signOutBtn'), foot = $('signOutFoot');
   var waiting = waitingToSend();
   if (waiting.length){
@@ -2316,7 +2505,18 @@ function signOut(){
   signOutArmed = 0;
   btn.disabled = true; btn.textContent = 'Signing out…';
   try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch(e){}
-  wipePhoneState().then(function(){ location.replace(location.pathname); });
+  pushLeave().then(wipePhoneState).then(function(){ location.replace(location.pathname); });
+}
+/* A shared phone stops getting the reminders of the person who signed out
+   of it (T2.30). Best effort and quick: with no signal it is skipped, and the
+   next person's sign-in takes the phone over on the server anyway. The token
+   rides along so the server only lets go of THIS phone, never the person's
+   own phone if that is the one they registered since. */
+function pushLeave(){
+  if (!S.online || !S.me || !API_URL) return Promise.resolve();
+  var tok = ''; try { tok = localStorage.getItem(PUSH_TOK_KEY) || ''; } catch(e){}
+  var call = apiCall('unregisterPushToken', [tok], { lane: 'now', timeout: 8000 }).catch(function(){});
+  return Promise.race([call, new Promise(function(res){ setTimeout(res, 9000); })]);
 }
 
 function renderLog(){ renderDayLog(); }
@@ -2359,7 +2559,7 @@ var ASSIGN_MAX_AGE_MS = 12 * 3600 * 1000;
 function saveAssign(){
   try {
     if (S.assign && S.assign.source === 'board') {
-      localStorage.setItem(ASSIGN_KEY, JSON.stringify({ at: Date.now(), a: S.assign }));
+      storeSet(ASSIGN_KEY, JSON.stringify({ at: Date.now(), a: S.assign }), true);
     }
   } catch (e) {}
 }
@@ -2836,7 +3036,7 @@ try { ckStore = JSON.parse(localStorage.getItem(CK_KEY) || '{}') || {}; } catch(
 // "In flight" is true of a page, not of a phone: a reload mid-save must not
 // leave the list thinking a save is still running, or it never saves again.
 for (var ckK in ckStore){ if (ckStore[ckK]) ckStore[ckK].inflight = false; }
-function ckPersist(){ try { localStorage.setItem(CK_KEY, JSON.stringify(ckStore)); } catch(e){} }
+function ckPersist(){ storeSet(CK_KEY, JSON.stringify(ckStore)); }
 
 /* ---- who may tick: the board's 403, remembered ---- */
 function ckLoadRO(){
@@ -2848,7 +3048,7 @@ function ckLoadRO(){
 }
 function ckSetRO(msg){
   S.checksRO = { at: Date.now(), msg: msg, email: (S.me && S.me.email) || '' };
-  try { localStorage.setItem(CK_RO_KEY, JSON.stringify(S.checksRO)); } catch(e){}
+  storeSet(CK_RO_KEY, JSON.stringify(S.checksRO), true);
 }
 function ckClearRO(){
   S.checksRO = null;
@@ -3184,7 +3384,7 @@ var PR_KEY = 'dbtc_prestart', PR_RO_KEY = 'dbtc_prestart_ro', PR_IDLE_MS = 90000
 var prStore = {};
 try { prStore = JSON.parse(localStorage.getItem(PR_KEY) || '{}') || {}; } catch(e){ prStore = {}; }
 for (var prK in prStore){ if (prStore[prK]) prStore[prK].inflight = false; }
-function prPersist(){ try { localStorage.setItem(PR_KEY, JSON.stringify(prStore)); } catch(e){} }
+function prPersist(){ storeSet(PR_KEY, JSON.stringify(prStore)); }
 var prTimers = {}, prRetries = {};
 function prVisit(tid){
   var a = S.assign; if (!a) return null;
@@ -3197,7 +3397,7 @@ function prRO(){
   try { var r = JSON.parse(localStorage.getItem(PR_RO_KEY) || 'null'); if (r && r.at && Date.now() - r.at < CHECKS_RO_MEMORY_MS && (!S.me || !r.email || r.email === S.me.email)) return r; } catch(e){}
   return null;
 }
-function prSetRO(msg){ try { localStorage.setItem(PR_RO_KEY, JSON.stringify({ at: Date.now(), msg: msg, email: (S.me && S.me.email) || '' })); } catch(e){} }
+function prSetRO(msg){ storeSet(PR_RO_KEY, JSON.stringify({ at: Date.now(), msg: msg, email: (S.me && S.me.email) || '' }), true); }
 function prCls(v){
   var d = prDone(v), ls = prLines(v), n = ls.filter(function(l){ return d[l.key]; }).length;
   return !ls.length || !n ? 'none' : n === ls.length ? 'green' : 'amber';
@@ -3459,6 +3659,12 @@ function nudgeItems(){
   nudgeVisits().forEach(function(v){
     items.push({ kind: 'unsigned', k: L('Site checks'), at: 0, text: nudgeText(v), go: function(){ openChecks(v.checks.taskId); } });
   });
+  // A START or END photo that will not send (T2.30): said on the Clock tab,
+  // where it was taken, until it goes or is discarded.
+  var stuck = photoStuck();
+  if (stuck && canTab('job') && S.writeEnabled !== false){
+    items.push({ kind: 'photos', k: L('Photos'), at: Date.now(), text: stuck === 1 ? L('1 photo hasn’t sent — tap to see it') : Lf('{n} photos haven’t sent — tap to see them', { n: stuck }), go: openPhotoQ });
+  }
   // Still on the clock from a day before (T2.19): first, above everything.
   if (canTab('job') && leftOvernight()){
     var b0 = new Date(S.open.startedAt);
@@ -3466,7 +3672,7 @@ function nudgeItems(){
   }
   // Most pressing kind first; within a kind, the most recent moment first —
   // the roof you just left, before the one you handed over this morning.
-  var rank = { 'left-open': -1, 'log-now': 0, 'unsigned': 1, 'log-late': 2 };
+  var rank = { 'left-open': -1, 'log-now': 0, 'photos': 0.5, 'unsigned': 1, 'log-late': 2 };
   items.sort(function(a, b){ return (rank[a.kind] - rank[b.kind]) || ((b.at || 0) - (a.at || 0)); });
   return items;
 }
@@ -3892,7 +4098,7 @@ function whereSave(){
     if (t === 'co') w.co = { screen: CO.screen, jobId: CO.jobId || null, taskId: CO.taskId || null, areaKey: CO.areaKey || null, ctxArea: CO.ctxArea || null, reportIdx: CO.reportIdx == null ? null : CO.reportIdx, reportFrom: CO.reportFrom || null };
     if (t === 'log') w.log = { jobId: S.dlJobId || null, date: S.dlDate || null };
     if (t === 'checks') w.checks = { kind: S.checksKind || 'site', task: S.checksTask || null };
-    localStorage.setItem(WHERE_KEY, JSON.stringify(w));
+    storeSet(WHERE_KEY, JSON.stringify(w), true);
   } catch(e){}
 }
 function whereLoad(){
@@ -3947,6 +4153,7 @@ function setTab(t){
   // clock stays where it is, and Leave starts it again.
   if (S.tab === 'log' && t !== 'log' && S.leaveAfterLog && !(dlGet(S.leaveAfterLog.jobId, isoLocal()) || {}).wantSend){ S.leaveAfterLog = null; S.leaveMode = null; S.leaveTo = null; }
   S.tab = t;
+  if (t === 'diag'){ S.storeUseBytes = storeUse(); storeEstimate().then(renderVersion); loadBuilds(); }
   $('vClock').classList.toggle('on', t==='job');
   $('vJobs').classList.toggle('on', t==='jobs');
   $('vChecks').classList.toggle('on', t==='checks');
@@ -3981,9 +4188,37 @@ function closeSheet(){
   if (S.sheet === 'tellpm' && dlRec.taId === 'tpmText') dlRecStop();
   if (S.sheet === 'coPhoto' && S.coPhotoView){ try { if (S.coPhotoView.url) URL.revokeObjectURL(S.coPhotoView.url); } catch(e){} S.coPhotoView = null; }
   S.sheet = null; S.promptKind = null; $('scrim').classList.remove('on');
+  // Focus goes back to the button that opened it — never into a text box,
+  // which would bring the keyboard up — and Back's entry is taken back.
+  var f = S.sheetFocus; S.sheetFocus = null;
+  if (f && f.focus && f.tagName !== 'INPUT' && f.tagName !== 'TEXTAREA' && document.body.contains(f)) try { f.focus({ preventScroll: true }); } catch(e){}
+  sheetHistPop();
 }
+/* A sheet is a dialog (T2.30, D14). Android's Back closed the app under an
+   open sheet; now opening one adds a Back entry, and Back backs out of the
+   sheet the way its own X does. Closed from inside, the entry is taken back
+   — unless another sheet opened in its place, which keeps it. */
+var sheetHist = false, sheetBackSkip = false;
+function sheetHistPush(){
+  if (sheetHist) return;
+  try { history.pushState({ dbtcSheet: 1 }, ''); sheetHist = true; } catch(e){}
+}
+function sheetHistPop(){
+  setTimeout(function(){
+    if (S.sheet || !sheetHist) return;
+    sheetHist = false; sheetBackSkip = true;
+    try { history.back(); } catch(e){ sheetBackSkip = false; }
+  }, 0);
+}
+window.addEventListener('popstate', function(){
+  if (sheetBackSkip){ sheetBackSkip = false; return; }
+  if (!sheetHist) return;
+  sheetHist = false;
+  if (S.sheet) backOutOfSheet();
+});
 
 function openSheet(kind, promptKind){
+  if (!S.sheet){ S.sheetFocus = document.activeElement; sheetHistPush(); }
   S.sheet = kind; S.promptKind = promptKind || null;
   var title = kind==='codes' ? (S.pendingJob ? Lf('Code at {p}', { p: S.pendingJob.customer || streetOf(S.pendingJob.address) || L('the next job') }) : L(S.open && !onTravel() ? 'Change code' : 'What are you doing?'))
             : kind==='jobs' ? L(S.open ? 'Move to which job?' : 'Pick a job')
@@ -3996,6 +4231,7 @@ function openSheet(kind, promptKind){
             : kind==='unsign' ? L('Unsign')
             : kind==='coWhy' ? co('whyTitle')
             : kind==='coPhoto' ? co('photoTitle')
+            : kind==='photoQ' ? L('Photos waiting to send')
             : kind==='dest' ? L('Where are you going?')
             : kind==='left' ? L('When did you leave?')
             : kind==='earlier' ? L('When did you start?')
@@ -4016,6 +4252,7 @@ function openSheet(kind, promptKind){
                             : kind==='unsign' ? unsignHtml()
                             : kind==='coWhy' ? coWhyHtml()
                             : kind==='coPhoto' ? coPhotoSheetHtml()
+                            : kind==='photoQ' ? photoQHtml()
                             : kind==='dest' ? destHtml()
                             : kind==='left' ? leftHtml()
                             : kind==='earlier' ? earlierHtml()
@@ -4025,6 +4262,9 @@ function openSheet(kind, promptKind){
                             : '';
   $('scrim').classList.add('on');
   wireSheet();
+  syncPressed();
+  // Focus into the dialog, unless the sheet put it in a box itself.
+  if (!$('sheet').contains(document.activeElement)) try { $('sheetTitle').focus({ preventScroll: true }); } catch(e){}
 }
 
 /* What the code sheet offers (T2.17): the job's list as the API chose it,
@@ -4353,6 +4593,19 @@ function wireSheet(){
   if ($('ukYes')) $('ukYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, false); render(); };
   // Close Out's "Before you send": each row goes where that thing is dealt with.
   if ($('coPhotoKeep')) $('coPhotoKeep').onclick = closeSheet;
+  // Photos waiting to send (T2.30): Try again now; Discard asks twice.
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-pqretry]'), function(b){
+    b.onclick = function(){ qRetryNow(b.getAttribute('data-pqretry')); toast(L('Trying again…')); setTimeout(openPhotoQ, 500); };
+  });
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-pqdiscard]'), function(b){
+    b.onclick = function(){
+      var id = b.getAttribute('data-pqdiscard');
+      if (S.pqArmed !== id || Date.now() - (S.pqArmedAt || 0) > 4000){ S.pqArmed = id; S.pqArmedAt = Date.now(); b.textContent = L('Tap again to discard'); return; }
+      S.pqArmed = null;
+      qDiscard(id).then(function(){ toast(L('Photo discarded')); openPhotoQ(); });
+    };
+  });
+  if ($('pqAll')) $('pqAll').onclick = function(){ qRetryNow(); toast(L('Trying again…')); setTimeout(openPhotoQ, 500); };
   if ($('coPhotoRm')) $('coPhotoRm').onclick = function(){
     var view = S.coPhotoView, b = $('coPhotoRm'); if (!view) return;
     if (!view.armed || Date.now() - view.armed > 4000){ view.armed = Date.now(); b.textContent = co('photoRemoveSure'); return; }
@@ -5176,7 +5429,7 @@ var rollStore = (function(){
   for (var k in st) if (String(k).slice(-10) < cut) delete st[k];
   return st;
 })();
-function rollPersist(){ try { localStorage.setItem(ROLL_KEY, JSON.stringify(rollStore)); } catch(e){} }
+function rollPersist(){ storeSet(ROLL_KEY, JSON.stringify(rollStore)); }
 function rollDay(jobId, date){ return rollStore[jobId + '|' + (date || isoLocal())] || null; }
 function rollSet(jobId, field, val){
   var k = jobId + '|' + isoLocal(), d = rollStore[k] || (rollStore[k] = {});
@@ -5656,9 +5909,35 @@ function idbDel(id){ return idb().then(function(db){ db.transaction('q','readwri
 function enqueueUpload(item){
   idbPut(item).then(function(){ S.queued++; render(); pump(); });
 }
+/* How many photos are waiting, from the phone's own store (T2.30). The
+   upload loop is not the only one asking: it does not run without signal,
+   and sign-out and the no-signal bar must never take a stale number. */
+function qCount(){ return idbAll().then(function(items){ S.queued = items.length; return items; }); }
 
-var pumping = false, pumpTimer = null, pumpFails = 0;
-var PUMP_RETRY_MS = [20000, 60000, 180000, 300000];
+/* Each photo keeps its own tries (T2.30, D7). One that will not go used to
+   end the run, and every photo behind it waited with it; now it steps aside
+   on its own backoff and the rest go. After PHOTO_STUCK_TRIES it says so on
+   the Clock tab, with Try again and Discard. Kept beside the queue, small,
+   so a failure never rewrites a photo's file. */
+var QRETRY_KEY = 'dbtc_qretry', PHOTO_RETRY_MS = [20000, 60000, 180000, 300000], PHOTO_STUCK_TRIES = 4;
+var qRetry = (function(){ try { return JSON.parse(localStorage.getItem(QRETRY_KEY) || '{}') || {}; } catch(e){ return {}; } })();
+function qRetrySave(){ storeSet(QRETRY_KEY, JSON.stringify(qRetry), true); }
+function qRetryFail(id, e){
+  var r = qRetry[id] || { tries: 0 };
+  r.tries++;
+  r.next = Date.now() + PHOTO_RETRY_MS[Math.min(r.tries - 1, PHOTO_RETRY_MS.length - 1)];
+  r.err = (e && e.readOnly) ? 'read-only build' : String((e && e.message) || 'upload failed').slice(0, 160);
+  qRetry[id] = r; qRetrySave();
+}
+/* Signal back, or the app back in front: everything waiting is due now.
+   The tries are kept, so a photo that has been stuck still says so. */
+function qWake(){ for (var id in qRetry) qRetry[id].next = 0; qRetrySave(); }
+function photoStuck(){
+  var n = 0; for (var id in qRetry){ if (qRetry[id].tries >= PHOTO_STUCK_TRIES) n++; }
+  return n;
+}
+
+var pumping = false, pumpTimer = null, pumpCur = null;
 function pump(){
   if (pumping || !S.online) return;
   pumping = true;
@@ -5666,11 +5945,22 @@ function pump(){
   idbAll().then(function(items){
     S.queued = items.length;
     render();
+    // Oldest first (T2.30): ids start with random letters, so the store's
+    // own order put this morning's START photo behind last night's.
+    items.sort(function(a, b){ return (a.at || 0) - (b.at || 0); });
+    var now = Date.now();
     return items.reduce(function(chain, item){
-      return chain.then(function(){ return sendOne(item); });
+      return chain.then(function(){
+        var r = qRetry[item.id];
+        if ((r && r.next > now) || !S.online) return;
+        pumpCur = item.id;
+        return sendOne(item).then(function(){
+          if (qRetry[item.id]){ delete qRetry[item.id]; qRetrySave(); }
+        }, function(e){ qRetryFail(item.id, e); });
+      });
     }, Promise.resolve());
   }).catch(function(){}).then(function(){
-    pumping = false;
+    pumping = false; pumpCur = null;
     idbAll().then(function(rest){
       S.queued = rest.length;
       // A photo still marked pending with nothing left in the queue has no
@@ -5682,16 +5972,88 @@ function pump(){
       S.photos.forEach(function(p){
         if (p.pending && !queued[p.id] && Date.now() - (p.at || 0) > 60000 && !p.err){ p.err = 'not uploaded — take it again'; p.lost = true; }
       });
+      // Tries for a photo no longer waiting go with it (sent, or discarded).
+      var pruned = false;
+      for (var qid in qRetry){ if (!queued[qid]){ delete qRetry[qid]; pruned = true; } }
+      if (pruned) qRetrySave();
       savePrefs(); render();
-      if (!rest.length){ pumpFails = 0; dlRetryPending(); return; }
-      // Something is still queued after a failed run. It used to wait for the
-      // next open or reconnect; now it tries again on its own, backing off,
-      // and a log waiting on it is told rather than left hanging.
-      var ms = PUMP_RETRY_MS[Math.min(pumpFails++, PUMP_RETRY_MS.length - 1)];
-      pumpTimer = setTimeout(pump, ms);
+      if (S.sheet === 'photoQ') openPhotoQ();
+      if (!rest.length){ dlRetryPending(); return; }
+      // Still something waiting: the next run is when the soonest photo is
+      // due — one added during this run now, a failing one on its own
+      // backoff — and a log waiting on them is told rather than left hanging.
+      var soon = Infinity;
+      rest.forEach(function(it){ var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
+      pumpTimer = setTimeout(pump, Math.max(3000, soon - Date.now()));
       dlRetryPending();
     });
   });
+}
+/* "Try again" on one photo, or every one: due now, run now. */
+function qRetryNow(id){
+  if (id){ if (qRetry[id]) qRetry[id].next = 0; } else qWake();
+  qRetrySave();
+  if (pumping){ clearTimeout(pumpTimer); pumpTimer = setTimeout(pump, 1500); }
+  else pump();
+}
+/* "Discard" (asked twice): the file leaves the phone and never reaches
+   JobTread. The record stays, marked, so the day's log stops waiting on it
+   and nobody is told it is still coming. */
+function qDiscard(id){
+  return idbDel(id).then(function(){
+    delete qRetry[id]; qRetrySave();
+    var p = photoRec(id);
+    if (p){ p.pending = false; p.discarded = true; p.err = 'discarded'; }
+    savePrefs();
+    return qCount();
+  }).then(function(){ render(); dlRetryPending(); });
+}
+
+/* Photos waiting to send (T2.30, D7): every START, END and site photo still
+   on the phone, oldest first, saying what it is doing. One that has failed
+   offers Try again; one stuck after PHOTO_STUCK_TRIES offers Discard too,
+   asked twice. Opened from the Clock tab's notice and from Diagnostics. */
+var TAG_UI = { before: 'Start', during: 'During', after: 'End' };
+function openPhotoQ(){
+  return qCount().then(function(items){
+    items.sort(function(a, b){ return (a.at || 0) - (b.at || 0); });
+    S.pqItems = items.map(function(it){ return { id: it.id, at: it.at, tag: it.tag, jobId: it.jobId }; });
+    openSheet('photoQ');
+  });
+}
+function jobLabelById(id){
+  var pools = [S.job ? [S.job] : [], S.jobOptions || [], S.candidates || [], assignedJobRows()];
+  for (var i = 0; i < pools.length; i++){
+    var j = (pools[i] || []).filter(function(x){ return x && x.id === id; })[0];
+    if (j) return jobWord(j);
+  }
+  return '';
+}
+function photoQHtml(){
+  var items = S.pqItems || [];
+  if (!items.length) return '<div class="sheetpad"><div class="jempty">' + esc(L('Nothing waiting to send')) + '</div></div>';
+  var anyFailed = false;
+  var rows = items.map(function(it){
+    var p = photoRec(it.id), r = qRetry[it.id];
+    var when = it.at ? (isoLocal(new Date(it.at)) === isoLocal() ? clockLabel(it.at) : dayWords(new Date(it.at)) + ' · ' + clockLabel(it.at)) : '';
+    var what = L(TAG_UI[it.tag] || 'Photo') + (when ? ' · ' + when : '');
+    var job = jobLabelById(it.jobId), st, cls = '', btns = '';
+    if (r && r.tries) anyFailed = true;
+    if (!S.online) st = L('Waiting for signal');
+    else if (pumpCur === it.id) st = L('Sending…');
+    else if (r && r.tries >= PHOTO_STUCK_TRIES){ st = Lf('Couldn’t send · tried {n} times', { n: r.tries }); cls = ' bad'; }
+    else if (r && r.tries) st = Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(r.next) });
+    else st = L('Sends in a moment');
+    if (r && r.tries && S.online) btns += '<button data-pqretry="' + esc(it.id) + '">' + esc(L('Try again')) + '</button>';
+    if (r && r.tries >= PHOTO_STUCK_TRIES) btns += '<button class="rm" data-pqdiscard="' + esc(it.id) + '">' + esc(L('Discard')) + '</button>';
+    var th = p && p.thumb ? '<span class="pqth" style="background-image:url(' + p.thumb + ')"></span>' : '<span class="pqth">' + ico('camera', 22) + '</span>';
+    return '<div class="pqrow">' + th + '<span class="pqt"><b>' + esc(what) + '</b>' + (job ? '<span>' + esc(job) + '</span>' : '') +
+           '<span class="pqst' + cls + '">' + esc(st) + '</span>' + (r && r.tries && r.err ? '<span class="pqerr">' + esc(r.err) + '</span>' : '') + '</span>' +
+           (btns ? '<span class="pqbtns">' + btns + '</span>' : '') + '</div>';
+  }).join('');
+  return '<div class="sheetpad"><div class="pqlist">' + rows + '</div>' +
+    '<div class="foot" style="text-align:left;margin-top:12px">' + esc(L('START and END photos are the clock’s proof. Discard one only if it can never send — the hours stay, the photo doesn’t.')) + '</div>' +
+    (S.online && anyFailed ? '<button class="btn btn-out" id="pqAll" style="margin-top:12px;min-height:56px">' + esc(L('Try them all now')) + '</button>' : '') + '</div>';
 }
 function photoRec(id){ return S.photos.filter(function(p){ return p.id === id; })[0] || null; }
 /* Small images go through the API as base64 when the direct PUT is refused
@@ -5706,6 +6068,21 @@ function blobToBase64(blob){
   });
 }
 
+/* A stalled connection held every photo until the app restarted (T2.30): the
+   direct upload had no time limit. It gets a minute and a half, plus a second
+   for every 64 KB, so one bar of signal still lands a video. */
+function uploadTimeoutMs(size){ return window.__UPLOAD_TIMEOUT_MS || (90000 + Math.ceil((size || 0) / 65536) * 1000); }
+function fetchTimed(url, opts, ms){
+  if (typeof AbortController === 'undefined') return fetch(url, opts);
+  var ac = new AbortController(), t = setTimeout(function(){ ac.abort(); }, ms);
+  opts.signal = ac.signal;
+  return fetch(url, opts).then(function(r){ clearTimeout(t); return r; }, function(e){
+    clearTimeout(t);
+    if (e && e.name === 'AbortError') throw new Error('Upload timed out after ' + Math.round(ms / 1000) + 's');
+    throw e;
+  });
+}
+
 function sendOne(item){
   var name = fileName(item);
   var desc = fileDescription(item);
@@ -5715,7 +6092,7 @@ function sendOne(item){
         var headers = {};
         for (var h in (req.headers||{})) headers[h] = req.headers[h];
         headers['Content-Type'] = headers['Content-Type'] || item.mime;
-        return fetch(req.url, { method: req.method || 'PUT', headers: headers, body: item.blob })
+        return fetchTimed(req.url, { method: req.method || 'PUT', headers: headers, body: item.blob }, uploadTimeoutMs(item.blob.size))
           .then(function(r){ if (!r.ok) throw new Error('Upload failed (' + r.status + ')'); return req.uploadRequestId; })
           .catch(function(e){ e.directPut = true; throw e; });
       })
@@ -5810,7 +6187,7 @@ try { dlStore = JSON.parse(localStorage.getItem(DL_KEY) || '{}') || {}; } catch(
 // away is not in flight now. The API refuses to create the same day twice,
 // so sending again is safe.
 for (var dlK in dlStore){ if (dlStore[dlK]) dlStore[dlK].sending = false; }
-function dlPersist(){ try { localStorage.setItem(DL_KEY, JSON.stringify(dlStore)); } catch(e){} }
+function dlPersist(){ storeSet(DL_KEY, JSON.stringify(dlStore)); }
 function dlKey(jobId, date){ return jobId + '|' + date; }
 function dlGet(jobId, date){ return dlStore[dlKey(jobId, date)] || null; }
 
@@ -6156,6 +6533,27 @@ esAdd({
   'Open the repairs in Close Out ›': 'Abrir las reparaciones en Close Out ›',
   'Open the inspection in Close Out ›': 'Abrir la inspección en Close Out ›'
 }); /* T2.27-ES */
+esAdd({
+  'Phone storage is full — this isn’t saved on the phone. Keep the app open until it sends, and free up space.': 'El almacenamiento del teléfono está lleno — esto no quedó guardado en el teléfono. Deja la app abierta hasta que se envíe y libera espacio.',
+  'Photos waiting to send': 'Fotos por enviar',
+  'Nothing waiting to send': 'Nada pendiente por enviar',
+  'Photo': 'Foto',
+  'Photos': 'Fotos',
+  'Waiting for signal': 'Esperando señal',
+  'Sending…': 'Enviando…',
+  'Couldn’t send · tried {n} times': 'No se pudo enviar · se intentó {n} veces',
+  'Couldn’t send yet · tries again at {t}': 'No se pudo enviar todavía · lo intenta de nuevo a las {t}',
+  'Sends in a moment': 'Se envía en un momento',
+  'Try again': 'Intentar de nuevo',
+  'Discard': 'Descartar',
+  'Tap again to discard': 'Toca otra vez para descartarla',
+  'Photo discarded': 'Foto descartada',
+  'Trying again…': 'Intentando de nuevo…',
+  'Try them all now': 'Intentar todas ahora',
+  'START and END photos are the clock’s proof. Discard one only if it can never send — the hours stay, the photo doesn’t.': 'Las fotos de INICIO y FINAL son la prueba del reloj. Descarta una solo si nunca se va a poder enviar — las horas se quedan, la foto no.',
+  '1 photo hasn’t sent — tap to see it': '1 foto no se ha enviado — toca para verla',
+  '{n} photos haven’t sent — tap to see them': '{n} fotos no se han enviado — toca para verlas'
+}); /* T2.30-ES */
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
@@ -6182,7 +6580,7 @@ function renderLang(){
    sees on the log. The definitions come with the extras and are kept on the
    phone; nothing about a field lives here. */
 var LOG_FIELDS_KEY = 'dbtc_logfields';
-function saveLogFields(){ try { localStorage.setItem(LOG_FIELDS_KEY, JSON.stringify({ at: Date.now(), fields: S.logFields })); } catch(e){} }
+function saveLogFields(){ storeSet(LOG_FIELDS_KEY, JSON.stringify({ at: Date.now(), fields: S.logFields }), true); }
 function loadLogFields(){
   try { var p = JSON.parse(localStorage.getItem(LOG_FIELDS_KEY) || 'null'); if (p && Array.isArray(p.fields)) S.logFields = p.fields; } catch(e){}
 }
@@ -7183,7 +7581,7 @@ function wireAlert(cur, date){
 var ME_KEY = 'dbtc_me';
 function meNow(){ return S.me || S.meSeen; }
 function meRemember(){
-  try { localStorage.setItem(ME_KEY, JSON.stringify({ email: String((S.me && S.me.email) || '').toLowerCase(), me: S.me, writeEnabled: S.writeEnabled })); } catch(e){}
+  storeSet(ME_KEY, JSON.stringify({ email: String((S.me && S.me.email) || '').toLowerCase(), me: S.me, writeEnabled: S.writeEnabled }), true);
 }
 function meRecall(){
   try {
@@ -7202,6 +7600,11 @@ function start(){
   measureTabs();
   meRecall();
   var lastJob = loadPrefs();
+  // What is finished goes, and the photos waiting are counted from the
+  // phone's own store before anything needs signal (T2.30).
+  storeTrim(false);
+  qCount().then(function(){ render(); });
+  storeEstimate();
   loadLogFields();
   S.checksRO = ckLoadRO();
   restoreAssign();   // last known schedule on screen at once; refresh behind it
@@ -7441,7 +7844,7 @@ function coFormOk(f){
 function coAdoptForms(forms){
   var changed = false;
   for (var k in (forms || {})) if (coFormOk(forms[k]) && JSON.stringify(coFormsSeen[k]) !== JSON.stringify(forms[k])){ coFormsSeen[k] = forms[k]; changed = true; }
-  if (changed) try { localStorage.setItem(CO_FORMS_KEY, JSON.stringify(coFormsSeen)); } catch(e){}
+  if (changed) storeSet(CO_FORMS_KEY, JSON.stringify(coFormsSeen), true);
 }
 function coForm(jobId){
   var id = jobId || CO.jobId, j = CO.job && CO.job.id === id ? CO.job : coJobById(id), k = (j && j.jobForm) || 'roof';
@@ -7655,7 +8058,7 @@ var CO = { screen: 'queue', jobs: null, jobsAt: 0, jobsSource: '', loading: fals
 /* The phone's copy of every visit in progress, keyed by job. */
 var coStore = { visits: {} };
 try { coStore = JSON.parse(localStorage.getItem(CO_KEY) || '{"visits":{}}') || { visits: {} }; if (!coStore.visits) coStore.visits = {}; } catch(e){ coStore = { visits: {} }; }
-function coPersist(){ try { localStorage.setItem(CO_KEY, JSON.stringify(coStore)); } catch(e){} }
+function coPersist(){ storeSet(CO_KEY, JSON.stringify(coStore)); }
 function coVisit(jobId){
   var v = coStore.visits[jobId];
   if (!v){ v = coStore.visits[jobId] = { answers: { inspection: {}, cleanup: {} }, notes: { inspection: '', cleanup: '' }, reports: [], photos: [], before: {}, after: {}, repairNote: {}, doneTasks: {}, sentAt: 0, startedAt: Date.now() }; coPersist(); }
@@ -7842,7 +8245,7 @@ function coLoadQueue(force){
     r = r || {};
     if (r.status === 200 && Array.isArray(r.body)){
       CO.jobs = r.body; CO.jobsAt = Date.now(); CO.jobsSource = 'live';
-      try { localStorage.setItem(CO_QUEUE_KEY, JSON.stringify({ at: CO.jobsAt, jobs: CO.jobs })); } catch(e){}
+      storeSet(CO_QUEUE_KEY, JSON.stringify({ at: CO.jobsAt, jobs: CO.jobs }), true);
       coPrefetchCodes();
       setTimeout(coPrefetchJobs, 1500);
     } else {
@@ -7874,7 +8277,7 @@ function coLoadJob(jobId){
       r.body._at = Date.now();
       CO.job = r.body; CO.jobAt = r.body._at;
       coAdoptForms(r.body.forms);
-      try { localStorage.setItem('dbtc_co_job_' + jobId, JSON.stringify(CO.job)); } catch(e){}
+      storeSet('dbtc_co_job_' + jobId, JSON.stringify(CO.job), true);
       // The punch to-dos arrive in English; Spanish on screen means asking once.
       if (S.lang === 'es') coTranslateTasks(CO.job);
     } else {
@@ -7918,7 +8321,7 @@ function coPrefetchJobs(){
       if (r && r.status === 200 && r.body && r.body.id){
         r.body._at = Date.now();
         coAdoptForms(r.body.forms);
-        try { localStorage.setItem('dbtc_co_job_' + id, JSON.stringify(r.body)); } catch(e){}
+        storeSet('dbtc_co_job_' + id, JSON.stringify(r.body), true);
       }
     }).catch(function(){}).then(next);
   };
@@ -8316,7 +8719,7 @@ function coObAll(){
 function coObPut(item){ return idb().then(function(db){ return new Promise(function(res, rej){ var t = db.transaction('co', 'readwrite'); t.objectStore('co').put(item); t.oncomplete = res; t.onerror = function(){ rej(t.error); }; }); }); }
 function coObDel(id){ return idb().then(function(db){ return new Promise(function(res){ var t = db.transaction('co', 'readwrite'); t.objectStore('co').delete(id); t.oncomplete = res; t.onerror = res; }); }).catch(function(){}); }
 var coSeq = Number(localStorage.getItem('dbtc_co_seq') || 0);
-function coNextSeq(){ coSeq++; try { localStorage.setItem('dbtc_co_seq', String(coSeq)); } catch(e){} return coSeq; }
+function coNextSeq(){ coSeq++; storeSet('dbtc_co_seq', String(coSeq)); return coSeq; }
 function coEnqueue(items){
   return items.reduce(function(chain, it){ it.seq = coNextSeq(); it.at = it.at || Date.now(); it.status = 'queued'; it.tries = 0; it.err = ''; return chain.then(function(){ return coObPut(it); }); }, Promise.resolve())
     .then(coRefreshOutbox).then(coPump);
@@ -8405,6 +8808,8 @@ function coLanded(it, body){
     v.reports = v.reports.filter(function(r){ return !(r.area === it.area && (r.sentAt || !r.saved)); });
     CO.receipt = { jobId: it.jobId, at: av.sentAt, flipped: body && body.flipped, sentTo: body && body.sentTo, area: it.area }; }
   if (it.kind === 'complete'){ v.doneTasks[it.taskId] = Date.now(); delete v.before[it.taskId]; delete v.after[it.taskId]; delete v.repairNote[it.taskId];
+    // Its extra photos went before it; their thumbnails stayed for good (T2.30).
+    if (v.repairMore) delete v.repairMore[it.taskId]; if (v.repairEn) delete v.repairEn[it.taskId];
     // The server answers with the status it moved the job to. PM Review means
     // that was the last open repair on the job: say so (T2.8.3), from the
     // server's answer and never from the phone's guess.
@@ -9229,6 +9634,7 @@ function coRender(){
   coWire();
   dlRecPaint();
   renderLang();
+  syncPressed();
 }
 function coWire(){
   var body = $('coBody');
@@ -9572,6 +9978,7 @@ $('pushBtn').onclick = function(){
 };
 $('updateBtn').onclick = forceUpdate;
 $('signOutBtn').onclick = signOut;
+$('photoQBtn').onclick = openPhotoQ;
 [].forEach.call(document.querySelectorAll('.tab'), function(b){
   b.onclick = function(){ S.tabTouched = true; S.coReturn = null; setTab(b.getAttribute('data-tab')); };
 });
@@ -9579,7 +9986,7 @@ $('signOutBtn').onclick = signOut;
   b.onclick = function(){ if (S.clockGate) return; S.capture = b.getAttribute('data-tag'); renderCam(); };
 });
 
-window.addEventListener('online', function(){ S.online = true; render(); pump(); ckRetryPending(); dlRetryPending(); coRetryPending(); });
+window.addEventListener('online', function(){ S.online = true; render(); qWake(); pump(); ckRetryPending(); dlRetryPending(); coRetryPending(); });
 window.addEventListener('offline', function(){ S.online = false; render(); });
 window.addEventListener('resize', measureTabs);
 // A phone going in a pocket mid-list: send what is unsaved now, best effort.
@@ -9593,8 +10000,9 @@ document.addEventListener('visibilitychange', function(){
   // wait for the next send or the next launch.
   coRetryPending();
   // A phone that spent an hour in a pocket should show the right number
-  // immediately.
+  // immediately. The photos waiting are due now too, each keeping its tries.
   render();
+  qWake();
   pump();
   refreshDay().then(render);
 });
@@ -9622,7 +10030,7 @@ if ('serviceWorker' in navigator){
      for a new worker too, at most every ten minutes. Without this a phone
      iOS kept alive in the switcher ran a stale page for as long as it liked,
      and a build with no Check for update button had no way out (Sep 2026). */
-  var swHadController = !!navigator.serviceWorker.controller, swReloading = false, swLastCheck = 0, swWaitedMs = 0;
+  var swHadController = !!navigator.serviceWorker.controller, swReloading = false, swLastCheck = 0;
   navigator.serviceWorker.register('sw.js').catch(function(){});
   var swCheck = function(){
     if (Date.now() - swLastCheck < 10 * 60 * 1000) return;
@@ -9635,9 +10043,19 @@ if ('serviceWorker' in navigator){
     // Gmail app is exactly when the update check runs, and a reload there
     // throws away a sign-in half done. The next open picks up the new build.
     if (!$('gate').classList.contains('hidden')) return;
-    if ((apiBusy > 0 || S.recStart) && swWaitedMs < 15000){ swWaitedMs += 1000; setTimeout(swReloadWhenIdle, 1000); return; }
+    // Never in the middle of something (T2.30): it used to give up waiting
+    // after 15 seconds and reload under a clock-in, a video or a note. Now it
+    // waits for a quiet moment however long that takes — the camera shut, no
+    // clock step or sheet open, nothing being typed or recorded, no call out.
+    if (!swQuiet()){ setTimeout(swReloadWhenIdle, 2000); return; }
     swReloading = true;
     location.reload();
+  };
+  var swQuiet = function(){
+    if (apiBusy > 0 || S.recStart || S.clockGate || S.sheet || S.tab === 'cam') return false;
+    if (typeof dlRec !== 'undefined' && dlRec && dlRec.want) return false;
+    var ae = document.activeElement;
+    return !(ae && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT'));
   };
   navigator.serviceWorker.addEventListener('controllerchange', function(){
     if (!swHadController){ swHadController = true; return; }   // the first install: nothing to replace

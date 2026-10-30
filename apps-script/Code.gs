@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.29 (2026-10-30)';
+var APP_BUILD = 'T2.30 (2026-10-30)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -402,6 +402,8 @@ function doPost(e) {
       sendSafetyAlert: sendSafetyAlert,
       registerPushToken: registerPushToken,
       unregisterPushToken: unregisterPushToken,
+      // What each system is running, for Diagnostics (T2.30)
+      getBuilds: getBuilds,
       // Roles (Operations only — enforced inside each)
       getPeople: getPeople,
       setRole: setRole,
@@ -3240,15 +3242,34 @@ function registerPushToken(me, token, platform, lang) {
   // person without a lookup per device. The phone's language (T2.24) rides
   // along too, so the clock's own pushes — the missing start photo, still on
   // the clock in the evening — come in the words the phone is set to.
-  PropertiesService.getScriptProperties().setProperty('pt_' + me.userId, JSON.stringify({
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('pt_' + me.userId, JSON.stringify({
     token: token, platform: String(platform || ''), name: me.name, membershipId: me.membershipId || '',
     lang: lang === 'es' ? 'es' : 'en', at: Date.now()
   }));
+  // A phone belongs to whoever registered on it last (T2.30). The same token
+  // under anyone else is a shared phone's previous person, who would go on
+  // getting this phone's reminders — even one who signed out with no signal.
+  var all = props.getProperties();
+  for (var k in all) {
+    if (k.indexOf('pt_') !== 0 || k === 'pt_' + me.userId) continue;
+    try { if (JSON.parse(all[k]).token === token) props.deleteProperty(k); } catch (e) {}
+  }
   return { ok: true };
 }
 
-function unregisterPushToken(me) {
-  PropertiesService.getScriptProperties().deleteProperty('pt_' + me.userId);
+// Signing out of a shared phone (T2.30) names the phone's token, so only
+// THIS phone is let go of — never the person's own phone, if that is the one
+// they registered since. With no token named, as an older phone sends it, the
+// entry goes whatever it holds.
+function unregisterPushToken(me, token) {
+  var props = PropertiesService.getScriptProperties(), key = 'pt_' + me.userId;
+  token = String(token || '').trim();
+  if (token) {
+    var raw = props.getProperty(key);
+    try { if (raw && JSON.parse(raw).token !== token) return { ok: true, kept: true }; } catch (e) {}
+  }
+  props.deleteProperty(key);
   return { ok: true };
 }
 
@@ -4054,6 +4075,36 @@ function closeoutConfig_() {
   return { url: url, secret: secret };
 }
 function closeoutConfigured_() { var c = closeoutConfig_(); return !!(c.url && c.secret); }
+
+// What each system says it is running (T2.30, I3), for the phone's
+// Diagnostics: this script's build, and the Close Out server's /health —
+// the commit it was built from, whether Vercel built it, and the contract
+// level the phone checks against. Nothing showed any of it, which is how a
+// stale Close Out server went unseen for days. /health needs no secret; the
+// answer is kept five minutes, so opening Diagnostics twice costs one call.
+function getBuilds(me) {
+  return { api: APP_BUILD, closeOut: closeoutHealth_() };
+}
+function closeoutHealth_() {
+  var cfg = closeoutConfig_();
+  if (!cfg.url) return { configured: false };
+  var cache = CacheService.getScriptCache(), hit = cache.get('co_health');
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+  var out;
+  try {
+    var resp = UrlFetchApp.fetch(cfg.url + '/health', { muteHttpExceptions: true, followRedirects: false });
+    var code = resp.getResponseCode(), body = {};
+    try { body = JSON.parse(String(resp.getContentText() || '')) || {}; } catch (e) {}
+    out = code === 200
+      ? { configured: true, ok: !!body.ok, build: body.build || null, deployed: body.deployed || null,
+          contract: body.contract == null ? null : Number(body.contract) }
+      : { configured: true, ok: false, error: 'http-' + code };
+  } catch (e) {
+    out = { configured: true, ok: false, error: String((e && e.message) || e).slice(0, 120) };
+  }
+  try { cache.put('co_health', JSON.stringify(out), 300); } catch (e) {}
+  return out;
+}
 function closeOutAllowed_(me) { var r = roleFor_(me).role; return r === 'service' || r === 'ops'; }
 
 // One call through. Answers { status, body, ms, reason } and never throws for

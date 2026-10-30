@@ -1,8 +1,10 @@
-/* DB Crew service worker — T1.1 (2026-07-28)
-   Navigation: network-first (a fresh build wins), cache fallback so the app
-   still opens with no signal. Same-origin assets: cache-first. Cross-origin
-   (the Apps Script API, JobTread's CDN, FCM): never touched. */
-var CACHE = 'dbtc-t2-29';
+/* DB Crew service worker — T1.1 (2026-07-28), T2.30 (2026-10-30)
+   Navigation: the network first, for three seconds (a fresh build wins), then
+   the saved copy, so the app opens at once at the edge of signal and with
+   none. Same-origin assets: cache-first. Only good answers are ever saved.
+   Cross-origin (the Apps Script API, JobTread's CDN, FCM): never touched. */
+var CACHE = 'dbtc-t2-30';
+var NAV_WAIT_MS = 3000;
 var SHELL = ['./', './index.html', './config.js', './manifest.json',
              './app-icon-180.png', './app-icon-192.png', './app-icon-512.png', './app-icon-maskable.png',
              './fonts/archivo-700.woff2', './fonts/archivo-800.woff2',
@@ -17,25 +19,34 @@ self.addEventListener('activate', function (e) {
     return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
+/* A response worth keeping: this site's own, and a success. */
+function good(res) { return !!res && res.ok && res.type === 'basic'; }
+
 self.addEventListener('fetch', function (e) {
   var req = e.request;
   if (req.method !== 'GET') return;
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (req.mode === 'navigate') {
-    e.respondWith(
-      fetch(req).then(function (res) {
-        var copy = res.clone();
-        caches.open(CACHE).then(function (c) { c.put('./index.html', copy); });
-        return res;
-      }).catch(function () { return caches.match('./index.html'); })
-    );
+    // A weak bar of signal used to hold the launch for as long as the network
+    // took, with no limit (T2.30). Now it gets NAV_WAIT_MS; past that the
+    // saved copy opens, and the late answer still refreshes it for next time.
+    // An error page, or a hotspot's sign-in page, is never saved as the app.
+    var net = fetch(req).then(function (res) {
+      if (good(res)) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put('./index.html', copy); }); }
+      return res;
+    });
+    e.waitUntil(net.catch(function () {}));
+    e.respondWith(caches.match('./index.html').then(function (hit) {
+      if (!hit) return net;   // nothing saved yet: the network, however long
+      var late = new Promise(function (resolve) { setTimeout(function () { resolve(hit); }, NAV_WAIT_MS); });
+      return Promise.race([net.then(function (res) { return good(res) ? res : hit; }, function () { return hit; }), late]);
+    }));
     return;
   }
   e.respondWith(caches.match(req).then(function (hit) {
     return hit || fetch(req).then(function (res) {
-      var copy = res.clone();
-      caches.open(CACHE).then(function (c) { c.put(req, copy); });
+      if (good(res)) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(req, copy); }); }
       return res;
     });
   }));

@@ -30,13 +30,20 @@ await page.waitForTimeout(300);
 check('button on Diagnostics', await txt(page, '#signOutBtn'), 'Sign out');
 check('button is 44px or more', await page.evaluate(() => document.getElementById('signOutBtn').getBoundingClientRect().height >= 44), true);
 
-// Refused while something is queued, and the reason names it.
-await page.evaluate(() => { S.queued = 2; });
+// Refused while something is queued, and the reason names it. Since T2.30 the
+// photos are counted from the phone's own store, so two real ones go in (with
+// no signal, so they stay) and the counter itself is left saying nothing.
+await page.evaluate(async () => {
+  S.online = false;
+  const blob = new Blob(['x'], { type: 'image/jpeg' });
+  for (const id of ['so1', 'so2']) await idbPut({ id, blob, mime: 'image/jpeg', tag: 'before', at: Date.now() - 60000, jobId: 'j1' });
+  S.queued = 0;
+});
 await page.locator('#signOutBtn').click();
-await page.waitForTimeout(200);
+await page.waitForTimeout(300);
 check('refused with queued photos', (await txt(page, '#signOutFoot')).startsWith('Not yet — 2 photos still waiting to send'), true);
 check('not armed by a refusal', await txt(page, '#signOutBtn'), 'Sign out');
-await page.evaluate(() => { S.queued = 0; });
+await page.evaluate(async () => { await idbDel('so1'); await idbDel('so2'); S.queued = 0; S.online = true; });
 
 // Seed some per-person state to prove the wipe.
 await page.evaluate(() => { localStorage.setItem('dbtc_co_job_x', '{}'); localStorage.setItem('dbtc_co_seq', '7'); });

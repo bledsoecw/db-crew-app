@@ -974,6 +974,21 @@ sandbox.__hour = null;
   sandbox.__hour = null; props.PUSH_ENABLED = 'false';
 }
 
+// ---- T2.30: a shared phone belongs to whoever registered on it last ----
+{
+  const YAHIR = { ...ME, email: 'y@deitemeyerbrothers.com', name: 'Yahir G.', userId: 'u2', membershipId: 'm2' };
+  sandbox.registerPushToken(ME, 'tok-shared', 'android');
+  sandbox.registerPushToken(YAHIR, 'tok-shared', 'android');
+  t('T2.30: registering on a shared phone takes it off the last person', [props['pt_u1'] == null, JSON.parse(props['pt_u2']).token], [true, 'tok-shared']);
+  sandbox.registerPushToken(ME, 'tok-own', 'ios');
+  t('…and leaves anyone else’s own phone alone', [JSON.parse(props['pt_u1']).token, JSON.parse(props['pt_u2']).token], ['tok-own', 'tok-shared']);
+  t('signing out names the phone: one that is not theirs any more keeps their own', [sandbox.unregisterPushToken(ME, 'tok-shared').kept, JSON.parse(props['pt_u1']).token], [true, 'tok-own']);
+  sandbox.unregisterPushToken(YAHIR, 'tok-shared');
+  t('…and their own phone is let go of', props['pt_u2'] == null, true);
+  sandbox.unregisterPushToken(ME);
+  t('an older phone naming no token lets go whatever is held', props['pt_u1'] == null, true);
+}
+
 // ---- the story shape (T1.14): one story, JobTread's own fields as answered on the phone ----
 // The phone sends the story and the timestamped lines the PM was told (the
 // log's notes), the org's daily-log fields it asked — by id, as JobTread takes
@@ -1290,6 +1305,25 @@ failing(() => { throw new Error('dns'); }, 'hub unreachable -> throws, nothing c
 failing(() => ({ code: 200, body: '<html>sign in</html>' }), 'an old feed deployment (no doPost) -> throws, names the version', /without doPost/);
 t('   ...and the role in force did not move', sandbox.roleFor_(ALBERTO), { role:'siteManager', source:'hub' });
 delete props.ACCESS_FEED_URL; delete props.ACCESS_FEED_KEY; delete props.ROLES_JSON; cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP];
+
+// ---- T2.30: what each system is running, for Diagnostics ----
+{
+  props = {}; cacheStore = {}; fetched = [];
+  let b = sandbox.getBuilds(ME);
+  t('T2.30: getBuilds names this script\'s build; no Close Out set up says so, no fetch', [b.api, b.closeOut, fetched.length], [sandbox.APP_BUILD, { configured: false }, 0]);
+  props = { CLOSEOUT_API_URL: 'https://closeout.example.com/', CLOSEOUT_SECRET: 'co-secret' };
+  fetchImpl = (url) => ({ code: 200, body: JSON.stringify({ ok: true, build: { source: 'abc', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 1 }) });
+  b = sandbox.getBuilds(ME);
+  t('…the Close Out server\'s /health, asked with no secret', [b.closeOut, fetched[0].url, fetched[0].opts.headers === undefined],
+    [{ configured: true, ok: true, build: { source: 'abc', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 1 }, 'https://closeout.example.com/health', true]);
+  sandbox.getBuilds(ME);
+  t('…kept five minutes: a second look costs no call', fetched.length, 1);
+  cacheStore = {}; fetchImpl = () => ({ code: 503, body: 'down' });
+  t('a server that does not answer is said, never thrown', sandbox.getBuilds(ME).closeOut, { configured: true, ok: false, error: 'http-503' });
+  cacheStore = {}; fetchImpl = () => ({ code: 200, body: '{"ok":true,"build":{"on":"vercel"}}' });
+  t('an older server with no contract level reads as null', sandbox.getBuilds(ME).closeOut.contract, null);
+  cacheStore = {};
+}
 
 // ---- close out (T2.0): the door to the CheckOut server ----
 props = {}; fetched = [];
