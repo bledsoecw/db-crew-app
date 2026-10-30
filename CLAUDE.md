@@ -360,7 +360,11 @@ regeneration, Linux only.
   `{"source":"d6a0b17cca5b","on":"vercel","commit":"4387f3f"}` with
   `"contract":1`; `/jobs` and `/queue` still 401 with no token, and no runtime
   errors. The 9a4dfd9 deployment (`dpl_FZqdWNtdudKHKYk5NZNqf1swmZ3X`) is the
-  rollback. The Apps Script and the phone wait on Carl's chain.
+  rollback. **T2.30 is live on the phones too**: Carl ran the one chain
+  (`clasp deploy … -d "T2.30"`, `firebase deploy --only hosting`);
+  db-crews.web.app served `T2.30 (2026-10-30)` with cache `dbtc-t2-30` and
+  the `sheetBackPending` fix by 14:22Z, and his Diagnostics read App and API
+  both T2.30.
 - **The server half of the shared-phone fix** reads every Script Property
   (`getProperties()`) to find the same token under someone else. Fine at this
   size; it is O(properties) per registration.
