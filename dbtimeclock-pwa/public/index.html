@@ -159,6 +159,11 @@ button[disabled]{cursor:default}
 .trow .n{width:52px;flex:none;font:600 12px/1 var(--mono);letter-spacing:.72px;color:var(--lab)}
 .trow .nm{flex:1;min-width:0;font:600 14px/1.2 var(--sans);text-transform:uppercase;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trow .d{font:700 15px/1 var(--head);letter-spacing:.15px;color:var(--fg)}
+/* Diagnostics' build rows (T2.30): the label always whole, a long value
+   wraps under itself rather than squeezing the label to "CLOSE …". */
+#verTbl .trow{padding-top:10px;padding-bottom:10px}
+#verTbl .trow .nm{flex:none}
+#verTbl .trow .d{flex:1;min-width:0;text-align:right;line-height:1.3;overflow-wrap:break-word}
 .ttotal{min-height:58px;display:flex;align-items:center;gap:12px;padding:0 15px;background:var(--total)}
 .ttotal .l{flex:1;font:600 11px/1 var(--mono);letter-spacing:1.54px;text-transform:uppercase;color:var(--acc)}
 .ttotal .v{font:800 19px/1 var(--head);letter-spacing:-.19px;color:var(--acc)}
@@ -4196,22 +4201,31 @@ function closeSheet(){
 }
 /* A sheet is a dialog (T2.30, D14). Android's Back closed the app under an
    open sheet; now opening one adds a Back entry, and Back backs out of the
-   sheet the way its own X does. Closed from inside, the entry is taken back
-   — unless another sheet opened in its place, which keeps it. */
-var sheetHist = false, sheetBackSkip = false;
+   sheet the way its own X does. Closed from inside, the entry is taken back.
+   The browser carries a Back out later, not at once, so nothing is pushed
+   while one is on its way: a sheet opened in that gap (Already left → its
+   API call → the code sheet) gets its entry when the Back has landed. Pushed
+   under a Back still travelling, the entries drift, and the next close took
+   the app's own entry with it — off the app, to whatever page was before. */
+var sheetHist = false, sheetBackPending = false, sheetBackTimer = null;
 function sheetHistPush(){
-  if (sheetHist) return;
+  if (sheetHist || sheetBackPending) return;
   try { history.pushState({ dbtcSheet: 1 }, ''); sheetHist = true; } catch(e){}
 }
 function sheetHistPop(){
-  setTimeout(function(){
-    if (S.sheet || !sheetHist) return;
-    sheetHist = false; sheetBackSkip = true;
-    try { history.back(); } catch(e){ sheetBackSkip = false; }
-  }, 0);
+  if (!sheetHist) return;          // closed by Back itself: nothing to take back
+  sheetHist = false; sheetBackPending = true;
+  clearTimeout(sheetBackTimer);
+  sheetBackTimer = setTimeout(sheetBackLanded, 3000);   // a Back that never lands frees the flag
+  try { history.back(); } catch(e){ sheetBackLanded(); }
+}
+function sheetBackLanded(){
+  clearTimeout(sheetBackTimer);
+  sheetBackPending = false;
+  if (S.sheet) sheetHistPush();   // a sheet that opened meanwhile gets its entry now
 }
 window.addEventListener('popstate', function(){
-  if (sheetBackSkip){ sheetBackSkip = false; return; }
+  if (sheetBackPending){ sheetBackLanded(); return; }
   if (!sheetHist) return;
   sheetHist = false;
   if (S.sheet) backOutOfSheet();
@@ -6045,7 +6059,8 @@ function photoQHtml(){
     else if (r && r.tries) st = Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(r.next) });
     else st = L('Sends in a moment');
     if (r && r.tries && S.online) btns += '<button data-pqretry="' + esc(it.id) + '">' + esc(L('Try again')) + '</button>';
-    if (r && r.tries >= PHOTO_STUCK_TRIES) btns += '<button class="rm" data-pqdiscard="' + esc(it.id) + '">' + esc(L('Discard')) + '</button>';
+    // Never while it is the one on its way: it could land after being let go.
+    if (r && r.tries >= PHOTO_STUCK_TRIES && pumpCur !== it.id) btns += '<button class="rm" data-pqdiscard="' + esc(it.id) + '">' + esc(L('Discard')) + '</button>';
     var th = p && p.thumb ? '<span class="pqth" style="background-image:url(' + p.thumb + ')"></span>' : '<span class="pqth">' + ico('camera', 22) + '</span>';
     return '<div class="pqrow">' + th + '<span class="pqt"><b>' + esc(what) + '</b>' + (job ? '<span>' + esc(job) + '</span>' : '') +
            '<span class="pqst' + cls + '">' + esc(st) + '</span>' + (r && r.tries && r.err ? '<span class="pqerr">' + esc(r.err) + '</span>' : '') + '</span>' +

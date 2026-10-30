@@ -188,6 +188,21 @@ const queued = (page) => page.evaluate(() => idbAll().then((a) => a.map((x) => x
   await page.waitForTimeout(200);
   await page.locator('#sheetClose').click(); await page.waitForTimeout(400);
   check('closed from its X, Back\'s entry is taken back too', [await page.evaluate(() => S.sheet), await page.evaluate(() => history.state)], [null, null]);
+  // The gap clock-test found: a sheet closed and the next opened before the
+  // browser had finished going back. Each close may take back its own entry
+  // only — the old way, the entries drifted and a close left the app.
+  for (const gap of [0, 1, 1, 20]) {
+    await page.evaluate(() => openSheet('break')); await page.waitForTimeout(120);
+    await page.evaluate((g) => { closeSheet(); if (g) setTimeout(() => openSheet('break'), g); else openSheet('break'); }, gap);
+    await page.waitForTimeout(250);
+    check(`…reopened ${gap ? gap + 'ms' : 'at once'} after a close: its own entry, on top`, await page.evaluate(() => [S.sheet, history.state]), ['break', { dbtcSheet: 1 }]);
+    await page.evaluate(() => closeSheet()); await page.waitForTimeout(250);
+  }
+  check('…and after all of it the app is still the app, on its own entry', [await page.evaluate(() => typeof S === 'object' && S.sheet), await page.evaluate(() => history.state), page.url()], [null, null, APP_URL]);
+  await page.evaluate(() => openSheet('break')); await page.waitForTimeout(150);
+  await page.evaluate(() => { closeSheet(); openSheet('break'); }); await page.waitForTimeout(250);
+  await page.goBack(); await page.waitForTimeout(400);
+  check('Back on a reopened sheet closes it, and stays in the app', [await page.evaluate(() => S.sheet), page.url()], [null, APP_URL]);
   await page.evaluate(() => setTab('log')); await page.waitForTimeout(600);
   const yes = page.locator('[data-yn][data-v="1"]').first();
   check('a yes/no says whether it is pressed', await yes.getAttribute('aria-pressed'), 'false');
@@ -214,6 +229,8 @@ const queued = (page) => page.evaluate(() => idbAll().then((a) => a.map((x) => x
   check('…a server behind the phone is warned about, in words that say what to deploy',
     [await page.locator('#verWarn').isVisible(), /newer than the API \(T2\.29\)\. Deploy the Apps Script/.test(w), /Close Out server is older than this app needs \(contract 0, needs 1\)/.test(w), /not built on its deploy \(local\)/.test(w)],
     [true, true, true, true]);
+  check('…every build row says its whole name, however long its value',
+    await page.evaluate(() => [...document.querySelectorAll('#verTbl .trow .nm')].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent)), []);
   await page.evaluate(() => { window.__MOCK_BUILDS = { api: 'T2.30 (2026-10-30)', closeOut: { configured: true, ok: true, build: { on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: null } }; return loadBuilds(); });
   await page.waitForTimeout(300);
   check('a server that does not report a level yet is not called behind', await page.locator('#verWarn').isHidden(), true);

@@ -333,12 +333,18 @@ regeneration, Linux only.
   A new `localStorage.setItem` in a try/catch is the bug D8 removed; only the
   sign-in gate's `PICK_ACCOUNT_KEY` writes stay direct.
 - **Sheets own a history entry while open** (`sheetHistPush` / `sheetHistPop`,
-  `popstate` → `backOutOfSheet`). `closeSheet()` takes the entry back on a
-  timeout unless another sheet opened in its place, so the common
-  `closeSheet(); openSheet('x')` keeps one entry, never two. A test can press
-  Back with `page.goBack()`. Focus goes back to the opener only when it is not
-  a text box — iOS leaves focus in a textarea under a tapped button, and
-  restoring it would raise the keyboard after every sheet.
+  `popstate` → `backOutOfSheet`). `closeSheet()` calls `history.back()` at
+  once, and **nothing is pushed while that Back is still travelling**
+  (`sheetBackPending`): a sheet opened in the gap gets its entry when the
+  Back lands (`sheetBackLanded`). The first cut took the entry back on a
+  timeout instead, and clock-test hung on it: Already left → an API call →
+  the code sheet pushed while the Back was on its way, the entries drifted,
+  and the next close went back past the app's own entry (to about:blank in
+  the test; a phone opened from a link would leave the app). t230-test pins
+  the gap at 0, 1 and 20 ms. A test can press Back with `page.goBack()`.
+  Focus goes back to the opener only when it is not a text box — iOS leaves
+  focus in a textarea under a tapped button, and restoring it would raise the
+  keyboard after every sheet.
 - **An update never reloads mid-step** (`swQuiet`): the old 15-second cap is
   gone on purpose. A sheet left open forever only means the new build waits
   for the next open, which navigation already serves fresh.
