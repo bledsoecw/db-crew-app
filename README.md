@@ -996,6 +996,56 @@ CheckOut's `main` (the gutters' and the siding's forms, `REPAIR` photos, final
 notes). The phone works with either side old: an older CheckOut sends gutters
 as notes and photos, an older board answers no text.
 
+**The audit's first fixes** (T2.29, 30 Oct 2026). From the audit of 30 Oct
+(Carl: *"go, remove the Type button"*):
+
+- **Close Out's waiting list sends when signal comes back**, and when the app
+  comes back to the front. A send made with no signal used to wait for the
+  next send or the next launch (`coRetryPending` in the `online` and
+  visibility handlers). The list says what it is doing — *Sending now…*,
+  *Sends by itself in a moment*, *Couldn't send yet · it tries again by
+  itself*, and the no-signal line only without signal — with *Send now* when
+  something waits and there is signal. On its own it is titled *Waiting to
+  send* and says *Nothing waiting to send* when empty; before a send, the
+  footer says *Saved on this phone first · it sends by itself, now or when
+  there's signal*.
+- **An unreachable Close Out says so.** With nothing saved to show, the list
+  says *Can't reach Close Out right now — that doesn't mean there's no work*
+  (or *No signal · the list loads when there is signal*) with *Try again*,
+  never *Nothing ready to inspect today*. With a saved copy the header names
+  when it was saved and *Try again* sits over the list.
+- **A tap on a photo opens it.** Every Close Out photo tile — site, problem,
+  before, after, more — opens the photo full size with *Keep it* and *Remove
+  this photo*, which asks twice. The whole tile used to be the delete button,
+  with no undo, which could take a repair's before photo.
+- **The site-checks banner is for people who can sign** (site managers and
+  Operations); the crew were told on every tab to sign off a site manager's
+  list.
+- **Blue text reads on the dark ground.** *Go here instead*, the PM buttons
+  and the alert's mic square take the light label blue (`--navtext`, 10.7:1
+  on the dark surface; the brand blue there measured 1.88:1). Fills keep the
+  brand blue.
+- **The Type button is gone** (Carl) — from the day log, Tell the PM, a
+  problem's note, a repair's note, an area's note and the final notes. It only
+  put the cursor in the box above it, which already says *Tap here and type*.
+  Record stays, full width.
+- **"Clocking in…" goes when the clock moves.** The day's entries reload
+  behind it (`refreshDayLater`); the overlay used to wait for them, in line
+  behind slow reads, with the whole screen locked.
+- **One shutter press is one photo** — a double tap sent two clock-ins.
+- **The sold scope is escaped**; a unit name typed in JobTread could have run
+  as script on a service phone.
+- **Apps Script:** a Yes on *Material Pickups / Deliveries* pings the PM and
+  sales the way a delay does (Carl, 30 Oct; `LOG_PING_DEFAULT` gains
+  `material`, a No stays quiet), and `postJobNote` can no longer be called
+  from the phone — it took the author's name from the request.
+
+`dev/t229-test.mjs` walks it. **Needs, in this order:** DB CheckOut's `main`
+first — from 30 Oct the server builds itself on every deploy, and its retired
+sign-in is gone; T2.27 and later must not reach the phones before it, or
+repair photos are refused and the required final notes dropped. Then the Apps
+Script, then `firebase deploy --only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
@@ -1414,5 +1464,5 @@ on the day-log form by type (yes/no, a pick list of one or several, a text
 box), kept on the phone, and sent on the log as JobTread's own fields, so
 what the office sees is one record. A field added or renamed in JobTread
 shows up on the phones by itself. A filled field whose name matches
-`safety|incident|delay` (or the `DAILY_LOG_PING_FIELDS` Script Property)
+`safety|incident|delay|material` (or the `DAILY_LOG_PING_FIELDS` Script Property; `material` since T2.29, so a Yes on Material Pickups / Deliveries reaches the PM)
 also pings the PM and sales in the activity feed, the way problems do.

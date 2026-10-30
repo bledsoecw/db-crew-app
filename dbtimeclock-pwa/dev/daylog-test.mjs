@@ -353,8 +353,8 @@ const result = (page, text, isFinal) => page.evaluate(([tx, fin]) => {
   await tap(page, '.tab[data-tab="log"]', 500);
   await tap(page, '#langTog [data-lang="es"]', 400);
   check('Spanish: the header, the badge, the questions, the buttons, the tabs',
-    [await txt(page, '#logK'), await txt(page, '#syncBadge'), await page.locator('.dlh').allTextContents(), await txt(page, '#dlTalk'), await txt(page, '#dlType'), await page.locator('[data-yn]').allTextContents(), await txt(page, '#dlReview'), await txt(page, '#dlNormal'), await page.locator('#tabs .tab:not(.hidden) .tl').allTextContents()],
-    ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Hubo retrasos?', '¿Alguien lastimado o casi?', '¿Recogiste o recibiste material?', '¿Quién más estuvo en el sitio? · toca lo que aplique'], 'Grabar', 'Escribir', ['Sí', 'No', 'Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
+    [await txt(page, '#logK'), await txt(page, '#syncBadge'), await page.locator('.dlh').allTextContents(), await txt(page, '#dlTalk'), await page.locator('[data-yn]').allTextContents(), await txt(page, '#dlReview'), await txt(page, '#dlNormal'), await page.locator('#tabs .tab:not(.hidden) .tl').allTextContents()],
+    ['Registro · JT #26-0890', 'Sin enviar', ['¿Cómo fue el día?', '¿Hubo retrasos?', '¿Alguien lastimado o casi?', '¿Recogiste o recibiste material?', '¿Quién más estuvo en el sitio? · toca lo que aplique'], 'Grabar', ['Sí', 'No', 'Sí', 'No', 'Sí', 'No'], 'Enviar registro', 'Día normal · nada que reportar', ['Reloj', 'Mis trabajos', 'Registro']]);
   check('...the date in Spanish', /^(Dom|Lun|Mar|Mié|Jue|Vie|Sáb), \d+ (ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)$/.test(await txt(page, '#logDate')), true);
   check('...the placeholder too', (await page.locator('#dlStory').getAttribute('placeholder')).split('\n')[0], 'Toca aquí y escribe, o usa Grabar');
   await tap(page, '[data-yn="f:22PC7jQ6BkBC"][data-v="1"]', 300);

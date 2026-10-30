@@ -40,6 +40,9 @@
   --fg:#fff; --mut:rgba(255,255,255,.76); --lab:#b9cdf0; --acc:#7ef08a;
   --band:#070e1c; --bandline:rgba(255,255,255,.14);
   --chip:rgba(255,255,255,.09); --nav:#1a4789; --tabbg:#070e1c;
+  /* Blue as TEXT or an outline on the dark ground (T2.29): the brand blue
+     there measured 1.88:1 and read as a disabled button. Fills keep --nav. */
+  --navtext:#b9cdf0;
   --stop:#fff; --stopfg:#0e1113; --total:rgba(60,200,74,.14);
   --navline:#3cc84a; --sunico:#ffd84d; --codehi:rgba(60,200,74,.14);
 
@@ -52,7 +55,7 @@
   --tap:76px;
 }
 [data-theme="day"]{
-  --bg:#f4f6f9; --surf:#fff; --surf2:#e9edf3;
+  --bg:#f4f6f9; --surf:#fff; --surf2:#e9edf3; --navtext:#1a4789;
   --line:#d8dfe8; --line2:#b6c0cd;
   --fg:#0e1113; --mut:#2b3033; --lab:#474d51; --acc:#1e7a2f;
   --band:#0d1a33; --chip:#e9edf3; --tabbg:#142a52;
@@ -341,7 +344,7 @@ button[disabled]{cursor:default}
 .jact .a2{font:600 9px/1 var(--mono);letter-spacing:.81px;text-transform:uppercase;color:var(--lab)}
 .jact.warn .a1{color:var(--warn)}
 .jact.ok .a1{color:var(--acc)}
-.jact.nav .a1{color:var(--nav)}
+.jact.nav .a1{color:var(--navtext)}
 .jwhen{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--surf2);border-bottom:1px solid var(--line)}
 .jwhen .d{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab)}
 .jcard.today .jwhen .d{color:var(--acc)}
@@ -527,7 +530,6 @@ button[disabled]{cursor:default}
 .talkrow{display:flex;gap:10px;margin-top:10px}
 .talkbtn{flex:1;min-height:64px;border-radius:6px;display:flex;align-items:center;justify-content:center;gap:10px;font:700 17px/1 var(--head);letter-spacing:.68px;text-transform:uppercase}
 .talkbtn.talk{background:var(--nav);color:#fff}
-.talkbtn.type{border:2px solid var(--nav);color:var(--nav);background:var(--surf)}
 .talkbtn.talk.on{background:var(--rec);color:#fff}
 .recdot{width:10px;height:10px;border-radius:50%;background:currentColor;flex:none;animation:pulse 1.1s infinite}
 .reccap{display:flex;align-items:center;gap:9px;margin-top:8px;padding:0 4px;min-height:22px;font:600 14px/1.3 var(--sans);color:var(--rec)}
@@ -536,7 +538,7 @@ button[disabled]{cursor:default}
 .pmrow{margin-top:12px;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--surf)}
 .pmrow .pt1{font:600 14px/1.3 var(--sans);color:var(--fg)}
 .pmrow .pt2{font:400 13px/1.4 var(--sans);color:var(--mut);margin-top:3px}
-.pmrow .pmbtn{flex:none;min-height:48px;padding:0 14px;border:2px solid var(--nav);border-radius:6px;color:var(--nav);font:700 13px/1 var(--head);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+.pmrow .pmbtn{flex:none;min-height:48px;padding:0 14px;border:2px solid var(--navtext);border-radius:6px;color:var(--navtext);font:700 13px/1 var(--head);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
 .ynrow{display:flex;gap:12px;margin-top:10px}
 .ynrow .ynbtn{min-height:72px;flex-direction:row;background:var(--surf);color:var(--fg);font:800 24px/1 var(--head);letter-spacing:1px}
 .ynrow .ynbtn.on{background:var(--nav);border-color:var(--nav);color:#fff}
@@ -597,7 +599,7 @@ button[disabled]{cursor:default}
 .hurtrow{margin-top:12px}
 .hurtrow .ynbtn{min-height:56px;font:800 20px/1 var(--head);letter-spacing:.8px}
 .alertfoot{padding:12px;display:flex;gap:10px}
-.sqnav{flex:none;width:60px;min-height:60px;border:2px solid var(--nav);color:var(--nav);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.sqnav{flex:none;width:60px;min-height:60px;border:2px solid var(--navtext);color:var(--navtext);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .alertsend{flex:1;min-height:60px;border-radius:6px;background:var(--warn);color:var(--warnink);font:800 17px/1 var(--head);letter-spacing:.68px;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:10px}
 .alertsend.off{opacity:.55;pointer-events:none}
 .alertsum{padding:12px 16px;font:400 14px/1.4 var(--sans);color:var(--mut)}
@@ -683,6 +685,7 @@ button[disabled]{cursor:default}
 .phrow2{display:flex;gap:10px;margin-top:8px}
 .phrow2>*{flex:1;min-width:0}
 .galsm{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:6px;background:var(--surf);border:1px dashed var(--line2);color:var(--fg);font:600 10px/1.2 var(--mono);letter-spacing:.8px;text-transform:uppercase;padding:0 8px}
+.cophoto{display:block;width:100%;max-height:62vh;object-fit:contain;border-radius:6px;background:#000}
 .ph .rm{position:absolute;right:4px;top:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;display:flex;align-items:center;justify-content:center}
 .ph.add{background:var(--surf);border:2px dashed var(--line2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg);font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
 .ph.add.soon{color:var(--mut);border-style:dotted;text-align:center;padding:0 6px;line-height:1.25}
@@ -1091,7 +1094,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.28 (2026-10-30)';
+var APP_BUILD = 'T2.29 (2026-10-30)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -3414,6 +3417,9 @@ function nudgeVisits(){
   // The checklist is a screen under My jobs; a role without that tab is
   // never sent there (T2.0).
   if (!a || !a.visits || ckReadOnly() || !canTab('jobs')) return [];
+  // Only someone who can sign it is asked to (T2.29): the crew were told on
+  // every tab to sign off a site manager's list.
+  if (effRole() !== 'siteManager' && effRole() !== 'ops') return [];
   var today = isoLocal();
   return a.visits.filter(function(v){
     if (!v.checks || !v.checks.taskId || !v.end || v.end >= today) return false;
@@ -3973,6 +3979,7 @@ function closeSheet(){
   // …and out of Before you roll out: still at the shop (T2.20).
   if (S.sheet === 'roll' && S.rollNext){ if (S.pendingJob) cancelMove(); S.rollNext = null; }
   if (S.sheet === 'tellpm' && dlRec.taId === 'tpmText') dlRecStop();
+  if (S.sheet === 'coPhoto' && S.coPhotoView){ try { if (S.coPhotoView.url) URL.revokeObjectURL(S.coPhotoView.url); } catch(e){} S.coPhotoView = null; }
   S.sheet = null; S.promptKind = null; $('scrim').classList.remove('on');
 }
 
@@ -3988,6 +3995,7 @@ function openSheet(kind, promptKind){
             : kind==='signoff' ? L('Sign off')
             : kind==='unsign' ? L('Unsign')
             : kind==='coWhy' ? co('whyTitle')
+            : kind==='coPhoto' ? co('photoTitle')
             : kind==='dest' ? L('Where are you going?')
             : kind==='left' ? L('When did you leave?')
             : kind==='earlier' ? L('When did you start?')
@@ -4007,6 +4015,7 @@ function openSheet(kind, promptKind){
                             : kind==='signoff' ? signoffHtml()
                             : kind==='unsign' ? unsignHtml()
                             : kind==='coWhy' ? coWhyHtml()
+                            : kind==='coPhoto' ? coPhotoSheetHtml()
                             : kind==='dest' ? destHtml()
                             : kind==='left' ? leftHtml()
                             : kind==='earlier' ? earlierHtml()
@@ -4219,7 +4228,7 @@ function tellPmHtml(){
     '<div class="body">' + esc(Lf('A text to the PM of {p}, and a note on the job in JobTread.', { p: pw(j) })) + '</div>' +
     '<div class="story has"><textarea id="tpmText" rows="3" maxlength="480" placeholder="' + esc(L('What does the PM need to know?')) + '">' + esc(S.tellPmDraft || '') + '</textarea></div>' +
     '<div class="reccap hidden" data-reccap="tpmText"></div>' +
-    '<div class="talkrow">' + recBtnHtml('tpmText', 'tpmRec') + '<button class="talkbtn type" id="tpmType">' + ico('keyboard', 22) + esc(T('type')) + '</button></div>' +
+    '<div class="talkrow">' + recBtnHtml('tpmText', 'tpmRec') + '</div>' +
     '<button class="btn btn-go" id="tpmSend" style="min-height:72px">' + ico('send', 22) + esc(L('Send it to the PM')) + '</button>' +
   '</div>';
 }
@@ -4285,7 +4294,6 @@ function wireSheet(){
     var tpm = $('tpmText');
     tpm.oninput = function(){ S.tellPmDraft = tpm.value; autoGrow(tpm); };
     $('tpmRec').onclick = function(){ dlRecToggle('tpmText'); };
-    $('tpmType').onclick = function(){ tpm.focus(); };
     $('tpmSend').onclick = tellPmSend;
   }
   [].forEach.call(document.querySelectorAll('#sheetBody [data-leave]'), function(b){
@@ -4344,6 +4352,15 @@ function wireSheet(){
   if ($('ukNo')) $('ukNo').onclick = function(){ closeSheet(); };
   if ($('ukYes')) $('ukYes').onclick = function(){ closeSheet(); ckSign(S.checksVisit, false); render(); };
   // Close Out's "Before you send": each row goes where that thing is dealt with.
+  if ($('coPhotoKeep')) $('coPhotoKeep').onclick = closeSheet;
+  if ($('coPhotoRm')) $('coPhotoRm').onclick = function(){
+    var view = S.coPhotoView, b = $('coPhotoRm'); if (!view) return;
+    if (!view.armed || Date.now() - view.armed > 4000){ view.armed = Date.now(); b.textContent = co('photoRemoveSure'); return; }
+    var t = view.target, id = view.id;
+    closeSheet();
+    coRemovePhoto(t, id);
+    toast(co('photoRemoved'));
+  };
   [].forEach.call(document.querySelectorAll('#sheetBody [data-cowhy]'), function(b){
     b.onclick = function(){ closeSheet(); coGo(b.getAttribute('data-cowhy')); };
   });
@@ -4713,7 +4730,7 @@ function commitStart(item, rec){
       savePrefs();
       if (item) enqueueUpload(item);
       enablePush();
-      return refreshDay();
+      refreshDayLater();
     }).catch(function(e){
       // The API wanted the photo after all: the camera, for the same start.
       if (!rec && photoRefused(e, 'start')){ busy(false); return 'camera'; }
@@ -4744,7 +4761,7 @@ function commitOut(item, rec){
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
       outToast(r, 'Clocked out · sent to JobTread');
-      return refreshDay();
+      refreshDayLater();
     }).catch(function(e){ if (!rec && photoRefused(e, 'end-out')) return 'camera'; S.clockGate = null; showErr(e); }).then(function(v){
       busy(false);
       if (v !== 'camera') landAfterOut(job);
@@ -4915,7 +4932,7 @@ function commitTravel(job, code, back, codes, opts){
       S.leaveMode = null;
       savePrefs();
       toast(supply ? Lf('Supply run · on {p}’s travel line', { p: pw(job) }) : back ? Lf('Driving back · the drive is on {j}', { j: jobWord(prev) }) : Lf('Driving to {p} · on its travel line', { p: pw(job) }));
-      return refreshDay();
+      refreshDayLater();
     }).catch(function(e){
       // The API wanted the end photo of the site after all.
       if (!sw.endPhotoId && sw.doneHere && photoRefused(e, 'end-travel')) return 'camera';
@@ -4933,7 +4950,7 @@ function doTravelOut(){
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
       outToast(r, 'Clocked out · the drive is saved');
-      return refreshDay();
+      refreshDayLater();
     }).catch(showErr).then(function(){ busy(false); landAfterOut(job); });
   });
 }
@@ -5015,7 +5032,7 @@ function leftOut(iso, overnight, next){
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
       toast(Lf('Clocked out at {t} · your PM and the Ops Director are told', { t: clockLabel(new Date(iso)) }));
-      return refreshDay();
+      refreshDayLater();
     }).catch(function(e){ if (S.pendingJob) cancelMove(); showErr(e); }).then(function(){
       busy(false);
       if (!overnight){ landAfterOut(job); return; }
@@ -5117,7 +5134,7 @@ function earlierGo(){
     }
     savePrefs();
     toast(Lf('Your block starts at {t} now · your PM and the Ops Director are told', { t: clockLabel(new Date(t)) }));
-    return refreshDay();
+    refreshDayLater();
   }).catch(function(e){ showErr(e); }).then(function(){ busy(false); render(); });
 }
 
@@ -5334,7 +5351,7 @@ function doBreak(minutes){
         toast(Lf('On break · {hm} on {num} saved', { hm: hmClock(sec), num: num }));
       }
       savePrefs();
-      return refreshDay();
+      refreshDayLater();
     }).catch(showErr).then(function(){ busy(false); render(); });
   });
 }
@@ -5359,7 +5376,7 @@ function doEndBreak(){
       S.open = o; S.brk = null;
       savePrefs();
       toast(Lf('Back on · {code}', { code: codeLabel((o && o.code) || open.code) }));
-      return refreshDay();
+      refreshDayLater();
     }).catch(showErr).then(function(){ busy(false); render(); });
   });
 }
@@ -5374,7 +5391,7 @@ function doBackToWork(){
       S.open = open; S.onBreak = null;
       savePrefs();
       toast(Lf('Back on · {code}', { code: codeLabel(open.code || b.code) }));
-      return refreshDay();
+      refreshDayLater();
     }).catch(showErr).then(function(){ busy(false); render(); });
   });
 }
@@ -5395,7 +5412,7 @@ function doBreakOut(){
         outToast(r, 'Clocked out · the rest of your break is off the clock');
         busy(false);
         landAfterOut(job);
-        return refreshDay();
+        refreshDayLater();
       }).catch(function(e){ busy(false); showErr(e); }).then(function(){ render(); });
     });
     return;
@@ -5439,6 +5456,11 @@ function withCoords(cb){
   }, function(){ if (!done){ done = true; clearTimeout(t); cb(null); } }, { timeout:2400, maximumAge:60000 });
 }
 
+/* After a clock write (T2.29): the day's entries reload in the background.
+   Returned from the write, the "Clocking in…" overlay waited for them, and
+   they queue behind slow reads like the extras — the screen was locked long
+   after the clock had moved. */
+function refreshDayLater(){ refreshDay().then(render); }
 function refreshDay(){
   return apiCall('getMyDay', []).then(function(list){ S.entries = list || []; })
     .catch(function(){});
@@ -5475,6 +5497,9 @@ function shoot(){
   if (!S.job){ toast('Pick a job first'); return; }
   if (S.mode === 'video'){ toggleRecording(); return; }
   if (!camStream){ $('fileIn').click(); return; }
+  // One press is one photo (T2.29): a double tap sent two clock-ins.
+  if (Date.now() - (S.lastShotAt || 0) < 1200) return;
+  S.lastShotAt = Date.now();
   var v = $('vf');
   var c = document.createElement('canvas');
   c.width = v.videoWidth || 1280; c.height = v.videoHeight || 720;
@@ -6683,8 +6708,7 @@ function dlBodyHtml(cur, e, date){
   // that vanished the moment the first words landed is how dictation read
   // as broken (Carl, 20 Sep 2026).
   h += '<div class="reccap hidden" data-reccap="dlStory"></div>';
-  h += '<div class="talkrow" id="dlTalkRow">' + recBtnHtml('dlStory', 'dlTalk') +
-       '<button class="talkbtn type" id="dlType">' + ico('keyboard', 24) + esc(T('type')) + '</button></div>';
+  h += '<div class="talkrow" id="dlTalkRow">' + recBtnHtml('dlStory', 'dlTalk') + '</div>';
   h += '<div class="pmrow' + (hasText ? '' : ' hidden') + '" id="dlPmRow"><div style="flex:1;min-width:0">' +
        '<div class="pt1">' + esc(L('Something the PM needs right now?')) + '</div>' +
        '<div class="pt2">' + esc(L('Texts what you just said to the PM this minute. Today’s log still goes when you hit Send.')) + '</div></div>' +
@@ -6752,8 +6776,8 @@ function optChipsHtml(f, d){
 }
 function ynRowHtml(field, val, amber){
   return '<div class="ynrow">' +
-    '<button class="ynbtn' + (val === true ? ' on' + (amber ? ' amber' : '') : '') + '" data-yn="' + field + '" data-v="1">' + esc(T('yes')) + '</button>' +
-    '<button class="ynbtn' + (val === false ? ' on' : '') + '" data-yn="' + field + '" data-v="0">' + esc(T('no')) + '</button></div>';
+    '<button class="ynbtn' + (val === true ? ' on' + (amber ? ' amber' : '') : '') + '" data-yn="' + esc(field) + '" data-v="1">' + esc(T('yes')) + '</button>' +
+    '<button class="ynbtn' + (val === false ? ' on' : '') + '" data-yn="' + esc(field) + '" data-v="0">' + esc(T('no')) + '</button></div>';
 }
 /* Anything to look over — a story, a yes — goes through the review; a blank
    log with nothing to report is the one-tap button below, never Send. */
@@ -6888,8 +6912,7 @@ function dlSentHtml(cur, d, date){
   if (later.length) h += '<div class="rvcard" style="margin-top:14px">' + later.map(function(n){ return dlLineHtml({ time: n.time, text: n.body }); }).join('') + '</div>';
   h += '<div class="story has hidden" id="dlLaterBox" style="margin-top:14px"><textarea id="dlLater" rows="1" autocomplete="off" placeholder="' + esc(L('What did you forget?')) + '"></textarea></div>';
   h += '<div class="reccap hidden" data-reccap="dlLater"></div>';
-  h += '<div class="talkrow hidden" id="dlLaterRow">' + recBtnHtml('dlLater', 'dlLaterRec') +
-       '<button class="talkbtn type" id="dlLaterType">' + ico('keyboard', 24) + esc(T('type')) + '</button></div>';
+  h += '<div class="talkrow hidden" id="dlLaterRow">' + recBtnHtml('dlLater', 'dlLaterRec') + '</div>';
   h += '<button class="btn btn-out" id="dlLaterBtn" style="margin-top:22px;min-height:68px">' + ico('plus', 22) + esc(L('Forgot something? Add a line')) + '</button>';
   h += '<div class="foot" style="margin-top:12px">' + esc(L('Anything you add now goes on the same log with the time.')) + '</div>';
   return h;
@@ -7075,7 +7098,6 @@ function wireDayLog(cur, date){
     autoGrow(ta);
     ta.oninput = function(){ dlSet(cur.id, date, 'story', ta.value); autoGrow(ta); dlSyncStory(cur, date); };
   }
-  if ($('dlType')) $('dlType').onclick = function(){ if (ta){ ta.focus(); try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e){} } };
   if ($('dlTellPm')) $('dlTellPm').onclick = function(){ dlTellPm(cur.id, date); };
   [].forEach.call(body.querySelectorAll('[data-yn]'), function(b){
     b.onclick = function(){
@@ -7120,7 +7142,6 @@ function wireDayLog(cur, date){
     lb.innerHTML = ico('plus', 22) + 'Forgot something? Add a line';
     dlAddLater(cur.id, date, text);
   };
-  if ($('dlLaterType')) $('dlLaterType').onclick = function(){ if (lta) lta.focus(); };
   if (lta) lta.oninput = function(){ autoGrow(lta); };
   // Every Record / Stop on the screen — the story, the alert, the later
   // line — is the one recorder, and a re-render is repainted from its state.
@@ -7612,6 +7633,18 @@ coAdd({
         photosHow: 'Tu foto de inicio cuenta como una y tu foto de salida al irte como otra — toma {n} aquí.',
         photosHowNoStart: 'Hoy no hay foto de inicio aquí, así que toma {n} aquí — tu foto de salida al irte completa las {t}.' }
 }); /* CO-T227 */
+coAdd({
+  en: { waitSending: 'Sending now…', waitRetry: 'Couldn’t send yet · it tries again by itself', waitSoon: 'Sends by itself in a moment', sendNow: 'Send now',
+        savedFirst: 'Saved on this phone first · it sends by itself, now or when there’s signal', nothingWaiting: 'Nothing waiting to send',
+        cantReach: 'Can’t reach Close Out right now', cantReachSub: 'That doesn’t mean there’s no work. Try again in a minute, or tell the PM.',
+        noSignalList: 'No signal · the list loads when there is signal', tryAgain: 'Try again', copyAt: 'saved at {t}',
+        photoTitle: 'Photo', photoRemove: 'Remove this photo', photoRemoveSure: 'Tap again to remove it', photoKeep: 'Keep it', photoRemoved: 'Photo removed' },
+  es: { waitSending: 'Enviando ahora…', waitRetry: 'No se pudo enviar todavía · lo vuelve a intentar solo', waitSoon: 'Se envía solo en un momento', sendNow: 'Enviar ahora',
+        savedFirst: 'Se guarda primero en este teléfono · se envía solo, ahora o cuando haya señal', nothingWaiting: 'Nada pendiente por enviar',
+        cantReach: 'No se puede conectar con Close Out ahora', cantReachSub: 'Eso no quiere decir que no haya trabajo. Intenta de nuevo en un minuto, o avisa al PM.',
+        noSignalList: 'Sin señal · la lista se carga cuando haya señal', tryAgain: 'Intentar de nuevo', copyAt: 'guardada a las {t}',
+        photoTitle: 'Foto', photoRemove: 'Quitar esta foto', photoRemoveSure: 'Toca otra vez para quitarla', photoKeep: 'Dejarla', photoRemoved: 'Foto quitada' }
+}); /* CO-T229 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -8228,6 +8261,34 @@ function coGalleryPicked(files){
     });
   }, Promise.resolve());
 }
+function coPhotoOf(target, id){
+  var v = coVisit(target.jobId), list = [];
+  if (target.kind === 'report'){ var r = v.reports[target.idx]; list = (r && r.photos) || []; }
+  else if (target.kind === 'visit') list = v.photos || [];
+  else if (target.kind === 'area') list = coAreaV(v, target.area).photos || [];
+  else if (target.kind === 'before') list = v.before[target.taskId] ? [v.before[target.taskId]] : [];
+  else if (target.kind === 'after') list = v.after[target.taskId] ? [v.after[target.taskId]] : [];
+  else if (target.kind === 'more') list = v.repairMore[target.taskId] || [];
+  return list.filter(function(p){ return p && p.id === id; })[0] || null;
+}
+/* The photo full size, with Keep it and Remove this photo (asks twice). */
+function coViewPhoto(target, id){
+  var p = coPhotoOf(target, id); if (!p) return;
+  S.coPhotoView = { target: target, id: id, thumb: p.thumb || '', time: p.time || '', armed: 0, url: null };
+  openSheet('coPhoto');
+  coPhotoGet(id).then(function(rec){
+    var view = S.coPhotoView;
+    if (!rec || !rec.blob || !view || view.id !== id || S.sheet !== 'coPhoto') return;
+    try { view.url = URL.createObjectURL(rec.blob); var img = $('coPhotoImg'); if (img) img.src = view.url; } catch(e){}
+  });
+}
+function coPhotoSheetHtml(){
+  var view = S.coPhotoView || {};
+  return '<div class="sheetpad"><img id="coPhotoImg" class="cophoto" alt="" src="' + esc(view.thumb) + '">' +
+    (view.time ? '<div class="body" style="margin-top:8px">' + esc(view.time) + '</div>' : '') +
+    '<button class="btn btn-go" id="coPhotoKeep" style="margin-top:14px">' + esc(co('photoKeep')) + '</button>' +
+    '<button class="btn btn-out" id="coPhotoRm" style="margin-top:10px;color:var(--rec);border-color:var(--rec)">' + esc(co('photoRemove')) + '</button></div>';
+}
 function coRemovePhoto(target, id){
   var v = coVisit(target.jobId);
   if (target.kind === 'report'){ var r = v.reports[target.idx]; if (r) r.photos = (r.photos || []).filter(function(p){ return p.id !== id; }); }
@@ -8452,7 +8513,7 @@ function coFinishRepair(jobId, taskId){
 /* ---- the screens ---- */
 function coBadge(j){
   var k = coKindOf(j);
-  if (k === 'repairs') return '<span class="badge warn">' + esc(co('repairs')) + (j.openPunchCount ? ' · ' + j.openPunchCount : '') + '</span>';
+  if (k === 'repairs') return '<span class="badge warn">' + esc(co('repairs')) + (j.openPunchCount ? ' · ' + esc(String(j.openPunchCount)) : '') + '</span>';
   if (k === 'review') return '<span class="badge">' + esc(co('pmReview')) + '</span>';
   return '<span class="badge nav">' + esc(S.lang === 'es' ? 'Inspección final' : 'Final inspection') + '</span>';
 }
@@ -8560,6 +8621,12 @@ function coQueueHtml(){
   if (CO.reason === 'not-yours') return '<div class="jempty">' + esc(co('notYours')) + '</div>';
   if (CO.reason === 'not-configured') return '<div class="jempty">' + esc(co('notConfigured')) + '</div>';
   if (!CO.jobs && CO.loading) return '<div class="jempty">' + esc(co('checkingJt')) + '</div>';
+  // Could not reach Close Out (T2.29). With nothing saved to show, say so:
+  // "Nothing ready to inspect today" here sent a crew home from an outage.
+  // With a saved copy, the header says it is one and Try again sits on top.
+  var down = !!CO.reason && !CO.loading;
+  if (down && !(CO.jobs || []).length) return coDownHtml();
+  if (down) h += '<button class="btn btn-out" data-coreload="1" style="margin:0 0 12px;min-height:52px">' + esc(co('tryAgain')) + '</button>';
   var found = coSearchMatches(CO.jobs || [], CO.search), jobs = found.filter(function(j){ return CO.filter === 'all' || j.mine; });
   // Yahir's partner box (T2.21), where Yahir's day starts: the same box as the clock's.
   if (S.partner && canTab('job')) h += '<button class="pairrow' + (S.partnerOn ? ' on' : '') + '" data-copartner="1" style="margin:0 0 12px;border:1px solid var(--line);border-radius:6px"><span class="box">' + CK_TICK + '</span><span class="lbl">' +
@@ -8571,6 +8638,12 @@ function coQueueHtml(){
   h += '<div class="foot" style="margin-top:18px">' + esc(co('queueNote')) + '<br>' + esc(co('queueNote2')) + '</div>';
   h += coOutboxLine(null);
   return h;
+}
+function coDownHtml(){
+  var off = !S.online;
+  return '<div class="jempty"><b>' + esc(off ? co('noSignalList') : co('cantReach')) + '</b>' +
+    (off ? '' : '<br>' + esc(co('cantReachSub')) + (CO.err ? '<br><span style="font-size:12.5px;color:var(--mut)">' + esc(CO.err) + '</span>' : '')) + '</div>' +
+    '<button class="btn btn-out" data-coreload="1" style="margin-top:12px;min-height:56px">' + esc(co('tryAgain')) + '</button>' + coOutboxLine(null);
 }
 /* The search matches the way the Clock's does (jobMatches): every word
    typed, anywhere in the number, the name, the customer or the address. */
@@ -8589,15 +8662,25 @@ function coOutboxLine(jobId){
   return '<button class="foot" data-cooutbox="1" style="width:100%;min-height:44px;color:' + (bad ? 'var(--rec)' : 'var(--ckamber)') + '">' + esc(co('queued')) + ' (' + (items.length - bad) + ')' +
          (bad ? ' · ' + bad + ' ' + esc(bad === 1 ? co('rejected') : co('rejectedN')) : '') + ' · ' + esc(co('tapToSee')) + '</button>';
 }
+/* What the waiting list is doing right now (T2.29). It used to say "No
+   signal" whatever the signal was, beside a send that had stalled. */
+function coWaitWords(items){
+  if (!S.online) return co('offline');
+  if (CO.pumping) return co('waitSending');
+  var waiting = (items || CO.outbox || []).filter(function(it){ return it.status !== 'rejected'; });
+  return waiting.some(function(it){ return it.err; }) ? co('waitRetry') : co('waitSoon');
+}
 function coOutboxHtml(){
   var items = coOutboxFor(null);
-  if (!items.length) return '<div class="jempty">—</div>';
+  if (!items.length) return '<div class="jempty">' + esc(co('nothingWaiting')) + '</div>';
+  var canNudge = S.online && !CO.pumping && items.some(function(it){ return it.status !== 'rejected'; });
   return '<div class="jcard" style="margin-top:4px">' + items.map(function(it){
     var st = it.status === 'rejected' ? '<span class="st bad">' + esc(co('rejected')) + '</span>' : it.status === 'held' ? '<span class="st wait">409</span>' : '<span class="st">' + esc(co('queued')) + '</span>';
     var job = coJobById(it.jobId);
     return '<div class="obrow">' + st + '<span class="ob-t">' + esc((job ? job.number + ' · ' : '') + (it.label || it.kind)) + (it.err ? '<br><span style="font-size:12.5px">' + esc(it.err) + '</span>' : '') + '</span>' +
            (it.status === 'rejected' ? '<button data-codiscard="' + esc(it.id) + '">' + esc(co('discard')) + '</button><button data-coretry="' + esc(it.id) + '">' + esc(co('retry')) + '</button>' : '') + '</div>';
-  }).join('') + '</div><div class="foot">' + esc(co('offline')) + '</div>';
+  }).join('') + '</div><div class="foot">' + esc(coWaitWords(items)) + '</div>' +
+    (canNudge ? '<button class="btn btn-out" data-cosendnow="1" style="margin-top:10px;min-height:56px">' + esc(co('sendNow')) + '</button>' : '');
 }
 function coTile(key, es, en, cnt, cls){
   return '<button class="jtile" data-coscreen="' + key + '"><span class="bi"><span class="es">' + esc(es) + '</span><span class="en">' + esc(en) + '</span></span>' +
@@ -8703,7 +8786,7 @@ function coScopeHtml(j){
     h += '<div class="rvstory">';
     if (sc.loading) h += '<span class="rt">' + esc(co('loading')) + '</span>';
     else if (sc.text) h += '<span class="rt">' + esc(sc.text) + '</span>';
-    h += j.soldScope.map(function(d){ return '<span class="rk" style="margin-top:8px">' + esc(d.name + (d.number ? ' #' + d.number : '')) + '</span>' + d.lines.slice(0, 12).map(function(l){ return '<span class="rt" style="font-size:14px">' + esc(l.name) + (l.quantity ? ' · ' + l.quantity + ' ' + (l.unit || '') : '') + '</span>'; }).join(''); }).join('');
+    h += j.soldScope.map(function(d){ return '<span class="rk" style="margin-top:8px">' + esc(d.name + (d.number ? ' #' + d.number : '')) + '</span>' + d.lines.slice(0, 12).map(function(l){ return '<span class="rt" style="font-size:14px">' + esc(l.name) + (l.quantity ? ' · ' + esc(String(l.quantity)) + ' ' + esc(l.unit || '') : '') + '</span>'; }).join(''); }).join('');
     h += '</div>';
   }
   return h + '</div>';
@@ -8756,7 +8839,7 @@ function coReportHtml(){
   h += '<div class="whychips">' + coWhereChips(r) + '</div>';
   h += '<input id="coWhereText" class="cknote-in" style="margin-top:8px" placeholder="' + esc(it ? coLabel(it) : co('where')) + '" maxlength="80" value="' + esc(r.locationText || '') + '">';
   h += '<div class="k" style="margin-top:22px">' + esc(co('note')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('note').toLowerCase()) + '</div>';
-  h += '<div class="talkrow">' + recBtnHtml('coNote', 'coRec') + '<button class="talkbtn type" id="coType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
+  h += '<div class="talkrow">' + recBtnHtml('coNote', 'coRec') + '</div>';
   h += '<div class="story' + (r.note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coNote" placeholder="' + esc(co('note')) + '" rows="3">' + esc(r.note || '') + '</textarea></div>';
   h += '<div class="reccap hidden" data-reccap="coNote"></div>';
   if (r.note && r.note.trim()){
@@ -8801,7 +8884,7 @@ function coFinalHtml(){
   var ctx = coCtx(), f = ctx.fin, note = f.note || '', h = '';
   h += '<div class="k" style="margin-top:6px">' + esc(co('finalNotes')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span></div>';
   h += '<div class="foot" style="text-align:left;margin-top:6px">' + esc(co('finalNotesSub')) + '</div>';
-  h += '<div class="talkrow" style="margin-top:12px">' + recBtnHtml('coFinal', 'coFinalRec') + '<button class="talkbtn type" id="coFinalType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
+  h += '<div class="talkrow" style="margin-top:12px">' + recBtnHtml('coFinal', 'coFinalRec') + '</div>';
   h += '<div class="story' + (note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coFinal" placeholder="' + esc(co('finalNotesPh')) + '" rows="4">' + esc(note) + '</textarea></div>';
   h += '<div class="reccap hidden" data-reccap="coFinal"></div>';
   if (note.trim() && f.noteSrc === note.trim() && (f.noteEnBusy || (f.noteEn && f.noteEn !== note.trim())))
@@ -8876,7 +8959,7 @@ function coSendHtml(){
   }
   if ((!ctx.area && v.sending) || items.length || (ctx.area && CO.areaSending === ctx.area)){
     var bad = items.filter(function(it){ return it.status === 'rejected'; });
-    h += '<div class="hero' + (bad.length ? ' warn' : '') + '" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(bad.length ? co('rejected') : co('sending')) + '</span><span class="st">' + items.length + ' ' + esc(co('queued').toLowerCase()) + '</span><span class="ss">' + esc(co('offline')) + '</span></div>';
+    h += '<div class="hero' + (bad.length ? ' warn' : '') + '" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(bad.length ? co('rejected') : co('sending')) + '</span><span class="st">' + items.length + ' ' + esc(co('queued').toLowerCase()) + '</span><span class="ss">' + esc(coWaitWords(items)) + '</span></div>';
     h += coOutboxHtml();
     h += coClockCardHtml();
     return h;
@@ -8887,7 +8970,7 @@ function coSendHtml(){
   h += '<div class="rvcard"><div class="rvstory"><span class="rk">' + esc(co('whatNext')) + ' · ' + esc(co('whatNextSub')) + '</span><span class="rt">' + esc(coWhatNext(j, problems)) + '</span></div></div>';
   var blocked = coBlockersCtx(ctx).filter(function(b){ return b.go !== 'send'; }).length > 0;
   h += '<button class="btn btn-go sendbig' + (blocked ? ' blocked' : '') + '" id="coSend">' + esc(co('finishSend')) + '</button>';
-  h += '<div class="foot">' + esc(blocked ? co('missing') + ': ' + coMissingCtx(ctx).join(' · ') : co('offline')) + '</div>';
+  h += '<div class="foot">' + esc(blocked ? co('missing') + ': ' + coMissingCtx(ctx).join(' · ') : co('savedFirst')) + '</div>';
   return h;
 }
 /* After the send, where the job goes: on a job with work areas the board
@@ -8976,7 +9059,7 @@ function coRepairHtml(){
   // What was done: said or typed, required.
   var note = v.repairNote[t.id] || '', en = v.repairEn[t.id] || {};
   h += '<div class="k" style="margin-top:22px">' + esc(co('repairNoteK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span></div>';
-  h += '<div class="talkrow">' + recBtnHtml('coRepairNote', 'coRepairRec') + '<button class="talkbtn type" id="coRepairType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
+  h += '<div class="talkrow">' + recBtnHtml('coRepairNote', 'coRepairRec') + '</div>';
   h += '<div class="story' + (note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coRepairNote" placeholder="' + esc(co('repairNotePh')) + '" rows="3">' + esc(note) + '</textarea></div>';
   h += '<div class="reccap hidden" data-reccap="coRepairNote"></div>';
   if (note.trim() && en.noteSrc === note.trim() && en.noteEn && en.noteEn !== note.trim())
@@ -9009,7 +9092,7 @@ function coAreaHtml(){
   }
   if (items.length){
     var bad = items.filter(function(it){ return it.status === 'rejected'; });
-    h += '<div class="hero' + (bad.length ? ' warn' : '') + '" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(bad.length ? co('rejected') : co('sending')) + '</span><span class="st">' + items.length + ' ' + esc(co('queued').toLowerCase()) + '</span><span class="ss">' + esc(co('offline')) + '</span></div>';
+    h += '<div class="hero' + (bad.length ? ' warn' : '') + '" style="margin-top:4px"><span class="sl"><span class="dot"></span>' + esc(bad.length ? co('rejected') : co('sending')) + '</span><span class="st">' + items.length + ' ' + esc(co('queued').toLowerCase()) + '</span><span class="ss">' + esc(coWaitWords(items)) + '</span></div>';
     return h + coOutboxHtml() + coClockCardHtml();
   }
   var who = a.assigneeNames || [];
@@ -9034,7 +9117,7 @@ function coAreaHtml(){
        '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button>' + coEndTileHtml() + '</div>';
   h += '<div class="foot" style="text-align:left;margin-top:8px' + (av.photos.length < need ? ';color:var(--ckamber)' : '') + '">' + esc(av.photos.length + ' / ' + need) + '</div>';
   h += '<div class="k" style="margin-top:22px">' + esc(co('areaNoteK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('areaNoteK').toLowerCase()) + '</div>';
-  h += '<div class="talkrow">' + recBtnHtml('coAreaNote', 'coAreaRec') + '<button class="talkbtn type" id="coAreaType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
+  h += '<div class="talkrow">' + recBtnHtml('coAreaNote', 'coAreaRec') + '</div>';
   h += '<div class="story' + (av.note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coAreaNote" placeholder="' + esc(co('note')) + '" rows="3">' + esc(av.note || '') + '</textarea></div>';
   h += '<div class="reccap hidden" data-reccap="coAreaNote"></div>';
   if ((av.note || '').trim()) h += '<div class="rvcard" style="margin-top:10px"><div class="rvstory"><span class="rk">' + esc(co('englishNote')) + '</span><span class="rt">' + esc(av.noteEnBusy ? co('translating') : (av.noteEn || av.note)) + '</span></div></div>';
@@ -9089,6 +9172,8 @@ function coRender(){
     if (sc === 'area'){ var aa = j && coAreaByKey(j, CO.areaKey); label = aa ? coAreaName(aa) : label; }
     else if (CO.ctxArea && j && sc !== 'job' && sc !== 'report'){ var ca2 = coAreaByKey(j, CO.ctxArea); if (ca2) label = coAreaName(ca2); }
     if (sc === 'repair'){ var t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0]; label = t ? es(coTaskName(t)) : label; }
+    // The waiting list on its own is named for what it is (T2.29), not "—".
+    if (sc === 'outbox' && !j){ kw = co('tab'); label = co('queued'); }
     $('coK').textContent = kw + (j && j.number ? ' · JT #' + j.number : '');
     $('coTitle').textContent = label;
   } else {
@@ -9096,7 +9181,7 @@ function coRender(){
     $('coQueueK').textContent = co('tab') + ' · ' + ((CO.jobs || []).length) + ' ' + co('jobsToday');
     $('coQueueDate').textContent = S.lang === 'es' ? logDateWords(isoLocal()) : new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     $('coStamp').textContent = 'JT · ' + (CO.loading ? '…' : CO.jobsAt ? clockLabel(CO.jobsAt) : '—');
-    if (CO.jobsSource === 'copy') barText = co('lastCopy');
+    if (CO.jobsSource === 'copy') barText = co('lastCopy') + (CO.jobsAt ? ' · ' + co('copyAt').replace('{t}', clockLabel(CO.jobsAt)) : '');
     else if (S.assign && S.assign.source === 'board' && S.assign.inspector === false && appRole() === 'service') barText = co('noInspector');
     $('coSeg').innerHTML = '<button class="dlchip' + (CO.filter === 'mine' ? ' on' : '') + '" data-cofilter="mine"><span class="st' + (CO.filter === 'mine' ? ' sent' : '') + '"></span>' + esc(co('mine')) + ' · ' + n + '</button>' +
                            '<button class="dlchip' + (CO.filter === 'all' ? ' on' : '') + '" data-cofilter="all"><span class="st' + (CO.filter === 'all' ? ' sent' : '') + '"></span>' + esc(co('all')) + ' · ' + (CO.jobs || []).length + '</button>';
@@ -9174,7 +9259,11 @@ function coWire(){
   on('[data-coroof]', function(){ CO.receipt = null; coGo('job'); });
   on('[data-cophoto]', function(b){ coTakePhoto(JSON.parse(b.getAttribute('data-cophoto'))); });
   on('[data-cogallery]', function(b){ coPickPhotos(JSON.parse(b.getAttribute('data-cogallery'))); });
-  on('[data-corm]', function(b){ coRemovePhoto(JSON.parse(b.getAttribute('data-target')), b.getAttribute('data-corm')); });
+  // A tap on a photo opens it (T2.29); removing it is in there, and asks
+  // twice. The whole tile used to be the delete button.
+  on('[data-corm]', function(b){ coViewPhoto(JSON.parse(b.getAttribute('data-target')), b.getAttribute('data-corm')); });
+  on('[data-coreload]', function(){ coLoadQueue(true); });
+  on('[data-cosendnow]', function(){ CO.pumpFails = 0; coRetryPending(); });
   on('[data-cowhere]', function(b){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; var k = b.getAttribute('data-cowhere'); r.location = r.location === k ? '' : k; coLocationWords(r); coPersist(); coRender(); });
   on('[data-cofixed]', function(b){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.fixed = b.getAttribute('data-cofixed') === '1'; coPersist(); coRender(); });
   on('[data-rec]', function(b){ dlRecToggle(b.getAttribute('data-rec')); });
@@ -9204,20 +9293,16 @@ function coWire(){
   var nr = $('coNewReport'); if (nr) nr.onclick = function(){ coStartReport('', 'problems', CO.ctxArea || undefined); };
   var fn = $('coFinal'); if (fn){ fn.oninput = function(){ var f = coCtx().fin; f.note = fn.value; coPersist(); autoGrow(fn); };
     fn.onblur = function(){ var f = coCtx().fin; coAfterTap(function(){ coToEnglish(f); coRender(); }); }; autoGrow(fn); }
-  var fty = $('coFinalType'); if (fty) fty.onclick = function(){ var ta = $('coFinal'); if (ta) ta.focus(); };
-  var ty = $('coType'); if (ty) ty.onclick = function(){ var ta = $('coNote'); if (ta) ta.focus(); };
   var note = $('coNote'); if (note){ note.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.note = note.value; coPersist(); autoGrow(note); var s = $('coSaveReport'); if (s){ var can = (r.photos || []).length > 0 && !!r.note.trim(); s.disabled = !can; } };
     note.onblur = function(){ var v = coVisit(CO.jobId), i = CO.reportIdx; coAfterTap(function(){ coEnglishFor(v, i); coRender(); }); }; autoGrow(note); }
   var wt = $('coWhereText'); if (wt) wt.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.locationText = wt.value; coLocationWords(r); coPersist(); };
   var ln = $('coListNote'); if (ln) ln.oninput = function(){ coCtx().notes[ln.getAttribute('data-notes')] = ln.value; coPersist(); };
   var rn = $('coRepairNote'); if (rn){ rn.oninput = function(){ var v = coVisit(CO.jobId); v.repairNote[CO.taskId] = rn.value; coPersist(); autoGrow(rn); coRepairDoneState(); };
     rn.onblur = function(){ var v = coVisit(CO.jobId), tid = CO.taskId; coAfterTap(function(){ coToEnglish(coRepairEn(v, tid)); coRender(); }); }; autoGrow(rn); }
-  var rty = $('coRepairType'); if (rty) rty.onclick = function(){ var ta = $('coRepairNote'); if (ta) ta.focus(); };
   var sv = $('coSaveReport'); if (sv) sv.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || !(r.photos || []).length || !r.note.trim()) return; r.saved = true; if (dlRec.want) dlRecStop(); coEnglishFor(v, CO.reportIdx); coPersist(); toast(co('reportSaved')); coBack(); };
   var dr = $('coDeleteReport'); if (dr) dr.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || r.sentAt) return; (r.photos || []).forEach(function(p){ coPhotoDel(p.id); }); v.reports.splice(CO.reportIdx, 1); if (r.itemKey){ var w = r.itemKey.indexOf('22PdEQhB') === 0 ? 'cleanup' : 'inspection'; } coPersist(); coBack(); };
   var an = $('coAreaNote'); if (an){ an.oninput = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); av.note = an.value; coPersist(); autoGrow(an); };
     an.onblur = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); coAfterTap(function(){ coToEnglish(av); coRender(); }); }; autoGrow(an); }
-  var aty = $('coAreaType'); if (aty) aty.onclick = function(){ var ta = $('coAreaNote'); if (ta) ta.focus(); };
   var arp = $('coAreaReport'); if (arp) arp.onclick = function(){ coStartReport('', 'area', CO.areaKey); };
   var asd = $('coAreaSend'); if (asd) asd.onclick = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); if (av.photos.length < coPhotosNeed(CO.jobId) || !String(av.note || '').trim() || CO.areaSending) return; coSendArea(CO.jobId, CO.areaKey); };
   var abk = $('coAreaBack'); if (abk) abk.onclick = function(){ CO.receipt = null; coGo('job'); };
@@ -9494,7 +9579,7 @@ $('signOutBtn').onclick = signOut;
   b.onclick = function(){ if (S.clockGate) return; S.capture = b.getAttribute('data-tag'); renderCam(); };
 });
 
-window.addEventListener('online', function(){ S.online = true; render(); pump(); ckRetryPending(); dlRetryPending(); });
+window.addEventListener('online', function(){ S.online = true; render(); pump(); ckRetryPending(); dlRetryPending(); coRetryPending(); });
 window.addEventListener('offline', function(){ S.online = false; render(); });
 window.addEventListener('resize', measureTabs);
 // A phone going in a pocket mid-list: send what is unsaved now, best effort.
@@ -9504,6 +9589,9 @@ document.addEventListener('visibilitychange', function(){
   if (document.visibilityState !== 'visible'){ ckFlushAll(); dlRecStop(); whereSave(); return; }
   ckRetryPending();
   dlRetryPending();
+  // Close Out's waiting list too (T2.29): a send made with no signal used to
+  // wait for the next send or the next launch.
+  coRetryPending();
   // A phone that spent an hour in a pocket should show the right number
   // immediately.
   render();

@@ -445,6 +445,11 @@ t('a signed-in call counts the membership lookup apart from the work', [r2.ok, t
 t('...and getStart hands back the log, with the call before it', r2.data.recent.map(c => [c.fn, c.who, c.ok, c.pave]), [['getJobCodes', 't', 1, 1]]);
 const r3 = post('nope', []);
 t('a failed call is logged too, with its error', [r3.ok, r3.ms.pave, sandbox.recentCalls_().slice(-1)[0].err], [false, 0, 'Unknown function: nope']);
+// T2.29: a job note is the server's own write (Tell the PM, the day log's
+// "office needs this now"), stamped with the signed-in name. The phone may not
+// post one directly under a name it types.
+const r4 = post('postJobNote', ['j1', 'Fake note', 'Carl Bledsoe', true]);
+t('postJobNote cannot be called from the phone', [r4.ok, String(r4.error).indexOf('Unknown function') > -1], [false, true]);
 for (let i = 0; i < 40; i++) post('getJobCodes', ['j1']);
 t('the log is capped', sandbox.recentCalls_().length, 30);
 
@@ -852,6 +857,13 @@ t('the field definitions were asked for alongside the people, once', fetched.map
 freshDay();
 r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false, fields: { '22PC7jNshbiK': ['Roofing'], '22PLbmgVwteK': 'for the office' } });
 t('trades on site and internal notes do not', [r.flag, jtCalls.map(c => c[0])], ['', ['dailyLog']]);
+// T2.29 (Carl, 30 Oct 2026): a Yes on material pickups reaches the PM; a No stays quiet.
+freshDay();
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false, fields: { '22PC7jNSGzEb': true } });
+t('a Yes on material pickups pings the feed like a delay', [r.flag, r.commented, /Material Pickups \/ Deliveries: Yes/.test(((jtCalls.find(c => c[0] === 'comment') || [])[1] || {}).message || '')], ['fields', true, true]);
+freshDay();
+r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false, fields: { '22PC7jNSGzEb': false } });
+t('...a No does not', [r.flag, jtCalls.map(c => c[0])], ['', ['dailyLog']]);
 props.DAILY_LOG_PING_FIELDS = 'internal';
 freshDay();
 r = sandbox.sendDailyLog(ME, { ...LOG, problems: '', crewOnSite: false, fields: { '22PLbmgVwteK': 'for the office' } });

@@ -161,9 +161,11 @@ regeneration, Linux only.
   stays under All codes there; 01GR-2 Design is the designer's and is not a
   crew code. `TRADE_CODES_JSON` is the lever if Carl wants it otherwise.
 - **The board half of T2.25 is one field** (`taskName` on the assignment).
-  It reached the board's `main` on 29 Oct 2026, as did DB CheckOut's served
-  form; both deployed to production the same afternoon. A board older than
-  that answers no `taskName` and the phone simply says no stage.
+  It reached the board's `main` on 29 Oct 2026 and deployed that afternoon.
+  DB CheckOut's served form reached its `main` the same day but **did not go
+  live**: that deploy shipped a stale prebuilt bundle (see T2.29 below). A
+  board older than that answers no `taskName` and the phone simply says no
+  stage.
 - **The training video was re-recorded after this** (phase 3's last step, 29
   Oct 2026) — see *The re-record by role* below.
 
@@ -253,3 +255,46 @@ regeneration, Linux only.
 - The suites seed nine site photos now (`seedSite` default); the container's
   clock at 1–2am UTC makes clock-test's "2 hours earlier" fall before
   midnight and drop — the time of day, not the app.
+
+## The audit and T2.29 (30 Oct 2026) — what the README does not say
+
+- **The audit report** is a private page on Carl's account:
+  https://claude.ai/artifact/AAcARP8W9V2hjkdRutYvPK — defects D1–D19 and
+  improvements I1–I9, by id. Step 1 (D1, D5, D2, D3, D4, D9, D10, D11, D12,
+  D13, D17, D18, I4, I7) is T2.29 here and DB CheckOut's 30 Oct commit. Next,
+  in order: D6, D7, D8, D14, D16 and I3; then I2 (one outbox), D15 (request
+  ids on writes), I1, I5, I6, I9.
+- **A correction the earlier notes needed.** DB CheckOut's served form
+  (41a843f) and its gutter/siding checklists, `REPAIR` photos and final notes
+  (6c6d5d1) were merged and "deployed" on 29 Oct but never ran: its
+  `vercel.json` had `"buildCommand": ""`, so Vercel shipped the committed
+  `api/index.mjs`, last rebuilt at 7deba50 (26 Oct). Production ran the 26 Oct
+  server until the 30 Oct deploy. The T2.25 and T2.27 notes said otherwise.
+  Since then Vercel builds the bundle on every deploy, and `GET /health` on
+  closeout.deitemeyerbrothers.com shows `build.on: "vercel"` with the commit —
+  **read that after any Close Out deploy** rather than trusting the merge.
+- **Carl's calls on 30 Oct.** (1) The phone's own time is acceptable for
+  payroll, so I1 — clock in with no signal, queued with the phone's time — is
+  approved; build it after D15, so a resent clock-in cannot make two entries.
+  (2) A Yes on material pickups alerts the PM (done, `LOG_PING_DEFAULT`).
+  (3) "Normal day" logs stay: JobTread is the source of truth. (4) The T2.28
+  reading of ten photos is right. (5) The Type button goes (done).
+- **Not done on purpose.** D13's Content-Security-Policy: the app's script is
+  inline, so a CSP that protects anything needs the script out of the page
+  first (I5); one with `'unsafe-inline'` would not. D14's zoom: the lock has a
+  reason — iOS zooms into any input under 16px and stays zoomed, which broke
+  the camera layout in the retired Close Out app (its `fix-web-html.mjs` said
+  so) — so allowing zoom needs every input at 16px or more first.
+- **D9 reads the phone's role** (site manager or Operations); the board's own
+  sign rule also admits a roster crew flagged Site Manager. If that ever
+  differs, the board sending `canSign` on `checks` is the fix (both repos'
+  contract).
+- **DB CheckOut's retired door**: `/auth/google`, `/auth/config` and session
+  tokens are gone; `SESSION_SECRET` and `GOOGLE_CLIENT_ID` are no longer read
+  and can be deleted from its Vercel project. `GOOGLE_ALLOWED_EMAILS` still
+  is — it gates who DB Crew may act for. `public/` is a notice plus a
+  service worker that clears the old app off any phone that installed it.
+- **Two tests fail here and on T2.26 alike**, in this container: push-test
+  (6/14, the test setup serves no Firebase files) and code-test's "…and back
+  to work opens a new one". Not the app; checked by running both against
+  T2.26.

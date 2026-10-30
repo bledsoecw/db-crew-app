@@ -84,7 +84,7 @@ In Apps Script > Project Settings > **Script Properties**:
 | `WRITE_ENABLED` | **leave unset until you are ready.** `true` lets the app post time entries, photos and notes to JobTread. |
 | `WRITE_JOB_ALLOWLIST` | optional, a comma-separated list of job ids. While set, writes are refused for any other job — useful for a contained first test. |
 | `SAFETY_ALERT_TO` | for the safety alert — comma-separated addresses the alert is texted to the second it is sent: an email address, or a carrier's SMS gateway address (`4195551234@vtext.com`). See "Safety alerts" under 4c. The JobTread comment assigned to the PM goes either way. |
-| `DAILY_LOG_PING_FIELDS` | optional. A regular expression matched against the names of JobTread's daily-log fields; a filled one pings the PM and sales in the feed, like a problem. Default `safety|incident|delay`. |
+| `DAILY_LOG_PING_FIELDS` | optional. A regular expression matched against the names of JobTread's daily-log fields; a filled one pings the PM and sales in the feed, like a problem. Default `safety|incident|delay|material`; a yes/no field pings only on Yes. If you set this property, add `material` to it too (T2.29). |
 | `BOARD_API_URL` | for the My jobs tab — the Production Board origin, e.g. `https://ops.deitemeyerbrothers.com`. Leave unset and the tab falls back to recent jobs (see 4c). |
 | `CREW_APP_SECRET` | for the My jobs tab and the site checks — the shared secret the board checks. Same value on both sides. |
 | `CLOSEOUT_API_URL` | for the Close Out tab (T2.0) — the DB CheckOut server's origin, `https://closeout.deitemeyerbrothers.com`. Unset and the tab says it is not connected yet; the clock is untouched. |

@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.27 (2026-10-29)';
+var APP_BUILD = 'T2.29 (2026-10-30)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -424,7 +424,6 @@ function doPost(e) {
       createCaptureUploadRequest: createCaptureUploadRequest,
       finalizeCaptureUpload: finalizeCaptureUpload,
       uploadCapture: uploadCapture,
-      postJobNote: postJobNote,
       getCrewOnClock: getCrewOnClock,
       markNudged: markNudged
     };
@@ -1221,8 +1220,10 @@ var DAILY_LOG_NOTES_MAX = 10000;   // JobTread's ceiling, verified
 var LOG_FIELDS_KEY = 'dlfields_v1', LOG_FIELDS_CACHE_SEC = 21600;
 // Which fields, when filled, also ping the PM and sales in the activity feed
 // the way a problem does. A regular expression matched against field names;
-// the Script Property DAILY_LOG_PING_FIELDS overrides this default.
-var LOG_PING_DEFAULT = 'safety|incident|delay';
+// the Script Property DAILY_LOG_PING_FIELDS overrides this default. A yes/no
+// field pings only on Yes. "material" since T2.29 (Carl, 30 Oct 2026): a Yes
+// on Material Pickups / Deliveries reaches the PM instead of sitting unread.
+var LOG_PING_DEFAULT = 'safety|incident|delay|material';
 
 function dailyLogFieldsQuery_() {
   return {
