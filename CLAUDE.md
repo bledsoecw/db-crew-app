@@ -279,6 +279,11 @@ regeneration, Linux only.
   "commit":"9a4dfd9"}`, `/jobs` and `/queue` answer 401 with no token or an
   old session token, and the next JobTread webhook ran on it without an
   error. The 6c6d5d1 deployment is the rollback if one is ever needed.
+  **T2.29 is live on the phones too**: Carl ran the one Git Bash chain (pull,
+  `clasp push -f`, `clasp deploy -i … -d "T2.29"`, `firebase deploy --only
+  hosting`); db-crews.web.app has served it since 13:03Z, after the server,
+  and his Diagnostics read App and API both `T2.29 (2026-10-30)`. T2.27 and
+  T2.28 reached the phones in the same deploy.
 - **Carl's calls on 30 Oct.** (1) The phone's own time is acceptable for
   payroll, so I1 — clock in with no signal, queued with the phone's time — is
   approved; build it after D15, so a resent clock-in cannot make two entries.
