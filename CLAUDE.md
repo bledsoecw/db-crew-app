@@ -236,3 +236,20 @@ regeneration, Linux only.
   copy from there, so the two switch over together within that window. A
   pave `update…` returns `root`: select the record under it with its own
   `$: { id }`, or the call is refused before it writes.
+
+## T2.28 (30 Oct 2026) — ten photos on an inspection
+
+- **"10 photo minimum, that includes 1 start and the 1 end"** (Carl) is read
+  as the CLOCK's start and end photos — the app's own words for them — not as
+  two labelled shots inside the inspection. The send comes before the end
+  photo (it is taken leaving the site, `endPhotoOwed`), so the inspection
+  asks for 10 − 1 (end) − 1 (start, if the clock took one at that job today)
+  and says so in a sentence. A visit with no start photo (clocked in
+  elsewhere first) needs nine. If Carl meant ten inside the inspection, it is
+  `coPhotosNeed` returning `CO_PHOTOS_TOTAL`, and the two tiles come out.
+- **The start photo counts only from `S.photos` on that phone** (tag
+  `before`, the job's id, today). A start photo taken on a partner's phone,
+  or before a sign-out wipe, is not seen and the crew are asked for nine.
+- The suites seed nine site photos now (`seedSite` default); the container's
+  clock at 1–2am UTC makes clock-test's "2 hours earlier" fall before
+  midnight and drop — the time of day, not the app.

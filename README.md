@@ -960,10 +960,19 @@ intuitive and easy to use and understand."*
   Start on its card: the code, the start photo, then straight into the work.
   On the clock at a Close Out job, *Open the inspection in Close Out ›* sits
   under the band. Start on a repair job lands on its repairs.
-- **A final inspection needs its site photos and final notes.** At least four
-  photos of how the site was left (`CO_SITE_PHOTOS_MIN`), and final notes,
-  said or typed, with their English. The roof's, the gutters' and the
-  siding's alike; *Before you send* names what is left.
+- **A final inspection needs its site photos and final notes.** Photos of
+  how the site was left — **ten in all, counting the clock's start photo and
+  end photo** (T2.28, Carl 30 Oct: *"10 photo minimum, that includes 1 start
+  and the 1 end"*; `CO_PHOTOS_TOTAL`). The start photo taken at that job
+  today shows first on the photos screen, tagged Start, and counts as one;
+  the end photo they take leaving is a slot at the end, *End photo · when
+  you leave*, and counts as another; so the inspection itself asks for eight,
+  or nine when there is no start photo there today (`coPhotosNeed`). And
+  final notes, said or typed, with their English. The roof's, the gutters'
+  and the siding's alike — each inspection on the job needs its own; *Before
+  you send* names what is left. The start and end photos stay where the
+  clock puts them, on the job in JobTread; only the inspection's own go to
+  the PM's Review sheet.
 - **Review & send is cards** — each section with every line and its answer,
   the problems with their notes and photos, the site photos as thumbnails,
   the final notes as said and in English — each shut until tapped, each with
@@ -975,8 +984,8 @@ intuitive and easy to use and understand."*
 - **The gutters and the siding have their own checklists** (DB CheckOut's
   `GUTTERS_FORM` / `SIDING_FORM`, written onto the area's own inspection task,
   shown on the board's Review sheet). A second roof — metal or low slope that
-  is not the line's — is still notes and photos, now with four photos and the
-  note required.
+  is not the line's — is still notes and photos, now with the same photo count
+  and the note required.
 
 `dev/clock-test.mjs`, `dev/daylog-test.mjs`, `dev/closeout-test.mjs`,
 `dev/signout-test.mjs` and `apps-script/code-test.mjs` walk it. **Needs:** the

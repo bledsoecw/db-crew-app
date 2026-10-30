@@ -685,6 +685,8 @@ button[disabled]{cursor:default}
 .galsm{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:6px;background:var(--surf);border:1px dashed var(--line2);color:var(--fg);font:600 10px/1.2 var(--mono);letter-spacing:.8px;text-transform:uppercase;padding:0 8px}
 .ph .rm{position:absolute;right:4px;top:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;display:flex;align-items:center;justify-content:center}
 .ph.add{background:var(--surf);border:2px dashed var(--line2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg);font:600 10px/1 var(--mono);letter-spacing:.9px;text-transform:uppercase}
+.ph.add.soon{color:var(--mut);border-style:dotted;text-align:center;padding:0 6px;line-height:1.25}
+.ph.clockph .src{background:var(--nav);color:#fff}
 .phbig{flex:1;min-width:0;height:150px;border-radius:8px;border:1px solid var(--line);background:var(--surf2) center/cover no-repeat;position:relative;padding:0}
 .phbig.empty{background:var(--surf);border:2px dashed var(--line2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:0 10px}
 .phbig.empty.need{border-color:var(--warn)}
@@ -1089,7 +1091,7 @@ button[disabled]{cursor:default}
    Same shape as DB Cam Mobile: vanilla JS, no build step, one
    file. Google sign-in -> Apps Script JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.27 (2026-10-29)';
+var APP_BUILD = 'T2.28 (2026-10-30)';
 var API_URL = (window.DBTC_CONFIG || {}).apiUrl || '';
 var GOOGLE_CLIENT_ID = (window.DBTC_CONFIG || {}).clientId || '';
 
@@ -7438,7 +7440,31 @@ function coSecScreen(sec){ return sec.key === 'inspection' ? 'inspect' : sec.key
    photos, the final notes, and Review & send. `CO.ctxArea` names the area
    being inspected — null is the roof's (or the only) inspection. A form the
    phone does not have reads as notes and photos, as an area did before. */
-var CO_SITE_PHOTOS_MIN = 4;
+/* Ten photos of the site in all (Carl, 30 Oct 2026: "10 photo minimum,
+   that includes 1 start and the 1 end"): the clock's start photo at this
+   job today is one, the end photo the clock takes as they leave is another,
+   and the inspection itself carries the rest — eight, or nine when there is
+   no start photo here today. The same for every inspection on the job. */
+var CO_PHOTOS_TOTAL = 10;
+function coStartPhoto(jobId){
+  var today = isoLocal();
+  return (S.photos || []).filter(function(p){ return p.jobId === jobId && p.tag === 'before' && isoLocal(new Date(p.at || 0)) === today; })[0] || null;
+}
+function coPhotosNeed(jobId){ return CO_PHOTOS_TOTAL - 1 - (coStartPhoto(jobId) ? 1 : 0); }
+function coPhotosHow(jobId){
+  return co(coStartPhoto(jobId) ? 'photosHow' : 'photosHowNoStart').replace('{n}', coPhotosNeed(jobId)).replace('{t}', CO_PHOTOS_TOTAL);
+}
+function coPhotosAll(){ return co('photosAll').replace('{t}', CO_PHOTOS_TOTAL) + ' · ' + co('required'); }
+/* The two clock photos beside the inspection's own: the start photo as it
+   was taken, and a slot for the end photo still to come. Neither is a
+   button — the start photo is the clock's, and the end photo is taken when
+   they leave. */
+function coStartTileHtml(jobId){
+  var sp = coStartPhoto(jobId);
+  if (!sp) return '';
+  return '<div class="ph clockph" style="background-image:url(' + sp.thumb + ')"><span class="src">' + esc(co('startTile')) + '</span><span class="tag">' + esc(clockLabel(sp.at)) + '</span></div>';
+}
+function coEndTileHtml(){ return '<div class="ph add soon">' + ico('camera', 22) + '<span>' + esc(co('endTile')) + '</span></div>'; }
 function coAreaForm(j, a){
   if (!a || !a.form || a.form === 'roof' || a.form === 'notes') return null;
   if (j && j.forms && coFormOk(j.forms[a.form])) return j.forms[a.form];
@@ -7568,7 +7594,10 @@ coAdd({
         cardOk: 'OK', cardNa: 'N/A', cardFix: 'Fix', noNote: 'No note', photosN: 'photos', problemsNone: 'No problems reported',
         nextArea: 'Next: {area} inspection ›', backToList: 'Back to my list ›', yours: 'Your inspections on this job', areaChecklist: 'checklist',
         fixedOnSite: 'fixed on site', needsReturn: 'needs a return', noPhotosYet: 'No photos yet',
-        areaHintList: 'Go through its checklist, take the site photos and say your final notes. The PM reviews it on the board.' },
+        areaHintList: 'Go through its checklist, take the site photos and say your final notes. The PM reviews it on the board.',
+        photosAll: '{t} in all with your start and end photos', startTile: 'Start', endTile: 'End photo · when you leave',
+        photosHow: 'Your start photo counts as one and your end photo as you leave as another — take {n} here.',
+        photosHowNoStart: 'No start photo here today, so take {n} here — your end photo as you leave makes {t}.' },
   es: { sitePhotos: 'Fotos de la obra', sitePhotosSub: 'cómo quedó la obra — frente, atrás, los dos lados, la entrada y las jardineras', atLeast: 'mínimo {n}',
         finalNotes: 'Notas finales', finalNotesSub: 'cómo lo dejaste, y lo que el PM deba saber', finalNotesPh: 'Di o escribe cómo quedó el trabajo',
         needPhotos: 'fotos de la obra ({n} de {m})', needFinal: 'notas finales',
@@ -7578,7 +7607,10 @@ coAdd({
         cardOk: 'Bien', cardNa: 'N/A', cardFix: 'Falla', noNote: 'Sin nota', photosN: 'fotos', problemsNone: 'Ningún problema reportado',
         nextArea: 'Siguiente: inspección de {area} ›', backToList: 'Regresar a mi lista ›', yours: 'Tus inspecciones en este trabajo', areaChecklist: 'lista de revisión',
         fixedOnSite: 'arreglado en el lugar', needsReturn: 'falta regresar', noPhotosYet: 'Sin fotos todavía',
-        areaHintList: 'Revisa su lista, toma las fotos de la obra y di tus notas finales. El PM lo revisa en el tablero.' }
+        areaHintList: 'Revisa su lista, toma las fotos de la obra y di tus notas finales. El PM lo revisa en el tablero.',
+        photosAll: '{t} en total con tus fotos de inicio y de salida', startTile: 'Inicio', endTile: 'Foto de salida · al irte',
+        photosHow: 'Tu foto de inicio cuenta como una y tu foto de salida al irte como otra — toma {n} aquí.',
+        photosHowNoStart: 'Hoy no hay foto de inicio aquí, así que toma {n} aquí — tu foto de salida al irte completa las {t}.' }
 }); /* CO-T227 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
@@ -7626,7 +7658,8 @@ function coMissingCtx(ctx){
   ctx.form.sections.forEach(function(x){ var left = x.items.length - coCountA(ctx.answers, x.items, x.key); if (left > 0) m.push(coSecLabel(x).toLowerCase() + ' (' + left + ')'); });
   var unreported = coCtxUnreported(ctx);
   if (unreported.length) m.push(co('fixK').split(' ·')[0].toLowerCase() + ' ' + unreported.map(function(i){ return i.n; }).join(', '));
-  if (ctx.photos.length < CO_SITE_PHOTOS_MIN) m.push(co('needPhotos').replace('{n}', ctx.photos.length).replace('{m}', CO_SITE_PHOTOS_MIN));
+  var need = coPhotosNeed(ctx.target.jobId);
+  if (ctx.photos.length < need) m.push(co('needPhotos').replace('{n}', ctx.photos.length).replace('{m}', need));
   if (!String(ctx.fin.note || '').trim()) m.push(co('needFinal'));
   return m;
 }
@@ -7646,7 +7679,8 @@ function coBlockersCtx(ctx){
     if (left > 0) out.push({ go: coSecScreen(x), t: coSecLabel(x) + ' · ' + left + ' ' + co('whyLeft'), s: co('whyAnswer') });
   });
   coCtxUnreported(ctx).forEach(function(i){ out.push({ report: i.key, t: co('whyFix') + ' ' + i.n, s: coLabel(i) }); });
-  if (ctx.photos.length < CO_SITE_PHOTOS_MIN) out.push({ go: 'photos', t: co('whyPhotos2').replace('{n}', CO_SITE_PHOTOS_MIN - ctx.photos.length), s: co('whyPhotos2Sub') });
+  var need = coPhotosNeed(ctx.target.jobId);
+  if (ctx.photos.length < need) out.push({ go: 'photos', t: co('whyPhotos2').replace('{n}', need - ctx.photos.length), s: coPhotosHow(ctx.target.jobId) });
   if (!String(ctx.fin.note || '').trim()) out.push({ go: 'final', t: co('whyFinal'), s: co('whyFinalSub') });
   return out;
 }
@@ -8625,13 +8659,14 @@ function coJobHtml(){
   return h;
 }
 /* The tiles of one inspection (T2.27): its sections, Problems, the site
-   photos (at least four, required) and the final notes (required). */
+   photos (ten in all with the start and end photos, required) and the
+   final notes (required). */
 function coCtxTilesHtml(ctx){
-  var reps = ctx.reports.length, ph = ctx.photos.length, fin = String(ctx.fin.note || '').trim();
+  var reps = ctx.reports.length, ph = ctx.photos.length, need = coPhotosNeed(ctx.target.jobId), fin = String(ctx.fin.note || '').trim();
   return ctx.form.sections.map(function(x){ var c = coCountA(ctx.answers, x.items, x.key), n = x.items.length;
       return coTile(coSecScreen(x), coSecLabel(x), coSecLabel2(x) + ' · ' + n + ' ' + co('points'), c + ' ' + co('of') + ' ' + n, c === n ? 'all' : c ? 'warn' : ''); }).join('') +
     coTile('problems', co('problems'), co2('problems') + ' · ' + co('optional') + ' · ' + co('withPhoto'), reps ? String(reps) : '—', reps ? 'warn' : '') +
-    coTile('photos', co('sitePhotos'), co('atLeast').replace('{n}', CO_SITE_PHOTOS_MIN) + ' · ' + co('required'), ph + ' / ' + CO_SITE_PHOTOS_MIN, ph >= CO_SITE_PHOTOS_MIN ? 'all' : ph ? 'warn' : '') +
+    coTile('photos', co('sitePhotos'), coPhotosAll(), ph + ' / ' + need, ph >= need ? 'all' : ph ? 'warn' : '') +
     coTile('final', co('finalNotes'), co('finalNotesSub') + ' · ' + co('required'), fin ? '✓' : '—', fin ? 'all' : '');
 }
 /* The Review & send button and the line under it: never a dead grey
@@ -8745,16 +8780,19 @@ function coProblemsHtml(){
   h += '<button class="btn btn-nav" id="coNewReport" style="margin-top:14px">' + esc(co('newReport')) + '</button>';
   return h;
 }
-/* The site photos (T2.27): at least four of how it was left — the PM reads
-   cleanliness off them. The camera, or the phone's own photos. */
+/* The site photos (T2.27): how it was left — the PM reads cleanliness off
+   them. Ten in all with the clock's start and end photos (CO_PHOTOS_TOTAL);
+   the camera, or the phone's own photos. */
 function coPhotosHtml(){
-  var ctx = coCtx(), target = JSON.stringify(ctx.target), n = ctx.photos.length, left = Math.max(0, CO_SITE_PHOTOS_MIN - n);
-  return '<div class="k" style="margin-top:6px">' + esc(co('sitePhotos')) + ' — <span style="color:var(--ckamber)">' + esc(co('atLeast').replace('{n}', CO_SITE_PHOTOS_MIN) + ' · ' + co('required')) + '</span></div>' +
-    '<div class="foot" style="text-align:left;margin-top:6px">' + esc(co('sitePhotosSub')) + '</div><div class="photos">' +
+  var ctx = coCtx(), jobId = ctx.target.jobId, target = JSON.stringify(ctx.target), n = ctx.photos.length, need = coPhotosNeed(jobId), left = Math.max(0, need - n);
+  return '<div class="k" style="margin-top:6px">' + esc(co('sitePhotos')) + ' — <span style="color:var(--ckamber)">' + esc(coPhotosAll()) + '</span></div>' +
+    '<div class="foot" style="text-align:left;margin-top:6px">' + esc(co('sitePhotosSub')) + '</div>' +
+    '<div class="foot" id="coPhotosHow" style="text-align:left;margin-top:6px;color:var(--fg)">' + esc(coPhotosHow(jobId)) + '</div><div class="photos">' +
+    coStartTileHtml(jobId) +
     ctx.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
     '<button class="ph add' + (left ? ' need' : '') + '" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(n ? co('anotherPhoto') : co('photo')) + '</button>' +
-    '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>' +
-    '<div class="foot" id="coPhotosLeft" style="text-align:left;margin-top:10px' + (left ? ';color:var(--ckamber)' : '') + '">' + esc(n + ' / ' + CO_SITE_PHOTOS_MIN) + '</div>' +
+    '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button>' + coEndTileHtml() + '</div>' +
+    '<div class="foot" id="coPhotosLeft" style="text-align:left;margin-top:10px' + (left ? ';color:var(--ckamber)' : '') + '">' + esc(n + ' / ' + need) + '</div>' +
     '<button class="btn btn-nav" id="coNext" data-next="final" style="margin-top:16px">' + esc(co('next') + ': ' + co('finalNotes') + ' ›') + '</button>';
 }
 /* The final notes (T2.27): required, said or typed, with the English for
@@ -8815,8 +8853,10 @@ function coReviewCardsHtml(ctx){
     reps.length ? reps.map(function(o){ var r = o.r, it = coItemByKey(r.itemKey);
       return '<button class="rvc-rep" data-coedit="' + o.i + '" data-cofrom="send"><div class="rvi" style="border:0;padding:0"><span class="n">' + esc(it ? it.n : '!') + '</span><span class="l">' + esc(it ? coLabel(it) : (r.locationWords || co('problems'))) + '</span><span class="a ' + (r.fixed ? 'ok' : 'fix') + '">' + esc(co(r.fixed ? 'fixedOnSite' : 'needsReturn')) + '</span></div>' +
              coRvSaid(r) + coRvThumbs(r.photos || []) + '</button>'; }).join('') : '<div class="rvc-note" style="color:var(--mut)">' + esc(co('problemsNone')) + '</div>', 'problems');
-  var ph = ctx.photos.length;
-  h += coRvCard('photos', co('sitePhotos'), ph + ' / ' + CO_SITE_PHOTOS_MIN, ph >= CO_SITE_PHOTOS_MIN ? 'good' : 'warn', ph ? coRvThumbs(ctx.photos) : '<div class="rvc-note" style="color:var(--mut)">' + esc(co('noPhotosYet')) + '</div>', 'photos');
+  var ph = ctx.photos.length, need = coPhotosNeed(ctx.target.jobId), sp = coStartPhoto(ctx.target.jobId);
+  h += coRvCard('photos', co('sitePhotos'), ph + ' / ' + need, ph >= need ? 'good' : 'warn',
+    (ph || sp ? coRvThumbs((sp ? [sp] : []).concat(ctx.photos)) : '<div class="rvc-note" style="color:var(--mut)">' + esc(co('noPhotosYet')) + '</div>') +
+    '<div class="rvc-note" style="color:var(--mut)">' + esc(coPhotosHow(ctx.target.jobId)) + '</div>', 'photos');
   var fin = String(ctx.fin.note || '').trim();
   h += coRvCard('final', co('finalNotes'), fin ? '✓' : '—', fin ? 'good' : 'warn', coRvSaid(ctx.fin), 'final');
   return h;
@@ -8986,10 +9026,13 @@ function coAreaHtml(){
   }
   h += '<div class="foot" style="text-align:left;margin-top:12px">' + esc(co('areaHint')) + '</div>';
   var target = JSON.stringify({ kind: 'area', jobId: j.id, area: a.key });
-  h += '<div class="k" style="margin-top:14px">' + esc(co('areaPhotosK')) + ' — <span style="color:var(--ckamber)">' + esc(co('atLeast').replace('{n}', CO_SITE_PHOTOS_MIN) + ' · ' + co('required')) + '</span> · ' + esc(co2('areaPhotosK').toLowerCase()) + '</div>';
-  h += '<div class="photos">' + av.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+  var need = coPhotosNeed(j.id);
+  h += '<div class="k" style="margin-top:14px">' + esc(co('areaPhotosK')) + ' — <span style="color:var(--ckamber)">' + esc(coPhotosAll()) + '</span> · ' + esc(co2('areaPhotosK').toLowerCase()) + '</div>';
+  h += '<div class="foot" style="text-align:left;margin-top:6px;color:var(--fg)">' + esc(coPhotosHow(j.id)) + '</div>';
+  h += '<div class="photos">' + coStartTileHtml(j.id) + av.photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
        '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(av.photos.length ? co('anotherPhoto') : co('photo')) + '</button>' +
-       '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
+       '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button>' + coEndTileHtml() + '</div>';
+  h += '<div class="foot" style="text-align:left;margin-top:8px' + (av.photos.length < need ? ';color:var(--ckamber)' : '') + '">' + esc(av.photos.length + ' / ' + need) + '</div>';
   h += '<div class="k" style="margin-top:22px">' + esc(co('areaNoteK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span> · ' + esc(co2('areaNoteK').toLowerCase()) + '</div>';
   h += '<div class="talkrow">' + recBtnHtml('coAreaNote', 'coAreaRec') + '<button class="talkbtn type" id="coAreaType">' + ico('keyboard', 22) + esc(co('type')) + '</button></div>';
   h += '<div class="story' + (av.note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coAreaNote" placeholder="' + esc(co('note')) + '" rows="3">' + esc(av.note || '') + '</textarea></div>';
@@ -9000,9 +9043,9 @@ function coAreaHtml(){
   if (reps.length) h += '<div class="jcard" style="margin-top:6px">' + reps.map(function(x){ var r = x.r;
     return '<button class="rep" data-coedit="' + x.i + '" data-cofrom="area"><span class="dot">›</span><span class="bi"><span class="es">' + esc(r.locationWords || co('problems')) + '</span><span class="en">' + esc((r.noteEn || r.note || '').slice(0, 90)) + (r.fixed ? ' · ' + esc(co('fixed')) : '') + ' · ' + (r.photos || []).length + ' ' + esc(co('photo').toLowerCase()) + '</span></span></button>'; }).join('') + '</div>';
   h += '<button class="btn btn-nav" id="coAreaReport" style="margin-top:10px">' + esc(reps.length ? co('newReport') : co('reportOne')) + '</button>';
-  var busy = CO.areaSending === a.key, noteOk = !!String(av.note || '').trim(), photoOk = av.photos.length >= CO_SITE_PHOTOS_MIN, can = photoOk && noteOk && !busy;
+  var busy = CO.areaSending === a.key, noteOk = !!String(av.note || '').trim(), photoOk = av.photos.length >= need, can = photoOk && noteOk && !busy;
   h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coAreaSend" style="margin-top:22px"' + (can ? '' : ' disabled') + '>' + esc(busy ? co('sending') : co('finishSend')) + '</button>';
-  h += '<div class="foot">' + esc(can || busy ? coWhatNext(j, reps.some(function(x){ return !x.r.fixed; })) : co('missing') + ': ' + [photoOk ? '' : co('needPhotos').replace('{n}', av.photos.length).replace('{m}', CO_SITE_PHOTOS_MIN), noteOk ? '' : co('note').toLowerCase()].filter(Boolean).join(' · ')) + '</div>';
+  h += '<div class="foot">' + esc(can || busy ? coWhatNext(j, reps.some(function(x){ return !x.r.fixed; })) : co('missing') + ': ' + [photoOk ? '' : co('needPhotos').replace('{n}', av.photos.length).replace('{m}', need), noteOk ? '' : co('note').toLowerCase()].filter(Boolean).join(' · ')) + '</div>';
   return h;
 }
 
@@ -9176,7 +9219,7 @@ function coWire(){
     an.onblur = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); coAfterTap(function(){ coToEnglish(av); coRender(); }); }; autoGrow(an); }
   var aty = $('coAreaType'); if (aty) aty.onclick = function(){ var ta = $('coAreaNote'); if (ta) ta.focus(); };
   var arp = $('coAreaReport'); if (arp) arp.onclick = function(){ coStartReport('', 'area', CO.areaKey); };
-  var asd = $('coAreaSend'); if (asd) asd.onclick = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); if (av.photos.length < CO_SITE_PHOTOS_MIN || !String(av.note || '').trim() || CO.areaSending) return; coSendArea(CO.jobId, CO.areaKey); };
+  var asd = $('coAreaSend'); if (asd) asd.onclick = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); if (av.photos.length < coPhotosNeed(CO.jobId) || !String(av.note || '').trim() || CO.areaSending) return; coSendArea(CO.jobId, CO.areaKey); };
   var abk = $('coAreaBack'); if (abk) abk.onclick = function(){ CO.receipt = null; coGo('job'); };
   var dn = $('coDone'); if (dn) dn.onclick = function(){ var v = coVisit(CO.jobId); if (coRepairMissing(v, CO.taskId).length) return; if (dlRec.want) dlRecStop(); dn.disabled = true; coFinishRepair(CO.jobId, CO.taskId); };
 }
