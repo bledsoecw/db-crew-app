@@ -302,8 +302,12 @@ regeneration, Linux only.
   contract).
 - **DB CheckOut's retired door**: `/auth/google`, `/auth/config` and session
   tokens are gone; `SESSION_SECRET` and `GOOGLE_CLIENT_ID` are no longer read
-  and can be deleted from its Vercel project. `GOOGLE_ALLOWED_EMAILS` still
-  is — it gates who DB Crew may act for. `public/` is a notice plus a
+  and Carl deleted both from its Vercel project on 30 Oct 2026 (no redeploy:
+  the live deployment never read them). `GOOGLE_ALLOWED_EMAILS` still is
+  read — it gates who DB Crew may act for. **Not to be confused with DB
+  Crew's own `SESSION_SECRET`**, a Script Property on the Apps Script that
+  signs every crew member's 30-day session (SETUP.md): same name, different
+  system, and deleting that one signs everybody out. `public/` is a notice plus a
   service worker that clears the old app off any phone that installed it.
 - **Two tests fail here and on T2.26 alike**, in this container: push-test
   (6/14, the test setup serves no Firebase files) and code-test's "…and back
