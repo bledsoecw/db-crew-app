@@ -354,6 +354,13 @@ regeneration, Linux only.
   gives the phone something new to depend on, and the phone's when it starts
   using it — Diagnostics warns while the server is behind. A server that
   reports no level is only called behind once the phone needs more than 1.
+  **The server half is live**: at 14:19Z on 30 Oct 2026 (Carl: *"go, deploy
+  the server now"*) `main` was fast-forwarded to 4387f3f,
+  `dpl_2aGXqxaGeoKH1gpwt7irLFCFnrQR`, and `/health` answered
+  `{"source":"d6a0b17cca5b","on":"vercel","commit":"4387f3f"}` with
+  `"contract":1`; `/jobs` and `/queue` still 401 with no token, and no runtime
+  errors. The 9a4dfd9 deployment (`dpl_FZqdWNtdudKHKYk5NZNqf1swmZ3X`) is the
+  rollback. The Apps Script and the phone wait on Carl's chain.
 - **The server half of the shared-phone fix** reads every Script Property
   (`getProperties()`) to find the same token under someone else. Fine at this
   size; it is O(properties) per registration.
