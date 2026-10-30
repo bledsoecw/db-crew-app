@@ -428,7 +428,8 @@ regeneration, Linux only.
 - **The mock grew switches**: `__MOCK_NONET` (no signal: every call and
   upload fails before it reaches anything), `__MOCK_LOSTREPLY = N` (the next
   N writes with an id are done and their answers lost), `__MOCK_QREFUSE` (a
-  kept clock-in refused: words alone, or `{ why, at }` as Code.gs sends it),
+  kept clock-in refused: words alone, or `{ why, at }` as Code.gs sends it;
+  `open: true` also puts them on the clock at `at`, as the office would have),
   and records `__RIDS` ([fn,
   rid] per call) and `__QUEUED` (each kept clock-in the API was sent). It
   dedupes by id the way Code.gs does, from a snapshot of the first answer.
