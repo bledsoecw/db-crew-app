@@ -264,8 +264,9 @@ regeneration, Linux only.
   D13, D17, D18, I4, I7) is T2.29 here and DB CheckOut's 30 Oct commit; Step 2
   (D6, D7, D8, D14, D16, I3) is T2.30; the first half of Step 3 (I2, D15,
   I1) is T2.31, live 30 Oct; the second half (I5, I6, I9, with D13
-  report-only, D19 and D20) is T2.32. What is left: switching the security
-  policy on, once Diagnostics on phones in use shows nothing it would block.
+  report-only, D19 and D20) is T2.32, live 30 Oct. What is left: switching
+  the security policy on, once Diagnostics on phones in use shows nothing it
+  would block.
 - **A correction the earlier notes needed.** DB CheckOut's served form
   (41a843f) and its gutter/siding checklists, `REPAIR` photos and final notes
   (6c6d5d1) were merged and "deployed" on 29 Oct but never ran: its
@@ -502,4 +503,11 @@ regeneration, Linux only.
   `npm install` there replaces the link with a real folder and every script
   stops resolving it; install tools in a subfolder with its own
   `package.json`.
-
+- **T2.32 is live**: Carl ran the one chain (`clasp deploy … -d "T2.32"`,
+  `firebase deploy --only hosting`, which ran `check-build.mjs` for the first
+  time); db-crews.web.app has served it since 18:03Z on 30 Oct 2026 —
+  `index.html`, `sw.js` and `app.js?b=T2.32` byte-identical to the branch,
+  `/` and `/index.html` answering `no-cache` with the report-only policy — and
+  his Diagnostics read App and API both T2.32. `check-build.mjs` run against
+  the live site afterwards says "T2.32 is already live and app.js is
+  unchanged", as it should.
