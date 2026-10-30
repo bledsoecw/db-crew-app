@@ -273,6 +273,12 @@ regeneration, Linux only.
   Since then Vercel builds the bundle on every deploy, and `GET /health` on
   closeout.deitemeyerbrothers.com shows `build.on: "vercel"` with the commit —
   **read that after any Close Out deploy** rather than trusting the merge.
+  That deploy went live at 12:51Z on 30 Oct 2026 (Carl: *"go, deploy the
+  server now"*), `dpl_FZqdWNtdudKHKYk5NZNqf1swmZ3X`, a fast-forward of `main`
+  to 9a4dfd9: `/health` answered `{"source":"fe1dbffda4aa","on":"vercel",
+  "commit":"9a4dfd9"}`, `/jobs` and `/queue` answer 401 with no token or an
+  old session token, and the next JobTread webhook ran on it without an
+  error. The 6c6d5d1 deployment is the rollback if one is ever needed.
 - **Carl's calls on 30 Oct.** (1) The phone's own time is acceptable for
   payroll, so I1 — clock in with no signal, queued with the phone's time — is
   approved; build it after D15, so a resent clock-in cannot make two entries.
