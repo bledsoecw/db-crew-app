@@ -709,3 +709,15 @@ regeneration, Linux only.
 - **Not done on purpose**: the push for anyone outside service and Operations
   (I13, Close Out for anyone assigned, is Step 3); the schedule pushes are
   still English ("Tomorrow", "Schedule changed").
+- **The server half is live**: at 18:50Z on 2 Nov 2026 (Carl: *"go, deploy
+  the server now"*) DB CheckOut's `main` was fast-forwarded to 831136a,
+  `dpl_CWU9ZMs7gP7zzHuvhn7MDmpXdUMe`, and `/health` on
+  closeout.deitemeyerbrothers.com answered
+  `{"source":"157fcfa809fc","on":"vercel","commit":"831136a"}` with
+  `"contract":3`; `/queue`, `/jobs` and `/assigned` answer the API's own 401
+  with no token, and there were no runtime errors. The eb84c5a deployment
+  (`dpl_E4f2y8XqVaVUdVjU8dKKt891ekWQ`) is the rollback. Until the T2.34
+  phones are out, the T2.33 phones work against it as before: an N/A they
+  send is written as a bare ` — n/a`, and their camera photos keep the upload
+  time. Until the board's `main` carries the Review sheet change, the new line
+  names show there as raw text beside Done.
