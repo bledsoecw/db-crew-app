@@ -221,7 +221,7 @@ const queued = (page) => page.evaluate(() => idbAll().then((a) => a.map((x) => x
   const tbl = await txt(page, '#verTbl');
   // The phone's own build, whatever it is now (T2.31: not pinned to T2.30).
   const appBuild = await page.evaluate(() => APP_BUILD);
-  check('I3: the phone, the API and the Close Out server, side by side', [tbl.replace(/\s+/g, '').indexOf('App' + appBuild.replace(/\s+/g, '')) > -1, /Close Out\s*9a4dfd9 · built on deploy · contract 1/.test(tbl), await page.locator('#verWarn').isHidden()], [true, true, true]);
+  check('I3: the phone, the API and the Close Out server, side by side', [tbl.replace(/\s+/g, '').indexOf('App' + appBuild.replace(/\s+/g, '')) > -1, /Close Out\s*9a4dfd9 · built on deploy · contract 2/.test(tbl), await page.locator('#verWarn').isHidden()], [true, true, true]);
   await page.evaluate(() => {
     window.__MOCK_BUILDS = { api: 'T2.29 (2026-10-30)', closeOut: { configured: true, ok: true, build: { source: 'x', on: 'local', commit: '6c6d5d1' }, deployed: '6c6d5d1', contract: 0 } };
     return loadBuilds();
@@ -235,7 +235,10 @@ const queued = (page) => page.evaluate(() => idbAll().then((a) => a.map((x) => x
     await page.evaluate(() => [...document.querySelectorAll('#verTbl .trow .nm')].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent)), []);
   await page.evaluate(() => { window.__MOCK_BUILDS = { api: APP_BUILD, closeOut: { configured: true, ok: true, build: { on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: null } }; return loadBuilds(); });
   await page.waitForTimeout(300);
-  check('a server that does not report a level yet is not called behind', await page.locator('#verWarn').isHidden(), true);
+  // Since T2.33 the phone needs level 2, so a server that reports no level at all
+  // (older than T2.30) is behind, and said to be.
+  check('a server that does not report a level is called behind once the phone needs more than 1',
+    [await page.locator('#verWarn').isVisible(), /contract not reported, needs 2/.test(await page.locator('#verWarn').textContent())], [true, true]);
   check('no page errors (I3)', errs, []);
   await ctx.close();
 }

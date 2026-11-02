@@ -817,16 +817,19 @@ const stayDay = (() => { const s = new Date(); s.setDate(s.getDate() - 1); const
 
 // ---- the review's findings (28 Oct): nothing left half-done, no night as a drive ----
 {
-  // Yesterday's block, Already left on the camera of a move: out on that day,
-  // then the next job's clock-in from scratch — never a drive from last night.
+  // Yesterday's block and a move (T2.33, audit D21): Move to another job asks
+  // when they left that day first — out on that day, then the next job's
+  // clock-in from scratch, never a drive from last night.
   const { ctx, page, errs } = await boot('window.__MOCK_OPEN_YESTERDAY=true;');
-  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
-  await tap(page, '[data-move="left"]', 500);
+  await tap(page, '#pickJobBtn', 500);
+  check('yesterday\'s block: Move to another job asks when they left, first', [await page.evaluate(() => [S.sheet, S.leftGate]), await page.locator('#leftTime').isVisible()], [['left', 'overnight'], true]);
   await page.locator('#leftTime').fill('16:30'); await page.waitForTimeout(200);
   await tap(page, '#leftGo', 300);
-  await page.waitForFunction(() => S.sheet === 'codes' && document.body.style.pointerEvents === '', null, { timeout: 10000 });
+  await page.waitForFunction(() => !S.open && document.body.style.pointerEvents === '', null, { timeout: 10000 });
   let c = (await calls(page)).slice(-1)[0];
-  check('yesterday\'s block on a move: out on its day, and no drive', [c[0], c[2], await page.evaluate(() => [!!S.open, S.job.id, !!S.switching, S.pendingJob])], ['leftSite', 'out', [false, 'j2', false, null]]);
+  check('yesterday\'s block on a move: out on its day, and no drive', [c[0], c[2], await page.evaluate(() => [!!S.open, !!S.switching, S.pendingJob])], ['leftSite', 'out', [false, false, null]]);
+  await tap(page, '#pickJobBtn', 500); await tap(page, '.jobrow[data-job="j2"]', 500);
+  await tap(page, '#clockIn', 400);
   await tap(page, '.coderow:has-text("Masonry Labor")', 500); await shoot(page); await settle(page);
   c = (await calls(page)).slice(-1)[0];
   check('…then a plain clock-in where they are', c.slice(0, 3), ['clockIn', 'j2', 'ci9']);

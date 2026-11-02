@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="T2.32">
+<html lang="en" data-build="T2.33">
 <head>
 <meta charset="utf-8">
 <title>DB Crew</title>
@@ -143,6 +143,8 @@ button[disabled]{cursor:default}
 .cbtn{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:10px 8px;border-radius:8px;border:2px solid var(--line2);background:var(--surf);color:var(--fg);font:800 17px/1.1 var(--head);letter-spacing:.5px;text-transform:uppercase;text-align:center}
 .cbtn.leave{border-color:var(--nav);background:var(--nav);color:#fff}
 .cbtn.out{border-color:var(--stop);background:var(--stop);color:var(--stopfg)}
+/* A block from a day before (T2.33): the buttons wait, dimmed, and each asks when they left first. */
+#runStack.wait .clkgrid .cbtn{opacity:.42}
 #photoBtn{gap:11px}
 .clkrow2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .clkrow2 .btn{font-size:15px;letter-spacing:.5px;gap:9px}
@@ -386,7 +388,7 @@ button[disabled]{cursor:default}
 .jck.green{color:var(--acc)}
 .jbtn{min-height:var(--tap);width:100%;display:flex;align-items:center;justify-content:space-between;gap:11px;padding:0 16px;border-top:1px solid var(--line);background:var(--surf2);color:var(--fg);font:700 15px/1 var(--head);letter-spacing:.6px;text-transform:uppercase;text-align:left}
 /* A material load already recorded. No tick glyph: the self-hosted face draws
-   U+2713 as a radical sign, so the state is the colour and the words. */
+   U+2713 as a radical sign, so the state is the color and the words. */
 .jbtn.ok{color:var(--acc)}
 .jbtn[disabled]{opacity:.55}
 .jbtn-k{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);flex:none}
@@ -1127,6 +1129,6 @@ html{touch-action:manipulation}
   </div>
 </div>
 
-<script src="app.js?b=T2.32"></script>
+<script src="app.js?b=T2.33"></script>
 </body>
 </html>

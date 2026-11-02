@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.32 (2026-10-30)';
+var APP_BUILD = 'T2.33 (2026-11-02)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -351,6 +351,8 @@ function apiAttempt(fn, args, attempt, co){
     err.noAccess = !!(j && j.noAccess);
     err.busy = !!(j && j.busy);   // the same write is still at work there (T2.31): ask again later
     err.refuse = (j && j.refuse) || null;   // why a kept clock-in was not added, as data (T2.31)
+    err.stale = (j && j.stale) || null;     // a block still open from a day before (T2.33)
+    err.notOn = !!(j && j.notOn);           // the clock had already ended elsewhere (T2.33)
     err.answered = true;   // the server gave a real reply; asking again changes nothing
     throw err;
   }).catch(function(e){
@@ -369,6 +371,9 @@ function apiAttempt(fn, args, attempt, co){
     // of an older token (the Google one, traded meanwhile) changes nothing.
     if (e.auth && sentTok && sentTok === AUTH.token) authRefused(e.authInfo);
     else if (e.auth && !sentTok && $('gate').classList.contains('hidden')) requireSignIn('Sign in to continue.');
+    // The phone's idea of the clock is out of date (T2.33): read it again, and
+    // a block from a day before is asked about at once.
+    if (e.stale || e.notOn) setTimeout(function(){ clockReread(true).then(function(){ if (e.stale) leftAsk(); }); }, 0);
     if (e.noAccess) {
       $('gate').classList.remove('hidden');
       $('app').classList.add('hidden');
@@ -1067,6 +1072,9 @@ function renderClock(){
   $('clockIn').style.opacity = S.job ? 1 : .45;
   var drive = on && onTravel();
   $('runStack').classList.toggle('hidden', !on || drive);
+  // Dimmed only while a block from a day before is open (T2.33): set here, so
+  // it never outlives that block whichever branch below draws the screen.
+  $('runStack').classList.toggle('wait', on && !drive && leftOvernight());
   $('coJump').classList.add('hidden');
   $('travelStack').classList.toggle('hidden', !drive);
   $('stopFoot').classList.toggle('hidden', !on);
@@ -1074,6 +1082,9 @@ function renderClock(){
   $('band').classList.toggle('paused', paused || legacy);
   $('backBtn').textContent = L(legacy ? 'Back to work' : 'End break');
   $('breakFoot').classList.toggle('hidden', legacy);
+  // Started earlier is for a block just begun, never a break or a drive
+  // (T2.33, audit D27): every branch below that keeps it shows it again.
+  $('earlierBtn').classList.add('hidden');
   if (paused){
     // Counting down to the block JobTread already has waiting.
     var b = S.brk && S.brk.entryId === S.open.id ? S.brk : null, c = S.open.code, num = (c && c.number) || L('the code');
@@ -1118,7 +1129,8 @@ function renderClock(){
     $('elapsed').textContent = hms(openSeconds());
     $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
     $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
-    $('bandSub').textContent = Lf('Since {t} · on {j}’s travel line', { t: clockLabel(S.open.startedAt), j: jobWord(S.job) });
+    $('bandSub').textContent = startedBefore() ? Lf('Since {d}, {t} · on {j}’s travel line', { d: dayWords(new Date(S.open.startedAt)), t: clockLabel(S.open.startedAt), j: jobWord(S.job) })
+      : Lf('Since {t} · on {j}’s travel line', { t: clockLabel(S.open.startedAt), j: jobWord(S.job) });
     var stale = leftOvernight();
     var rc = sup ? supplyReturn() : null;
     var coa = !stale && !sup && !back ? coArrival(S.job) : '';
@@ -1144,7 +1156,9 @@ function renderClock(){
   $('bandCodeN').textContent = (S.open.code && S.open.code.number) || '';
   $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
   var n = codePhotos().length;
-  $('bandSub').textContent = Lf(hasTag('before') ? 'Started {t} with a start photo' : 'Started {t}', { t: clockLabel(S.open.startedAt) }) +
+  $('bandSub').textContent = (startedBefore()
+      ? Lf(hasTag('before') ? 'Started {d}, {t} with a start photo' : 'Started {d}, {t}', { d: dayWords(new Date(S.open.startedAt)), t: clockLabel(S.open.startedAt) })
+      : Lf(hasTag('before') ? 'Started {t} with a start photo' : 'Started {t}', { t: clockLabel(S.open.startedAt) })) +
                              ' · ' + Lf(n === 1 ? '{n} photo on this code' : '{n} photos on this code', { n: n });
   // Kept on the phone with no signal (T2.31): the clock runs, and says so.
   if (S.open.kept){
@@ -1163,7 +1177,11 @@ function renderClock(){
   $('tpmBtn').classList.toggle('hidden', atShop());
   $('tpmBtn').parentNode.classList.toggle('one', atShop());
   $('earlierBtn').classList.toggle('hidden', !earlierBlock() || !!S.open.kept);
-  $('stopFoot').textContent = S.open.kept ? L('Your clock-in is on this phone. Clocking out, a break and moving wait until it has gone to JobTread.')
+  // From a day before (T2.33): the buttons are dimmed and each asks first.
+  var stale = leftOvernight();
+  $('runStack').classList.toggle('wait', stale);
+  $('stopFoot').textContent = stale ? Lf('Say when you left on {d} first. The buttons wait until then.', { d: dayWords(new Date(S.open.startedAt)) })
+    : S.open.kept ? L('Your clock-in is on this phone. Clocking out, a break and moving wait until it has gone to JobTread.')
     : L(atShop() ? 'At the shop no photo is asked for.'
     : 'A start photo when you start here, an end photo when you leave for the day — nothing in between.');
 }
@@ -1282,8 +1300,10 @@ function pushWords(){
    contract level it needs; DB CheckOut's /health says the level it offers.
    Raise CO_CONTRACT_NEED in the change that starts to depend on something
    new from that server, and Diagnostics warns while the server is behind —
-   the way a stale server went unseen for days in October. */
-var CO_CONTRACT_NEED = 1;
+   the way a stale server went unseen for days in October. 2 (T2.33): an
+   inspection is always recorded on a task the answer names, a repair is
+   checked before Done, and one JobTread no longer has is 410 Gone. */
+var CO_CONTRACT_NEED = 2;
 function buildNum(b){ var m = /T(\d+)\.(\d+)/.exec(String(b || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
 function loadBuilds(){
   if (!S.me || !API_URL || !S.online) return Promise.resolve();
@@ -1452,21 +1472,52 @@ var signOutArmed = 0;
 /* Every lane of the one outbox (T2.31): the same count the no-signal bar
    shows, read fresh for the lanes kept in IndexedDB. */
 function waitingToSend(){ return obWaiting().parts.map(function(p){ return p.words; }); }
+/* Work on the phone that is not waiting to send, but that sign-out would
+   erase with everything else (T2.33, audit D35): an inspection or repair in
+   progress in Close Out, and a day log written but not sent. Named before the
+   last tap, so nobody wipes an afternoon's inspection by accident. */
+function unsentDrafts(){
+  var out = [];
+  var visits = (typeof coStore === 'object' && coStore && coStore.visits) || {};
+  Object.keys(visits).forEach(function(id){
+    var v = visits[id];
+    if (!v || coVisitIdle(v)) return;
+    var j = (typeof coJobById === 'function') && coJobById(id);
+    out.push('Close Out work at ' + ((j && (j.number || j.name)) || 'a job'));
+  });
+  Object.keys(dlStore || {}).forEach(function(k){
+    var e = dlStore[k];
+    if (e && !e.sent && !e.wantSend && (String(e.story || '').trim() || (e.lines || []).length)) out.push('the day log for ' + (e.jobNum || e.jobLabel || 'a job'));
+  });
+  return out;
+}
 function wipePhoneState(){
   // Where-you-were (T2.27) stops saving first, or the page's own leaving
   // writes it back for the next person.
   S.whereReady = false;
+  // Another person's clock-in kept on this phone (T2.33, audit D24) is theirs:
+  // it and its start photo stay for when they sign in. Read before the
+  // sign-in is cleared, which is what says whose is whose.
+  var keepQ = clockQ.filter(function(it){ return !cqMine(it); }), keepRid = cqNotMineRids();
   authClear();
   try {
     var keys = [];
     for (var i = 0; i < localStorage.length; i++){ var key = localStorage.key(i); if (/^dbtc_/.test(key)) keys.push(key); }
     keys.forEach(function(key){ localStorage.removeItem(key); });
     localStorage.setItem(PICK_ACCOUNT_KEY, '1');
+    clockQ = keepQ;
+    if (keepQ.length) localStorage.setItem(CQ_KEY, JSON.stringify(keepQ));
   } catch(e){}
   return idb().then(function(db){
     return Promise.all(['q', 'co', 'cophotos'].map(function(st){
       return new Promise(function(res){
-        try { var tx = db.transaction(st, 'readwrite'); tx.objectStore(st).clear(); tx.oncomplete = res; tx.onerror = res; tx.onabort = res; }
+        try {
+          var tx = db.transaction(st, 'readwrite'), os = tx.objectStore(st);
+          if (st === 'q' && keepQ.length){
+            os.openCursor().onsuccess = function(e){ var c = e.target.result; if (!c) return; if (!(c.value && c.value.waitRid && keepRid[c.value.waitRid])) c.delete(); c.continue(); };
+          } else os.clear();
+          tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+        }
         catch(e){ res(); }
       });
     }));
@@ -1487,10 +1538,15 @@ function signOutStep(){
     foot.textContent = 'Not yet — ' + waiting.join(', ') + ' still waiting to send from this phone. Get a signal, let it go, then sign out.';
     return;
   }
+  var drafts = unsentDrafts();
   if (!signOutArmed || Date.now() - signOutArmed > 8000){
     signOutArmed = Date.now();
-    btn.textContent = 'Tap again to sign out';
-    foot.textContent = 'This phone forgets ' + ((S.me && S.me.name) || 'you') + ' and shows the sign-in screen, where any account can be picked.';
+    btn.textContent = drafts.length ? 'Tap again to erase them and sign out' : 'Tap again to sign out';
+    var theirs = cqOthers().map(function(x){ return (x.ownerName || 'Someone') + '’s ' + clockLabel(x.at) + ' clock-in'; });
+    foot.textContent = (drafts.length
+      ? 'Not sent, and erased if you sign out now: ' + drafts.join(', ') + '. Send them first, or tap again to erase them.'
+      : 'This phone forgets ' + ((S.me && S.me.name) || 'you') + ' and shows the sign-in screen, where any account can be picked.') +
+      (theirs.length ? ' ' + theirs.join(', ') + ' stays on this phone and goes when they sign in.' : '');
     setTimeout(function(){ if (signOutArmed && Date.now() - signOutArmed >= 8000){ signOutArmed = 0; btn.textContent = 'Sign out'; } }, 8300);
     return;
   }
@@ -1728,7 +1784,7 @@ function assignNote(a){
 /* The board's own words, minus the trailing tick. Plex Mono is the only
    self-hosted face carrying U+2713 and it draws it as a radical sign — "√" —
    which reads as maths, not approval, at 12px on a phone in the sun. The
-   colour-coded dot already carries that signal, and the words still come from
+   color-coded dot already carries that signal, and the words still come from
    materialWords() in the board so they stay defined in one place. */
 function matWords(t){ return String(t||'').replace(/[\u2713\u2714]\s*$/, '').trim(); }
 
@@ -1742,7 +1798,7 @@ function matWords(t){ return String(t||'').replace(/[\u2713\u2714]\s*$/, '').tri
    CREW-ASSIGNMENTS-API.md says it plainly: the words are defined once, in
    the board's materialWords(), and anything that rewords them here is wrong
    twice over. The tick is still stripped — the self-hosted face draws U+2713
-   as a radical sign — and the colour still comes from `cls`. */
+   as a radical sign — and the color still comes from `cls`. */
 /* In Spanish (T2.24) each of the board's lines has its own Spanish line, one
    for one — a translation, never a merge of two states into one sentence.
    A line the phone has no Spanish for is shown as the board sent it. */
@@ -2550,8 +2606,8 @@ function warehousePanelHtml(v){
       '<button class="jact warn" data-loaded-undo="' + esc(v.jobId) + '"><span class="a1">' + esc(L('Yes, undo it')) + '</span><span class="a2">' + esc(L('Not loaded after all')) + '</span></button>' +
       '</div></div>';
   }
-  // Two different sentences, not one sentence in two colours: the state has
-  // to survive the sun and a colour-blind thumb. "Loaded for the crew" is
+  // Two different sentences, not one sentence in two colors: the state has
+  // to survive the sun and a color-blind thumb. "Loaded for the crew" is
   // the checklist line's own name, which is what the green one says.
   var label = L(busy ? 'Saving\u2026' : on ? 'Loaded for the crew' : 'Mark loaded for the crew');
   var key = busy ? '' : L(on ? 'Tap to undo' : 'Tap when it\u2019s on the truck');
@@ -2669,7 +2725,11 @@ function nudgeItems(){
   }
   // A clock-in kept on the phone (T2.31): waiting, or refused — said until it goes.
   var cqw = cqWaiting(), cqr = cqRefused();
+  // Somebody else's, kept on this phone before a sign-out (T2.33): it waits for them.
+  cqOthers().forEach(function(x){ if (canTab('job')) items.push({ kind: 'clockq', k: L('Clock-in'), at: x.at,
+    text: Lf('{name}’s {t} clock-in waits for them to sign in on this phone', { name: x.ownerName || L('Someone'), t: clockLabel(x.at) }), go: function(){} }); });
   if (cqr && canTab('job')) items.push({ kind: 'clockq-no', k: L('Clock-in'), at: cqr.at, text: Lf('Your {t} clock-in wasn’t added — tap to see why', { t: clockLabel(cqr.at) }), go: function(){ openSheet('clockq'); } });
+  else if (cqw && cqw.stale && canTab('job')) items.push({ kind: 'clockq', k: L('Clock-in'), at: cqw.at, text: Lf('Your {t} clock-in goes once you say when you left the day before', { t: clockLabel(cqw.at) }), go: function(){ if (!overnightFirst()) openSheet('clockq'); } });
   else if (cqw && canTab('job')) items.push({ kind: 'clockq', k: L('Clock-in'), at: cqw.at, text: Lf('Your {t} clock-in is on this phone — it goes when there’s signal', { t: clockLabel(cqw.at) }), go: function(){ openSheet('clockq'); } });
   // Still on the clock from a day before (T2.19): first, above everything.
   if (canTab('job') && leftOvernight()){
@@ -3234,7 +3294,7 @@ window.addEventListener('popstate', function(){
 
 function openSheet(kind, promptKind){
   // A clock-in still on the phone (T2.31): what changes the clock waits for it.
-  if (CQ_HOLDS[kind] && cqWaiting()) kind = 'clockq';
+  if (cqHolds(kind)) kind = 'clockq';
   if (!S.sheet){ S.sheetFocus = document.activeElement; sheetHistPush(); }
   S.sheet = kind; S.promptKind = promptKind || null;
   var title = kind==='codes' ? (S.pendingJob ? Lf('Code at {p}', { p: S.pendingJob.customer || streetOf(S.pendingJob.address) || L('the next job') }) : L(S.open && !onTravel() ? 'Change code' : 'What are you doing?'))
@@ -3628,6 +3688,7 @@ function wireSheet(){
   // A clock-in kept on the phone (T2.31).
   if ($('cqSend')) $('cqSend').onclick = function(){ var w = cqWaiting(); if (w) w.next = 0; cqSend(); openSheet('clockq'); };
   if ($('cqClose')) $('cqClose').onclick = function(){ closeSheet(); };
+  if ($('cqLeft')) $('cqLeft').onclick = function(){ closeSheet(); leftAsk(); };
   if ($('cqOk')) $('cqOk').onclick = cqDismiss;
   if ($('coPhotoRm')) $('coPhotoRm').onclick = function(){
     var view = S.coPhotoView, b = $('coPhotoRm'); if (!view) return;
@@ -3730,6 +3791,7 @@ function pickCode(codeId){
   if (!c) return;
   if (S.open && !S.switching && S.open.code && S.open.code.id === codeId){ closeSheet(); return; }
   closeSheet();
+  if (S.open && !S.switching && overnightFirst()) return;
   if (S.open && !S.switching){
     // A code change on the same site (T2.23): no photos — one call closes
     // the running code and opens this one.
@@ -3821,6 +3883,7 @@ function photoRefused(e, gate){
 }
 function beginEnd(kind){
   if (!S.open){ render(); return; }
+  if (overnightFirst()) return;
   // A drive ends in the truck (T2.18): no end photo — straight on to what
   // comes next.
   if (onTravel()){ afterTravelEnd(kind); return; }
@@ -3980,13 +4043,23 @@ var clockQ = (function(){ try { var a = JSON.parse(localStorage.getItem(CQ_KEY) 
 clockQ.forEach(function(it){ it.inflight = false; });   // in flight is a page's, never a phone's
 var cqTimer = null;
 function cqPersist(){ storeSet(CQ_KEY, JSON.stringify(clockQ)); }
-function cqWaiting(){ return clockQ.filter(function(it){ return !it.refused; })[0] || null; }
-function cqRefused(){ return clockQ.filter(function(it){ return it.refused; })[0] || null; }
+/* Whose it is (T2.33, audit D24): a clock-in kept on a shared phone waits
+   for the person who made it, never lands as somebody else's hours. */
+function myEmail(){ return String((S.me && S.me.email) || jwtPayload(AUTH.token).email || '').toLowerCase(); }
+function cqMine(it){ return !it.owner || !myEmail() || it.owner === myEmail(); }
+function cqWaiting(){ return clockQ.filter(function(it){ return !it.refused && cqMine(it); })[0] || null; }
+function cqRefused(){ return clockQ.filter(function(it){ return it.refused && cqMine(it); })[0] || null; }
+function cqOthers(){ return clockQ.filter(function(it){ return !it.refused && !cqMine(it); }); }
+/* The request ids of clock-ins that are not the signed-in person's, refused or
+   not: they, and the start photos waiting on them, are kept through a
+   sign-out for whoever made them, and never counted as this person's to send. */
+function cqNotMineRids(){ var o = {}; clockQ.forEach(function(it){ if (!cqMine(it)) o[it.rid] = 1; }); return o; }
+function qMine(items){ var o = cqNotMineRids(); return items.filter(function(x){ return !(x.waitRid && o[x.waitRid]); }); }
 function cqHas(rid){ return !!rid && clockQ.some(function(it){ return it.rid === rid; }); }
 /* The clock as the phone shows it meanwhile: running since it was made.
    `kept`, never `queued` — the API's own answer carries a `queued` field. */
 function cqOpen(it){ return { id: 'q:' + it.rid, job: it.job, code: it.code, startedAt: new Date(it.at).toISOString(), endedAt: null, minutes: 0, notes: '', kept: true }; }
-function cqOverlay(){ var w = cqWaiting(); if (w) S.open = cqOpen(w); }
+function cqOverlay(){ var w = cqWaiting(); if (w && !w.stale) S.open = cqOpen(w); }
 /* A photo still marked for a clock-in the phone no longer holds goes as it is. */
 function cqOrphans(){
   return idbAll().then(function(items){
@@ -4004,6 +4077,7 @@ function startKept(keep, item, rec, code, prev){
   // Its own next try, on the outbox's backoff: a phone that still thinks it
   // has signal (a bar, no data) never says "online" again.
   keep.tries = keep.tries || 0; keep.next = Date.now() + obRetryMs(1);
+  keep.owner = myEmail(); keep.ownerName = (S.me && S.me.name) || '';
   clockQ.push(keep); cqPersist();
   S.open = cqOpen(keep);
   if (item){
@@ -4029,6 +4103,7 @@ function cqSend(){
   clearTimeout(cqTimer);
   var it = cqWaiting();
   if (!it || it.inflight || !S.online || !API_URL) return Promise.resolve();
+  if (it.stale && leftOvernight()) return Promise.resolve();   // waits for "When did you leave?" (T2.33)
   if (it.next && it.next > Date.now()){ cqSchedule(); return Promise.resolve(); }
   it.inflight = true; it.err = ''; render();
   var opts = {}; for (var k in (it.opts || {})) opts[k] = it.opts[k];
@@ -4050,8 +4125,7 @@ function cqLanded(it, open){
   clockQ = clockQ.filter(function(x){ return x.rid !== it.rid; }); cqPersist();
   if (open && (!S.open || S.open.kept)) S.open = open;
   cqReleasePhoto(it.rid, open);
-  if (open && open.morning && open.morning.ok === false && !open.morning.quiet)
-    toast(open.morning.where && /no location/.test(open.morning.where) ? 'No location from the phone · your PM and the Ops Director are told' : 'Not at the shop or the office · your PM and the Ops Director are told', true);
+  if (open) placeCheckToast(open.morning, false);
   if (it.rollForgot) rollForgot(it.rollForgot);
   toast(Lf('Your {t} clock-in has reached JobTread', { t: clockLabel(it.at) }));
   savePrefs(); enablePush(); refreshDayLater(); render();
@@ -4060,6 +4134,14 @@ function cqLanded(it, open){
 function cqFailed(it, e){
   it.inflight = false;
   it.err = String((e && e.message) || e || '').slice(0, 200);
+  // Signed out (T2.33, audit D24): it waits for the sign-in, and that is not
+  // a try — the page starts again on the new session and sends it then.
+  if (e && e.auth){ it.err = L('Waiting for you to sign in again'); cqPersist(); render(); return; }
+  // A block from a day before is still open (T2.33): it waits while they say
+  // when they left that day, then goes with its own time.
+  if (e && e.stale){ it.err = ''; it.stale = e.stale; it.next = 0; cqPersist();
+    if (S.open && S.open.kept) S.open = null;
+    clockReread(true).then(function(){ leftAsk(); }); render(); return; }
   if (cqCanQueue(e) || /^Pave/.test(it.err)){
     it.tries = (it.tries || 0) + 1; it.next = Date.now() + obRetryMs(it.tries);
     cqPersist(); cqSchedule(); render();
@@ -4097,6 +4179,9 @@ function cqDismiss(){
 /* A clock-out, a break or a move while a clock-in waits: it needs the entry
    the clock-in makes, so the sheet says what is waiting instead. */
 var CQ_HOLDS = { codes: 1, jobs: 1, leave: 1, outhow: 1, break: 1, earlier: 1, left: 1, dest: 1, moveHow: 1, travelCodes: 1 };
+/* One waiting on a block from a day before (T2.33) is waiting on When did you
+   leave? itself, so that one sheet is never held — or neither could ever go. */
+function cqHolds(kind){ var w = cqWaiting(); return !!(CQ_HOLDS[kind] && w && !(w.stale && kind === 'left')); }
 /* Why a kept clock-in was not added (T2.31). The API sends the reason as data
    beside its words, so it is said in the phone's language; anything it has
    no name for is the API's own words. What to do about it follows on the
@@ -4120,6 +4205,9 @@ function clockqHtml(){
       '<div class="body" style="margin-top:10px">' + esc(L('Tell the office when you started. Your start photo still goes.')) + '</div>' +
       '<button class="btn btn-go" id="cqOk" style="margin-top:16px">' + esc(L('OK')) + '</button></div>';
   }
+  if (it.stale) return '<div class="sheetpad"><div class="body"><b>' + esc(what) + '</b></div>' +
+    '<div class="body" style="margin-top:10px">' + esc(L('It waits until you say when you left the day before — then it goes with its own time.')) + '</div>' +
+    '<button class="btn btn-go" id="cqLeft" style="margin-top:16px">' + esc(L('When did you leave?')) + '</button></div>';
   var st = it.inflight ? L('Sending…') : !S.online ? L('Waiting for signal')
          : it.tries && it.next > Date.now() ? Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(it.next) }) : L('Sends in a moment');
   return '<div class="sheetpad"><div class="body"><b>' + esc(what) + '</b></div>' +
@@ -4182,8 +4270,7 @@ function commitStart(item, rec){
       }
       // The morning clock-in away from the shop and the office (T2.23): the
       // API has told the PM and the Ops Director, and the phone says so.
-      if (open.morning && open.morning.ok === false && !open.morning.quiet)
-        toast(open.morning.where && /no location/.test(open.morning.where) ? 'No location from the phone · your PM and the Ops Director are told' : 'Not at the shop or the office · your PM and the Ops Director are told', true);
+      placeCheckToast(open.morning, false);
       dlTouch(S.job.id, isoLocal(), dlInfoFor(S.job.id));
       // Rolled out without the yard (T2.20): told now the clock is really on.
       if (S.rollPending && S.rollPending === S.job.id) rollForgot(S.job.id);
@@ -4224,7 +4311,9 @@ function commitOut(item, rec){
       S.open = null; S.clockGate = null; S.onBreak = null; S.switching = null;
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
-      outToast(r, 'Clocked out · sent to JobTread');
+      // Nothing was open (T2.33, audit D29): ended elsewhere, and said so.
+      if (r && r.notOn){ toast(L('Your clock was already ended elsewhere — you’re off the clock now.'), true); clockReread(true); }
+      else outToast(r, 'Clocked out · sent to JobTread');
       refreshDayLater();
     }).catch(function(e){ if (!rec && photoRefused(e, 'end-out')) return 'camera'; S.clockGate = null; showErr(e); }).then(function(v){
       busy(false);
@@ -4236,7 +4325,7 @@ function commitOut(item, rec){
    and the Ops Director, so the phone says so instead of the plain receipt. */
 function outToast(r, plain){
   var ev = r && r.evening;
-  if (ev && ev.ok === false && !ev.quiet) toast(ev.where && /no location/.test(ev.where) ? 'Clocked out · no location from the phone · your PM and the Ops Director are told' : 'Clocked out away from the shop · your PM and the Ops Director are told', true);
+  if (ev && ev.ok === false && !ev.quiet) placeCheckToast(ev, true);
   else toast(plain);
 }
 /* Clocked out: the Day log, with the nudge, if today's log is still to go. */
@@ -4438,9 +4527,12 @@ function leftChoices(){
 }
 function leftFromInput(v){
   var m = /^(\d\d):(\d\d)$/.exec(v || ''); if (!m || !S.open) return 0;
-  var d = new Date(S.open.startedAt);
-  if (!leftOvernight()) d = new Date();
+  var over = leftOvernight(), began = Date.parse(S.open.startedAt);
+  var d = over ? new Date(began) : new Date();
   d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  // From a day before, the first time it reads that after the block began
+  // (T2.33): a block from 6:00p left at 1:00 ended at 1:00 the next morning.
+  if (over && d.getTime() <= began) d.setDate(d.getDate() + 1);
   return d.getTime();
 }
 function leftOk(t){ return !!S.open && t > Date.parse(S.open.startedAt) && t <= Date.now() + 60000; }
@@ -4485,6 +4577,21 @@ function leftGo(){
   if (gate === 'end-switch' && S.pendingJob){ S.switching = { endPhotoId: '', leftAt: iso, at: Date.now() }; nextCodes(); return; }
   leftOut(iso, gate === 'overnight');
 }
+/* What a notice to the PM and the Ops Director came to (T2.33, audit D26):
+   the API says whether the comment went, and the phone never says "told"
+   when it did not. No notice at all (a partner's half) says nothing. */
+function toldWords(notice){
+  if (!notice) return '';
+  return notice.ok ? L(' · your PM and the Ops Director are told') : L(' · your PM couldn’t be told — tell them yourself');
+}
+function placeCheckToast(m, out){
+  // No place on the answer: the check itself failed (an older API answered
+  // that ok: false) — where they were is not known, so nothing is claimed.
+  if (!m || m.ok !== false || m.quiet || !m.where) return;
+  var noLoc = m.where && /no location/.test(m.where);
+  toast(L(out ? (noLoc ? 'Clocked out · no location from the phone' : 'Clocked out away from the shop')
+              : (noLoc ? 'No location from the phone' : 'Not at the shop or the office')) + toldWords(m.notice || { ok: false }), true);
+}
 /* Out, at the time they left. */
 function leftOut(iso, overnight, next){
   var job = S.job, ok = false;
@@ -4495,8 +4602,11 @@ function leftOut(iso, overnight, next){
       S.open = null; S.switching = null; S.pendingJob = null; S.moving = false;
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
-      toast(Lf('Clocked out at {t} · your PM and the Ops Director are told', { t: clockLabel(new Date(iso)) }));
+      toast(Lf('Clocked out at {t}', { t: clockLabel(new Date(iso)) }) + toldWords(r && r.notice), !!(r && r.notice && !r.notice.ok));
       refreshDayLater();
+      // A clock-in kept with no signal waited for this (T2.33): it goes now.
+      clockQ.forEach(function(x){ x.stale = null; }); cqPersist();
+      if (cqWaiting()){ cqOverlay(); cqSend(); }
     }).catch(function(e){ if (S.pendingJob) cancelMove(); showErr(e); }).then(function(){
       busy(false);
       if (!overnight){ landAfterOut(job); return; }
@@ -4509,6 +4619,13 @@ function leftOut(iso, overnight, next){
   });
 }
 function leftAsk(){ if (!leftOvernight()) return; S.leftGate = 'overnight'; S.leftPick = 0; setTab('job'); openSheet('left'); }
+/* Every clock button asks this first while a block from a day before is
+   open (T2.33, audit D21): closing it "now" would be a 24- to 36-hour entry,
+   and the API refuses it anyway. */
+function overnightFirst(){ if (!leftOvernight()) return false; leftAsk(); return true; }
+/* The running block began on a day before today (T2.33): the band says the
+   day as well as the time — "Started Sun Nov 1, 7:02a". */
+function startedBefore(){ return !!(S.open && isoLocal(new Date(S.open.startedAt)) < isoLocal()); }
 /* The evening push, "Still on the clock" (T2.24): straight to When did you
    leave?, which clocks out at the time picked. Already off the clock, or on
    a break, it is just the clock screen. */
@@ -4535,9 +4652,23 @@ function earlierFloor(){
   (S.entries || []).forEach(function(e){ if (!o || e.id === o.id) return; var t = Date.parse(e.endedAt || ''); if (!isNaN(t) && t > floor) floor = t; });
   return floor;
 }
+/* The block a JobTread break planned (T2.33, audit D27): the one the break
+   started, or the same job and code beginning a break's length after the last
+   block ended. Moving it back would shorten an unpaid break after the fact. */
+function afterBreakBlock(o){
+  if (!o || !o.job || !o.code) return false;
+  if (S.brk && S.brk.entryId === o.id) return true;
+  var began = Date.parse(o.startedAt);
+  return (S.entries || []).some(function(x){
+    if (x.id === o.id || !x.endedAt || !x.job || !x.code || x.job.id !== o.job.id || x.code.id !== o.code.id) return false;
+    var gap = (began - Date.parse(x.endedAt)) / 60000;
+    return BREAK_CHOICES.some(function(m){ return gap > m - 1.05 && gap <= m + 0.05; });
+  });
+}
 function earlierBlock(){
   var o = S.open;
   if (!o || onBreakNow() || onTravel() || !o.job) return null;
+  if (afterBreakBlock(o)) return null;
   var began = Date.parse(o.startedAt);
   if (isNaN(began) || Date.now() - began > EARLIER_WINDOW_MS) return null;
   if (/Started earlier —/.test(o.notes || '')) return null;
@@ -4599,7 +4730,7 @@ function earlierGo(){
       S.open.notes = [S.open.notes || '', 'Started earlier — said they started at ' + clockLabel(new Date(t)) + '.'].filter(Boolean).join(' ');
     }
     savePrefs();
-    toast(Lf('Your block starts at {t} now · your PM and the Ops Director are told', { t: clockLabel(new Date(t)) }));
+    toast(Lf('Your block starts at {t} now', { t: clockLabel(new Date(t)) }) + toldWords(r && r.notice), !!(r && r.notice && !r.notice.ok));
     refreshDayLater();
   }).catch(function(e){ showErr(e); }).then(function(){ busy(false); render(); });
 }
@@ -4704,8 +4835,10 @@ function rollFlush(){
         x.w.sent = Date.now(); x.w.err = ''; rollPersist();
       }, function(e){
         x.w.err = String((e && e.message) || e || '').slice(0, 160);
-        // The API refusing it is final; a missing answer or a JobTread hiccup is tried again.
-        if (e && e.answered && !e.busy && !/^Pave/.test(x.w.err)) x.w.refused = true;
+        // Signed out waits for the sign-in, uncounted (T2.33, audit D24). The
+        // API refusing it is final; a missing answer or a JobTread hiccup is tried again.
+        if (e && e.auth) x.w.next = Date.now() + 60000;
+        else if (e && e.answered && !e.busy && !/^Pave/.test(x.w.err)) x.w.refused = true;
         else { x.w.tries = (x.w.tries || 0) + 1; x.w.next = Date.now() + obRetryMs(x.w.tries); }
         rollPersist();
         failed(x.kind === 'daily' ? 'shop checks record' : 'roll-out notice', e, true);
@@ -4847,6 +4980,7 @@ function arriveHere(){
 function doBreak(minutes){
   var open = S.open;
   if (!open || onBreakNow() || BREAK_CHOICES.indexOf(minutes) === -1) return;
+  if (overnightFirst()) return;
   var sec = openSeconds(), code = open.code, num = (code && code.number) || L('the code');
   busy(true, 'Starting your break…');
   withCoords(function(coords){
@@ -4954,6 +5088,10 @@ function buzz(){ try { if (navigator.vibrate) navigator.vibrate([250, 120, 250])
 
 function showErr(e, where){
   if (e && e.readOnly) toast('Read-only build — nothing was posted', true);
+  // Asked instead (T2.33): "When did you leave?" opens for a block from a day
+  // before, and a clock that had already ended is said in the crew's words.
+  else if (e && e.stale) failed(where || 'clock', e, true);
+  else if (e && e.notOn){ failed(where || 'clock', e, true); toast(L('Your clock was already ended elsewhere — you’re off the clock now.'), true); }
   else failed(where || 'clock', e);
 }
 
@@ -5170,7 +5308,7 @@ function enqueueUpload(item){
 /* How many photos are waiting, from the phone's own store (T2.30). The
    upload loop is not the only one asking: it does not run without signal,
    and sign-out and the no-signal bar must never take a stale number. */
-function qCount(){ return idbAll().then(function(items){ S.queued = items.length; return items; }); }
+function qCount(){ return idbAll().then(function(items){ S.queued = qMine(items).length; return items; }); }
 
 /* Each photo keeps its own tries (T2.30, D7). One that will not go used to
    end the run, and every photo behind it waited with it; now it steps aside
@@ -5200,8 +5338,9 @@ function pump(){
   if (pumping || !S.online) return;
   pumping = true;
   clearTimeout(pumpTimer);
+  var signedOut = false;
   idbAll().then(function(items){
-    S.queued = items.length;
+    S.queued = qMine(items).length;
     render();
     // Oldest first (T2.30): ids start with random letters, so the store's
     // own order put this morning's START photo behind last night's.
@@ -5210,7 +5349,7 @@ function pump(){
     return items.reduce(function(chain, item){
       return chain.then(function(){
         var r = qRetry[item.id];
-        if ((r && r.next > now) || !S.online) return;
+        if ((r && r.next > now) || !S.online || signedOut) return;
         // Its clock-in is still on the phone (T2.31): it goes once that has —
         // and never from this list, read before the clock-in may have landed:
         // landing stamps it with the entry, saves it again and runs the pump.
@@ -5218,7 +5357,12 @@ function pump(){
         pumpCur = item.id;
         return sendOne(item).then(function(){
           if (qRetry[item.id]){ delete qRetry[item.id]; qRetrySave(); }
-        }, function(e){ qRetryFail(item.id, e); });
+        }, function(e){
+          // Signed out: nothing more goes until the sign-in, and no photo is
+          // counted as failing for it (T2.33, audit D24).
+          if (e && e.auth){ signedOut = true; return; }
+          qRetryFail(item.id, e);
+        });
       });
     }, Promise.resolve());
   }).catch(function(){}).then(function(){
@@ -5861,6 +6005,31 @@ esAdd({
   'Send it now': 'Enviarla ahora',
   'Goes after its clock-in': 'Se envía después de su entrada'
 }); /* T2.31-ES */
+esAdd({
+  'Your clock was already ended elsewhere — you’re off the clock now.': 'Tu reloj ya se había cerrado en otro lado — ahora estás fuera del reloj.',
+  'Say when you left on {d} first. The buttons wait until then.': 'Primero di a qué hora te fuiste el {d}. Los botones esperan hasta entonces.',
+  ' · your PM and the Ops Director are told': ' · se le avisa a tu PM y al Director de Operaciones',
+  ' · your PM couldn’t be told — tell them yourself': ' · no se pudo avisar a tu PM — avísale tú',
+  'Clocked out · no location from the phone': 'Salida marcada · el teléfono no dio ubicación',
+  'Clocked out away from the shop': 'Salida marcada fuera del taller',
+  'No location from the phone': 'El teléfono no dio ubicación',
+  'Not at the shop or the office': 'No estás en el taller ni en la oficina',
+  'Clocked out at {t}': 'Salida marcada a las {t}',
+  'Your block starts at {t} now': 'Tu bloque ahora empieza a las {t}',
+  'Waiting for you to sign in again': 'Esperando a que vuelvas a iniciar sesión',
+  '{name}’s {t} clock-in waits for them to sign in on this phone': 'La entrada de las {t} de {name} espera a que inicie sesión en este teléfono',
+  'Someone': 'Alguien',
+  'It waits until you say when you left the day before — then it goes with its own time.': 'Espera a que digas a qué hora te fuiste el día anterior — luego se envía con su propia hora.',
+  'Your {t} clock-in goes once you say when you left the day before': 'Tu entrada de las {t} se envía cuando digas a qué hora te fuiste el día anterior',
+  'Started {d}, {t}': 'Empezó el {d} a las {t}',
+  'Started {d}, {t} with a start photo': 'Empezó el {d} a las {t} con foto de inicio',
+  'Since {d}, {t} · on {j}’s travel line': 'Desde el {d} a las {t} · en la línea de viaje de {j}',
+  'Added to the log': 'Agregado al registro',
+  'Read-only build — kept on the phone': 'Versión de solo lectura — queda en el teléfono',
+  'Saved on this phone — it goes on the log when there’s signal': 'Guardado en este teléfono — se agrega al registro cuando haya señal',
+  'not sent yet': 'sin enviar todavía',
+  'not added — tell the office': 'no se agregó — avisa a la oficina'
+}); /* T2.33-ES */
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
@@ -6616,7 +6785,10 @@ function dlSentHtml(cur, d, date){
           '<div class="ss">' + esc(names.length === 1 || !names.length ? Lf('{who} has it on JT #{n}.', { who: who, n: cur.jobNum || '' }) : Lf('{who} have it on JT #{n}.', { who: who, n: cur.jobNum || '' })) + extra + '</div></div>';
   h += '<div class="rvcard" style="margin-top:14px">' + dlRowsHtml(cur, d, date, true) + '</div>';
   var later = (d.notes || []).filter(function(n){ return n.later; });
-  if (later.length) h += '<div class="rvcard" style="margin-top:14px">' + later.map(function(n){ return dlLineHtml({ time: n.time, text: n.body }); }).join('') + '</div>';
+  if (later.length) h += '<div class="rvcard" style="margin-top:14px">' + later.map(function(n){
+    // Said until JobTread has it (T2.33): a line kept on the phone is not part of the log yet.
+    return dlLineHtml({ time: n.time, text: n.body + (n.refused ? ' · ' + L('not added — tell the office') : n.pending ? ' · ' + L('not sent yet') : '') });
+  }).join('') + '</div>';
   h += '<div class="story has hidden" id="dlLaterBox" style="margin-top:14px"><textarea id="dlLater" rows="1" autocomplete="off" placeholder="' + esc(L('What did you forget?')) + '"></textarea></div>';
   h += '<div class="reccap hidden" data-reccap="dlLater"></div>';
   h += '<div class="talkrow hidden" id="dlLaterRow">' + recBtnHtml('dlLater', 'dlLaterRec') + '</div>';
@@ -6792,10 +6964,48 @@ function dlNormalDay(jobId, date){
 function dlAddLater(jobId, date, text){
   var e = dlGet(jobId, date);
   if (!text || !e || !e.sent) return;
-  var n = { id: uid(), at: Date.now(), time: clockLabel(), body: text, later: true };
+  // A waiting item of its own (T2.33, audit D36): kept with its request id
+  // and sent again until JobTread has it, so a line added in a dead spot is
+  // never shown as part of the log while it was never sent.
+  var n = { id: uid(), at: Date.now(), time: clockLabel(), body: text, later: true, pending: true, rid: newRid(), tries: 0 };
   e.notes.push(n); dlPersist(); renderDayLog();
-  apiCall('addDailyLogNote', [jobId, e.sent.id, text]).then(function(){ toast('Added to the log'); })
-    .catch(function(err){ toast(err && err.readOnly ? 'Read-only build — kept on the phone' : 'Kept on the phone — could not reach JobTread', true); });
+  dlLaterFlush(true);
+}
+/* The lines added to sent logs that JobTread has not had yet. */
+function dlLaterWaiting(){
+  var out = [];
+  for (var k in dlStore){ var e = dlStore[k]; if (!e || !e.sent) continue;
+    (e.notes || []).forEach(function(n){ if (n.later && n.pending && !n.refused) out.push({ e: e, n: n }); }); }
+  return out;
+}
+var dlLaterBusy = false, dlLaterTimer = null;
+function dlLaterFlush(say){
+  if (dlLaterBusy || !S.online || !API_URL) return Promise.resolve();
+  clearTimeout(dlLaterTimer);
+  var now = Date.now(), due = dlLaterWaiting().filter(function(x){ return !(x.n.next > now); });
+  if (!due.length){ dlLaterSchedule(); return Promise.resolve(); }
+  dlLaterBusy = true;
+  return due.reduce(function(chain, x){
+    return chain.then(function(){
+      return apiCall('addDailyLogNote', [x.e.jobId, x.e.sent.id, x.n.body], { rid: x.n.rid }).then(function(){
+        x.n.pending = false; x.n.sentAt = Date.now(); x.n.err = ''; dlPersist();
+        if (say) toast(L('Added to the log'));
+      }, function(err){
+        x.n.err = String((err && err.message) || err || '').slice(0, 160);
+        if (err && err.auth) x.n.next = Date.now() + 60000;   // waits for the sign-in, uncounted
+        else if (err && err.answered && !err.busy && !/^Pave/.test(x.n.err)) x.n.refused = true;
+        else { x.n.tries = (x.n.tries || 0) + 1; x.n.next = Date.now() + obRetryMs(x.n.tries); }
+        dlPersist();
+        if (say) toast(err && err.readOnly ? L('Read-only build — kept on the phone') : L('Saved on this phone — it goes on the log when there’s signal'), true);
+      });
+    });
+  }, Promise.resolve()).then(function(){ dlLaterBusy = false; dlLaterSchedule(); renderDayLog(); });
+}
+function dlLaterSchedule(){
+  clearTimeout(dlLaterTimer);
+  var soon = Infinity;
+  dlLaterWaiting().forEach(function(x){ soon = Math.min(soon, x.n.next || 0); });
+  if (soon < Infinity) dlLaterTimer = setTimeout(dlLaterFlush, Math.max(3000, soon - Date.now()));
 }
 function wireDayLog(cur, date){
   if (!cur) return;
@@ -7355,6 +7565,14 @@ coAdd({
         noSignalList: 'Sin señal · la lista se carga cuando haya señal', tryAgain: 'Intentar de nuevo', copyAt: 'guardada a las {t}',
         photoTitle: 'Foto', photoRemove: 'Quitar esta foto', photoRemoveSure: 'Toca otra vez para quitarla', photoKeep: 'Dejarla', photoRemoved: 'Foto quitada' }
 }); /* CO-T229 */
+coAdd({
+  en: { notRecorded: 'Not recorded — this job has no Final inspection task in JobTread. Ask the office to add it, then tap Retry. Your answers are kept on this phone.',
+        itemGone: 'Not in JobTread any more — it was taken off or moved. Ask your PM, then Discard.',
+        signedOutWait: 'Waiting for you to sign in again' },
+  es: { notRecorded: 'No se registró — este trabajo no tiene la tarea Final inspection en JobTread. Pide a la oficina que la agregue y toca Reintentar. Tus respuestas quedan en este teléfono.',
+        itemGone: 'Ya no está en JobTread — la quitaron o la movieron. Pregúntale a tu PM y luego Descártala.',
+        signedOutWait: 'Esperando a que vuelvas a iniciar sesión' }
+}); /* CO-T233 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -7665,6 +7883,7 @@ function coStartJob(jobId){
 function coClockHere(jobId, areaKey){
   var j = coJobById(jobId);
   if (!j) return;
+  if (S.open && overnightFirst()) return;
   if (onBreakNow()){ toast(co('breakFirst')); if (!areaKey) setTab('job'); return; }
   // Driving here (T2.18): Start is the arrival — this job's code, its start
   // photo, no end photo for the drive.
@@ -8027,19 +8246,57 @@ function coObPut(item){ return idb().then(function(db){ return new Promise(funct
 function coObDel(id){ return idb().then(function(db){ return new Promise(function(res){ var t = db.transaction('co', 'readwrite'); t.objectStore('co').delete(id); t.oncomplete = res; t.onerror = res; }); }).catch(function(){}); }
 var coSeq = Number(localStorage.getItem('dbtc_co_seq') || 0);
 function coNextSeq(){ coSeq++; storeSet('dbtc_co_seq', String(coSeq)); return coSeq; }
+/* A whole send goes into the waiting list in one transaction (T2.33, audit
+   D34): a phone closed half way through a batch used to leave part of a visit
+   queued and part not, and a second Send filed its photos twice. */
+function coObPutAll(items){
+  return idb().then(function(db){ return new Promise(function(res, rej){
+    var t = db.transaction('co', 'readwrite'), st = t.objectStore('co');
+    items.forEach(function(it){ st.put(it); });
+    t.oncomplete = res; t.onerror = function(){ rej(t.error); }; t.onabort = function(){ rej(t.error); };
+  }); });
+}
 function coEnqueue(items){
-  return items.reduce(function(chain, it){ it.seq = coNextSeq(); it.at = it.at || Date.now(); it.status = 'queued'; it.tries = 0; it.err = ''; return chain.then(function(){ return coObPut(it); }); }, Promise.resolve())
-    .then(coRefreshOutbox).then(coPump);
+  items.forEach(function(it){ it.seq = coNextSeq(); it.at = it.at || Date.now(); it.status = 'queued'; it.tries = 0; it.err = ''; });
+  return coObPutAll(items).then(coRefreshOutbox).then(coPump);
 }
 function coRefreshOutbox(){ return coObAll().then(function(items){ CO.outbox = items; coHealSending(); }); }
 function coDiscard(id){ coObDel(id).then(coRefreshOutbox).then(coRender); }
-function coRetryNow(id){ coObAll().then(function(items){ var it = items.filter(function(x){ return x.id === id; })[0]; if (!it) return; it.status = 'queued'; it.tries = 0; it.err = ''; return coObPut(it); }).then(coRefreshOutbox).then(function(){ CO.pumpFails = 0; coPump(); }); }
+function coRetryNow(id){ coObAll().then(function(items){ var it = items.filter(function(x){ return x.id === id; })[0]; if (!it) return; it.status = 'queued'; it.tries = 0; it.next = 0; it.err = ''; return coObPut(it); }).then(coRefreshOutbox).then(function(){ CO.pumpFails = 0; coPump(); }); }
+/* Discard is offered on anything that has failed this often (T2.33, audit
+   D23), not only on a refusal: an item the server keeps failing must never
+   hold the phone hostage, and its owner decides. */
+var CO_DISCARD_AFTER = 3;
+function coCanDiscard(it){ return it.status === 'rejected' || (it.tries || 0) >= CO_DISCARD_AFTER; }
 /* One item through Code.gs. The answer decides what happens to it:
    200 → gone; 409 → the thing it belongs to is not there yet, keep and go on;
    another 4xx → the server will say the same again, keep it as rejected with
    the reason; anything else (0, 5xx, a bounce) → the server's trouble, try
    again later. */
+/* A note whose English had not come back when Send was tapped (T2.33, audit
+   D34) is saved as said and given its English just before it goes, waiting at
+   most eight seconds as before; still none, it goes as written. */
+function coEnFix(it){
+  var f = it.enFix;
+  if (!f || !S.online) return Promise.resolve();
+  var holder = { note: f.said };
+  return Promise.race([coToEnglish(holder), new Promise(function(res){ setTimeout(res, 8000); })]).then(function(){
+    var en = holder.noteSrc === f.said && holder.noteEn ? String(holder.noteEn).trim() : '';
+    if (!en) return;
+    var text = en !== f.said ? en + '\n\n(' + f.said + ')' : f.said;
+    if (f.field === 'final'){ it.payload.notes = it.payload.notes || {}; it.payload.notes.final = text; }
+    else if (f.field === 'area') it.payload.notes = text;
+    else if (f.field === 'repair') it.payload.note = text;
+    it.enFix = null;
+    return coObPut(it);
+  }).catch(function(){});
+}
+function coEnNeed(r, said){ return said && !(r.noteSrc === said && r.noteEn) ? said : ''; }
 function coSendItem(it){
+  if (it.enFix && S.online) return coEnFix(it).then(function(){ return coSendItemNow(it); });
+  return coSendItemNow(it);
+}
+function coSendItemNow(it){
   var call;
   if (it.kind === 'report') call = apiCall('coReport', [it.jobId, it.payload, it.id], { timeout: 60000 });
   else if (it.kind === 'close') call = apiCall('coClose', [it.jobId, it.payload, it.id], { timeout: 60000 });
@@ -8057,46 +8314,68 @@ function coSendItem(it){
   } else call = Promise.resolve({ status: 400, body: { error: 'unknown item' } });
   return call.then(function(r){
     r = r || {};
+    // An inspection the server answered without naming the task it went on
+    // was recorded nowhere (T2.33, audit D22): kept on the phone, said, and
+    // left for Retry or Discard — never cleared as sent.
+    if (r.status === 200 && (it.kind === 'close' || it.kind === 'area') && !(r.body && r.body.completedTaskId))
+      return { done: false, reject: true, err: co('notRecorded') };
     if (r.status === 200) return { done: true, body: r.body };
+    // Gone from JobTread (T2.33, audit D23): asking again changes nothing.
+    if (r.status === 410) return { done: false, reject: true, err: co('itemGone') };
     if (r.status === 409) return { done: false, hold: true, err: (r.body && r.body.error) || 'waiting on an earlier item' };
     if (r.status === 401) return { done: false, stop: true, err: 'the server rejected the app’s key — ask the office' };
     if (r.status >= 400 && r.status < 500) return { done: false, reject: true, err: (r.body && r.body.error) || ('refused (' + r.status + ')') };
     return { done: false, stop: true, err: r.reason === 'not-configured' ? co('notConfigured') : ((r.body && r.body.error) || r.reason || 'no answer') };
   }, function(e){
-    if (e && e.auth) return { done: false, stop: true, err: 'signed out' };
+    if (e && e.auth) return { done: false, stop: true, auth: true, err: co('signedOutWait') };
     if (/^NO_CLOSEOUT/.test(String(e && e.message))) return { done: false, reject: true, err: co('notYours') };
     return { done: false, stop: true, err: (e && e.message) || 'no answer' };
   });
 }
+/* The walk (T2.33, audit D23). A job's items go in order, and an item that
+   could not go holds back only the items of its own job behind it — a repair
+   the office deleted no longer stops every other job's close-out on this
+   phone. Each item keeps its own tries and its own next time; a refusal is
+   kept with its reason and the walk goes past it, as before; signed out stops
+   everything and is not counted as a try. */
 function coPump(){
   if (CO.pumping || !S.online || !S.me) return;
   CO.pumping = true;
   clearTimeout(CO.pumpTimer);
-  var stopped = false, landed = [];
+  var landed = [], blocked = {}, signedOut = false, now = Date.now();
   coObAll().then(function(items){
     CO.outbox = items;
     return items.reduce(function(chain, it){
       return chain.then(function(){
-        if (stopped || it.status === 'rejected') return;
+        if (signedOut || it.status === 'rejected' || blocked[it.jobId]) return;
+        if (it.next && it.next > now){ if (it.status !== 'held') blocked[it.jobId] = true; return; }
         return coSendItem(it).then(function(res){
           if (res.done){ landed.push(it); return coObDel(it.id).then(function(){ coLanded(it, res.body); }); }
-          it.tries = (it.tries || 0) + 1; it.err = res.err || '';
-          if (res.reject) it.status = 'rejected';
-          else if (res.hold) it.status = 'held';
-          else { it.status = 'queued'; stopped = true; }
+          it.err = res.err || '';
+          if (res.auth){ signedOut = true; return coObPut(it); }
+          it.tries = (it.tries || 0) + 1;
+          if (res.reject){ it.status = 'rejected'; it.next = 0; }
+          else if (res.hold){ it.status = 'held'; it.next = Date.now() + obRetryMs(it.tries); }
+          else { it.status = 'queued'; it.next = Date.now() + obRetryMs(it.tries); blocked[it.jobId] = true; }
           return coObPut(it);
         });
       });
     }, Promise.resolve());
-  }).catch(function(e){ failed('close out · send', e, true); stopped = true; }).then(function(){
+  }).catch(function(e){ failed('close out · send', e, true); }).then(function(){
     CO.pumping = false;
     return coRefreshOutbox();
   }).then(function(){
     var waiting = CO.outbox.filter(function(it){ return it.status !== 'rejected'; });
     if (landed.length){ CO.pumpFails = 0; if (CO.jobId) coLoadJob(CO.jobId); coLoadQueue(true); }
-    if (waiting.length && (stopped || waiting.some(function(it){ return it.status === 'held'; }))){
-      var ms = obRetryMs(++CO.pumpFails);
-      CO.pumpTimer = setTimeout(coPump, ms);
+    // The next walk: when the soonest item that could go is due — a held one,
+    // or the first of each job (those behind it go when it does).
+    if (waiting.length && !signedOut){
+      var soon = Infinity, first = {};
+      waiting.forEach(function(it){
+        if (it.status !== 'held'){ if (first[it.jobId]) return; first[it.jobId] = true; }
+        soon = Math.min(soon, it.next || Date.now());
+      });
+      if (soon < Infinity) CO.pumpTimer = setTimeout(coPump, Math.max(3000, soon - Date.now()));
     }
     coRender(); render();
   });
@@ -8149,12 +8428,13 @@ function coReportItems(v, jobId, keep, items, area){
   });
 }
 function coSendVisit(jobId){
-  var v = coVisit(jobId), fin = v.fin = v.fin || { note: '' }, said = String(fin.note || '').trim();
-  // The final notes wait a few seconds for their English, as an area's do.
-  var wait = S.online && said && !(fin.noteSrc === said && fin.noteEn)
-    ? Promise.race([coToEnglish(fin), new Promise(function(res){ setTimeout(res, 8000); })]) : Promise.resolve();
+  var v = coVisit(jobId);
+  v.fin = v.fin || { note: '' };
+  // Saved at the tap (T2.33): the final notes' English, when it is still to
+  // come, is fetched as the close goes (coEnFix), not before it is saved.
+  if (String(v.fin.note || '').trim()) coToEnglish(v.fin);
   v.sending = true; v.sendingAt = Date.now(); coPersist(); coRender();
-  return wait.then(function(){ coSendVisitNow(jobId); });
+  return coSendVisitNow(jobId);
 }
 function coSendVisitNow(jobId){
   var v = coVisit(jobId), items = [], ref = 'co' + uid(), roof = coRoofReports(v);
@@ -8166,10 +8446,12 @@ function coSendVisitNow(jobId){
   form.sections.forEach(function(x){ answers[x.key] = v.answers[x.key] || {}; notes[x.key] = (v.notes && v.notes[x.key]) || undefined; });
   var fin = v.fin || {}, fsaid = String(fin.note || '').trim(), fen = fin.noteSrc === fsaid && fin.noteEn ? fin.noteEn.trim() : fsaid;
   notes.final = fen && fsaid && fen !== fsaid ? fen + '\n\n(' + fsaid + ')' : (fen || undefined);
+  var need = coEnNeed(fin, fsaid);
   items.push({ id: ref, kind: 'close', jobId: jobId, label: form.sections.map(coSecLabel).join(' + '),
-               payload: { form: form.key, answers: answers, notes: notes, findings: findings, problemsReported: problems } });
+               payload: { form: form.key, answers: answers, notes: notes, findings: findings, problemsReported: problems },
+               enFix: need ? { field: 'final', said: need } : null });
   v.sending = true; v.sendingAt = Date.now(); coPersist();
-  coEnqueue(items).then(function(){ coGo('send'); });
+  return coEnqueue(items).then(function(){ coGo('send'); });
 }
 /* A work area's notes-and-photos inspection: its findings and their
    photos, its photos, then the close — the same order as the roof's. The
@@ -8177,17 +8459,18 @@ function coSendVisitNow(jobId){
    into some; no signal, it goes as written. */
 function coSendArea(jobId, key){
   var v = coVisit(jobId), av = coAreaV(v, key), j = CO.job || coJobById(jobId), a = j && coAreaByKey(j, key);
-  var wait = S.online && (av.note || '').trim() && !(av.noteSrc === av.note.trim() && av.noteEn)
-    ? Promise.race([coToEnglish(av), new Promise(function(res){ setTimeout(res, 8000); })]) : Promise.resolve();
-  // Held while the English is fetched, so a repaint cannot offer the button twice.
+  // Saved at the tap (T2.33): the note's English comes as it goes.
+  if ((av.note || '').trim()) coToEnglish(av);
+  // Held while it is saved, so a repaint cannot offer the button twice.
   CO.areaSending = key; coRender();
-  return wait.then(function(){
+  return Promise.resolve().then(function(){
     var items = [], ref = 'ca' + uid(), name = a ? coAreaName(a) : key;
     coReportItems(v, jobId, function(r){ return r.area === key; }, items, key);
     av.photos.forEach(function(p, pi){ items.push({ id: ref + '.v' + pi, kind: 'photo', jobId: jobId, area: key, photoId: p.id, label: name + ' · ' + co('photo'), payload: coPayload({ label: 'INSPECTION', area: key }, p) }); });
     var said = (av.note || '').trim(), en = (av.noteSrc === said && av.noteEn) ? av.noteEn.trim() : said;
     var notes = en && said && en !== said ? en + '\n\n(' + said + ')' : en;
     var payload = { area: key, notes: notes || undefined, problemsReported: coAreaReports(v, key).filter(function(r){ return !r.fixed; }).length };
+    var needA = coEnNeed(av, said);
     // The gutters' and the siding's own checklist (T2.27): its answers by
     // section, each section's note and the findings, as the roof's close.
     var f = a && coAreaForm(j, a);
@@ -8197,18 +8480,17 @@ function coSendArea(jobId, key){
       f.sections.forEach(function(x){ payload.answers[x.key] = av.answers[x.key] || {}; if (String(av.notes[x.key] || '').trim()) payload.sectionNotes[x.key] = av.notes[x.key]; });
       payload.findings = coAreaReports(v, key).filter(function(r){ return r.itemKey; }).map(function(r){ return { itemKey: r.itemKey, fixedOnSite: !!r.fixed, location: r.locationWords || '', note: (r.noteEn || r.note || '').trim(), photos: (r.photos || []).length }; });
     }
-    items.push({ id: ref, kind: 'area', jobId: jobId, area: key, label: name + ' · ' + co('inspection'), payload: payload });
+    items.push({ id: ref, kind: 'area', jobId: jobId, area: key, label: name + ' · ' + co('inspection'), payload: payload,
+                 enFix: needA ? { field: 'area', said: needA } : null });
     coPersist();
     return coEnqueue(items).then(function(){ CO.areaSending = null; coGo('area'); });
   }).catch(function(e){ CO.areaSending = null; failed('close out · send', e); coRender(); });
 }
 function coFinishRepair(jobId, taskId){
   var v = coVisit(jobId), en = coRepairEn(v, taskId), said = (en.note || '').trim();
-  // The note waits a few seconds for its English, as an area's does; no
-  // signal, it goes as written.
-  var wait = S.online && said && !(en.noteSrc === said && en.noteEn)
-    ? Promise.race([coToEnglish(en), new Promise(function(res){ setTimeout(res, 8000); })]) : Promise.resolve();
-  return wait.then(function(){
+  // Saved at the tap (T2.33, audit D34): the note's English comes as it goes.
+  if (said) coToEnglish(en);
+  return Promise.resolve().then(function(){
     var items = [], ref = 'cr' + uid();
     if (v.before[taskId]) items.push({ id: ref + '.b', kind: 'photo', jobId: jobId, photoId: v.before[taskId].id, label: co('before'), payload: coPayload({ label: 'BEFORE', taskId: taskId }, v.before[taskId]) });
     if (v.after[taskId]) items.push({ id: ref + '.a', kind: 'photo', jobId: jobId, photoId: v.after[taskId].id, label: co('after'), payload: coPayload({ label: 'AFTER', taskId: taskId }, v.after[taskId]) });
@@ -8216,7 +8498,9 @@ function coFinishRepair(jobId, taskId){
     var j = CO.job || coJobById(jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === taskId; })[0];
     var eng = (en.noteSrc === said && en.noteEn) ? en.noteEn.trim() : said;
     var note = eng && said && eng !== said ? eng + '\n\n(' + said + ')' : eng;
-    items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, repairArea: (t && t.area) || undefined, label: co('repairDone'), payload: { note: note } });
+    var needR = coEnNeed(en, said);
+    items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, repairArea: (t && t.area) || undefined, label: co('repairDone'), payload: { note: note },
+                 enFix: needR ? { field: 'repair', said: needR } : null });
     v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; coPersist();
     return coEnqueue(items).then(function(){ toast(co('repairDone')); coGo('repairs'); });
   });
@@ -8390,7 +8674,7 @@ function coOutboxHtml(){
     var st = it.status === 'rejected' ? '<span class="st bad">' + esc(co('rejected')) + '</span>' : it.status === 'held' ? '<span class="st wait">409</span>' : '<span class="st">' + esc(co('queued')) + '</span>';
     var job = coJobById(it.jobId);
     return '<div class="obrow">' + st + '<span class="ob-t">' + esc((job ? job.number + ' · ' : '') + (it.label || it.kind)) + (it.err ? '<br><span style="font-size:12.5px">' + esc(it.err) + '</span>' : '') + '</span>' +
-           (it.status === 'rejected' ? '<button data-codiscard="' + esc(it.id) + '">' + esc(co('discard')) + '</button><button data-coretry="' + esc(it.id) + '">' + esc(co('retry')) + '</button>' : '') + '</div>';
+           (coCanDiscard(it) ? '<button data-codiscard="' + esc(it.id) + '">' + esc(co('discard')) + '</button><button data-coretry="' + esc(it.id) + '">' + esc(co('retry')) + '</button>' : '') + '</div>';
   }).join('') + '</div><div class="foot">' + esc(coWaitWords(items)) + '</div>' +
     (canNudge ? '<button class="btn btn-out" data-cosendnow="1" style="margin-top:10px;min-height:56px">' + esc(co('sendNow')) + '</button>' : '');
 }
@@ -9163,7 +9447,7 @@ $('coSearch').onkeydown = function(ev){
 $('coFile').onchange = function(){ var f = this.files && this.files[0]; coPhotoTaken(f); };
 $('coGallery').onchange = function(){ var fs = [].slice.call(this.files || []); this.value = ''; coGalleryPicked(fs); };
 $('peopleStamp').onclick = function(){ peopleLoad(true); };
-$('pickJobBtn').onclick = function(){ if (S.open) S.moving = true; openSheet('jobs'); };
+$('pickJobBtn').onclick = function(){ if (S.open && overnightFirst()) return; if (S.open) S.moving = true; openSheet('jobs'); };
 $('shopBtn').onclick = function(){ shopStart(false); };
 $('partnerBtn').onclick = function(){
   S.partnerOn = !S.partnerOn; savePrefs(); renderPartner();
@@ -9183,13 +9467,13 @@ $('clockIn').onclick = function(){
 // A progress shot: the camera, unlocked, During, tagged to the running code,
 // and back to the clock after the shot.
 $('photoBtn').onclick = function(){ S.capture = 'during'; S.returnToClock = true; setTab('cam'); };
-$('breakBtn').onclick = function(){ openSheet('break'); };
-$('codeBtn').onclick = function(){ openSheet('codes'); };
-$('leaveBtn').onclick = function(){ if (atShop()){ leaveGo('from-shop'); return; } openSheet('leave'); };
+$('breakBtn').onclick = function(){ if (overnightFirst()) return; openSheet('break'); };
+$('codeBtn').onclick = function(){ if (overnightFirst()) return; openSheet('codes'); };
+$('leaveBtn').onclick = function(){ if (overnightFirst()) return; if (atShop()){ leaveGo('from-shop'); return; } openSheet('leave'); };
 // At the shop Clock out is the end of the day; on a site it asks first (T2.27).
 $('tpmBtn').onclick = function(){ tellPmOpen(S.job); };
 $('coJump').onclick = function(){ if (S.job) { S.tabTouched = true; setTab('co'); coLandJob(S.job.id); } };
-$('outBtn').onclick = function(){ if (atShop() || !S.job) leaveGo('out'); else openSheet('outhow'); };
+$('outBtn').onclick = function(){ if (overnightFirst()) return; if (atShop() || !S.job) leaveGo('out'); else openSheet('outhow'); };
 $('earlierBtn').onclick = function(){ if (!earlierBlock()) { render(); return; } S.earlierPick = 0; openSheet('earlier'); };
 $('backBtn').onclick = doEndBreak;
 $('breakOutBtn').onclick = doBreakOut;
@@ -9339,8 +9623,8 @@ obLane({ key: 'checks', count: function(){ var n = 0; for (var t in ckStore){ if
 obLane({ key: 'prestart', count: function(){ var n = 0; for (var t in prStore){ if (prStore[t] && prStore[t].dirty) n++; } return n; },
          words: function(n){ return obPlural(n, 'pre-start save', 'pre-start saves'); }, wake: prRetryPending,
          trim: function(keep, now){ var ch = false; for (var t in prStore){ var e = prStore[t]; if (e && !e.dirty && !e.inflight && now - (e.at || 0) > keep){ delete prStore[t]; ch = true; } } if (ch) prPersist(); } });
-obLane({ key: 'log', count: function(){ var n = 0; for (var k in dlStore){ var e = dlStore[k]; if (e && e.wantSend && !e.sent) n++; } return n; },
-         words: function(n){ return obPlural(n, 'day log', 'day logs'); }, wake: dlRetryPending, trim: dlTrim });
+obLane({ key: 'log', count: function(){ var n = 0; for (var k in dlStore){ var e = dlStore[k]; if (e && e.wantSend && !e.sent) n++; } return n + dlLaterWaiting().length; },
+         words: function(n){ return obPlural(n, 'day log', 'day logs'); }, wake: function(){ dlRetryPending(); dlLaterWaiting().forEach(function(x){ x.n.next = 0; }); dlLaterFlush(); }, trim: dlTrim });
 obLane({ key: 'closeout', count: function(){ return ((window.CO && CO.outbox) || []).filter(function(it){ return it.status !== 'rejected'; }).length; },
          words: function(n){ return obPlural(n, 'close-out item', 'close-out items'); }, fresh: coRefreshOutbox, wake: coRetryPending, trim: coTrim });
 obLane({ key: 'roll', count: function(){ return rollWrites().length; }, words: function(n){ return obPlural(n, 'roll-out note', 'roll-out notes'); },
@@ -9360,7 +9644,33 @@ document.addEventListener('visibilitychange', function(){
   render();
   obWake();
   refreshDay().then(render);
+  clockReread(false);
 });
+
+/* The clock as JobTread has it now (T2.33, audit D29): read again when the
+   phone comes back to the front (at most every two minutes), and whenever
+   the API says the phone's idea of it is out of date — so the next tap is
+   never made on a block the office, or another phone, already ended. Never
+   in the middle of a step: a camera open for a clock change waits. */
+var CLOCK_REREAD = { at: 0, p: null };
+function clockReread(force){
+  if (!S.me || !S.online || !API_URL) return Promise.resolve();
+  if (CLOCK_REREAD.p) return CLOCK_REREAD.p;
+  if (!force && (Date.now() - CLOCK_REREAD.at < 120000 || S.clockGate || S.switching || WAIT.n)) return Promise.resolve();
+  CLOCK_REREAD.at = Date.now();
+  var had = S.open && !S.open.kept ? S.open.id : null;
+  return CLOCK_REREAD.p = apiCall('getStart', [(S.job && S.job.id) || null]).then(function(d){
+    CLOCK_REREAD.p = null;
+    if (!d) return;
+    S.open = d.open || null;
+    cqOverlay();
+    if (d.entries) S.entries = d.entries;
+    if (!S.open){ S.brk = null; S.onBreak = null; }
+    else if (d.job) S.job = d.job;
+    savePrefs(); render();
+    if (had && !S.open && !force) toast(L('Your clock was already ended elsewhere — you’re off the clock now.'), true);
+  }, function(){ CLOCK_REREAD.p = null; });
+}
 
 /* the second hand */
 setInterval(function(){

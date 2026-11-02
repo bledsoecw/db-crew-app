@@ -511,3 +511,97 @@ regeneration, Linux only.
   his Diagnostics read App and API both T2.32. `check-build.mjs` run against
   the live site afterwards says "T2.32 is already live and app.js is
   unchanged", as it should.
+
+## T2.33 (2 Nov 2026) — Step 1 of the second audit, what the README does not say
+
+- **The second audit** is a private page on Carl's account:
+  https://claude.ai/artifact/FB4xEquJajG6UtLuarxmZr — defects D21–D40 and
+  improvements I10–I19, by id, and a three-step roadmap. Step 1 (D21, D22,
+  D23, D24, D26, D27, D29, D34, D35, D36, D38) is T2.33 here and DB
+  CheckOut's eb84c5a. Step 2 is D40, I12 with I14, I16 with D32, D37 and D33;
+  Step 3 is I10, I11, D25, I13, I15, D31, D39, I17, D28 and D30.
+- **"A day before" is the script's own day** (`staleOpen_`: the open block's
+  start is on an earlier `isoDay_` than now, in the script's time zone; a
+  planned block after a break, which starts in the future, is never stale).
+  `assertNotStale_` is called by `openEntry_` (every fresh clock-in and code
+  change), `clockOut` and both branches of `startBreak`; `leftSite` is the one
+  write that may close such a block, at the time given. The error is
+  `STALE_OPEN: …` with `e.stale = { startedAt, jobId }`, and doPost copies
+  `stale` (and `notOn`) onto the reply beside `error`, the T2.31 `refuse`
+  shape. The phone reads them as `err.stale` / `err.notOn`; `apiAttempt`
+  re-reads the clock (`clockReread(true)`) and, for stale, opens *When did you
+  leave?*.
+- **NOT_ON_CLOCK is two shapes on purpose.** `switchCode` and `endBreak`
+  with nothing open throw it (each would otherwise open a fresh block — the
+  old `endBreak` did exactly that); `clockOut` with nothing open answers
+  `{ ok: true, closed: null, notOn: true }`, because the crew meant to be off
+  the clock and are. A kept arrival (`opts.queued`) is still allowed to open
+  a block with nothing open.
+- **A kept clock-in waiting on yesterday's block never holds *When did you
+  leave?*** (`cqHolds`). `openSheet` turns every clock sheet into the
+  clock-in sheet while one waits (T2.31, `CQ_HOLDS`), and `left` is among
+  them, so the first cut deadlocked: the clock-in waited for the question and
+  the question waited for the clock-in. t233-test pins it. A stale item keeps
+  `stale` until `leftOut` lands, `cqOverlay` never draws it as the running
+  clock, and `cqSend` skips it while `leftOvernight()` holds.
+- **`owner` on a kept clock-in is the signed-in email** (`myEmail()`: `S.me`,
+  else the token's). One saved before T2.33 has none and counts as whoever is
+  signed in — the old behavior, and the only reading available. Someone
+  else's is not this person's to send, so neither it nor the start photo
+  waiting on it (`waitRid`) counts in the clock or photo lane (`qMine`,
+  `cqNotMineRids`) — counted, it would block sign-out, the one way its owner
+  can get back in. `wipePhoneState` keeps them both for their owner, reading
+  whose is whose before it clears the sign-in. Only kept clock-ins carry an
+  owner; the rest of D31 (an owner on every waiting item) is Step 3.
+- **Close Out items carry their own `tries` and `next`** (`coPump`). A job's
+  items still go by `seq`; an item that could not go (no answer, a 5xx, a 401
+  from the server's key) blocks only its own `jobId` for the rest of that
+  walk; a 409 is held with its own next time and blocks nothing; a refusal
+  (4xx, 410, an inspection with no `completedTaskId`) is kept and walked past,
+  as before. The next walk is set for the soonest `next` among held items and
+  the first item of each job (those behind it wait for it), so a job waiting
+  on its backoff is not re-walked every few seconds. `CO.pumpFails` is no
+  longer read by the walk. Signed out stops the walk and counts nothing.
+- **A block from a day before has its own start line** (`startedBefore`):
+  *Started Sun Nov 1, 7:02a* / *Empezó el Dom 1 nov a las 7:02a*, and the
+  drive's *Since …* the same. The first cut glued the day onto the time, which
+  read as "Nov 17" on a phone and as *a las Dom 1 nov* in Spanish.
+- **`completedTaskId` is the receipt.** The phone treats a 200 on `close` or
+  `area` without it as recorded nowhere (`notRecorded`). DB CheckOut's
+  close-inspection always names it since eb84c5a; an older server answers
+  null on a job with no Final inspection task, which is exactly D22.
+- **`enFix` on a Close Out item** is a note saved before its English came
+  back: `{ field: 'final' | 'area' | 'repair', said }`. `coEnFix` asks once
+  more as the item goes (8 seconds, the old wait), writes the English in with
+  the words as said in brackets, clears `enFix` and saves the item; no answer,
+  it goes as said. The send itself no longer waits on the English.
+- **Two vocab collisions checked**: `signedOutWait` is a new `coAdd` key and
+  'Waiting for you to sign in again' a new `esAdd` one; neither existed. The
+  T2.33 sentences are in `esAdd({ … }) /* T2.33-ES */` and
+  `coAdd({ … }) /* CO-T233 */`.
+- **The mock grew switches**: `__MOCK_ST` (the clock as JobTread holds it, to
+  change behind the phone's back), `__MOCK_EXPIRED` (every call refused as
+  signed out), `__MOCK_NOTICEFAIL` (the comment to the PM fails: morning,
+  evening, leftSite, startedEarlier), `__MOCK_CO_NOTASK` (an old server's OK
+  with no task), `__MOCK_CO_GONE` / `__MOCK_CO_502` (a repair answered 410 or
+  502, by task id) and `__MOCK_OLD_BREAK` (a server from before T2.13 that
+  reopened on Back to work). `getBuilds` reports contract 2.
+- **Two suites moved with the build**: t232-test reads the build from the
+  files instead of pinning T2.32 (six of its checks failed on every new build,
+  the T2.30 lesson again), and t230-test's "a server that reports no level is
+  not called behind" became the opposite — the phone needs 2 now, so a server
+  older than T2.30 is behind and said to be. code-test's old *…and back to
+  work opens a new one* (which failed in this container on T2.26 too) is gone,
+  replaced by the D29 refusal, so the only suite that fails here is push-test
+  (6/14, the test setup serves no Firebase files).
+- **Not done on purpose**: the roll-out notice (`rollForgot`) still answers OK
+  when its comment fails — throwing `Pave:` there would have the phone retry
+  a notice that may have half-landed; Step 3 with D31. And whether a crew
+  member may say afterwards that a break ended early is Carl's (D27: *ask the
+  office* until then; End break early still works in real time).
+- **The training videos are further out of date**: the morning-after screen,
+  the "couldn't be told" words and sign-out's draft warning are new on screen.
+  Carl's "Do not recreate videos yet" still stands.
+- **`CREW-ASSIGNMENTS-API.md` still says "colours"** (line 165). It must stay
+  byte-identical with the board's copy, so it changes in both repos in one
+  session, not here alone.

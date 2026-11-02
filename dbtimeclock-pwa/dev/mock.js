@@ -292,6 +292,9 @@
   }
 
   var ST = { open: null, entries: [], pushToken: null, nudged: null, n: 0, files: 0 };
+  // The clock as JobTread holds it, for a test to change behind the phone's
+  // back — another phone, or the office (T2.33).
+  window.__MOCK_ST = ST;
   // Two closed blocks already banked, so the hours have something in them:
   // the morning at the shop and the drive to Webster (T2.23). Neither is work
   // at Webster, so its first clock-in owes the start photo whatever the hour
@@ -580,7 +583,7 @@
       if (q) e.queued = { start: e.startedAt, waited: q.waited };
       // __MOCK_AWAY: the morning clock-in somewhere else (T2.23).
       if (first) {
-        e.morning = window.__MOCK_AWAY ? { ok: false, where: window.__MOCK_AWAY === 'noloc' ? 'with no location from the phone' : 'about 3.2 miles from the shop on Monroe St' } : { ok: true, at: 'the shop on Monroe St' };
+        e.morning = window.__MOCK_AWAY ? { ok: false, where: window.__MOCK_AWAY === 'noloc' ? 'with no location from the phone' : 'about 3.2 miles from the shop on Monroe St', notice: (window.__MOCK_NOTICEFAIL ? { ok: false, error: 'JobTread did not answer' } : { ok: true }) } : { ok: true, at: 'the shop on Monroe St' };
         if (window.__MOCK_AWAY) (window.__NOTES = window.__NOTES || []).push({ kind: 'morning', jobId: (opts && opts.todayJobId) || SHOP.id, where: e.morning.where });
       }
       return e;
@@ -610,7 +613,19 @@
       if (ST.open && ST.open.job && ST.open.job.id === jobId && ST.open.code && ST.open.code.id === costItemId && Math.abs(Date.parse(ST.open.startedAt) - start) <= 300000) return { already: ST.open };
       return { start: start, waited: waited, note: 'Clocked in with no signal at ' + new Date(start).toLocaleTimeString() + ' — sent from DB Crew.' };
     },
+    // T2.33: a block still open from a day before ends only at a stated time
+    // (leftSite), as Code.gs refuses every other write that would close it.
+    __stale: function () {
+      if (!ST.open || Date.parse(ST.open.startedAt) > Date.now()) return;
+      var today = new Date(); today.setHours(0, 0, 0, 0);
+      if (Date.parse(ST.open.startedAt) >= today.getTime()) return;
+      var e = new Error('STALE_OPEN: You are still on the clock from a day before. Say when you left that day first.');
+      e.stale = { startedAt: ST.open.startedAt, jobId: ST.open.job && ST.open.job.id };
+      throw e;
+    },
+    __notOn: function () { var e = new Error('NOT_ON_CLOCK: You are not on the clock any more — it was ended elsewhere. Clock in to start again.'); e.notOn = true; return e; },
     __open: function (jobId, costItemId, notes, startMs) {
+      HANDLERS.__stale();
       HANDLERS.__dropPlanned();
       var at = new Date(startMs || Date.now()).toISOString();
       if (ST.open) ST.open.endedAt = at;
@@ -620,6 +635,8 @@
     },
     switchCode: function (jobId, costItemId, coords, endPhotoId, startPhotoId, opts) {
       (window.__CLOCK = window.__CLOCK || []).push(['switchCode', jobId, costItemId, endPhotoId || null, startPhotoId || null, (opts && opts.notes) || null]);
+      // Nothing open and not a kept arrival: the clock ended elsewhere (T2.33).
+      if (!ST.open && !(opts && opts.queued)) throw HANDLERS.__notOn();
       if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to start work at this job.');
       var q = HANDLERS.__queued(opts, jobId, costItemId);
       if (q && q.already) return q.already;
@@ -665,7 +682,7 @@
         if (plan.travelItemId) add(plan.jobId, plan.travelItemId, new Date(at).toISOString(), now, plan.notes);
         ST.open = add(plan.jobId, plan.costItemId, now, null);
       }
-      return { ok: true, open: ST.open, entries: ST.entries };
+      return { ok: true, open: ST.open, entries: ST.entries, notice: (window.__MOCK_NOTICEFAIL ? { ok: false, error: 'JobTread did not answer' } : { ok: true }) };
     },
     // Started earlier (T2.24): the block just opened moves back, its notes
     // say so; the API's bounds, as the API words them.
@@ -675,10 +692,11 @@
       var at = Date.parse(startedAt), began = Date.parse(ST.open.startedAt);
       if (!(at < began)) throw new Error('That is not before you clocked in.');
       if (began - at > 4 * 3600e3) throw new Error('That is more than 4 hours before you clocked in — ask the office to fix the day.');
+      if (ST.brkId && ST.brkId === ST.open.id) throw new Error('That block started when your break ended — Started earlier cannot shorten a break. Ask the office if you came back early.');
       ST.open.startedAt = new Date(at).toISOString();
       ST.open.notes = ((ST.open.notes || '') + ' Started earlier — said they started earlier.').trim();
       (window.__NOTES = window.__NOTES || []).push({ kind: 'earlier', jobId: ST.open.job && ST.open.job.id, at: startedAt });
-      return { ok: true, id: ST.open.id, startedAt: ST.open.startedAt, notice: { ok: true } };
+      return { ok: true, id: ST.open.id, startedAt: ST.open.startedAt, notice: (window.__MOCK_NOTICEFAIL ? { ok: false, error: 'JobTread did not answer' } : { ok: true }) };
     },
     // The drive (T2.18): from work it carries the end photo of what is left;
     // from a drive nothing. Opens on the line named, saying where to.
@@ -693,12 +711,16 @@
       (window.__CLOCK = window.__CLOCK || []).push(['clockOut', endPhotoId || null]);
       // Out from a break: the planned block goes, no photo (T2.13).
       if (HANDLERS.__dropPlanned()) return { ok: true, closed: null, entries: ST.entries };
+      // Nothing open: said, not a clock-out (T2.33).
+      if (!ST.open) return { ok: true, closed: null, notOn: true, entries: ST.entries };
+      HANDLERS.__stale();
       if (!endPhotoId && HANDLERS.__endOwed()) throw new Error('PHOTO_REQUIRED: An end photo is required to clock out.');
       if (ST.open) ST.open.endedAt = new Date().toISOString();
       ST.open = null;
       // Out away from the shop and the office (T2.27): __MOCK_AWAY_OUT plays
-      // the server telling the PM and the Ops Director.
-      return { ok: true, entries: ST.entries, evening: window.__MOCK_AWAY_OUT ? { ok: false, where: 'about 12 miles from the shop on Monroe St' } : { ok: true, at: 'the shop on Monroe St' } };
+      // the server telling the PM and the Ops Director; __MOCK_NOTICEFAIL the
+      // comment to them failing (T2.33).
+      return { ok: true, entries: ST.entries, evening: window.__MOCK_AWAY_OUT ? { ok: false, where: 'about 12 miles from the shop on Monroe St', notice: (window.__MOCK_NOTICEFAIL ? { ok: false, error: 'JobTread did not answer' } : { ok: true }) } : { ok: true, at: 'the shop on Monroe St' } };
     },
     // A break the way JobTread takes one (T2.13): the running block ends and
     // the next is waiting, starting when the break ends (floored to the
@@ -714,15 +736,19 @@
       if ([15, 30, 45, 60].indexOf(Number(minutes)) === -1) throw new Error('Pick a break of 15, 30, 45 or 60 minutes.');
       var was = ST.open;
       if (!was) throw new Error('You are not on the clock, so there is no break to start.');
+      HANDLERS.__stale();
       was.endedAt = new Date().toISOString();
       var at = new Date(Date.now() + minutes * 60000); at.setSeconds(0, 0);
       ST.open = { id: 'open' + (++ST.n), startedAt: at.toISOString(), endedAt: null, minutes: 0, job: was.job, code: was.code };
       ST.entries = [ST.open].concat(ST.entries);
+      ST.brkId = ST.open.id;   // the block this break planned (T2.33: never moved back by Started earlier)
       return { ok: true, closed: was.id, open: ST.open, breakEnd: ST.open.startedAt, minutes: minutes, entries: ST.entries };
     },
     endBreak: function (jobId, costItemId) {
       (window.__CLOCK = window.__CLOCK || []).push(['endBreak', jobId, costItemId]);
       if (ST.open && Date.parse(ST.open.startedAt) <= Date.now()) return ST.open;   // the break already ran out
+      // Nothing open is no break (T2.33): refused, unless this plays a server from before T2.13.
+      if (!ST.open && !window.__MOCK_OLD_BREAK) throw HANDLERS.__notOn();
       return HANDLERS.__open(jobId, costItemId);
     },
     // The waiting block after a break goes (End break early, a clock-out,
@@ -813,7 +839,7 @@
     // T2.30: what each system is running. A test sets __MOCK_BUILDS to try a
     // server behind the phone.
     getBuilds: function () {
-      return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 1 } };
+      return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 2 } };
     },
     markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
     exchangeSession: function () { return { token: 'h.' + payload + '.s', exp: 4102444800 }; },
@@ -867,6 +893,9 @@
     coClose: function (jobId, visit, ref) {
       window.__CO.push({ fn: 'coClose', jobId: jobId, ref: ref, visit: visit });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      // __MOCK_CO_NOTASK: a server older than T2.33 on a job with no Final
+      // inspection task — OK, and nothing recorded (audit D22).
+      if (window.__MOCK_CO_NOTASK) return { status: 200, body: { completedTaskId: null, flipped: null } };
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
       var line = j && j.areas && j.areas.filter(function (a) { return a.line; })[0];
       if (line) {
@@ -890,6 +919,10 @@
     coComplete: function (taskId, jobId, note, ref) {
       window.__CO.push({ fn: 'coComplete', taskId: taskId, jobId: jobId, note: note, ref: ref });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      // T2.33 (audit D23): __MOCK_CO_GONE names a repair JobTread no longer has
+      // (410); __MOCK_CO_502 names one JobTread keeps refusing (an old server's 502).
+      if (window.__MOCK_CO_GONE === taskId) return { status: 410, reason: 'http-410', body: { error: 'That repair is no longer in JobTread', gone: true } };
+      if (window.__MOCK_CO_502 === taskId) return { status: 502, reason: 'http-502', body: { error: 'Pave request failed (400): Could not find task' } };
       CO_DONE[taskId] = true;
       // The server's own rule (shouldFlipToPmReview): the last punch task
       // closing moves a Punch List job to PM Review.
@@ -966,6 +999,8 @@
         return Promise.resolve({ ok: true, status: 200, text: function () { return Promise.resolve(t); } });
       };
       if (!body.t) return authNo();
+      // __MOCK_EXPIRED: the session ran out — every call is refused as signed out (T2.33).
+      if (window.__MOCK_EXPIRED) return authNo();
       if (/BAD/.test(body.t)) return authNo({ authWhy: 'not-allowed', email: 'yahir.personal@gmail.com' });
       if (body.fn === 'exchangeSession' && Number(window.__MOCK_EXCHANGE_FAIL) > 0) {
         window.__MOCK_EXCHANGE_FAIL--;
@@ -993,6 +1028,8 @@
       } catch (err) {
         out = { ok: false, error: String(err && err.message || err), readOnly: /^READ_ONLY/.test(String(err && err.message || '')) };
         if (err && err.refuse) out.refuse = err.refuse;   // a kept clock-in not added, as Code.gs says it (T2.31)
+        if (err && err.stale) out.stale = err.stale;      // a block still open from a day before (T2.33)
+        if (err && err.notOn) out.notOn = true;           // the clock had ended elsewhere (T2.33)
       }
       // Every real reply says where its time went; the Build panel shows it.
       out.ms = { total: 1840, auth: 60, member: 380, fn: 1400, pave: body.fn === 'getStart' ? 3 : 1, paveMs: 1250 };

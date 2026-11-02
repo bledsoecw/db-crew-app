@@ -1205,6 +1205,90 @@ Diagnostics reads App and API the same), then `firebase deploy --only
 hosting`, which runs `check-build.mjs` first. The Close Out server is not
 involved.
 
+**Nothing the crew sends is answered OK and lost** (T2.33, 2 Nov 2026). Step 1
+of the second audit, the reliability fixes (Carl: *"go, start Step 1"*):
+
+- **A block left open overnight ends when they say, never "now"** (D21). The
+  morning after a forgotten clock-out, the clock card dims its buttons and
+  says *Say when you left on Sun Nov 1 first*, the band says the day the
+  block began, and every clock button — Clock out, Break, Change code, Leave
+  the site, Change job — opens *When did you leave?* first. The time is read
+  on the day the block began; one earlier than its start is the next morning
+  (a block from 6:00p left at 1:00 ended at 1:00am). The Apps Script refuses
+  any write that would close a block from a day before at the current time —
+  a clock-out, a break, a code change, a move, a fresh clock-in — so a phone
+  that did not know (another phone, the office) is told, reads the clock
+  again and asks. Before this, the first tap of the morning made a 24- to
+  36-hour entry. A clock-in kept with no signal that meets such a block waits
+  for the answer, then goes with its own time.
+- **Signed out means waiting** (D24). When the session has run out, nothing
+  waiting on the phone counts as failing: a kept clock-in, photos, roll-out
+  notes, Close Out items and lines added to a sent day log wait for the
+  sign-in and go on the new session. A clock-in kept with no signal is its
+  maker's: on a shared phone it is never sent as the next person's hours; a
+  notice says whose it is (*Alberto Gonzalez's 6:50a clock-in waits for them
+  to sign in on this phone*), and signing out keeps it and its start photo on
+  the phone for them instead of erasing them — nor does it stop the person
+  signed in from signing out.
+- **An inspection is recorded, or it is said** (D22; the Close Out server).
+  On a job with no Final inspection task, the server now makes one (named,
+  typed and described as the board makes it, with a line saying DB CheckOut
+  made it) and records the inspection there, so its answer always names the
+  task. The phone clears an inspection as sent only when the answer names its
+  task; an older server's OK with no task is kept on the phone, with Retry and
+  Discard, as *Not recorded — this job has no Final inspection task in
+  JobTread*.
+- **A repair that is gone is said, and one stuck item holds back only its own
+  job** (D23, D38). Done reads the repair first: one JobTread no longer has
+  (taken off or moved) is answered *Gone*, and the phone says *Not in JobTread
+  any more — ask your PM, then Discard* instead of retrying for good; a task
+  that is not that job's repair is refused, never ticked. On the phone a job's
+  items still go in order, but one that cannot go now holds back only its own
+  job — every other job's close-out still goes — and each item keeps its own
+  tries and next time. Discard is offered after three failures on anything,
+  not only on a refusal.
+- **"Told" only when they were** (D26). The four notices to the PM and the
+  Ops Director — clocked in away from the shop, clocked out away, *When did
+  you leave?*, Started earlier — say *your PM and the Ops Director are told*
+  only when the API says the comment went; otherwise *your PM couldn't be told
+  — tell them yourself*. When the place check itself failed, the phone claims
+  nothing. The missing-start-photo push no longer says the office was copied;
+  it never was.
+- **Started earlier never shortens a break** (D27). The block a break planned
+  — JobTread's own way of taking one — offers no Started earlier, and the API
+  refuses it in words (*ask the office if you came back early*). Found while
+  testing and fixed: Started earlier stayed on the screen through a break.
+- **A clock that already ended elsewhere is said** (D29). Clock out, Back to
+  work or a code change on a block the office or another phone already ended
+  no longer opens a fresh one: the API says so, and the phone says *Your clock
+  was already ended elsewhere — you're off the clock now* and shows the clock
+  off. Coming back to the app reads the clock again, at most every two minutes
+  and never in the middle of a step.
+- **Send is saved at the tap** (D34). An inspection, a work area or a repair
+  is saved on the phone the moment Send or Done is tapped, in one write, so a
+  phone shut or a battery gone a second later keeps the whole send, never part
+  of it. A Spanish note's English is fetched as it goes (up to 8 seconds, as
+  before), not before it is saved.
+- **Sign-out names what it would erase** (D35). An inspection in progress in
+  Close Out, or a day log written and not sent, is named on the first tap
+  (*Not sent, and erased if you sign out now: …*), and the button says *Tap
+  again to erase them and sign out*.
+- **A line added to a sent day log waits and retries** (D36). *What did you
+  forget?* saved with no signal used to show as part of the log while it never
+  reached JobTread. It is a waiting item with its own request id now: the log
+  says *not sent yet* beside it until it lands, it goes when there is signal
+  (one line in JobTread however many tries), and one the API refuses says
+  *not added — tell the office*.
+
+`dev/t233-test.mjs` walks it (75 checks); `apps-script/code-test.mjs` has the
+Apps Script's half, DB CheckOut's `test/routes.test.ts` the Close Out
+server's. **Needs, in this order:** DB CheckOut's `main` (its `/health` then
+reads `contract: 2`, the level this phone needs — Diagnostics warns while the
+server is behind), then the Apps Script, then `firebase deploy --only
+hosting`. Against an older Close Out server nothing is lost: an inspection it
+records nowhere is kept on the phone and said, and a repair it cannot find is
+retried until Discard is offered.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
@@ -1264,7 +1348,7 @@ task's progress moves with it.
 
 Each roofing job's card carries the board's own sentence about where the list
 stands ("Before tear-off — 6 of 11 done", "Signed off — Tyler · Sep 15"),
-coloured neutral / amber / green, and a full-width **Site checks** button. A
+colored neutral / amber / green, and a full-width **Site checks** button. A
 job with no list says "No checklist on this job yet". The checklist screen is
 three stacked phases with their "when" hint and a *done of total* count; the
 first phase with anything unticked opens, the rest are one tap away. Rows are

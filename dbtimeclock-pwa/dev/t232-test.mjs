@@ -19,6 +19,9 @@ const APP_URL = process.env.PREVIEW_URL || 'http://localhost:8100/';
 const mock = readFileSync(new URL('./mock.js', import.meta.url), 'utf8');
 const PUB = (f) => readFileSync(new URL('../public/' + f, import.meta.url), 'utf8');
 const PAGE = PUB('index.html'), APP = PUB('app.js'), SW = PUB('sw.js');
+// The build under test, read from the files (T2.33): this suite pins the pairing, never a number.
+const FULL = /var APP_BUILD = '([^']+)'/.exec(APP)[1], BUILD = /var BUILD = '([^']+)'/.exec(SW)[1];
+const CACHE = 'dbtc-' + BUILD.toLowerCase().replace(/\./g, '-');
 const FB = JSON.parse(readFileSync(new URL('../firebase.json', import.meta.url), 'utf8'));
 const SITE = FB.hosting.find((h) => h.site === 'db-crews');
 const hdr = (src, key) => (SITE.headers.filter((h) => h.source === src).flatMap((h) => h.headers).find((x) => x.key === key) || {}).value;
@@ -82,7 +85,7 @@ async function boot(flags = '', { size = [402, 874], headers = null, html = null
   const { ctx, page, errs } = await boot();
   check('I5: the app runs from app.js, the page and the script one build',
     await page.evaluate(() => [APP_BUILD, PAGE_BUILD, !document.getElementById('gateSlow'), !document.getElementById('app').classList.contains('hidden')]),
-    ['T2.32 (2026-10-30)', 'T2.32', true, true]);
+    [FULL, BUILD, true, true]);
   check('no page errors (I5)', errs, []);
   await ctx.close();
 }
@@ -101,7 +104,7 @@ async function boot(flags = '', { size = [402, 874], headers = null, html = null
   await page.waitForTimeout(800);
   const s = await page.evaluate(() => [sessionStorage.getItem('dbtc_buildfix'), PAGE_BUILD, buildWarnings().filter((w) => /different builds/.test(w)).length]);
   check('…a page and a script of different builds: loads once more, fresh, then carries on and Diagnostics says so',
-    [loads.length, s[0], s[1], s[2]], [2, 'T2.31>T2.32', 'T2.31', 1]);
+    [loads.length, s[0], s[1], s[2]], [2, 'T2.31>' + BUILD, 'T2.31', 1]);
   check('…the only error is the one that stopped the first load', errs.map((e) => /different builds/.test(e)), [true]);
   await ctx.close();
 }
@@ -231,18 +234,18 @@ async function boot(flags = '', { size = [402, 874], headers = null, html = null
     return [(await caches.keys()), !!(await c.match('./app.js?b=' + PAGE_BUILD)), !!(await c.match('./index.html'))];
   });
   check('I5 + worker: installed, it keeps the page and its script under the build\'s own cache',
-    [cached[0], cached[1], cached[2]], [['dbtc-t2-32'], true, true]);
+    [cached[0], cached[1], cached[2]], [[CACHE], true, true]);
   await ctx.setOffline(true);
   await page.reload({ waitUntil: 'load' }).catch(() => {});
   await page.waitForTimeout(1500);
   check('…with no signal the app opens from the saved pair, page and script one build',
     await page.evaluate(() => [typeof APP_BUILD === 'string' ? APP_BUILD.split(' ')[0] : null, typeof PAGE_BUILD === 'string' ? PAGE_BUILD : null, !document.getElementById('gateSlow')]),
-    ['T2.32', 'T2.32', true]);
+    [BUILD, BUILD, true]);
   // A new build is deployed: the page, its script and the worker all say T2.99.
   await ctx.setOffline(false);
   const bump = (f, a, b) => { const q = path.join(dir, f); writeFileSync(q, readFileSync(q, 'utf8').replace(a, b)); };
-  bump('index.html', 'data-build="T2.32"', 'data-build="T2.99"'); bump('index.html', 'app.js?b=T2.32', 'app.js?b=T2.99');
-  bump('app.js', "var APP_BUILD = 'T2.32 (2026-10-30)';", "var APP_BUILD = 'T2.99 (2026-10-30)';"); bump('sw.js', "var BUILD = 'T2.32';", "var BUILD = 'T2.99';");
+  bump('index.html', 'data-build="' + BUILD + '"', 'data-build="T2.99"'); bump('index.html', 'app.js?b=' + BUILD, 'app.js?b=T2.99');
+  bump('app.js', "var APP_BUILD = '" + FULL + "';", "var APP_BUILD = 'T2.99 (2026-10-30)';"); bump('sw.js', "var BUILD = '" + BUILD + "';", "var BUILD = 'T2.99';");
   await page.reload({ waitUntil: 'load' });
   await page.waitForFunction(async () => (await caches.keys()).includes('dbtc-t2-99'), null, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(2500);   // the new worker takes over, and the page reloads itself once
