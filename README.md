@@ -1280,7 +1280,7 @@ of the second audit, the reliability fixes (Carl: *"go, start Step 1"*):
   (one line in JobTread however many tries), and one the API refuses says
   *not added — tell the office*.
 
-`dev/t233-test.mjs` walks it (75 checks); `apps-script/code-test.mjs` has the
+`dev/t233-test.mjs` walks it (78 checks); `apps-script/code-test.mjs` has the
 Apps Script's half, DB CheckOut's `test/routes.test.ts` the Close Out
 server's. **Needs, in this order:** DB CheckOut's `main` (its `/health` then
 reads `contract: 2`, the level this phone needs — Diagnostics warns while the
