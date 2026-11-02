@@ -804,3 +804,10 @@ regeneration, Linux only.
   and had no `check-build.mjs` to stop it going out. At Carl's word ("bring
   main up to date") it was fast-forwarded to the branch, no force. Deploys
   still pull the branch; nothing deploys when `main` moves (no workflows).
+- **Standing rule: keep `main` level at the end of each round** (Carl, 2 Nov
+  2026, *"keep main level at the end of each round"*). When a round is handed
+  back, fast-forward `main` to the branch's last commit —
+  `git push origin claude/zealous-hopper-j7xy98:main` — and check the two
+  match. Never force. If `main` ever holds a commit the branch lacks, merge
+  `main` into the branch first (a merge commit), then fast-forward; if both
+  changed the same thing, ask Carl.
