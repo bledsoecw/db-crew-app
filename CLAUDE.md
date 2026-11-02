@@ -777,3 +777,14 @@ regeneration, Linux only.
   for db-time-clock is proven by nothing until Carl's `testPushToMe` lands.
   `PUSH_ENABLED` is Carl's to set afterwards, and it turns on every push
   whose trigger is installed, for everyone, at once.
+- **Switched on, about 21:30Z on 2 Nov 2026.** Carl ran SETUP 4b's order
+  from 3383459: the Overview's four permissions matched the new list,
+  `FCM_PROJECT_ID` = `db-time-clock`, `clasp push -f`, approve and
+  `testPushToMe` in the editor, then `clasp deploy … -d "T2.34 push
+  sign-in"`, and set `PUSH_ENABLED` = `true`. The web app's GET answered
+  "Opening DB Crew" at 21:36Z (an unapproved deployment answers
+  "Authorization is required"). Not read from here: what `testPushToMe`
+  logged, which of the other two push triggers are installed, and the first
+  hourly line — the Executions page has them. That first run after 4pm sends
+  "Tomorrow" to every registered phone with a booking the next day; the Close
+  Out part and "Schedule changed" only take their snapshots on it.
