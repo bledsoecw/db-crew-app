@@ -17,13 +17,13 @@ import vm from 'node:vm';
 const src = readFileSync(new URL('./Code.gs', import.meta.url), 'utf8');
 
 // Minimal Apps Script stubs — enough to run the assigned-jobs path.
-let props = {}, cacheStore = {}, fetched = [], trips = 0;
+let props = {}, cacheStore = {}, fetched = [], trips = 0, logged = [];
 let fetchImpl = () => ({ code: 200, body: '{"crew":null,"visits":[]}' });
 const sandbox = {
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] ?? null, setProperty: (k,v)=>{props[k]=v;},
     getProperties: () => ({ ...props }), deleteProperty: k => { delete props[k]; } }) },
   CacheService: { getScriptCache: () => ({ get: k => cacheStore[k] ?? null, put: (k,v)=>{cacheStore[k]=v;}, remove: k => { delete cacheStore[k]; } }) },
-  Session: { getScriptTimeZone: () => 'America/New_York' },
+  Session: { getScriptTimeZone: () => 'America/New_York', getActiveUser: () => ({ getEmail: () => sandbox.__activeEmail || '' }) },
   Utilities: {
     formatDate: (d, tz, fmt) => {
       if (fmt === 'H') return String(sandbox.__hour != null ? sandbox.__hour : new Date(d.getTime() - 4*3600*1000).getUTCHours());
@@ -42,8 +42,11 @@ const sandbox = {
     fetchAll: (reqs) => { trips++; return reqs.map(r => sandbox.UrlFetchApp.fetch(r.url, r)); } },
   ContentService: { createTextOutput: (txt) => ({ setMimeType() { return this; }, getContent: () => txt }), MimeType: { JSON: 'application/json' } },
   LockService: { getScriptLock: () => ({ waitLock() {}, tryLock() { return true; }, releaseLock() {} }) },
-  ScriptApp: { getProjectTriggers: () => [], deleteTrigger: () => {}, newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }) }) }) },
-  console,
+  ScriptApp: { getProjectTriggers: () => [], deleteTrigger: () => {}, newTrigger: () => ({ timeBased: () => ({ everyHours: () => ({ create: () => {} }), everyMinutes: () => ({ create: () => {} }) }) }),
+    // The script's own sign-in (2 Nov 2026): what a push without a key goes on.
+    getOAuthToken: () => 'user-token' },
+  // What the script logs is what the Executions page shows: kept, not printed.
+  console: { ...console, log: (...a) => { logged.push(a.join(' ')); } },
 };
 vm.createContext(sandbox);
 vm.runInContext(src, sandbox);
@@ -1894,6 +1897,90 @@ t('D26: the missing-start-photo push no longer says the office was copied',
   t('T2.34: FCM not set up (sendPush_ throws) — every phone is still tried, each counted failed', [threw, ss && ss.devices, ss && ss.failed, ss && ss.closeout.skipped],
     ['', 2, 2, 'Close Out not configured']);
   sandbox.__hour = null; props.PUSH_ENABLED = 'false';
+}
+
+// ---- pushes with no key to make (2 Nov 2026): the script signs in as itself ----
+// The organization behind db-time-clock refuses service account keys, so
+// FCM_SERVICE_ACCOUNT cannot be had there. With FCM_PROJECT_ID alone a push
+// goes on the script's own sign-in and names the Firebase project as the one
+// it counts against.
+{
+  props = { PUSH_ENABLED: 'true', FCM_PROJECT_ID: 'db-time-clock', APP_URL: 'https://db-time-clock.web.app/' };
+  cacheStore = {}; fetched = []; pushes = [];
+  fetchImpl = route({});
+  const fcmCalls = () => fetched.filter(f => f.url.indexOf('fcm.googleapis.com') > -1);
+  const tokenCalls = () => fetched.filter(f => f.url.indexOf('oauth2.googleapis.com/token') > -1);
+  let sp = sandbox.sendPush_('tok-x', 'T', 'B', { kind: 'test' });
+  t('no key: the push goes on the script\'s own sign-in, counted against the Firebase project',
+    [sp.ok, fcmCalls().length, fcmCalls()[0].url, fcmCalls()[0].opts.headers, tokenCalls().length],
+    [true, 1, 'https://fcm.googleapis.com/v1/projects/db-time-clock/messages:send',
+      { Authorization: 'Bearer user-token', 'X-Goog-User-Project': 'db-time-clock' }, 0]);
+  props.FCM_SERVICE_ACCOUNT = JSON.stringify({ client_email: 'a@b', private_key: 'k' });
+  fetched = [];
+  sandbox.sendPush_('tok-x', 'T', 'B', {});
+  t('…a key, where an organization allows one, still wins, with no billing project of its own',
+    [fcmCalls()[0].opts.headers, tokenCalls().length], [{ Authorization: 'Bearer at' }, 1]);
+  delete props.FCM_SERVICE_ACCOUNT; cacheStore = {};
+  fetchImpl = route({ fcm: () => ({ code: 403, body: '{"error":{"code":403,"message":"Permission \'cloudmessaging.messages.create\' denied on resource","status":"PERMISSION_DENIED"}}' }) });
+  sp = sandbox.sendPush_('tok-x', 'T', 'B', {});
+  t('…a refusal comes back as words, not thrown, and is not read as a dead phone',
+    [sp.ok, sp.stale, /^FCM 403: .*cloudmessaging\.messages\.create/.test(sp.error)], [false, false, true]);
+
+  // testPushToMe: the editor prints the log and never the return value.
+  const realMemberFor = sandbox.memberFor_;
+  sandbox.memberFor_ = (email) => email === ME.email ? ME : { userId: '' };
+  sandbox.__activeEmail = ME.email;
+  sandbox.registerPushToken(ME, 'tok-1', 'ios');
+  fetchImpl = route({}); logged = []; pushes = [];
+  let said = sandbox.testPushToMe();
+  t('testPushToMe pushes to your own phone and logs that it did',
+    [said, logged, pushes.length, pushes[0] && pushes[0].token, pushes[0] && pushes[0].notification.title],
+    ['Sent to the phone registered for t@deitemeyerbrothers.com.', ['Sent to the phone registered for t@deitemeyerbrothers.com.'], 1, 'tok-1', 'DB Crew test']);
+  fetchImpl = route({ fcm: () => ({ code: 403, body: '{"error":{"status":"PERMISSION_DENIED"}}' }) }); logged = [];
+  said = sandbox.testPushToMe();
+  t('…when FCM refuses, the log says why', [/^FCM 403: /.test(said), logged[0] === said], [true, true]);
+  sandbox.__activeEmail = 'someone@deitemeyerbrothers.com'; logged = [];
+  sandbox.testPushToMe();
+  t('…and an editor signed in as somebody else is told whose phone it looked for', logged[0],
+    'No device registered for someone@deitemeyerbrothers.com — open DB Crew on your phone signed in as someone@deitemeyerbrothers.com, then Diagnostics > Turn on notifications.');
+  sandbox.memberFor_ = realMemberFor; sandbox.__activeEmail = '';
+  sandbox.unregisterPushToken(ME);
+
+  // The hourly run leaves one line of counts on the Executions page.
+  props.PUSH_ENABLED = 'false'; logged = [];
+  sandbox.sweepSchedulePushes();
+  t('each hourly run logs what it did — here, why it did nothing', logged, ['schedule pushes: {"skipped":"PUSH_ENABLED is not true"}']);
+  props.PUSH_ENABLED = 'true'; logged = [];
+  const sw2 = sandbox.sweepSchedulePushes();
+  t('…counts only: no token, no address', [logged.length, logged[0] === 'schedule pushes: ' + JSON.stringify(sw2), /tok-|@/.test(logged[0])], [1, true, false]);
+  props = {};
+}
+
+// ---- appsscript.json asks for exactly the permissions the code uses (2 Nov 2026) ----
+// The list is written out because the push now asks for firebase.messaging,
+// which Apps Script cannot work out by reading the code. Written out, Apps
+// Script stops working any of it out: a service added to Code.gs without its
+// permission here would fail on the live script ("You do not have permission
+// to call …"), in no test but this one.
+{
+  const manifest = JSON.parse(readFileSync(new URL('./appsscript.json', import.meta.url), 'utf8'));
+  const PERM = {
+    UrlFetchApp: 'https://www.googleapis.com/auth/script.external_request',
+    ScriptApp: 'https://www.googleapis.com/auth/script.scriptapp',          // the triggers
+    MailApp: 'https://www.googleapis.com/auth/script.send_mail',            // the safety alert
+    'Session.getActiveUser': 'https://www.googleapis.com/auth/userinfo.email',
+    'Session.getEffectiveUser': 'https://www.googleapis.com/auth/userinfo.email',
+    // These need no permission of their own.
+    PropertiesService: null, CacheService: null, LockService: null, ContentService: null, HtmlService: null,
+    'Session.getScriptTimeZone': null,
+  };
+  const need = new Set(['https://www.googleapis.com/auth/firebase.messaging']), unknown = new Set();
+  const note = (k) => { if (!(k in PERM)) unknown.add(k); else if (PERM[k]) need.add(PERM[k]); };
+  for (const m of src.matchAll(/\b([A-Z][A-Za-z]*(?:App|Service))\./g)) note(m[1]);
+  for (const m of src.matchAll(/\bSession\.([A-Za-z]+)/g)) note('Session.' + m[1]);
+  t('every Apps Script service Code.gs calls has a known permission (add a new one to appsscript.json and here)', [...unknown], []);
+  t('appsscript.json lists exactly those permissions, firebase.messaging among them', [...(manifest.oauthScopes || [])].sort(), [...need].sort());
+  t('…and the web app still runs as the account that deployed it, open to the phones', manifest.webapp, { executeAs: 'USER_DEPLOYING', access: 'ANYONE_ANONYMOUS' });
 }
 
 console.log(`\n${pass}/${pass+fail} passed`);

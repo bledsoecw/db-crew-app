@@ -91,9 +91,9 @@ In Apps Script > Project Settings > **Script Properties**:
 | `CLOSEOUT_SECRET` | the same value as that server's `CREW_APP_SECRET` env var on Vercel (`openssl rand -hex 24`, set it on both sides). The script forwards each Close Out call with it plus who is asking. |
 | `ROLES_JSON`, `PEOPLE_JSON` | written by the app itself from the Operations account's People tab. Never edit by hand. Since T2.3 the level lives in DB Hub and `ROLES_JSON` is only the fallback for a person the hub has no row for; deleting it puts those people back on the defaults. |
 | `EXTRA_ALLOWED_EMAILS` | optional — comma-separated Google addresses let through the sign-in beside the company domain, without a code change. The two site managers on Gmail are already in `SITE_MANAGER_EMAILS` in `Code.gs`; this is for the next one. It is an explicit list, never a domain. |
-| `FCM_PROJECT_ID` | for push — the Firebase project id (see 4b) |
-| `FCM_SERVICE_ACCOUNT` | for push — the service account JSON key, pasted whole |
-| `PUSH_ENABLED` | for push — `true` to actually send. Gates the photo nudge and the schedule pushes alike. |
+| `FCM_PROJECT_ID` | for push — the Firebase project id, `db-time-clock` (see 4b). With it alone the script sends on its own sign-in. |
+| `FCM_SERVICE_ACCOUNT` | optional — a service account JSON key, pasted whole, for an organization that allows keys. Deitemeyer's does not; leave it unset (see 4b). |
+| `PUSH_ENABLED` | for push — `true` to actually send. Gates every push the triggers send (the photo nudge, the evening push, the break reminders, the schedule and Close Out pushes); `testPushToMe` ignores it. Not set on the live script as of 2 Nov 2026 (see 4b). |
 | `ACCESS_FEED_URL` | optional — DB Hub's access feed (the access-"Anyone" hub deployment's `/exec` URL; `?accessfeed=1` in the hub prints it). With it set, the hub's **App access** panel is the store for who may use the clock and as what: blank = the app's own defaults, `Crew` / `Site Manager` / `Service` = that role, `Manager` = crew plus the crew block, `Off` blocks the person. The People tab writes its choices back through the hub with this same URL and key (the hub's `doPost` on the feed deployment, v1.29 or later), so nothing extra is needed for that. Unset or unreachable = roles can only be set in the hub's panel, and the clock itself works as before. **Then run `installAccessFeedRefresh` once in the Apps Script editor** — a trigger refreshes the feed every 5 minutes and the API only ever reads that copy. Without the trigger the gate has no opinion (everyone JobTread admits gets in), and it is never fetched while a phone waits: the hub is another Apps Script, and fetching it inline on a cold cache is what put the clock past its 25-second boot ceiling on every reopen. |
 | `ACCESS_FEED_KEY` | the feed key `?accessfeed=1` prints (skip if the key is already baked into `ACCESS_FEED_URL`) |
 | `SHOP_CODES` | optional (T2.17) — the cost code numbers At the shop offers on 25-0011 DB INTERNAL, comma-separated, in order. Default `99TM-1, 99TM-2, 99TM-3, 99TM-5, 99TM-4, 02ST-5` (Morning Clock-In, Training, Crew Labor – Monroe St., Crew Labor – Bonnewitz Ave., Shop Work/Maintenance, Hauling & Disposal (Direct) for the haulers). Where two shop lines share a number, the shop's own line shows, not the CLOCK IN ITEMS one. |
@@ -146,9 +146,9 @@ this case and says "Add to Home Screen to get photo reminders" rather than
 failing silently.
 
 *(Why FCM and not raw Web Push: VAPID needs ES256 signing and Apps Script has
-no ECDSA. It does have `computeRsaSha256Signature`, so it can mint a
-service-account token and call FCM HTTP v1 — the whole stack stays in Apps
-Script, no Cloud Functions and no Blaze plan.)*
+no ECDSA. It can call FCM HTTP v1 on its own Google sign-in, or mint a token
+from a service account key with `computeRsaSha256Signature` — either way the
+whole stack stays in Apps Script, no Cloud Functions and no Blaze plan.)*
 
 1. Firebase console > Project settings > **Cloud Messaging** > Web Push
    certificates > **Generate key pair**. Copy the public key — that is the
@@ -161,17 +161,47 @@ Script, no Cloud Functions and no Blaze plan.)*
    vapidKey: '…'
    ```
 
-3. Project settings > **Service accounts** > Generate new private key. That
-   downloads a JSON file. Paste its **entire contents** into a Script Property
-   named `FCM_SERVICE_ACCOUNT`, and the project id into `FCM_PROJECT_ID`.
-4. Set `PUSH_ENABLED` to `true`.
-5. In the Apps Script editor, run **`installNudgeTrigger`** once. It creates a
-   time-driven trigger that runs `sweepBeforePhotoNudges` every 5 minutes.
-   (Authorize it when prompted.) `removeNudgeTrigger` undoes it.
-6. Test the chain: open the app on your phone, clock in, allow notifications
-   when asked. Then run **`testPushToMe`** from the editor — it pushes to your
-   own device, ignoring grace periods. If it lands on your lock screen, you're
-   done.
+3. Set the Script Property `FCM_PROJECT_ID` to the Firebase project id
+   (`db-time-clock`). That is all the sending needs: the script sends on its
+   own Google sign-in — the account it runs as, the one that deploys it and
+   installs its triggers — with the Firebase messaging permission
+   `appsscript.json` asks for. That account must be an **Owner or Editor of
+   the Firebase project**.
+
+   **Approve the permission before you deploy.** The first `clasp push` that
+   brings a new permission in `appsscript.json` needs one approval: in the
+   editor, run any function (step 4's `testPushToMe` is the one) and allow it
+   when Google asks. Only then `clasp deploy` — a deployment the account has
+   not approved answers every phone with "Authorization is required", which
+   stops the clock. Between the push and the approval the triggers fail and
+   Google may email about it; that is expected and harmless.
+
+   *A service account key is the other way in*, for an organization that
+   allows one: Project settings > Service accounts > Generate new private
+   key, and paste the whole JSON into `FCM_SERVICE_ACCOUNT`. Set, it wins.
+   Deitemeyer's organization refuses to make keys ("Key creation is not
+   allowed on this service account" — Google's default for newer
+   organizations), which is why the script's own sign-in exists (2 Nov
+   2026). Don't lift that block to get one.
+4. Test the chain before anyone else gets anything: open the app on your
+   phone signed in as the same Google account as the editor, and on
+   Diagnostics tap **Turn on notifications** (it is hidden once they are
+   on). Then run **`testPushToMe`** from the editor. It ignores
+   `PUSH_ENABLED`, so it reaches your phone and nobody else's, and its log
+   says "Sent to the phone registered for …" or why not: no device
+   registered for that account, or FCM's own refusal (`FCM 403: …` —
+   `cloudmessaging.messages.create` denied means the account is not an Owner
+   or Editor of the Firebase project; an API that "has not been used … or it
+   is disabled" comes with a link to switch it on). If it lands on your lock
+   screen, the chain works.
+5. Set `PUSH_ENABLED` to `true`. From then on every push whose trigger is
+   installed goes to everyone — so tell the crew first.
+6. In the Apps Script editor, run **`installNudgeTrigger`** once. It creates a
+   time-driven trigger that runs `sweepBeforePhotoNudges` every 5 minutes:
+   the before-photo nudge, and from `EVENING_NUDGE_HOUR` the "Still on the
+   clock" push. `removeNudgeTrigger` undoes it. **`installBreakReminderTrigger`**
+   is the break reminders (every minute) — the phone already promises them
+   on a break.
 7. Run **`installSchedulePushTrigger`** once as well. Hourly, for every
    registered phone, it asks the board for the next three days and sends one
    line the evening before — "Tomorrow: 812 S Washington St · Lucas · with
@@ -179,7 +209,10 @@ Script, no Cloud Functions and no Blaze plan.)*
    is booked; and "Schedule changed" when those days differ from the last look
    (added, moved, removed). Tapping either opens My jobs.
    `removeSchedulePushTrigger` undoes it. Phones registered before this build
-   re-register on their next launch; until then the sweep skips them.
+   re-register on their next launch; until then the sweep skips them. The
+   same run carries the Close Out pushes (T2.34), and each run leaves one
+   line of counts on the **Executions** page (`schedule pushes: {…}`) — the
+   only place a run that failed for every phone says so.
 
 **How the sweep decides.** Every 5 minutes it asks JobTread for open time
 entries, and for photos whose description contains `#TE:<timeEntryId>` — the

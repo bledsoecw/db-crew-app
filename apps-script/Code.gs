@@ -3463,6 +3463,23 @@ function pushLangFor_(userId) {
 }
 
 // ---- FCM transport -------------------------------------------------------
+// Two ways in (2 Nov 2026). The organization behind the db-time-clock
+// Firebase project blocks service account key creation (Google's default for
+// newer organizations), so the key FCM_SERVICE_ACCOUNT was written for cannot
+// be made there. Without that property the script signs in as itself: the
+// Google account it runs as (whoever installed the trigger, deployed the web
+// app or pressed Run in the editor), with the firebase.messaging permission
+// appsscript.json asks for. That account must be allowed to send messages in
+// the Firebase project (an Owner or Editor of it), and each request names the
+// project it counts against (X-Goog-User-Project): the token comes from Apps
+// Script's own hidden Cloud project, where the FCM API is not switched on and
+// cannot be. A key, where an organization allows one, still wins.
+function fcmAuthHeaders_(projectId) {
+  var raw = PropertiesService.getScriptProperties().getProperty('FCM_SERVICE_ACCOUNT');
+  if (raw) return { Authorization: 'Bearer ' + fcmAccessToken_() };
+  return { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Goog-User-Project': projectId };
+}
+
 function fcmAccessToken_() {
   var cache = CacheService.getScriptCache();
   var hit = cache.get('fcm_at');
@@ -3541,7 +3558,7 @@ function sendPush_(token, title, body, data, opts) {
   var resp = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + projectId + '/messages:send', {
     method: 'post',
     contentType: 'application/json',
-    headers: { Authorization: 'Bearer ' + fcmAccessToken_() },
+    headers: fcmAuthHeaders_(projectId),
     payload: JSON.stringify(msg),
     muteHttpExceptions: true
   });
@@ -3770,7 +3787,16 @@ function markNudged(timeEntryId) {
 var PLAN_PUSH_HOUR = 16;
 var SCHED_LOOKAHEAD_DAYS = 2;
 
+/** The hourly trigger. Each run leaves one line on the Executions page — the
+ *  counts, never a token or an address — because a run that fails for every
+ *  phone still finishes "Completed", and nothing else would say so. */
 function sweepSchedulePushes() {
+  var out = schedulePushSweep_();
+  console.log('schedule pushes: ' + JSON.stringify(out));
+  return out;
+}
+
+function schedulePushSweep_() {
   if (!pushEnabled_()) return { skipped: 'PUSH_ENABLED is not true' };
   // The Close Out pushes (T2.34) ride this trigger and go first: they answer
   // to the Close Out server, so the board being unset or down must not stop
@@ -4102,15 +4128,24 @@ function removeNudgeTrigger() {
 }
 
 /** Run from the editor to prove the whole chain works end to end: it pushes
- *  to your own registered device, ignoring grace periods and markers. */
+ *  to your own registered device, ignoring grace periods and markers. The
+ *  editor prints what a function logs and never what it returns, so the
+ *  answer is logged too: sent, or the reason it was not. */
 function testPushToMe() {
   var email = Session.getActiveUser().getEmail();
   var me = memberFor_(email);
   var token = pushTokenFor_(me.userId);
-  if (!token) return 'No device registered for ' + email + ' — open the app on your phone, clock in, and allow notifications.';
-  var res = sendPush_(token, 'DB Crew test',
-    'If you can read this on your lock screen, push is working.', { kind: 'test' });
-  return res.ok ? 'Sent.' : res.error;
+  var out;
+  if (!token) {
+    out = 'No device registered for ' + email + ' — open DB Crew on your phone signed in as ' + email +
+      ', then Diagnostics > Turn on notifications.';
+  } else {
+    var res = sendPush_(token, 'DB Crew test',
+      'If you can read this on your lock screen, push is working.', { kind: 'test' });
+    out = res.ok ? 'Sent to the phone registered for ' + email + '.' : res.error;
+  }
+  console.log(out);
+  return out;
 }
 
 

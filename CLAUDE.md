@@ -716,8 +716,64 @@ regeneration, Linux only.
   `{"source":"157fcfa809fc","on":"vercel","commit":"831136a"}` with
   `"contract":3`; `/queue`, `/jobs` and `/assigned` answer the API's own 401
   with no token, and there were no runtime errors. The eb84c5a deployment
-  (`dpl_E4f2y8XqVaVUdVjU8dKKt891ekWQ`) is the rollback. Until the T2.34
-  phones are out, the T2.33 phones work against it as before: an N/A they
-  send is written as a bare ` — n/a`, and their camera photos keep the upload
-  time. Until the board's `main` carries the Review sheet change, the new line
-  names show there as raw text beside Done.
+  (`dpl_E4f2y8XqVaVUdVjU8dKKt891ekWQ`) is the rollback.
+- **The board's half is live**: its `main` at 7e4db6e
+  (`dpl_Fe5wogiwNDfrY3UWUZ16cZXy6KKN`, 19:24Z on 2 Nov 2026, Carl's browser
+  check on the fixtures) reads N/A and who answered off each checklist line
+  (`checklistLine`, `lib/closeout.ts`); the board's branch was deleted after
+  the merge.
+- **T2.34 is live on the phones**: by 20:05Z on 2 Nov 2026 db-crews.web.app
+  served `index.html`, `sw.js` and `app.js?b=T2.34` byte-identical to the
+  branch at 4357ff1, and `check-build.mjs` against the live site says "T2.34
+  is already live and app.js is unchanged". The Apps Script's build was not
+  read from here; in the chain Carl runs, `firebase deploy` only starts once
+  `clasp deploy` has worked. The Close Out server and the board showed no
+  runtime errors from their deploys to 20:05Z. **The Close Out push is the
+  one part not running**, because no push ever was — next section.
+
+## Pushes on the script's own sign-in (2 Nov 2026) — what the README does not say
+
+- **No push had ever been sent.** Checking T2.34's push, Carl found the live
+  script (it is **DB Crew App** at script.google.com; he looked in DB Cam
+  2.0's first) with the hourly `sweepSchedulePushes` trigger installed but no
+  `PUSH_ENABLED`, `FCM_PROJECT_ID` or `FCM_SERVICE_ACCOUNT`. Every run
+  stopped on its first line, so the before-photo nudge, the 7pm "Still on
+  the clock" (T2.24), the break reminders (T2.13), "Tomorrow" / "Schedule
+  changed" and T2.34's Close Out push had never reached a phone. The phone's
+  Diagnostics "Notifications: on" is only the phone's half (it signed up), and
+  the break screen promised a reminder anyway. The Triggers page lists only
+  the signed-in account's own triggers.
+- **The organization refuses service account keys** ("Key creation is not
+  allowed on this service account", Firebase console, Google's default for
+  newer organizations), so SETUP's key could not be made. Carl chose the
+  script's own sign-in over lifting that block ("go with 1").
+- **`fcmAuthHeaders_`** is the one place it is decided: `FCM_SERVICE_ACCOUNT`
+  set → the key, as before; unset → `ScriptApp.getOAuthToken()` plus
+  `X-Goog-User-Project: <FCM_PROJECT_ID>`. The header is needed because the
+  token belongs to Apps Script's hidden default Cloud project, where the FCM
+  API is not on and cannot be switched on; it names db-time-clock as the
+  project the call counts against, which the account may do as an Owner or
+  Editor there. The token is never cached (it is the running account's).
+  If FCM still refuses it, the next thing to try is moving the script onto
+  the standard Cloud project db-time-clock (Project Settings > Google Cloud
+  Platform project) — untried.
+- **`appsscript.json` lists its permissions now** (`oauthScopes`: external
+  requests, triggers, send mail, the user's email, Firebase messaging),
+  because Apps Script cannot infer `firebase.messaging` from the code, and
+  once the list is written it infers nothing. `code-test.mjs` scans Code.gs
+  for every Apps Script service and fails on one whose permission is missing
+  or unknown, and on a permission nothing uses. **The order of a deploy that
+  changes the list**: `clasp push -f`, run a function in the editor and
+  approve, THEN `clasp deploy` — a deployment the account has not approved
+  answers every phone "Authorization is required". Triggers run the saved
+  code, so they fail between the push and the approval (Google may email
+  about it); the access feed copy lasts 24 hours, so nothing is lost.
+- **`testPushToMe` and the hourly sweep log their answer**: the editor and
+  the Executions page show what a function logs, never what it returns.
+  `testPushToMe` ignores `PUSH_ENABLED`, so it is the test that reaches no
+  one else. The hourly line is counts only (`schedule pushes: {…}`), never a
+  token or an address.
+- **Tested here against stubs only.** That FCM takes the script's own token
+  for db-time-clock is proven by nothing until Carl's `testPushToMe` lands.
+  `PUSH_ENABLED` is Carl's to set afterwards, and it turns on every push
+  whose trigger is installed, for everyone, at once.

@@ -31,6 +31,16 @@ clasp push -f
 clasp deploy -i AKfycbwNrg4UOrOVgIHptfKWjcG76iTaHlYAKY2EYEUmDf61aovgaNpqu790__4u71dg0p2z -d "<what changed>"
 ```
 
+**When `appsscript.json`'s permission list changes, approve it between the
+two commands.** Since 2 Nov 2026 the manifest lists its permissions
+(`oauthScopes`) because the push asks for one Apps Script cannot infer,
+Firebase messaging. After the `clasp push`, open the editor, run any
+function (`testPushToMe`) and allow what Google asks; only then `clasp
+deploy`. A deployment its own account has not approved answers every phone
+with "Authorization is required" — the clock stops. A service the code starts
+using needs its permission added there too; `code-test.mjs` fails until it
+is.
+
 The editor route is the same thing: **Deploy > Manage deployments > pencil
 on the live one > Version: New version > Deploy**. Confirm it landed on the
 phone's Diagnostics screen (tap the build line at the foot of the clock): the
@@ -40,7 +50,7 @@ phone's Diagnostics screen (tap the build line at the foot of the clock): the
 ## Tests
 
 ```
-node code-test.mjs      # 270 assertions, no dependencies, no network
+node code-test.mjs      # 440 assertions, no dependencies, no network
 ```
 
 Covers `getMyJobs` and `saveSiteChecks` — the functions here that depend on
