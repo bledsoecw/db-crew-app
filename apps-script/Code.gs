@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.33 (2026-11-02)';
+var APP_BUILD = 'T2.34 (2026-11-02)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -3416,11 +3416,13 @@ function registerPushToken(me, token, platform, lang) {
   // membershipId rides along so the schedule sweep can ask the board for this
   // person without a lookup per device. The phone's language (T2.24) rides
   // along too, so the clock's own pushes — the missing start photo, still on
-  // the clock in the evening — come in the words the phone is set to.
+  // the clock in the evening — come in the words the phone is set to. The
+  // email (T2.34) is who the Close Out sweep asks as: the Close Out server
+  // answers for a person by their address, and roleFor_ reads it too.
   var props = PropertiesService.getScriptProperties();
   props.setProperty('pt_' + me.userId, JSON.stringify({
     token: token, platform: String(platform || ''), name: me.name, membershipId: me.membershipId || '',
-    lang: lang === 'es' ? 'es' : 'en', at: Date.now()
+    email: String(me.email || '').toLowerCase(), lang: lang === 'es' ? 'es' : 'en', at: Date.now()
   }));
   // A phone belongs to whoever registered on it last (T2.30). The same token
   // under anyone else is a shared phone's previous person, who would go on
@@ -3549,6 +3551,14 @@ function sendPush_(token, title, body, data, opts) {
   // UNREGISTERED / NOT_FOUND on the token means the device is gone.
   var stale = code === 404 || /UNREGISTERED|NOT_FOUND|InvalidRegistration/i.test(text);
   return { ok: false, stale: stale, error: 'FCM ' + code + ': ' + text.slice(0, 200) };
+}
+
+/** sendPush_ throws when FCM is not set up, its sign-in fails, or the fetch
+ *  itself does; a sweep over every phone must not stop at the first one for
+ *  that (T2.34). The answer is sendPush_'s, or { ok:false, error }. */
+function pushSafe_(token, title, body, data, opts) {
+  try { return sendPush_(token, title, body, data, opts); }
+  catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 200) }; }
 }
 
 // ---- the sweep -----------------------------------------------------------
@@ -3762,14 +3772,19 @@ var SCHED_LOOKAHEAD_DAYS = 2;
 
 function sweepSchedulePushes() {
   if (!pushEnabled_()) return { skipped: 'PUSH_ENABLED is not true' };
+  // The Close Out pushes (T2.34) ride this trigger and go first: they answer
+  // to the Close Out server, so the board being unset or down must not stop
+  // them, and nothing they do can stop the schedule pushes either.
+  var co;
+  try { co = sweepCloseoutPushes_(); } catch (eCo) { co = { error: String((eCo && eCo.message) || eCo).slice(0, 200) }; }
   var cfg = boardConfig_();
-  if (!cfg.url || !cfg.secret) return { skipped: 'board not configured' };
+  if (!cfg.url || !cfg.secret) return { skipped: 'board not configured', closeout: co };
   var props = PropertiesService.getScriptProperties();
   var all = props.getProperties();
   var now = new Date(), today = isoDay_(now), tomorrow = addDays_(today, 1);
   var hour = Number(Utilities.formatDate(now, Session.getScriptTimeZone(), 'H'));
   var appUrl = String(all.APP_URL || '').replace(/\/+$/, '');
-  var out = { devices: 0, plans: 0, changes: 0, failed: 0 };
+  var out = { devices: 0, plans: 0, changes: 0, failed: 0, closeout: co };
   var pushOpts = { tag: 'dbtc-schedule', link: (appUrl || '') + '/?tab=jobs', requireInteraction: false, ttl: '43200' };
 
   for (var k in all) {
@@ -3793,7 +3808,7 @@ function sweepSchedulePushes() {
     if (hour >= PLAN_PUSH_HOUR && !all[planKey]) {
       var tv = visits.filter(function (v) { return v.start && v.start <= tomorrow && (v.end || v.start) >= tomorrow; });
       if (tv.length) {
-        var res = sendPush_(rec.token, 'Tomorrow', planLine_(tv), { kind: 'schedule', date: tomorrow }, pushOpts);
+        var res = pushSafe_(rec.token, 'Tomorrow', planLine_(tv), { kind: 'schedule', date: tomorrow }, pushOpts);
         if (res.ok) { props.setProperty(planKey, '1'); out.plans++; sentPlan = true; }
         else { out.failed++; if (res.stale) props.deleteProperty(k); }
       }
@@ -3802,8 +3817,8 @@ function sweepSchedulePushes() {
     var snap = scheduleSnapshot_(visits);
     var prevKey = 'sched_' + userId, prev = all[prevKey];
     if (prev != null && prev !== snap && !sentPlan) {
-      var res2 = sendPush_(rec.token, 'Schedule changed', changeLine_(prev, snap), { kind: 'schedule' }, pushOpts);
-      if (res2.ok) out.changes++; else out.failed++;
+      var res2 = pushSafe_(rec.token, 'Schedule changed', changeLine_(prev, snap), { kind: 'schedule' }, pushOpts);
+      if (res2.ok) out.changes++; else { out.failed++; if (res2.stale) props.deleteProperty(k); }
     }
     if (prev !== snap) props.setProperty(prevKey, snap);
   }
@@ -3860,6 +3875,162 @@ function fmtDayShortDow_(iso) {
   var d = new Date(String(iso) + 'T12:00:00Z');
   if (isNaN(d)) return String(iso || '');
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] + ' ' + (d.getUTCMonth() + 1) + '/' + d.getUTCDate();
+}
+
+// ---- the Close Out pushes (T2.34, audit I16) ------------------------------
+// A repair or a final inspection is booked from the board's close-out panel,
+// or straight in JobTread, and nothing told the person it was booked for:
+// they found it the next time they opened Close Out, or did not. Hourly, on
+// the schedule pushes' trigger, for every phone whose owner may use Close Out
+// (service or Operations), the Close Out server's GET /assigned is compared
+// with what the last run saw, and one push says what changed — assigned to
+// them, moved to another day, taken away (removed in JobTread, or given to
+// somebody else, named). Finished work is said by nobody: whoever finished it
+// knows. The first run for a person only takes the snapshot, so switching
+// this on sends nobody a list of everything they already have. A failed fetch
+// or a failed push leaves the snapshot as it was, so the next hour says it
+// instead — and JobTread being slow can never read as work taken away (the
+// server answers 502 rather than a short list, and something the scan did
+// not reach that is still open and still theirs is kept, not news). The
+// snapshot is cop_<userId>: task id -> 'r' or 'i', the day booked, then '|'
+// and the job's name — a task deleted in JobTread can no longer say where it
+// was, so the snapshot does.
+var CO_PUSH_KNOWN_MAX = 120;   // what the server reads from ?known=
+var CO_PUSH_PARTS = 3;         // changes named in one push; the rest are "+n more"
+
+function sweepCloseoutPushes_() {
+  var out = { people: 0, pushes: 0, failed: 0 };
+  if (!closeoutConfigured_()) { out.skipped = 'Close Out not configured'; return out; }
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var appUrl = String(all.APP_URL || '').replace(/\/+$/, '');
+  var pushOpts = { tag: 'dbtc-closeout', link: (appUrl || '') + '/?tab=co', requireInteraction: false, ttl: '43200' };
+  for (var k in all) {
+    if (k.indexOf('pt_') !== 0) continue;
+    var rec = null;
+    try { rec = JSON.parse(all[k]); } catch (e) {}
+    if (!rec || !rec.token || !rec.email) continue;   // registers again with the email on the next launch
+    var userId = k.slice(3), snapKey = 'cop_' + userId;
+    var me = { email: rec.email, name: rec.name || '', userId: userId, membershipId: rec.membershipId || '', role: '' };
+    var allowed = false;
+    try { allowed = closeOutAllowed_(me); } catch (eR) {}
+    if (!allowed) { if (all[snapKey] != null) props.deleteProperty(snapKey); continue; }
+    out.people++;
+    var prev = null;
+    try { prev = all[snapKey] != null ? JSON.parse(all[snapKey]) : null; } catch (eP) { prev = null; }
+    var known = prev ? Object.keys(prev).slice(0, CO_PUSH_KNOWN_MAX) : [];
+    var r = coFetch_(me, 'get', '/assigned' + (known.length ? '?known=' + encodeURIComponent(known.join(',')) : ''), null);
+    if (r.status !== 200 || !r.body || !Array.isArray(r.body.items)) { out.failed++; continue; }
+    var ch = coChanges_(prev, r.body.items, r.body.gone);
+    if (prev && ch.parts.length) {
+      var res = pushSafe_(rec.token, 'Close Out', coChangeLine_(ch.parts, rec.lang === 'es'), { kind: 'closeout' }, pushOpts);
+      if (!res.ok) {
+        out.failed++;
+        if (res.stale) { props.deleteProperty(k); props.deleteProperty(snapKey); }
+        continue;   // the snapshot stays as it was: the next hour says it
+      }
+      out.pushes++;
+    }
+    var s = JSON.stringify(ch.snap);
+    // A Script Property holds 9KB (about 200 tasks here); past that this one
+    // person's snapshot is not kept, and nobody else's run is stopped for it.
+    if (s !== all[snapKey]) { try { props.setProperty(snapKey, s); } catch (eS) { out.failed++; } }
+  }
+  // A snapshot whose phone has gone (signed out, a dead token): the next
+  // registration starts afresh, with a snapshot and no push.
+  for (var k2 in all) {
+    if (k2.indexOf('cop_') === 0 && all['pt_' + k2.slice(4)] == null) props.deleteProperty(k2);
+  }
+  return out;
+}
+
+/** What changed for one person since the last snapshot, and the snapshot to
+ *  keep. parts: { what: added | moved | given | removed, item }. */
+function coChanges_(prev, items, gone) {
+  var snap = {}, parts = [], byId = {}, order = [];
+  (items || []).forEach(function (it) {
+    if (!it || !it.id || byId[it.id]) return;
+    byId[it.id] = it; order.push(it.id);
+    snap[it.id] = (it.kind === 'inspection' ? 'i' : 'r') + String(it.date || '') + '|' + coPlace_(it).slice(0, 24);
+  });
+  if (!prev) return { snap: snap, parts: parts };
+  var goneById = {};
+  (gone || []).forEach(function (g) { if (g && g.id) goneById[g.id] = g; });
+  var dayOf = function (v) { return String(v).slice(1).split('|')[0]; };
+  order.forEach(function (id) {
+    var it = byId[id], was = prev[id];
+    if (was == null) parts.push({ what: 'added', item: it });
+    else if (dayOf(was) !== String(it.date || '')) parts.push({ what: 'moved', item: it });
+  });
+  for (var id2 in prev) {
+    if (byId[id2]) continue;
+    var g = goneById[id2];
+    if (!g) { snap[id2] = prev[id2]; continue; }   // still theirs, the scan did not reach it: kept
+    if (g.why === 'done') continue;                 // finished: nobody is told
+    var was2 = String(prev[id2]), bar = was2.indexOf('|');
+    parts.push({ what: g.why === 'reassigned' ? 'given' : 'removed', item: {
+      id: id2, kind: was2.charAt(0) === 'i' ? 'inspection' : 'repair',
+      name: g.name || '', jobNumber: g.jobNumber || '', jobName: g.jobName || '',
+      place: bar > -1 ? was2.slice(bar + 1) : '', to: g.to || [] } });
+  }
+  return { snap: snap, parts: parts };
+}
+
+/** "Turner Roof" from "260470 Turner_Roof"; the job number when it has no
+ *  name; what the snapshot remembered when JobTread no longer knows. */
+function coPlace_(it) {
+  var n = String(it.jobName || '').replace(/^\d{6}\s+/, '').replace(/_/g, ' ').trim();
+  return n || String(it.jobNumber || '') || String(it.place || '');
+}
+/** A repair's own words: Close Out's "REPORT: Rear slope", or the board's
+ *  "Alberto and Yahir — Reseal the pipe boot" without the people. */
+function coRepairWords_(name) {
+  var s = String(name || '').trim().replace(/^(REPORT|FIXED ON SITE):\s*/i, '');
+  var i = s.indexOf(' — ');
+  if (i > -1 && i < s.length - 3) s = s.slice(i + 3);
+  s = s.trim();
+  return s.length > 40 ? s.slice(0, 39) + '…' : s;
+}
+/** "gutters final inspection" / "inspección final (Gutters)", "repair" / "reparación". */
+function coKindWords_(it, es) {
+  if (it.kind !== 'inspection') return es ? 'reparación' : 'repair';
+  var name = String(it.name || ''), i = name.indexOf(' — ');
+  var area = i > -1 ? name.slice(i + 3).trim() : '';
+  return es ? 'inspección final' + (area ? ' (' + area + ')' : '') : (area ? area.toLowerCase() + ' ' : '') + 'final inspection';
+}
+var CO_DOW_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'], CO_MON_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+/** "Tue 11/3" / "Mar 3 nov" — the phone's own Spanish day. */
+function coDayWords_(iso, es) {
+  if (!iso) return '';
+  if (!es) return fmtDayShortDow_(iso);
+  var d = new Date(String(iso) + 'T12:00:00Z');
+  return isNaN(d) ? String(iso) : CO_DOW_ES[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + CO_MON_ES[d.getUTCMonth()];
+}
+/** One line for the push: at most CO_PUSH_PARTS changes, then "+n more". */
+function coChangeLine_(parts, es) {
+  var words = parts.slice(0, CO_PUSH_PARTS).map(function (p) {
+    var it = p.item, place = coPlace_(it), kind = coKindWords_(it, es), day = coDayWords_(it.date, es);
+    var what = it.kind === 'inspection' ? '' : coRepairWords_(it.name);
+    var to = (it.to || []).map(function (n) { return String(n).split(' ')[0]; }).filter(Boolean).join(es ? ' y ' : ' and ');
+    if (p.what === 'added') {
+      return es ? 'Nueva ' + kind + ' en ' + place + (what ? ': ' + what : '') + (day ? ' · ' + day : '')
+                : 'New ' + kind + ' at ' + place + (what ? ': ' + what : '') + (day ? ' · ' + day : '');
+    }
+    if (p.what === 'moved') {
+      return es ? 'Cambió de día: ' + kind + ' en ' + place + ', ahora ' + (day || 'sin día')
+                : 'Moved: ' + kind + ' at ' + place + ' to ' + (day || 'no day');
+    }
+    var at = place ? (es ? ' en ' : ' at ') + place : '';
+    if (p.what === 'given') {
+      return es ? 'Ya no es tuya: ' + kind + at + (to ? ' — ahora la tiene ' + to : '')
+                : 'Taken off: ' + kind + at + (to ? ' — given to ' + to : '');
+    }
+    return es ? 'Quitada: ' + kind + at : 'Removed: ' + kind + at;
+  });
+  var more = parts.length - CO_PUSH_PARTS;
+  var line = words.join('. ') + (more > 0 ? (es ? ' +' + more + ' más' : ' +' + more + ' more') : '');
+  line = line.charAt(0).toUpperCase() + line.slice(1);
+  return line.length > 180 ? line.slice(0, 177) + '…' : line;
 }
 
 /** Run once from the Apps Script editor. Idempotent. Runs a sweep on the spot. */

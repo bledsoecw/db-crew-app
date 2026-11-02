@@ -283,7 +283,9 @@ const allErrs = [];
   await tap(page, '#coReview', 400);
   await tap(page, '#coSend', 3500);
   check('a refused report is kept as rejected with the reason, the close still goes', await page.evaluate(() => CO.outbox.map((it) => [it.kind, it.status, it.err])), [['report', 'rejected', 'location and englishNote are required']]);
-  check('…and the screen says so', await page.evaluate(() => [...document.querySelectorAll('#coBody .obrow .st')].map((s) => s.textContent)), ['rechazado']);
+  // Since T2.34 (audit I14) every waiting list says one of the same five
+  // states; a refused item is the one that needs the crew.
+  check('…and the screen says so', await page.evaluate(() => [...document.querySelectorAll('#coBody .obrow .st')].map((s) => s.textContent)), ['Te necesita']);
   const closeCalls = (await calls(page)).filter((c) => c.fn === 'coClose');
   check('the close went past it', closeCalls.length, 1);
   await tap(page, '[data-codiscard]', 500);

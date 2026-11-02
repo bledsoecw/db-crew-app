@@ -5,7 +5,7 @@
    Cross-origin (the Apps Script API, JobTread's CDN, FCM): never touched.
    Since T2.32 the page's script is its own file, app.js?b=<build>: the page
    and its script are saved as a pair, never one without the other. */
-var BUILD = 'T2.33';   // index.html's data-build and app.js?b=, and APP_BUILD in app.js — one build, every deploy a new one
+var BUILD = 'T2.34';   // index.html's data-build and app.js?b=, and APP_BUILD in app.js — one build, every deploy a new one
 var CACHE = 'dbtc-' + BUILD.toLowerCase().replace(/\./g, '-');
 var NAV_WAIT_MS = 3000;
 var SCRIPT_RE = /<script src="(app\.js\?b=[^"]+)"/;
@@ -87,33 +87,35 @@ self.addEventListener('push', function (e) {
   var n = p.notification || {};
   var d = p.data || {};
   // The tag and the kind ride in data (sendPush_ puts them there): a schedule
-  // line must not replace a photo nudge, and it need not stay on screen.
+  // line must not replace a photo nudge, and it need not stay on screen —
+  // nor need a Close Out line (T2.34): it says what changed, nothing is owed.
   e.waitUntil(self.registration.showNotification(n.title || 'DB Crew', {
     body: n.body || '',
     icon: 'app-icon-192.png',
     badge: 'app-icon-192.png',
     tag: d.tag || n.tag || 'dbtc-before',
     renotify: true,
-    requireInteraction: d.kind !== 'schedule',
+    requireInteraction: d.kind !== 'schedule' && d.kind !== 'closeout',
     data: d
   }));
 });
 
 /* Tapping the before-photo reminder opens the app straight onto the camera;
    tapping a schedule line opens My jobs; a break reminder opens the clock,
-   where End break is (T2.13). */
+   where End break is (T2.13); a Close Out line opens Close Out (T2.34) —
+   never the camera, which is where an unknown kind would go. */
 self.addEventListener('notificationclick', function (e) {
   e.notification.close();
   var data = e.notification.data || {};
-  var schedule = data.kind === 'schedule', brk = data.kind === 'break', left = data.kind === 'left-open';
+  var schedule = data.kind === 'schedule', brk = data.kind === 'break', left = data.kind === 'left-open', co = data.kind === 'closeout';
   e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
     for (var i = 0; i < list.length; i++) {
       if ('focus' in list[i]) {
-        list[i].postMessage(schedule ? { kind: 'open-tab', tab: 'jobs' } : brk ? { kind: 'open-tab', tab: 'job' } : left ? { kind: 'open-left' } : { kind: 'open-before-photo', data: data });
+        list[i].postMessage(schedule ? { kind: 'open-tab', tab: 'jobs' } : brk ? { kind: 'open-tab', tab: 'job' } : co ? { kind: 'open-tab', tab: 'co' } : left ? { kind: 'open-left' } : { kind: 'open-before-photo', data: data });
         return list[i].focus();
       }
     }
     // Still on the clock in the evening (T2.24): When did you leave?
-    if (clients.openWindow) return clients.openWindow(schedule ? './?tab=jobs' : brk ? './?tab=job' : left ? './?left=1' : './?shoot=before');
+    if (clients.openWindow) return clients.openWindow(schedule ? './?tab=jobs' : brk ? './?tab=job' : co ? './?tab=co' : left ? './?left=1' : './?shoot=before');
   }));
 });

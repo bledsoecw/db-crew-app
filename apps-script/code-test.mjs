@@ -1771,5 +1771,130 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
 t('D26: the missing-start-photo push no longer says the office was copied',
   [/office has been copied/.test(src), /Se le avisó a la oficina/.test(src), /Take the start photo now\./.test(src)], [false, false, true]);
 
+// ---- T2.34: Close Out work said when it is assigned, moved or taken away (audit I16) ----
+{
+  const ALB = { ...ALBERTO, email: 'Alberto@deitemeyerbrothers.com' };
+  props = { CLOSEOUT_API_URL: 'https://closeout.example.com/', CLOSEOUT_SECRET: 'co-secret', PUSH_ENABLED: 'true', FCM_PROJECT_ID: 'p',
+    FCM_SERVICE_ACCOUNT: JSON.stringify({ client_email: 'a@b', private_key: 'k' }), APP_URL: 'https://db-time-clock.web.app/' };
+  cacheStore = {}; pushes = []; fetched = [];
+  sandbox.registerPushToken(ALB, 'tok-alb', 'android');
+  sandbox.registerPushToken(ME, 'tok-tyler', 'ios');
+  t('I16: the token carries the email, lowercased — the Close Out sweep asks as that person', JSON.parse(props['pt_u2']).email, 'alberto@deitemeyerbrothers.com');
+  let assigned = { items: [
+    { id: 'tR1', kind: 'repair', name: 'REPORT: Rear slope', jobId: 'j1', jobNumber: '26-0470', jobName: '260470 Turner_Roof', date: '2026-11-03' },
+    { id: 'tI1', kind: 'inspection', name: 'Final inspection', jobId: 'j2', jobNumber: '26-0540', jobName: '260540 Lane_Roof', date: '2026-11-03' },
+    { id: 'tR2', kind: 'repair', name: 'Alberto and Yahir — Clean the gutters', jobId: 'j1', jobNumber: '26-0470', jobName: '260470 Turner_Roof', date: null },
+    { id: 'tR3', kind: 'repair', name: 'REPORT: Ridge vent', jobId: 'j3', jobNumber: '26-0611', jobName: '260611 Moss_Roof', date: '2026-11-05' },
+  ], gone: [] };
+  let coCode = 200, fcmAnswer = () => ({ code: 200, body: '{}' });
+  const asked = [];
+  fetchImpl = (url, opts) => {
+    if (url.indexOf('oauth2.googleapis.com/token') > -1) return { code: 200, body: '{"access_token":"at","expires_in":3600}' };
+    if (url.indexOf('fcm.googleapis.com') > -1) { pushes.push(JSON.parse(opts.payload).message); return fcmAnswer(); }
+    if (url.indexOf('closeout.example.com/assigned') > -1) { asked.push({ url, who: opts.headers['X-Acting-Email'] }); return { code: coCode, body: JSON.stringify(coCode === 200 ? assigned : { error: 'JobTread did not answer for the whole list' }) }; }
+    return { code: 200, body: '{}' };
+  };
+  let sw = sandbox.sweepSchedulePushes();
+  t('I16: Close Out runs with the board unset, and says so beside the schedule pushes', [sw.skipped, sw.closeout.people, sw.closeout.pushes], ['board not configured', 1, 0]);
+  t('…the first run only takes the snapshot: no push, asked as Alberto with nothing known', [pushes.length, asked.length, asked[0].url, asked[0].who],
+    [0, 1, 'https://closeout.example.com/assigned', 'alberto@deitemeyerbrothers.com']);
+  t('…the crew member is never asked: Close Out is not theirs', asked.some(a => a.who === 't@deitemeyerbrothers.com'), false);
+  t('…the snapshot holds kind, day and the job per task', JSON.parse(props['cop_u2']), { tR1: 'r2026-11-03|Turner Roof', tI1: 'i2026-11-03|Lane Roof', tR2: 'r|Turner Roof', tR3: 'r2026-11-05|Moss Roof' });
+  sw = sandbox.sweepSchedulePushes();
+  t('…nothing changed: nothing is said', [sw.closeout.pushes, pushes.length], [0, 0]);
+
+  // An added repair, a moved inspection, one given to Kenton, one finished, one the scan did not reach.
+  assigned = { items: [
+    { id: 'tR1', kind: 'repair', name: 'REPORT: Rear slope', jobId: 'j1', jobNumber: '26-0470', jobName: '260470 Turner_Roof', date: '2026-11-03' },
+    { id: 'tI1', kind: 'inspection', name: 'Final inspection', jobId: 'j2', jobNumber: '26-0540', jobName: '260540 Lane_Roof', date: '2026-11-04' },
+    { id: 'tR9', kind: 'repair', name: 'Alberto and Yahir — Reseal the pipe boot', jobId: 'j1', jobNumber: '26-0470', jobName: '260470 Turner_Roof', date: '2026-11-03' },
+  ], gone: [
+    { id: 'tR2', why: 'reassigned', name: 'Alberto and Yahir — Clean the gutters', jobNumber: '26-0470', jobName: '260470 Turner_Roof', to: ['Kenton McComas'] },
+  ] };
+  sw = sandbox.sweepSchedulePushes();
+  const known = decodeURIComponent((asked[asked.length - 1].url.split('?known=')[1] || '')).split(',').sort();
+  t('…what was seen last goes up as known, so what has gone comes back with its reason', known, ['tI1', 'tR1', 'tR2', 'tR3']);
+  t('…one push naming what changed: added, moved, given to someone', [sw.closeout.pushes, pushes.length, pushes[0].notification.title, pushes[0].notification.body],
+    [1, 1, 'Close Out', 'Moved: final inspection at Lane Roof to Wed 11/4. New repair at Turner Roof: Reseal the pipe boot · Tue 11/3. Taken off: repair at Turner Roof — given to Kenton']);
+  t('…tagged its own, linked to Close Out, and not left on the screen', [pushes[0].data.kind, pushes[0].data.tag, pushes[0].webpush.fcmOptions.link, pushes[0].webpush.notification.requireInteraction],
+    ['closeout', 'dbtc-closeout', 'https://db-time-clock.web.app/?tab=co', false]);
+  t('…the snapshot drops what was given away, keeps what the scan did not reach (tR3), adds the new',
+    JSON.parse(props['cop_u2']), { tR1: 'r2026-11-03|Turner Roof', tI1: 'i2026-11-04|Lane Roof', tR9: 'r2026-11-03|Turner Roof', tR3: 'r2026-11-05|Moss Roof' });
+
+  // Finished: nobody is told. Deleted: said.
+  assigned = { items: assigned.items.filter(i => i.id !== 'tR1'), gone: [{ id: 'tR1', why: 'done', name: 'REPORT: Rear slope', jobNumber: '26-0470', jobName: '260470 Turner_Roof' },
+    { id: 'tR3', why: 'deleted' }] };
+  sw = sandbox.sweepSchedulePushes();
+  t('…finished work is said by nobody; work deleted in JobTread is, the snapshot naming the job', [pushes.length, pushes[1].notification.body], [2, 'Removed: repair at Moss Roof']);
+  t('…and both leave the snapshot', Object.keys(JSON.parse(props['cop_u2'])).sort(), ['tI1', 'tR9']);
+
+  // JobTread slow: the server refuses a part list; nothing changes, nothing is said.
+  coCode = 502;
+  const snapBefore = props['cop_u2'];
+  sw = sandbox.sweepSchedulePushes();
+  t('…a failed fetch is counted, the snapshot is untouched, nothing is said', [sw.closeout.failed, props['cop_u2'] === snapBefore, pushes.length], [1, true, 2]);
+  coCode = 200;
+
+  // A push that did not go: the snapshot stays, so the next hour says it.
+  assigned = { items: [...assigned.items, { id: 'tR7', kind: 'repair', name: 'REPORT: Skylight', jobId: 'j4', jobNumber: '26-0702', jobName: '260702 Ruiz_Roof', date: '2026-11-06' }], gone: [] };
+  fcmAnswer = () => ({ code: 500, body: 'busy' });
+  sw = sandbox.sweepSchedulePushes();
+  t('…FCM down: counted, and the snapshot is left as it was', [sw.closeout.failed, JSON.parse(props['cop_u2']).tR7], [1, undefined]);
+  fcmAnswer = () => ({ code: 200, body: '{}' });
+  sw = sandbox.sweepSchedulePushes();
+  t('…the next hour says it', [sw.closeout.pushes, pushes[pushes.length - 1].notification.body], [1, 'New repair at Ruiz Roof: Skylight · Fri 11/6']);
+
+  // A phone set to Spanish, and more than three changes.
+  sandbox.registerPushToken(ALB, 'tok-alb', 'android', 'es');
+  assigned = { items: [...assigned.items,
+    { id: 'tR10', kind: 'repair', name: 'REPORT: Valley', jobId: 'j5', jobNumber: '26-0710', jobName: '260710 Ortiz_Roof', date: '2026-11-03' },
+    { id: 'tI2', kind: 'inspection', name: 'Final inspection — Gutters', jobId: 'j5', jobNumber: '26-0710', jobName: '260710 Ortiz_Roof', date: '2026-11-09' },
+    { id: 'tR11', kind: 'repair', name: 'REPORT: Drip edge', jobId: 'j5', jobNumber: '26-0710', jobName: '260710 Ortiz_Roof', date: null },
+    { id: 'tR12', kind: 'repair', name: 'REPORT: Boot', jobId: 'j5', jobNumber: '26-0710', jobName: '260710 Ortiz_Roof', date: null }], gone: [] };
+  sw = sandbox.sweepSchedulePushes();
+  t('…in Spanish on a Spanish phone, three named and the rest counted', pushes[pushes.length - 1].notification.body,
+    'Nueva reparación en Ortiz Roof: Valley · Mar 3 nov. Nueva inspección final (Gutters) en Ortiz Roof · Lun 9 nov. Nueva reparación en Ortiz Roof: Drip edge +1 más');
+  t('coChangeLine_: an English gutters inspection reads "gutters final inspection"', sandbox.coChangeLine_([{ what: 'added', item: { kind: 'inspection', name: 'Final inspection — Gutters', jobName: '260710 Ortiz_Roof', date: '2026-11-09' } }], false),
+    'New gutters final inspection at Ortiz Roof · Mon 11/9');
+  t('coChangeLine_: a task nothing can place still reads', sandbox.coChangeLine_([{ what: 'removed', item: { kind: 'repair' } }], true), 'Quitada: reparación');
+  t('coChangeLine_: moved to no day, in both languages', [sandbox.coChangeLine_([{ what: 'moved', item: { kind: 'repair', name: 'x', jobName: '260710 Ortiz_Roof', date: null } }], false),
+    sandbox.coChangeLine_([{ what: 'moved', item: { kind: 'repair', name: 'x', jobName: '260710 Ortiz_Roof', date: null } }], true)],
+    ['Moved: repair at Ortiz Roof to no day', 'Cambió de día: reparación en Ortiz Roof, ahora sin día']);
+
+  // A dead token takes its snapshot with it; somebody no longer on service loses theirs.
+  assigned = { items: [...assigned.items, { id: 'tR13', kind: 'repair', name: 'REPORT: Flashing', jobId: 'j5', jobNumber: '26-0710', jobName: '260710 Ortiz_Roof', date: null }], gone: [] };
+  fcmAnswer = () => ({ code: 404, body: '{"error":{"status":"NOT_FOUND","details":[{"errorCode":"UNREGISTERED"}]}}' });
+  sw = sandbox.sweepSchedulePushes();
+  t('…a dead token: the phone and its snapshot both go, so a new phone starts with a snapshot, not a pile', [props['pt_u2'] == null, props['cop_u2'] == null], [true, true]);
+  fcmAnswer = () => ({ code: 200, body: '{}' });
+  sandbox.registerPushToken(ALB, 'tok-alb2', 'android');
+  sandbox.sweepSchedulePushes();
+  t('…and it does: the next run takes the snapshot and says nothing', [typeof props['cop_u2'], pushes.length], ['string', 6]);
+  props.ROLES_JSON = JSON.stringify({ 'alberto@deitemeyerbrothers.com': { role: 'crew' } });
+  const before = asked.length;
+  sandbox.sweepSchedulePushes();
+  t('…moved off the service crew: not asked any more, and the snapshot goes', [asked.length === before, props['cop_u2'] == null], [true, true]);
+  delete props.ROLES_JSON;
+  sandbox.unregisterPushToken(ALB);
+  props['cop_u2'] = '{"x":"r"}';
+  sandbox.sweepSchedulePushes();
+  t('…a snapshot whose phone signed out is cleared', props['cop_u2'] == null, true);
+  sandbox.unregisterPushToken(ME);
+
+  // The schedule sweep: one phone whose send throws must not stop the rest.
+  props = { BOARD_API_URL: 'https://ops.example.com', CREW_APP_SECRET: 's3cret', PUSH_ENABLED: 'true', APP_URL: 'https://db-time-clock.web.app/' };
+  cacheStore = {}; pushes = [];
+  sandbox.registerPushToken(ME, 'tok-1', 'ios');
+  sandbox.registerPushToken({ ...ME, userId: 'u9', name: 'Kenton M.', email: 'k@deitemeyerbrothers.com' }, 'tok-9', 'android');
+  fetchImpl = route({ board: BOARD(VIS), people: PEOPLE });
+  sandbox.__hour = 9; sandbox.sweepSchedulePushes();
+  sandbox.__hour = 17;
+  let ss = null, threw = '';
+  try { ss = sandbox.sweepSchedulePushes(); } catch (e) { threw = String(e.message); }
+  t('T2.34: FCM not set up (sendPush_ throws) — every phone is still tried, each counted failed', [threw, ss && ss.devices, ss && ss.failed, ss && ss.closeout.skipped],
+    ['', 2, 2, 'Close Out not configured']);
+  sandbox.__hour = null; props.PUSH_ENABLED = 'false';
+}
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

@@ -610,7 +610,7 @@ regeneration, Linux only.
 - **The training videos are further out of date**: the morning-after screen,
   the "couldn't be told" words and sign-out's draft warning are new on screen.
   Carl's "Do not recreate videos yet" still stands.
-- **`CREW-ASSIGNMENTS-API.md` still says "colours"** (line 165). It must stay
+- **`CREW-ASSIGNMENTS-API.md` still spells color the British way** (line 165). It must stay
   byte-identical with the board's copy, so it changes in both repos in one
   session, not here alone.
 - **T2.33 is live**: Carl ran the one chain (`clasp deploy … -d "T2.33"`,
@@ -621,3 +621,91 @@ regeneration, Linux only.
   API both T2.33. `check-build.mjs` against the live site says "T2.33 is
   already live and app.js is unchanged"; the Close Out server showed no
   runtime errors through the switch.
+
+## T2.34 (2 Nov 2026) — Step 2 of the second audit, what the README does not say
+
+- **Step 2 is D40, I12 with I14, I16 with D32, D37 and D33** (the report:
+  https://claude.ai/artifact/FB4xEquJajG6UtLuarxmZr). This repo's half, DB
+  CheckOut's (N/A and who answered on each line, the photo time, `GET
+  /assigned`, contract 3) and the board's Review sheet (it reads both markers
+  off each checklist line) were built together. The report's "then re-record
+  the training videos" is NOT done: Carl's "Do not recreate videos yet"
+  stands, and they are further out of date now (Today, the Waiting card, the
+  N/A reason).
+- **The Close Out push lives in `sweepSchedulePushes`** and goes first
+  (`sweepCloseoutPushes_`): it answers to the Close Out server, so the board
+  being unset or down must not stop it. Per phone whose owner is service or
+  Operations (`closeOutAllowed_` on the token's email), one `GET /assigned`.
+  The snapshot is `cop_<userId>`: task id → `'r'` or `'i'`, the day booked,
+  `|` and the job's name — a task deleted in JobTread can no longer say where
+  it was, so the snapshot does. The first run only snapshots; a failed fetch
+  or a failed push leaves the snapshot as it was (the next hour says it); a
+  dead token takes its snapshot with it, someone moved off service loses
+  theirs, and a snapshot whose phone has gone is cleared. `known` is capped at
+  120 (what the server reads); something the server's scan did not reach and
+  still open and still theirs is kept, never news. Finished work is said by
+  nobody. `pushSafe_` wraps `sendPush_`, which throws when FCM is not set up:
+  the schedule sweep used to stop at the first phone for that.
+- **The token carries the email now** (`registerPushToken`), lowercased. It
+  is the server that writes it, so any phone build registering after the Apps
+  Script deploy adds it; a record from before has none and is skipped until
+  that phone opens the app again.
+- **`CO.jobFresh` is "the last read came from the server"**, set only by a
+  good `coLoadJob` and cleared by `coOpenJob`. The removed-repair screen shows
+  only then: a restored copy that lacks the task (a copy older than the task)
+  still reads Loading while the read runs, or the error after. A reassigned
+  repair stays on the job's list — the server lists every punch to-do,
+  anybody's — so "given to somebody else" is the repair screen's *For* line,
+  not the removed screen.
+- **A reopened repair is judged against when the read set out** (`askedAt` in
+  `coLoadJob`), the phone's own clock on both sides: a numeric Done older than
+  `CO_REOPEN_GRACE_MS` (10 min) before it, with the task listed open, is let
+  go. A read that set out before the Done landed can never undo it, and
+  `'queued'` is the outbox's.
+- **N/A reasons are one flat map by item key** (`naReasons`): the keys are
+  unique across every form, which DB CheckOut's `forms.test.ts` pins. The
+  phone keeps them in `v.naWhy` / `av.naWhy`; a reason stays in the store if
+  the answer changes to OK, but only an N/A line sends one. Sent as typed,
+  like the site checks' n/a. The line name the server writes is
+  `<base> — n/a: <reason> — by: <name>` (a bare ` — n/a`), and only those
+  exact markers split a name, because the template's own words carry " — "
+  and phrases like "by the chimney". The board's reader (`checklistLine`)
+  leaves an old ` · ⚠ REPORT …` suffix as text; the server's strips it.
+- **The second inspection unticks a line only when a REPORT is open on it**
+  (`openReportCodes` on DB CheckOut): this visit answered Fix, not fixed on
+  site, and an open REPORT punch item carries the line's code. A replay of
+  the same close gives the same line.
+- **A camera photo's time is `rec.at`**, when the phone kept it after the
+  shrink (within a second of the shutter). The server takes a time from 2000
+  to a day ahead and stamps it in Ohio time; an older server ignores it.
+- **A new Close Out route needs its line in DB CheckOut's `vercel.json`.**
+  Anything not named there falls through to the retired app's notice page,
+  which answers 200 with HTML. `GET /assigned` shipped that way on the first
+  preview (b225edc) — every hourly push would have read as a failure and said
+  nothing — and was caught only by asking the preview itself, since the
+  server's tests call the handler directly. 96f8830 routes it, and DB
+  CheckOut's `routes.test.ts` now fails when a path the handler answers has
+  no rewrite. Read a preview's answer for any new route before calling it done.
+- **Contract 3**: `PHONE_CONTRACT` 3 on DB CheckOut, `CO_CONTRACT_NEED` 3
+  here. Against level 2 nothing breaks: the reasons and the times are
+  ignored, and `/assigned` is a 404 the push counts as failed.
+- **Today's next action follows a fixed order**: site checks (only for whoever
+  may sign them, site manager or Operations), the pre-start, the Close Out
+  work on arrival, today's log when it is prompted. It hides on a break, a
+  drive, at the shop, on a kept clock-in and on a block from a day before.
+  `#todaySect` draws only while the "which one are you at?" pick is not
+  showing. `#todaySect` and `#waitSect` keep `_drawn` like `#jobsList` (I9):
+  anything else that writes into either must clear it.
+- **One set of five states for every waiting list.** Close Out's own list
+  says them too, which is why `closeout-test`'s refused chip reads *Te
+  necesita*, not *rechazado* — the rule, not a regression.
+- **A suite moved with the build**: t230's two contract checks read
+  `CO_CONTRACT_NEED` from the page instead of pinning a level (the T2.30
+  lesson again).
+- **The mock grew switches**: `__MOCK_CO_REMOVED` (a repair the office took
+  off — gone from the job's list) and `__MOCK_CO_REOPEN` (one it reopened —
+  open whatever the phone finished), a task id or a list; `getBuilds`
+  reports contract 3.
+- **Not done on purpose**: the push for anyone outside service and Operations
+  (I13, Close Out for anyone assigned, is Step 3); the schedule pushes are
+  still English ("Tomorrow", "Schedule changed").

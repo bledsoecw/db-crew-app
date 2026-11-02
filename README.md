@@ -1289,6 +1289,70 @@ hosting`. Against an older Close Out server nothing is lost: an inspection it
 records nowhere is kept on the phone and said, and a repair it cannot find is
 retried until Discard is offered.
 
+**The day in one place, and Close Out says what changed** (T2.34, 2 Nov
+2026). Step 2 of the second audit (Carl: *"go, start Step 2"*):
+
+- **The Clock tab is Today** (I12). The clock card names its one next action
+  as a green button — *Next: site checks · 4 of 27*, *Next: pre-start · 2 of
+  7*, *Next: the repairs*, *Next: the final inspection*, *Next: today's log* —
+  whatever the job they are on still needs from them, and nothing when
+  nothing is owed. Under it, **Today's jobs**: the board's visits running
+  today, then the Close Out work assigned to them that is booked today or has
+  repairs open, each saying what it still needs (*On site now · Site checks ·
+  4 of 27*, *2 repairs open*) and a tap away; while on the clock away from the
+  shop, the shop last (*Clock out there*). My jobs keeps the week ahead.
+- **One "Waiting to send"** (I14). Everything the phone still holds — a kept
+  clock-in, photos, the site checks and the pre-start, the day log and lines
+  added to it, Close Out's waiting list, roll-out notes — is one card on the
+  Clock tab and one sheet by job, every item in one of five states: *Saved on
+  this phone*, *Sending…*, *Trying again at 3:15p*, *Waiting for sign-in* (or
+  *Waiting for Alberto Gonzalez*, someone else's kept clock-in on a shared
+  phone) and *Needs you*, with the way to deal with it. The no-signal bar
+  opens it, and Close Out's own list says the same five.
+- **Text that tells the crew what to do is 13 pixels** (D40): *Code, then
+  start photo*, *Tap to do it*, the tab names, the week strip, Close Out's
+  counts, the waiting states; small capitals stay for labels. Each EN/ES half
+  is 44 by 44.
+- **Close Out says what changed** (I16). An hourly push tells the service
+  crew and Operations when a repair or a final inspection is assigned to
+  them, moved to another day, or taken away — removed in JobTread, or given
+  to someone, named: *New repair at Turner Roof: Reseal the pipe boot · Tue
+  11/3*, in the phone's language. Finished work is said by nobody. The first
+  run takes a snapshot and says nothing; a fetch that fails, or a push that
+  does not go, changes nothing, so the next hour says it. The tap opens Close
+  Out. It rides the schedule pushes' hourly trigger: nothing new to install.
+- **A repair the office changed while it is on a phone** (D32). One taken
+  off in JobTread says so, with a way back, instead of *Loading…* for good.
+  One the office reopened reads open again: the phone lets its Done go when
+  the server lists the repair open and the Done is more than ten minutes old;
+  a Done still waiting to send is left alone. One given to somebody else says
+  whose it is now (*For Kenton McComas*).
+- **A Close Out photo is filed under when it was taken** (D37). A camera
+  shot carries the moment the phone kept it, and the server stamps it in the
+  office's time, so an after photo sent hours later from a dead spot is filed
+  under the hour it was taken, not the hour it arrived.
+- **A second inspection, and N/A** (D33; the Close Out server and the board).
+  N/A asks why, under the line, and Review & send waits until each N/A has
+  its reason; the reason goes as typed, as the site checks' do. The server
+  writes it onto the line in JobTread — *6. Chimneys, skylights … — n/a: no
+  chimney — by: Yahir Gonzalez* — the way the board's site checks carry
+  theirs, and every answered line says who answered it. A later inspection
+  that reports a problem on a line unticks it, so an open problem never reads
+  as passed. The board's Review sheet shows an N/A as N/A with its reason,
+  never as Done, and who answered each line.
+
+`dev/t234-test.mjs` walks it (53 checks); `apps-script/code-test.mjs` has the
+hourly push; DB CheckOut's tests the server's half; the board's
+`closeout.test.ts` the Review sheet's reading. **Needs, in this order:** the
+board's `main` (it reads the new line names, and the old ones as before), DB
+CheckOut's `main` (its `/health` then reads `contract: 3`, the level this
+phone needs — Diagnostics warns while the server is behind), the Apps Script,
+then `firebase deploy --only hosting`. The push reaches a phone once that
+phone has opened the app after the Apps Script deploy: registering for push
+then records the email Close Out is asked as. Against an older Close Out
+server nothing is lost: the N/A reasons and the photo times are ignored, and
+the push counts it as failed and says nothing.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

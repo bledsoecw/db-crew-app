@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.33 (2026-11-02)';
+var APP_BUILD = 'T2.34 (2026-11-02)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -957,6 +957,8 @@ function render(){
   // Everything waiting to send, from every lane of the outbox (T2.31) — it
   // used to count photos only, and said "nothing waiting" over a day log.
   var obN = typeof OB_LANES === 'object' ? obWaiting().total : (S.queued || 0);
+  ob.classList.toggle('tappable', obN > 0);
+  ob.onclick = obN > 0 ? openWaiting : null;
   ob.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l20 20M8.6 16.5a5 5 0 0 1 6.8 0M5 12.6a10 10 0 0 1 4.6-2.4M19.7 12.6a10 10 0 0 0-4.3-2.5"/><path d="M12 20h.01"/></svg><span>' + (obN ? Lf(obN === 1 ? 'No signal · {n} item queued' : 'No signal · {n} items queued', { n: obN }) : L('No signal · nothing waiting')) + '</span>';
   var rb = $('roBar');
   // Unknown until the API says (null): no bar, rather than a wrong one.
@@ -974,6 +976,8 @@ function render(){
   renderNudge();
   renderChecks();
   renderTodayPick();
+  renderToday();
+  renderWaitCard();
   coRender();
   renderPeople();
   syncPressed();
@@ -1035,6 +1039,285 @@ function renderJob(){
   $('pickJobBtn').style.opacity = paused ? .45 : 1;
 }
 
+/* =========================================================
+   TODAY ON THE CLOCK TAB (T2.34, audit I12)
+   The Clock tab is the screen the crew open, so it grows into Today rather
+   than a tab being added: the clock card names its one next action, today's
+   jobs sit under it with what each still needs, and one "Waiting to send"
+   card stands for everything this phone still holds. My jobs keeps the week
+   ahead. Anything left from yesterday comes first, as before (D21).
+   ========================================================= */
+function ckCanSign(){ return (effRole() === 'siteManager' || effRole() === 'ops') && !ckReadOnly() && canTab('jobs'); }
+/* Lines settled (ticked or n/a) out of the lines there are, and signed or not. */
+function ckCountsFor(v){
+  if (!v || !v.checks || !v.checks.taskId) return null;
+  var ls = ckLines().filter(function(l){ return l.value !== 'signedOff'; });
+  if (!ls.length) return null;
+  var st = ckStateFor(v);
+  return { done: ls.filter(function(l){ return ckSettled(st, l.key); }).length, total: ls.length, signed: !!st.signedOff };
+}
+function prCountsFor(v){
+  if (!v || !v.prestart || !v.prestart.taskId || prRO()) return null;
+  var ls = prLines(v), d = prDone(v);
+  if (!ls.length) return null;
+  return { done: ls.filter(function(l){ return d[l.key]; }).length, total: ls.length };
+}
+function coGoJob(jobId){ S.tabTouched = true; setTab('co'); coLandJob(jobId); }
+/* The clock card's one next action: what this job still needs from the
+   person on the clock here — the site checks, the pre-start, the Close Out
+   work, today's log — as one green button. Nothing owed, no button. */
+function nextAction(){
+  if (!S.open || S.open.kept || onBreakNow() || breakOver() || onTravel() || leftOvernight() || atShop() || !S.job) return null;
+  var j = S.job, v = visitByJob(j.id), today = isoLocal();
+  var c = v && ckCanSign() ? ckCountsFor(v) : null;
+  if (c && !c.signed) return { kind: 'checks', label: c.done < c.total ? Lf('Next: site checks · {d} of {n}', { d: c.done, n: c.total }) : L('Next: sign off the site checks'),
+                               go: function(){ openChecks(v.checks.taskId); } };
+  var p = v ? prCountsFor(v) : null;
+  if (p && p.done < p.total) return { kind: 'prestart', label: Lf('Next: pre-start · {d} of {n}', { d: p.done, n: p.total }), go: function(){ openPrestart(v.prestart.taskId); } };
+  var k = coArrival(j);
+  if (k) return { kind: 'co', label: L(k === 'repairs' ? 'Next: the repairs' : 'Next: the final inspection'), go: function(){ coGoJob(j.id); } };
+  var e = canTab('log') ? dlGet(j.id, today) : null;
+  if (e && e.prompt && !e.sent && !e.wantSend) return { kind: 'log', label: L('Next: today’s log'), go: function(){ openLog(j.id, today); } };
+  return null;
+}
+/* My jobs, scrolled to one job's card — where its directions and Go here
+   instead live. */
+function openMyJob(jobId){
+  if (!canTab('jobs')) return;
+  S.tabTouched = true; setTab('jobs');
+  setTimeout(function(){
+    var c = document.querySelector('#jobsList .jcard[data-jobid="' + (window.CSS && CSS.escape ? CSS.escape(jobId) : jobId) + '"]');
+    if (c) c.scrollIntoView({ block: 'start' });
+  }, 60);
+}
+function todayRowOfVisit(v, here){
+  var today = isoLocal(), onHere = !!S.open && here === v.jobId && !onTravel();
+  var row = { id: v.jobId, title: [v.jobNum, v.cust || jobTitle({ name: v.jobName }) || streetOf(v.address)].filter(Boolean).join(' '), need: '', cls: '', go: null };
+  var c = ckCanSign() ? ckCountsFor(v) : null, p = prCountsFor(v);
+  var coj = canTab('co') ? coJobById(v.jobId) : null, k = coj && coj.mine ? coKindOf(coj) : '';
+  var e = canTab('log') ? dlGet(v.jobId, today) : null;
+  if (c && !c.signed && (onHere || c.done)){
+    row.need = c.done < c.total ? Lf('Site checks · {d} of {n}', { d: c.done, n: c.total }) : L('Site checks to sign off');
+    row.cls = 'warn'; row.go = function(){ openChecks(v.checks.taskId); };
+  } else if (p && p.done < p.total && onHere){
+    row.need = Lf('Pre-start · {d} of {n}', { d: p.done, n: p.total });
+    row.cls = 'warn'; row.go = function(){ openPrestart(v.prestart.taskId); };
+  } else if (k === 'repairs' || k === 'inspect'){
+    row.need = k === 'repairs' ? Lf(coj.openPunchCount === 1 ? '1 repair open' : '{n} repairs open', { n: coj.openPunchCount || 0 }) : L('Final inspection');
+    row.cls = 'warn'; row.go = function(){ coGoJob(v.jobId); };
+  } else if (e && e.prompt && !e.sent && !e.wantSend){
+    row.need = L('Log not sent'); row.cls = 'warn'; row.go = function(){ openLog(v.jobId, today); };
+  }
+  if (onHere){ row.need = row.need ? L('On site now') + ' · ' + row.need : L('On site now'); row.cls = row.cls || 'go'; }
+  if (!row.need) row.need = here === v.jobId ? L("Today's job") : (visitDayWords(v) || L('Booked today'));
+  if (!row.go && here !== v.jobId){
+    row.go = S.open ? (canTab('jobs') ? function(){ openMyJob(v.jobId); } : null) : function(){ pickJobObj(visitAsJob(v), false); };
+  }
+  return row;
+}
+function todayRowOfCo(j, here){
+  var k = coKindOf(j), onHere = !!S.open && here === j.id && !onTravel();
+  var need = k === 'repairs' ? Lf(j.openPunchCount === 1 ? '1 repair open' : '{n} repairs open', { n: j.openPunchCount || 0 }) : L('Final inspection');
+  return { id: j.id, title: [j.number, coCustomer(j) || streetOf(j.address)].filter(Boolean).join(' '),
+           need: onHere ? L('On site now') + ' · ' + need : need, cls: 'warn', go: function(){ coGoJob(j.id); } };
+}
+/* Today's jobs: the board's visits running today, then Close Out work
+   assigned to this person that is booked today or has repairs open, then
+   the shop while on the clock away from it — the drive back is on the clock
+   and the day ends there (T2.27). */
+function todayRows(){
+  var rows = [], today = isoLocal(), seen = {}, here = S.job && S.job.id;
+  ((S.assign && S.assign.visits) || []).forEach(function(v){
+    if (!v.start || v.start > today || (v.end || v.start) < today || seen[v.jobId]) return;
+    seen[v.jobId] = true;
+    rows.push(todayRowOfVisit(v, here));
+  });
+  if (canTab('co')){
+    coRestoreQueue();
+    (CO.jobs || []).forEach(function(j){
+      if (!j.mine || seen[j.id]) return;
+      var k = coKindOf(j);
+      var booked = (j.booked || []).some(function(b){ return b.start && b.start <= today && (b.end || b.start) >= today; });
+      if (!(booked || (k === 'repairs' && j.openPunchCount))) return;
+      seen[j.id] = true;
+      rows.push(todayRowOfCo(j, here));
+    });
+  }
+  if (S.open && !atShop() && S.shop && !onTravel() && !onBreakNow()) rows.push({ id: 'shop', title: L('The shop'), need: L('Clock out there'), cls: '', go: null });
+  return rows;
+}
+function renderToday(){
+  var el = $('todaySect');
+  if (!el) return;
+  var rows = canTab('job') && $('todayPick').classList.contains('hidden') ? todayRows() : [];
+  // The job already on the card, and nothing else, says nothing new.
+  if (rows.length === 1 && rows[0].id === (S.job && S.job.id) && !rows[0].go) rows = [];
+  el.classList.toggle('hidden', !rows.length);
+  var html = rows.length ? '<div class="k">' + esc(L("Today's jobs")) + '</div>' + rows.map(function(r, i){
+    var tag = r.go ? 'button' : 'div';
+    return '<' + tag + ' class="todrow ' + (r.cls || '') + '"' + (r.go ? ' data-today-go="' + i + '"' : '') + '><span class="tt">' + esc(r.title) + '</span>' +
+           '<span class="tn">' + esc(r.need) + '</span>' + (r.go ? '<span class="chev">' + CK_CHEV + '</span>' : '') + '</' + tag + '>';
+  }).join('') : '';
+  S.todayShown = rows;
+  // Drawn again only when what it shows changed (I9): a row never moves under a finger.
+  if (el._drawn === html) return;
+  el._drawn = html; el.innerHTML = html;
+  [].forEach.call(el.querySelectorAll('[data-today-go]'), function(b){
+    b.onclick = function(){ var r = (S.todayShown || [])[Number(b.getAttribute('data-today-go'))]; if (r && r.go) r.go(); };
+  });
+}
+
+/* =========================================================
+   WAITING TO SEND (T2.34, audit I14)
+   What this phone still holds was said in four places, four ways: the
+   photo strip, the clock-in sheet, Close Out's waiting line and the checks
+   line. One list now, by job, and every item in one of five states: saved
+   on this phone, sending, trying again at a time, needs you, or waiting for
+   a sign-in. The no-signal bar and the Clock tab's card open it.
+   ========================================================= */
+var WAIT_ORDER = { you: 0, signin: 1, retry: 2, sending: 3, saved: 4 };
+var WAIT_CLS = { you: 'bad', signin: 'wait', retry: 'wait', sending: 'nav', saved: '' };
+function waitStateWords(st, t, who){
+  return st === 'you' ? L('Needs you') : st === 'sending' ? L('Sending…') : st === 'signin' ? (who ? Lf('Waiting for {name}', { name: who }) : L('Waiting for sign-in'))
+       : st === 'retry' ? (t ? Lf('Trying again at {t}', { t: clockLabel(new Date(t)) }) : L('Trying again soon')) : L('Saved on this phone');
+}
+function coWaitState(it){
+  if (it.status === 'rejected') return { s: 'you' };
+  if (!AUTH.token || /sign in again/i.test(it.err || '')) return { s: 'signin' };
+  if (it.next && it.next > Date.now() && (it.tries || 0) > 0) return { s: 'retry', t: it.next };
+  return { s: 'saved' };
+}
+function photoWhat(x){
+  var t = clockLabel(new Date(x.at || Date.now()));
+  return Lf(x.tag === 'before' ? 'Start photo {t}' : x.tag === 'end' || x.tag === 'after' ? 'End photo {t}' : 'Photo {t}', { t: t });
+}
+/* A job's name, from whatever this phone knows of it. */
+function jobWordsFor(jobId){
+  if (!jobId) return L('No job');
+  if (S.shop && jobId === S.shop.id) return L('The shop');
+  var v = visitByJob(jobId);
+  if (v) return jobLabelOf(v);
+  var cj = typeof coJobById === 'function' ? coJobById(jobId) : null;
+  if (cj) return [cj.number, coCustomer(cj) || streetOf(cj.address)].filter(Boolean).join(' ');
+  var j = (S.job && S.job.id === jobId) ? S.job : null;
+  if (!j) S.jobOptions.concat(S.candidates).forEach(function(x){ if (x.id === jobId) j = x; });
+  if (j) return [j.number, j.customer || jobTitle(j)].filter(Boolean).join(' ');
+  return L('Another job');
+}
+/* Every item this phone still holds, each with its job, its words, its state. */
+function waitItems(){
+  var out = [], now = Date.now(), signedOut = !AUTH.token, today = isoLocal();
+  var push = function(it){ out.push(it); };
+  clockQ.forEach(function(it){
+    var mine = cqMine(it);
+    var st = it.inflight ? 'sending' : (it.refused || it.stale) ? 'you' : !mine ? 'signin'
+           : (signedOut || /sign in again/i.test(it.err || '')) ? 'signin' : (it.tries && it.next > now) ? 'retry' : 'saved';
+    push({ lane: 'clock', jobId: it.jobId || (it.job && it.job.id), what: Lf(it.kind === 'switch' ? 'Arrival {t}' : 'Clock-in {t}', { t: clockLabel(new Date(it.at)) }),
+           state: st, t: it.next, who: mine ? '' : (it.ownerName || L('Someone')),
+           hint: it.refused ? L('Tap to see why') : it.stale ? L('Say when you left the day before') : '',
+           go: it.refused ? function(){ openSheet('clockq'); } : it.stale ? leftAsk : null });
+  });
+  (S.qItems || []).forEach(function(x){
+    var r = qRetry[x.id];
+    var st = pumpCur === x.id ? 'sending' : (r && r.tries >= PHOTO_STUCK_TRIES) ? 'you' : x.waitRid ? 'saved'
+           : signedOut ? 'signin' : (r && r.next > now) ? 'retry' : 'saved';
+    push({ lane: 'photos', jobId: x.jobId, what: photoWhat(x), state: st, t: r && r.next,
+           hint: x.waitRid ? L('Goes after its clock-in') : st === 'you' ? L('Tap to try again or discard') : '', go: st === 'you' ? openPhotoQ : null });
+  });
+  var storeItems = function(store, lane, what, open){
+    for (var tid in store){
+      var e = store[tid]; if (!e || !e.dirty) continue;
+      var refused = /^Not saved/.test(e.err || '');
+      var st = e.inflight ? 'sending' : refused ? 'you' : signedOut ? 'signin' : (e.err && e.err !== 'offline' && S.online) ? 'retry' : 'saved';
+      push({ lane: lane, jobId: e.jobId, what: what, state: st, hint: refused ? e.err : '', go: refused ? (function(t){ return function(){ open(t); }; })(tid) : null });
+    }
+  };
+  storeItems(ckStore, 'checks', L('Site checks'), openChecks);
+  storeItems(prStore, 'prestart', L('Pre-start'), openPrestart);
+  for (var k in dlStore){
+    var e = dlStore[k]; if (!e) continue;
+    if (e.wantSend && !e.sent){
+      var refusedLog = /^Not sent/.test(e.err || '');
+      push({ lane: 'log', jobId: e.jobId, what: e.date === today ? L('Today’s log') : Lf('Log for {d}', { d: dayWords(new Date(e.date + 'T12:00:00')) }),
+             state: e.sending ? 'sending' : refusedLog ? 'you' : signedOut ? 'signin' : (e.err === 'retry' && S.online) ? 'retry' : 'saved',
+             hint: refusedLog ? (e.err || '') : '', go: refusedLog ? (function(x){ return function(){ openLog(x.jobId, x.date); }; })(e) : null });
+    }
+    (e.notes || []).forEach(function(n){
+      if (!(n.later && n.pending)) return;
+      push({ lane: 'log', jobId: e.jobId, what: L('Line added to the log'), state: n.refused ? 'you' : signedOut ? 'signin' : (n.tries && n.next > now) ? 'retry' : 'saved', t: n.next,
+             hint: n.refused ? L('not added — tell the office') : '', go: null });
+    });
+  }
+  ((window.CO && CO.outbox) || []).forEach(function(it){
+    var w = coWaitState(it);
+    push({ lane: 'closeout', jobId: it.jobId, what: it.label || it.kind, state: w.s, t: w.t,
+           hint: it.status === 'held' ? L('Goes after an earlier item') : (w.s === 'you' ? (it.err || '') : ''),
+           go: w.s === 'you' ? (function(j){ return function(){ coGoJob(j); coGo('send'); }; })(it.jobId) : null });
+  });
+  rollWrites().forEach(function(x){
+    var w = x.w;
+    push({ lane: 'roll', jobId: w.args && w.args[0], what: L(x.kind === 'daily' ? 'Shop checks record' : 'Roll-out note'),
+           state: signedOut ? 'signin' : (w.tries && w.next > now) ? 'retry' : 'saved', t: w.next, hint: '', go: null });
+  });
+  return out;
+}
+function waitingHtml(){
+  var items = waitItems();
+  S.waitShown = items;
+  if (!items.length) return '<div class="sheetpad"><div class="body">' + esc(L('Nothing is waiting — everything has reached the office.')) + '</div></div>';
+  var groups = [], byJob = {};
+  items.forEach(function(it, i){
+    var key = it.jobId || '-';
+    if (!byJob[key]){ byJob[key] = { label: jobWordsFor(it.jobId), rows: [] }; groups.push(byJob[key]); }
+    byJob[key].rows.push(i);
+  });
+  var h = '<div class="sheetpad" style="gap:12px"><div class="body">' + esc(L(S.online
+    ? 'These go by themselves. Keep the app open where there is signal until this list is empty.'
+    : 'No signal. These are saved on this phone and go by themselves when there is signal.')) + '</div>';
+  groups.forEach(function(g){
+    h += '<div class="k" style="margin-top:4px">' + esc(g.label) + '</div><div class="oblist">' + g.rows.map(function(i){
+      var it = items[i];
+      return '<div class="obrow"><span class="st ' + WAIT_CLS[it.state] + '">' + esc(waitStateWords(it.state, it.t, it.who)) + '</span>' +
+             '<span class="ob-t">' + esc(it.what) + (it.hint ? '<br><span class="pqerr">' + esc(it.hint) + '</span>' : '') + '</span>' +
+             (it.go ? '<button data-waitgo="' + i + '">' + esc(L('Open')) + '</button>' : '') + '</div>';
+    }).join('') + '</div>';
+  });
+  if (S.online) h += '<button class="btn btn-out" id="waitSend" style="margin-top:6px;min-height:56px">' + esc(L('Send now')) + '</button>';
+  return h + '</div>';
+}
+function openWaiting(){ openSheet('waiting'); obFresh().then(function(){ if (S.sheet === 'waiting') openSheet('waiting'); renderWaitCard(); }); }
+/* The Clock tab's card: one row per kind of thing, its most pressing state. */
+function renderWaitCard(){
+  var el = $('waitSect');
+  if (!el) return;
+  var items = canTab('job') ? waitItems() : [];
+  el.classList.toggle('hidden', !items.length);
+  var lanes = [], by = {};
+  items.forEach(function(it){
+    if (!by[it.lane]){ by[it.lane] = { lane: it.lane, n: 0, worst: it }; lanes.push(by[it.lane]); }
+    var l = by[it.lane]; l.n++;
+    if (WAIT_ORDER[it.state] < WAIT_ORDER[l.worst.state]) l.worst = it;
+  });
+  lanes.sort(function(a, b){ return WAIT_ORDER[a.worst.state] - WAIT_ORDER[b.worst.state]; });
+  var words = function(l){
+    var n = l.n;
+    return l.lane === 'clock' ? (n === 1 ? L('A clock-in') : Lf('{n} clock-ins', { n: n }))
+         : l.lane === 'photos' ? (n === 1 ? L('1 photo') : Lf('{n} photos', { n: n }))
+         : l.lane === 'checks' ? L('Site checks') : l.lane === 'prestart' ? L('Pre-start')
+         : l.lane === 'log' ? (n === 1 ? l.worst.what : Lf('{n} day log items', { n: n }))
+         : l.lane === 'closeout' ? (n === 1 ? L('1 Close Out item') : Lf('{n} Close Out items', { n: n }))
+         : (n === 1 ? L('1 roll-out note') : Lf('{n} roll-out notes', { n: n }));
+  };
+  var html = items.length ? '<button class="waitcard" id="waitCardBtn"><span class="k">' + esc(Lf('Waiting to send · {n}', { n: items.length })) + '</span>' +
+    lanes.slice(0, 3).map(function(l){
+      return '<span class="wr"><span>' + esc(words(l)) + '</span><span class="ws ' + l.worst.state + '">' + esc(waitStateWords(l.worst.state, l.worst.t, l.worst.who)) + '</span></span>';
+    }).join('') + (lanes.length > 3 ? '<span class="wr"><span>' + esc(Lf('+{n} more', { n: lanes.length - 3 })) + '</span></span>' : '') +
+    '<span class="wm">' + esc(L('See everything waiting')) + ' ›</span></button>' : '';
+  if (el._drawn === html) return;
+  el._drawn = html; el.innerHTML = html;
+  if ($('waitCardBtn')) $('waitCardBtn').onclick = openWaiting;
+}
+
 /* Two roofs booked today and nothing on the clock: ask, once, on the screen
    the app opens to. One roof needs no asking — seedTodayJob() sets it. */
 function renderTodayPick(){
@@ -1085,6 +1368,8 @@ function renderClock(){
   // Started earlier is for a block just begun, never a break or a drive
   // (T2.33, audit D27): every branch below that keeps it shows it again.
   $('earlierBtn').classList.add('hidden');
+  // The one next action (T2.34): only on a running block at a job.
+  $('nextBtn').classList.add('hidden');
   if (paused){
     // Counting down to the block JobTread already has waiting.
     var b = S.brk && S.brk.entryId === S.open.id ? S.brk : null, c = S.open.code, num = (c && c.number) || L('the code');
@@ -1177,6 +1462,9 @@ function renderClock(){
   $('tpmBtn').classList.toggle('hidden', atShop());
   $('tpmBtn').parentNode.classList.toggle('one', atShop());
   $('earlierBtn').classList.toggle('hidden', !earlierBlock() || !!S.open.kept);
+  var na = nextAction();
+  $('nextBtn').classList.toggle('hidden', !na);
+  if (na){ $('nextBtn').textContent = na.label; $('nextBtn').onclick = na.go; }
   // From a day before (T2.33): the buttons are dimmed and each asks first.
   var stale = leftOvernight();
   $('runStack').classList.toggle('wait', stale);
@@ -1302,8 +1590,11 @@ function pushWords(){
    new from that server, and Diagnostics warns while the server is behind —
    the way a stale server went unseen for days in October. 2 (T2.33): an
    inspection is always recorded on a task the answer names, a repair is
-   checked before Done, and one JobTread no longer has is 410 Gone. */
-var CO_CONTRACT_NEED = 2;
+   checked before Done, and one JobTread no longer has is 410 Gone. 3
+   (T2.34): an N/A goes with its reason and every line says who answered
+   it, a camera photo is filed under the time it was taken, and GET
+   /assigned answers the hourly Close Out push. */
+var CO_CONTRACT_NEED = 3;
 function buildNum(b){ var m = /T(\d+)\.(\d+)/.exec(String(b || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
 function loadBuilds(){
   if (!S.me || !API_URL || !S.online) return Promise.resolve();
@@ -1846,7 +2137,7 @@ function visitCardHtml(v){
   var sub = [v.cust, v.city || cityOf(v.address), String(v.jtype || '').toLowerCase()];
   if (far && m) sub.push(m.text.toLowerCase());
   sub = sub.filter(Boolean).join(' · ');
-  var h = '<div class="jcard' + (v.today ? ' today' : '') + (far ? ' far' : '') + '">';
+  var h = '<div class="jcard' + (v.today ? ' today' : '') + (far ? ' far' : '') + '" data-jobid="' + esc(v.jobId) + '">';
   h += '<div class="jwhen"><span class="d">' + esc(visitWhen(v)) + '</span>' +
        (v.jobNum ? '<span class="n">JT #' + esc(v.jobNum) + '</span>' : '') + '</div>';
   h += '<button class="jmain" data-pick="' + esc(v.jobId) + '">' +
@@ -3310,6 +3601,7 @@ function openSheet(kind, promptKind){
             : kind==='coPhoto' ? co('photoTitle')
             : kind==='photoQ' ? L('Photos waiting to send')
             : kind==='clockq' ? L(cqWaiting() ? 'Clock-in not sent yet' : 'Clock-in not added')
+            : kind==='waiting' ? L('Waiting to send')
             : kind==='dest' ? L('Where are you going?')
             : kind==='left' ? L('When did you leave?')
             : kind==='earlier' ? L('When did you start?')
@@ -3331,6 +3623,7 @@ function openSheet(kind, promptKind){
                             : kind==='coWhy' ? coWhyHtml()
                             : kind==='coPhoto' ? coPhotoSheetHtml()
                             : kind==='photoQ' ? photoQHtml()
+                            : kind==='waiting' ? waitingHtml()
                             : kind==='clockq' ? clockqHtml()
                             : kind==='dest' ? destHtml()
                             : kind==='left' ? leftHtml()
@@ -3689,6 +3982,10 @@ function wireSheet(){
   if ($('cqSend')) $('cqSend').onclick = function(){ var w = cqWaiting(); if (w) w.next = 0; cqSend(); openSheet('clockq'); };
   if ($('cqClose')) $('cqClose').onclick = function(){ closeSheet(); };
   if ($('cqLeft')) $('cqLeft').onclick = function(){ closeSheet(); leftAsk(); };
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-waitgo]'), function(b){
+    b.onclick = function(){ var it = (S.waitShown || [])[Number(b.getAttribute('data-waitgo'))]; closeSheet(); if (it && it.go) it.go(); };
+  });
+  if ($('waitSend')) $('waitSend').onclick = function(){ obWake(); toast(L('Sending what is waiting…')); setTimeout(function(){ if (S.sheet === 'waiting') openSheet('waiting'); }, 2500); };
   if ($('cqOk')) $('cqOk').onclick = cqDismiss;
   if ($('coPhotoRm')) $('coPhotoRm').onclick = function(){
     var view = S.coPhotoView, b = $('coPhotoRm'); if (!view) return;
@@ -5308,7 +5605,13 @@ function enqueueUpload(item){
 /* How many photos are waiting, from the phone's own store (T2.30). The
    upload loop is not the only one asking: it does not run without signal,
    and sign-out and the no-signal bar must never take a stale number. */
-function qCount(){ return idbAll().then(function(items){ S.queued = qMine(items).length; return items; }); }
+function qCount(){ return idbAll().then(function(items){ qKeep(items); return items; }); }
+/* What the waiting list shows of each photo (T2.34): never the file. */
+function qKeep(items){
+  var mine = qMine(items);
+  S.queued = mine.length;
+  S.qItems = mine.map(function(x){ return { id: x.id, tag: x.tag, at: x.at, jobId: x.jobId, waitRid: x.waitRid || '' }; });
+}
 
 /* Each photo keeps its own tries (T2.30, D7). One that will not go used to
    end the run, and every photo behind it waited with it; now it steps aside
@@ -5340,7 +5643,7 @@ function pump(){
   clearTimeout(pumpTimer);
   var signedOut = false;
   idbAll().then(function(items){
-    S.queued = qMine(items).length;
+    qKeep(items);
     render();
     // Oldest first (T2.30): ids start with random letters, so the store's
     // own order put this morning's START photo behind last night's.
@@ -6030,6 +6333,63 @@ esAdd({
   'not sent yet': 'sin enviar todavía',
   'not added — tell the office': 'no se agregó — avisa a la oficina'
 }); /* T2.33-ES */
+esAdd({
+  'Next: site checks · {d} of {n}': 'Siguiente: revisiones de obra · {d} de {n}',
+  'Next: sign off the site checks': 'Siguiente: firmar las revisiones de obra',
+  'Next: pre-start · {d} of {n}': 'Siguiente: antes de empezar · {d} de {n}',
+  'Next: the repairs': 'Siguiente: las reparaciones',
+  'Next: the final inspection': 'Siguiente: la inspección final',
+  'Next: today’s log': 'Siguiente: el registro de hoy',
+  "Today's jobs": 'Trabajos de hoy',
+  'On site now': 'En la obra ahora',
+  'Site checks · {d} of {n}': 'Revisiones de obra · {d} de {n}',
+  'Site checks to sign off': 'Revisiones de obra por firmar',
+  'Pre-start · {d} of {n}': 'Antes de empezar · {d} de {n}',
+  '1 repair open': '1 reparación abierta',
+  '{n} repairs open': '{n} reparaciones abiertas',
+  'Final inspection': 'Inspección final',
+  'Booked today': 'Agendado hoy',
+  'Clock out there': 'Marca la salida ahí',
+  'Waiting to send': 'Por enviar',
+  'Waiting to send · {n}': 'Por enviar · {n}',
+  'Saved on this phone': 'Guardado en este teléfono',
+  'Trying again at {t}': 'Se intenta de nuevo a las {t}',
+  'Trying again soon': 'Se intenta de nuevo pronto',
+  'Needs you': 'Te necesita',
+  'Waiting for sign-in': 'Espera a que inicies sesión',
+  'Waiting for {name}': 'Espera a {name}',
+  'Clock-in {t}': 'Entrada {t}',
+  'Arrival {t}': 'Llegada {t}',
+  'Start photo {t}': 'Foto de inicio {t}',
+  'End photo {t}': 'Foto final {t}',
+  'Photo {t}': 'Foto {t}',
+  'Today’s log': 'El registro de hoy',
+  'Log for {d}': 'Registro del {d}',
+  'Line added to the log': 'Línea agregada al registro',
+  'Shop checks record': 'Registro de revisión del taller',
+  'Roll-out note': 'Aviso de salida',
+  'Goes after an earlier item': 'Se envía después de uno anterior',
+  'Tap to see why': 'Toca para ver por qué',
+  'Say when you left the day before': 'Di a qué hora te fuiste el día anterior',
+  'Tap to try again or discard': 'Toca para reintentar o descartar',
+  'Open': 'Abrir',
+  'Send now': 'Enviar ahora',
+  'Sending what is waiting…': 'Enviando lo pendiente…',
+  'Nothing is waiting — everything has reached the office.': 'No hay nada pendiente — todo llegó a la oficina.',
+  'These go by themselves. Keep the app open where there is signal until this list is empty.': 'Se envían solos. Deja la app abierta donde haya señal hasta que esta lista quede vacía.',
+  'No signal. These are saved on this phone and go by themselves when there is signal.': 'Sin señal. Están guardados en este teléfono y se envían solos cuando haya señal.',
+  'Another job': 'Otro trabajo',
+  'A clock-in': 'Una entrada',
+  '{n} clock-ins': '{n} entradas',
+  '1 photo': '1 foto',
+  '{n} photos': '{n} fotos',
+  '{n} day log items': '{n} cosas del registro',
+  '1 Close Out item': '1 envío de Close Out',
+  '{n} Close Out items': '{n} envíos de Close Out',
+  '1 roll-out note': '1 aviso de salida',
+  '{n} roll-out notes': '{n} avisos de salida',
+  'See everything waiting': 'Ver todo lo pendiente'
+}); /* T2.34-ES */
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
@@ -7416,14 +7776,28 @@ function coCtx(){
   if (key && j){
     var a = coAreaByKey(j, key), f = coAreaForm(j, a);
     if (f){
-      var av = coAreaV(v, key); av.answers = av.answers || {}; av.notes = av.notes || {};
-      return { area: key, a: a, form: f, answers: av.answers, notes: av.notes, photos: av.photos, reports: coAreaReports(v, key), fin: av,
+      var av = coAreaV(v, key); av.answers = av.answers || {}; av.notes = av.notes || {}; av.naWhy = av.naWhy || {};
+      return { area: key, a: a, form: f, answers: av.answers, notes: av.notes, naWhy: av.naWhy, photos: av.photos, reports: coAreaReports(v, key), fin: av,
                target: { kind: 'area', jobId: jobId, area: key }, home: 'area' };
     }
   }
-  v.notes = v.notes || {}; v.fin = v.fin || { note: '' };
-  return { area: null, a: null, form: coForm(jobId), answers: v.answers, notes: v.notes, photos: v.photos, reports: coRoofReports(v), fin: v.fin,
+  v.notes = v.notes || {}; v.fin = v.fin || { note: '' }; v.naWhy = v.naWhy || {};
+  return { area: null, a: null, form: coForm(jobId), answers: v.answers, notes: v.notes, naWhy: v.naWhy, photos: v.photos, reports: coRoofReports(v), fin: v.fin,
            target: { kind: 'visit', jobId: jobId }, home: 'job' };
+}
+/* An N/A says why (T2.34, audit D33: "N/A ticks the line exactly like OK,
+   with no reason"). The reason goes as typed, the way the site checks' n/a
+   reasons go; the server writes it onto the line's name in JobTread. Only
+   N/A lines send one; nothing to send is no field at all. */
+function coNaMissing(ctx){
+  var out = [];
+  ctx.form.sections.forEach(function(x){ var a = ctx.answers[x.key] || {}; x.items.forEach(function(i){ if (a[i.key] === CO_ANS.NA && !String((ctx.naWhy || {})[i.key] || '').trim()) out.push({ sec: x, item: i }); }); });
+  return out;
+}
+function coNaReasons(form, answers, why){
+  var out = {}, n = 0;
+  form.sections.forEach(function(x){ var a = answers[x.key] || {}; x.items.forEach(function(i){ var w = String((why || {})[i.key] || '').replace(/\s+/g, ' ').trim(); if (a[i.key] === CO_ANS.NA && w){ out[i.key] = w.slice(0, 120); n++; } }); });
+  return n ? out : undefined;
 }
 function coCountA(answers, items, which){ var a = answers[which] || {}; return items.filter(function(i){ return !!a[i.key]; }).length; }
 function coCtxFixes(ctx, sec){
@@ -7573,6 +7947,16 @@ coAdd({
         itemGone: 'Ya no está en JobTread — la quitaron o la movieron. Pregúntale a tu PM y luego Descártala.',
         signedOutWait: 'Esperando a que vuelvas a iniciar sesión' }
 }); /* CO-T233 */
+coAdd({
+  en: { repairGone: 'This repair isn’t on the job any more — the office took it off in JobTread. Ask your PM if it still needs doing.',
+        repairGoneBack: 'Back to the repairs',
+        naWhyK: 'Why it doesn’t apply', naWhyPh: 'e.g. no chimney on this roof', naWhyNone: 'No reason yet',
+        whyNa: 'Say why line {n} doesn’t apply' },
+  es: { repairGone: 'Esta reparación ya no está en el trabajo — la oficina la quitó en JobTread. Pregúntale a tu PM si todavía hay que hacerla.',
+        repairGoneBack: 'Volver a las reparaciones',
+        naWhyK: 'Por qué no aplica', naWhyPh: 'p. ej. este techo no tiene chimenea', naWhyNone: 'Sin razón todavía',
+        whyNa: 'Di por qué no aplica la línea {n}' }
+}); /* CO-T234 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -7640,6 +8024,7 @@ function coBlockersCtx(ctx){
     if (left > 0) out.push({ go: coSecScreen(x), t: coSecLabel(x) + ' · ' + left + ' ' + co('whyLeft'), s: co('whyAnswer') });
   });
   coCtxUnreported(ctx).forEach(function(i){ out.push({ report: i.key, t: co('whyFix') + ' ' + i.n, s: coLabel(i) }); });
+  coNaMissing(ctx).forEach(function(m){ out.push({ go: coSecScreen(m.sec), t: co('whyNa').replace('{n}', m.item.n), s: coLabel(m.item) }); });
   var need = coPhotosNeed(ctx.target.jobId);
   if (ctx.photos.length < need) out.push({ go: 'photos', t: co('whyPhotos2').replace('{n}', need - ctx.photos.length), s: coPhotosHow(ctx.target.jobId) });
   if (!String(ctx.fin.note || '').trim()) out.push({ go: 'final', t: co('whyFinal'), s: co('whyFinalSub') });
@@ -7794,13 +8179,17 @@ function coRestoreQueue(){
 }
 function coLoadJob(jobId){
   CO.jobLoading = true; CO.jobErr = '';
+  // When the read set out (T2.34): only a Done this phone recorded well
+  // before it can be undone by what it says (coReopenedRepairs).
+  var askedAt = Date.now();
   coRender();
   apiCall('coJob', [jobId], { lane: 'board', timeout: 40000 }).then(function(r){
     CO.jobLoading = false;
     r = r || {};
     if (r.status === 200 && r.body && r.body.id){
       r.body._at = Date.now();
-      CO.job = r.body; CO.jobAt = r.body._at;
+      CO.job = r.body; CO.jobAt = r.body._at; CO.jobFresh = jobId;
+      coReopenedRepairs(jobId, r.body, askedAt);
       coAdoptForms(r.body.forms);
       storeSet('dbtc_co_job_' + jobId, JSON.stringify(CO.job), true);
       // The punch to-dos arrive in English; Spanish on screen means asking once.
@@ -7811,6 +8200,24 @@ function coLoadJob(jobId){
     }
     coRender();
   }).catch(function(e){ CO.jobLoading = false; CO.jobErr = (e && e.message) || 'failed'; coRestoreJob(jobId); failed('close out · job', e, true); coRender(); });
+}
+/* A repair this phone finished that the server lists open again (T2.34,
+   audit D32: "A repair the office reopens still reads Done on that phone for
+   up to 14 days"). The office reopened it, so the phone lets its Done go and
+   the repair reads open, asking for its photos and note again. Only when the
+   read set out well after the Done was recorded (CO_REOPEN_GRACE_MS), so a
+   read that left before the Done landed can never undo it; a Done still
+   waiting to send is the outbox's and is left alone. */
+var CO_REOPEN_GRACE_MS = 10 * 60 * 1000;
+function coReopenedRepairs(jobId, job, askedAt){
+  var v = coStore.visits[jobId], changed = false;
+  if (!v || !v.doneTasks) return false;
+  (job.punchTasks || []).forEach(function(t){
+    var d = v.doneTasks[t.id];
+    if (typeof d === 'number' && !(t.progress >= 1) && askedAt - d > CO_REOPEN_GRACE_MS){ delete v.doneTasks[t.id]; changed = true; }
+  });
+  if (changed) coPersist();
+  return changed;
 }
 function coRestoreJob(jobId){
   if (CO.job && CO.job.id === jobId) return;
@@ -7853,7 +8260,7 @@ function coPrefetchJobs(){
   next();
 }
 function coOpenJob(jobId){
-  CO.jobId = jobId; CO.job = null; CO.screen = 'job'; CO.receipt = null; CO.repairsSent = null;
+  CO.jobId = jobId; CO.job = null; CO.jobFresh = null; CO.screen = 'job'; CO.receipt = null; CO.repairsSent = null;
   if (!codesCached(jobId)) loadCodes(jobId, true).catch(function(){});
   coRestoreJob(jobId);
   coLoadJob(jobId);
@@ -8115,7 +8522,16 @@ function photoTileTags(p){
   return '<span class="src">' + esc(co('phoneTag')) + '</span><span class="tag">' + esc(p.takenAt ? phoneWhenShort(p.takenAt) : co('noTime')) + '</span>';
 }
 /* What the Close Out server is told about where a photo came from. */
-function coOrigin(p){ return p && p.fromPhone ? { source: 'phone', takenAt: p.takenAt || undefined } : {}; }
+/* Where a photo came from, and when it was taken (T2.34, audit D37): a
+   camera shot carries the moment the phone kept it, so one sent hours later
+   from a dead spot is filed under when it was taken, in the office's time,
+   not when it reached the server. A server older than contract 3 reads only
+   the phone's own photos' time, and files a camera shot as it always did. */
+function coOrigin(p){
+  if (!p) return {};
+  if (p.fromPhone) return { source: 'phone', takenAt: p.takenAt || undefined };
+  return p.at ? { source: 'camera', takenAt: new Date(p.at).toISOString() } : {};
+}
 function coPayload(base, p){ var o = coOrigin(p); for (var k in o) if (o[k] !== undefined) base[k] = o[k]; return base; }
 
 function coShrink(file){
@@ -8448,7 +8864,7 @@ function coSendVisitNow(jobId){
   notes.final = fen && fsaid && fen !== fsaid ? fen + '\n\n(' + fsaid + ')' : (fen || undefined);
   var need = coEnNeed(fin, fsaid);
   items.push({ id: ref, kind: 'close', jobId: jobId, label: form.sections.map(coSecLabel).join(' + '),
-               payload: { form: form.key, answers: answers, notes: notes, findings: findings, problemsReported: problems },
+               payload: { form: form.key, answers: answers, notes: notes, findings: findings, problemsReported: problems, naReasons: coNaReasons(form, answers, v.naWhy) },
                enFix: need ? { field: 'final', said: need } : null });
   v.sending = true; v.sendingAt = Date.now(); coPersist();
   return coEnqueue(items).then(function(){ coGo('send'); });
@@ -8479,6 +8895,7 @@ function coSendArea(jobId, key){
       payload.form = f.key; payload.answers = {}; payload.sectionNotes = {};
       f.sections.forEach(function(x){ payload.answers[x.key] = av.answers[x.key] || {}; if (String(av.notes[x.key] || '').trim()) payload.sectionNotes[x.key] = av.notes[x.key]; });
       payload.findings = coAreaReports(v, key).filter(function(r){ return r.itemKey; }).map(function(r){ return { itemKey: r.itemKey, fixedOnSite: !!r.fixed, location: r.locationWords || '', note: (r.noteEn || r.note || '').trim(), photos: (r.photos || []).length }; });
+      var nr = coNaReasons(f, payload.answers, av.naWhy); if (nr) payload.naReasons = nr;
     }
     items.push({ id: ref, kind: 'area', jobId: jobId, area: key, label: name + ' · ' + co('inspection'), payload: payload,
                  enFix: needA ? { field: 'area', said: needA } : null });
@@ -8671,7 +9088,9 @@ function coOutboxHtml(){
   if (!items.length) return '<div class="jempty">' + esc(co('nothingWaiting')) + '</div>';
   var canNudge = S.online && !CO.pumping && items.some(function(it){ return it.status !== 'rejected'; });
   return '<div class="jcard" style="margin-top:4px">' + items.map(function(it){
-    var st = it.status === 'rejected' ? '<span class="st bad">' + esc(co('rejected')) + '</span>' : it.status === 'held' ? '<span class="st wait">409</span>' : '<span class="st">' + esc(co('queued')) + '</span>';
+    // The same five words as the one Waiting to send list (T2.34, audit I14).
+    var w = coWaitState(it);
+    var st = '<span class="st ' + WAIT_CLS[w.s] + '">' + esc(waitStateWords(w.s, w.t)) + '</span>';
     var job = coJobById(it.jobId);
     return '<div class="obrow">' + st + '<span class="ob-t">' + esc((job ? job.number + ' · ' : '') + (it.label || it.kind)) + (it.err ? '<br><span style="font-size:12.5px">' + esc(it.err) + '</span>' : '') + '</span>' +
            (coCanDiscard(it) ? '<button data-codiscard="' + esc(it.id) + '">' + esc(co('discard')) + '</button><button data-coretry="' + esc(it.id) + '">' + esc(co('retry')) + '</button>' : '') + '</div>';
@@ -8808,6 +9227,11 @@ function coListHtml(which){
          '<button class="ok' + (cur === CO_ANS.OK ? ' on' : '') + '" data-ans="OK">' + esc(co('ok')) + '<span class="s">' + esc(co2('ok')) + '</span></button>' +
          '<button class="na' + (cur === CO_ANS.NA ? ' on' : '') + '" data-ans="NA">N/A<span class="s">' + esc(co('naSub')) + '</span></button>' +
          '<button class="fix' + (cur === CO_ANS.FIX ? ' on' : '') + '" data-ans="FIX">' + esc(co('fix')) + '<span class="s">' + esc(co('fixSub')) + '</span></button></div>';
+    if (cur === CO_ANS.NA){
+      var why = String(ctx.naWhy[it.key] || '');
+      h += '<div class="conawhy"><label class="k" for="coNa_' + esc(it.key) + '">' + esc(co('naWhyK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span></label>' +
+           '<input id="coNa_' + esc(it.key) + '" class="cknote-in" data-nawhy="' + esc(it.key) + '" placeholder="' + esc(co('naWhyPh')) + '" maxlength="120" autocomplete="off" value="' + esc(why) + '"></div>';
+    }
     if (cur === CO_ANS.FIX){
       var rep = ctx.reports.filter(function(r){ return r.itemKey === it.key; })[0];
       h += '<button class="nudge" style="min-height:60px" data-coreport="' + esc(it.key) + '"><span style="flex:1;min-width:0"><span class="nk">' + esc(co('fixK')) + ' ' + esc(it.n) + '</span><span class="nt">' +
@@ -8923,7 +9347,8 @@ function coReviewCardsHtml(ctx){
     var sum = c < x.items.length ? c + ' ' + co('of') + ' ' + x.items.length : [(c - fx - na) + ' ' + co('cardOk'), na ? na + ' ' + co('cardNa') : '', fx ? fx + ' ' + co('cardFix') : ''].filter(Boolean).join(' · ');
     var body = x.items.map(function(i){
       var ans = a[i.key], cls = ans === CO_ANS.OK ? 'ok' : ans === CO_ANS.NA ? 'na' : ans === CO_ANS.FIX ? 'fix' : 'no', w = ans === CO_ANS.OK ? co('cardOk') : ans === CO_ANS.NA ? co('cardNa') : ans === CO_ANS.FIX ? co('cardFix') : '—';
-      return '<div class="rvi"><span class="n">' + esc(i.n) + '</span><span class="l">' + esc(coLabel(i)) + '</span><span class="a ' + cls + '">' + esc(w) + '</span></div>';
+      var nw = ans === CO_ANS.NA ? String((ctx.naWhy || {})[i.key] || '').trim() : '';
+      return '<div class="rvi"><span class="n">' + esc(i.n) + '</span><span class="l">' + esc(coLabel(i)) + (ans === CO_ANS.NA ? '<span class="nawhy' + (nw ? '' : ' miss') + '">' + esc(nw || co('naWhyNone')) + '</span>' : '') + '</span><span class="a ' + cls + '">' + esc(w) + '</span></div>';
     }).join('') + (String(ctx.notes[x.key] || '').trim() ? '<div class="rvc-note"><span class="k9">' + esc(co('note')) + '</span>' + esc(ctx.notes[x.key]) + '</div>' : '');
     h += coRvCard('sec:' + x.key, coSecLabel(x), sum, c < x.items.length ? 'warn' : fx ? 'warn' : 'good', body, coSecScreen(x));
   });
@@ -9037,12 +9462,20 @@ function coRepairMissing(v, tid){
 }
 function coRepairHtml(){
   var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0];
-  if (!t) return '<div class="jempty">' + esc(co('loading')) + '</div>';
+  if (!t){
+    // Read from the server and not on the job's list: the office took it off
+    // (T2.34, audit D32) — said, with the way back, never "Loading…" for good.
+    if (CO.jobFresh === CO.jobId && !CO.jobLoading)
+      return '<div class="jempty" id="coRepairGone">' + esc(co('repairGone')) + '</div><button class="btn btn-nav" id="coRepairGoneBack" style="margin-top:14px">' + esc(co('repairGoneBack')) + '</button>';
+    return '<div class="jempty">' + esc(CO.jobLoading ? co('loading') : (CO.jobErr || co('loading'))) + '</div>';
+  }
   var tb = JSON.stringify({ kind: 'before', jobId: CO.jobId, taskId: t.id }), ta = JSON.stringify({ kind: 'after', jobId: CO.jobId, taskId: t.id }), tm = JSON.stringify({ kind: 'more', jobId: CO.jobId, taskId: t.id });
   var b = v.before[t.id], a = v.after[t.id], more = v.repairMore[t.id] || [], h = '';
   h += '<div class="rvcard" style="margin-top:4px"><div class="rvstory"><span class="rk">' + esc(co('whatToDo')) + ' · ' + esc(co('whatToDoSub')) + '</span><span class="rt">' + esc(es(t.description) || es(coTaskName(t))) + '</span>' +
        (S.lang === 'es' && CO.trans[t.description || t.name] ? '<span class="small-note" style="font:400 13px/1.4 var(--sans);color:var(--mut)">' + esc(co('autoTranslated')) + '</span>' : '') + '</div>' +
-       (t.endDate ? '<div class="rvrow"><span class="rk">' + esc(co('assignedBy')) + '</span><span class="rv">' + esc(coDay(t.endDate)) + '</span></div>' : '') + '</div>';
+       (t.endDate ? '<div class="rvrow"><span class="rk">' + esc(co('assignedBy')) + '</span><span class="rv">' + esc(coDay(t.endDate)) + '</span></div>' : '') +
+       // Given to somebody else (T2.34, D32): whose it is now, before the work is done twice.
+       (!t.mine && (t.assigneeNames || []).length ? '<div class="rvrow" id="coRepairWho"><span class="rk">' + esc(co('assignedTo')) + '</span><span class="rv">' + esc(t.assigneeNames.join(', ')) + '</span></div>' : '') + '</div>';
   h += '<div class="photos" style="margin-top:14px">' +
        (b ? '<button class="phbig" style="background-image:url(' + b.thumb + ')" data-corm="' + esc(b.id) + '" data-target=\'' + esc(tb) + '\'><span class="tag">' + esc(co('before')) + '</span>' + coBigSrc(b) + '</button>'
           : '<button class="phbig empty need" data-cophoto=\'' + esc(tb) + '\'>' + ico('camera', 26) + '<span class="t">' + esc(co('before')) + '</span><span class="s">' + esc(co('beforeSub')) + '</span></button>') +
@@ -9273,8 +9706,13 @@ function coWire(){
       if (!ans[which][key]) delete ans[which][key];
       coPersist(); coRender();
       if (val === CO_ANS.FIX && ans[which][key] === val) coStartReport(key, CO.screen, CO.ctxArea || undefined);
+      if (val === CO_ANS.NA && ans[which][key] === val){ var nb = document.querySelector('[data-nawhy="' + key + '"]'); if (nb && !nb.value) nb.focus(); }
     };
   });
+  [].forEach.call(body.querySelectorAll('[data-nawhy]'), function(inp){
+    inp.oninput = function(){ coCtx().naWhy[inp.getAttribute('data-nawhy')] = inp.value; coPersist(); };
+  });
+  var rgb = $('coRepairGoneBack'); if (rgb) rgb.onclick = function(){ coBack(); };
   // Anything still left opens the list of it (T2.12), each row going where
   // it is dealt with; nothing left, the review.
   var toReview = function(){ if (coBlockersCtx(coCtx()).length) openSheet('coWhy'); else coGo('send'); };

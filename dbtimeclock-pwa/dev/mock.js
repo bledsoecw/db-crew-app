@@ -839,7 +839,7 @@
     // T2.30: what each system is running. A test sets __MOCK_BUILDS to try a
     // server behind the phone.
     getBuilds: function () {
-      return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 2 } };
+      return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 3 } };
     },
     markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
     exchangeSession: function () { return { token: 'h.' + payload + '.s', exp: 4102444800 }; },
@@ -861,7 +861,12 @@
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
       if (!j) return { status: 404, reason: 'http-404', body: { error: 'Job not found' } };
       var out = JSON.parse(JSON.stringify(j));
-      out.punchTasks.forEach(function (t) { if (CO_DONE[t.id]) t.progress = 1; });
+      // T2.34 (audit D32): __MOCK_CO_REMOVED names a repair the office took
+      // off in JobTread (gone from the list); __MOCK_CO_REOPEN one it reopened
+      // (open again, whatever the phone finished). A task id or a list of them.
+      var removed = [].concat(window.__MOCK_CO_REMOVED || []), reopen = [].concat(window.__MOCK_CO_REOPEN || []);
+      out.punchTasks = out.punchTasks.filter(function (t) { return removed.indexOf(t.id) === -1; });
+      out.punchTasks.forEach(function (t) { if (CO_DONE[t.id] && reopen.indexOf(t.id) === -1) t.progress = 1; });
       // __MOCK_CO_FORM (T2.25): the server's form, as data — the phone draws
       // this one, not its own copy. A form object here replaces the roof's.
       if (window.__MOCK_CO_FORM) { out.forms = { roof: window.__MOCK_CO_FORM }; out.jobForm = 'roof'; }

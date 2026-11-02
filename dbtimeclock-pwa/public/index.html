@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="T2.33">
+<html lang="en" data-build="T2.34">
 <head>
 <meta charset="utf-8">
 <title>DB Crew</title>
@@ -765,6 +765,44 @@ html{touch-action:manipulation}
 .hdrR.stack{flex-direction:column;align-items:flex-end;gap:6px}
 .coscope{margin-top:14px;border:1px solid var(--line);border-radius:8px;background:var(--surf);overflow:hidden}
 .coscope .rvstory{padding-top:10px}
+/* Read in the sun, gloves on (T2.34, audit D40): anything that tells the crew
+   what to do is 13px or more; the small capitals stay for labels. */
+#clockIn .sm,.bi2 .b2,.jact .a2,.jwh-btn .s{font:600 13px/1.25 var(--sans);letter-spacing:.1px;text-transform:none;opacity:.85}
+.jact .a2{color:var(--mut)}
+.foot,#photoNote{font-size:13px}
+.jmat,.jck{font:600 13px/1.35 var(--sans);letter-spacing:.1px;text-transform:none}
+.cardbtn,.whychip{font-size:13px}
+.tab .tl{font-size:13px;letter-spacing:.4px;line-height:1.1;text-align:center;padding:0 4px}
+.wday .dn{font-size:13px;letter-spacing:.4px}
+.badge{font-size:13px;letter-spacing:.5px}
+.obrow button{font-size:13px}
+/* The other language under OK, N/A and Fix is a label, not an instruction: 12px. */
+.ans button .s{font-size:12px}
+.langtog button{min-width:44px;font-size:12px}
+/* Today on the Clock tab (T2.34, audit I12): today's jobs, each with what it still needs. */
+.todrow{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:10px 16px;border:1px solid var(--line);border-radius:6px;background:var(--surf);text-align:left;color:var(--fg)}
+.todrow+.todrow{margin-top:8px}
+.todrow .tt{flex:1;min-width:0;font:700 16px/1.25 var(--head);letter-spacing:.3px}
+.todrow .tn{flex:none;max-width:52%;font:600 13px/1.3 var(--sans);color:var(--mut);text-align:right}
+.todrow.go .tn{color:var(--acc)}
+.todrow.warn .tn{color:var(--warn)}
+.todrow .chev{flex:none;opacity:.6;display:flex}
+/* One "Waiting to send" card and sheet (T2.34, audit I14). */
+.waitcard{display:block;width:100%;padding:12px 16px;border:1px solid var(--line);border-radius:6px;background:var(--surf);text-align:left;color:var(--fg)}
+.waitcard .wr{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:30px;font:600 14px/1.3 var(--sans)}
+.waitcard .ws{flex:none;font:600 13px/1.3 var(--sans);color:var(--mut)}
+.waitcard .ws.you{color:var(--rec)}
+.waitcard .ws.retry,.waitcard .ws.signin{color:var(--warn)}
+.waitcard .wm{display:block;margin-top:6px;font:600 13px/1.3 var(--sans);color:var(--acc)}
+#offlineBar.tappable{cursor:pointer}
+.obrow .st.nav{background:var(--nav);color:#fff}
+/* A state is read, not decoded (D40): plain 13px words that wrap, in every waiting list. */
+.obrow .st{font:600 13px/1.25 var(--sans);letter-spacing:.1px;text-transform:none;white-space:normal;max-width:46%;padding:5px 8px}
+/* T2.34, audit D33: an N/A line's reason, asked under it and shown on the review. */
+.conawhy{padding:0 16px 14px}   /* in line with the answer buttons above it */
+.conawhy .k{display:block;margin:0 0 6px}
+.rvi .l .nawhy{display:block;margin-top:2px;font:400 13px/1.35 var(--sans);color:var(--mut)}
+.rvi .l .nawhy.miss{color:var(--ckamber)}
 </style>
 </head>
 <body>
@@ -828,6 +866,7 @@ html{touch-action:manipulation}
             <div id="bandSub"></div>
             <button id="earlierBtn" class="hidden" data-l="Started earlier? Say when">Started earlier? Say when</button>
           </div>
+          <button class="btn btn-go hidden" id="nextBtn" style="margin-top:14px;min-height:64px"></button>
           <button class="btn btn-nav hidden" id="coJump" style="margin-top:14px;min-height:64px"></button>
           <div class="stack" id="runStack">
             <div class="clkgrid">
@@ -872,6 +911,9 @@ html{touch-action:manipulation}
           </button>
           <button class="btn btn-out" id="shopOther" style="min-height:56px;font-size:14px;letter-spacing:.5px;color:var(--mut);border-color:var(--line)" data-l="Other shop work">Other shop work</button>
         </div>
+
+        <div class="sect hidden" id="todaySect"></div>
+        <div class="sect hidden" id="waitSect"></div>
 
         <div class="sect">
           <div class="k" data-l="Today on this job">Today on this job</div>
@@ -1129,6 +1171,6 @@ html{touch-action:manipulation}
   </div>
 </div>
 
-<script src="app.js?b=T2.33"></script>
+<script src="app.js?b=T2.34"></script>
 </body>
 </html>
