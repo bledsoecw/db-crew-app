@@ -795,3 +795,12 @@ regeneration, Linux only.
   "Schedule changed" only take their snapshots on it. Its line on the
   Executions page (`schedule pushes: {…}`, `"failed":0` both places) was not
   read from here.
+
+## `main` (2 Nov 2026)
+
+- **`main` was 48 commits behind what the phones ran** — it stopped on 28 Oct
+  at e177049, before T2.16, because every deploy pulls
+  `claude/zealous-hopper-j7xy98`. A fresh clone of `main` was three weeks old
+  and had no `check-build.mjs` to stop it going out. At Carl's word ("bring
+  main up to date") it was fast-forwarded to the branch, no force. Deploys
+  still pull the branch; nothing deploys when `main` moves (no workflows).
