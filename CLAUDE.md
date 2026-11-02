@@ -566,6 +566,14 @@ regeneration, Linux only.
   *Started Sun Nov 1, 7:02a* / *Empezó el Dom 1 nov a las 7:02a*, and the
   drive's *Since …* the same. The first cut glued the day onto the time, which
   read as "Nov 17" on a phone and as *a las Dom 1 nov* in Spanish.
+- **The server half is live**: at 16:23Z on 2 Nov 2026 (Carl: *"go, deploy
+  the server now"*) DB CheckOut's `main` was fast-forwarded to eb84c5a,
+  `dpl_E4f2y8XqVaVUdVjU8dKKt891ekWQ`, and `/health` answered
+  `{"source":"d0b195b48064","on":"vercel","commit":"eb84c5a"}` with
+  `"contract":2`; `/jobs` and `/queue` still 401 with no token, and no
+  runtime errors. The 4387f3f deployment (`dpl_2aGXqxaGeoKH1gpwt7irLFCFnrQR`)
+  is the rollback. Until the phone's T2.33 is on the phones, Diagnostics on a
+  T2.32 phone reads the server as level 2, which it accepts (it needs 1).
 - **`completedTaskId` is the receipt.** The phone treats a 200 on `close` or
   `area` without it as recorded nowhere (`notRecorded`). DB CheckOut's
   close-inspection always names it since eb84c5a; an older server answers
