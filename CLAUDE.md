@@ -613,3 +613,11 @@ regeneration, Linux only.
 - **`CREW-ASSIGNMENTS-API.md` still says "colours"** (line 165). It must stay
   byte-identical with the board's copy, so it changes in both repos in one
   session, not here alone.
+- **T2.33 is live**: Carl ran the one chain (`clasp deploy … -d "T2.33"`,
+  `firebase deploy --only hosting`) after the Close Out server; by 16:37Z on
+  2 Nov 2026 db-crews.web.app served `index.html`, `sw.js` and
+  `app.js?b=T2.33` byte-identical to the branch, `/` and `/index.html`
+  `no-cache` with the report-only policy, and his Diagnostics read App and
+  API both T2.33. `check-build.mjs` against the live site says "T2.33 is
+  already live and app.js is unchanged"; the Close Out server showed no
+  runtime errors through the switch.
