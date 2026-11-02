@@ -1102,7 +1102,8 @@ t('tellPm is a comment on the job, signed, assigned to the PM', [jtCalls[0][1].t
 // write without them, so the gate cannot be skipped by asking it directly.
 // A break is the one photo-less write.
 props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
-const OPEN_TE = { id: 'te9', startedAt: '2026-09-16T12:00:00Z', minutes: 30, job: { id: 'j1', name: 'Webster', number: '26-0890', location: {} }, costItem: { id: 'ci1', name: 'Crew Labor', costCode: { number: '01GR', name: 'General Requirements' } } };
+const MIN_AGO = new Date(Date.now() - 60e3).toISOString();   // today's block (T2.33: one from a day before is refused)
+const OPEN_TE = { id: 'te9', startedAt: MIN_AGO, minutes: 30, job: { id: 'j1', name: 'Webster', number: '26-0890', location: {} }, costItem: { id: 'ci1', name: 'Crew Labor', costCode: { number: '01GR', name: 'General Requirements' } } };
 const withOpen = (open) => route({ jobs: JOBS, entries: (q) => {
   const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
   return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' && open ? [OPEN_TE] : [] } } }) };
@@ -1135,14 +1136,16 @@ fetched = [];
 r = sandbox.startBreak(ME, null);
 t('a break closes the block with no photo', [r.closed, paveKinds().includes('close')], ['te9', true]);
 fetched = [];
-sandbox.endBreak(ME, 'j1', 'ci1', null);
-t('...and back to work opens a new one, no start photo', paveKinds().includes('create'), true);
+// T2.33 (audit D29): with nothing open, Back to work no longer opens a block
+// with no photo and nobody told — the phone that thought so reads its clock again.
+fetchImpl = withOpen(false); fetched = [];
+t('...and back to work with nothing open is refused, writing nothing', [/^NOT_ON_CLOCK/.test(refusedBy(() => sandbox.endBreak(ME, 'j1', 'ci1', null))), paveKinds().includes('create')], [true, false]);
 
 // ---- T2.18: the drive ----
 // From work: the end photo of what is left, then the drive opens on the
 // travel line, saying where to, owing no start photo. From a drive: arriving
 // (a switch) and clocking out owe no end photo — the drive ends in the truck.
-const OPEN_DRIVE = { id: 'te7', startedAt: '2026-09-16T12:00:00Z', minutes: 20, notes: 'Drive to 26-1591 Dirham', job: { id: 'j2', name: 'Dirham', number: '26-1591', location: {} }, costItem: { id: 'tr2', name: 'Travel Related Labor', costCode: { number: '01GR-9', name: 'Travel Related Costs' } } };
+const OPEN_DRIVE = { id: 'te7', startedAt: MIN_AGO, minutes: 20, notes: 'Drive to 26-1591 Dirham', job: { id: 'j2', name: 'Dirham', number: '26-1591', location: {} }, costItem: { id: 'tr2', name: 'Travel Related Labor', costCode: { number: '01GR-9', name: 'Travel Related Costs' } } };
 const withEntry = (e) => route({ jobs: JOBS, entries: (q) => {
   const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
   return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' && e ? [e] : [] } } }) };
@@ -1687,6 +1690,86 @@ t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() 
   t('…and a clock-in with signal starts now, as it always did', [Math.abs(Date.now() - Date.parse(made[0].startedAt)) < 5000, made[0].notes], [true, undefined]);
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
+
+// ---- T2.33: nothing ends a block from a day before but the time they left ----
+// (audit D21) A clock left running overnight is refused by every ordinary
+// write — clock-out, code change, break, drive, clock-in, a kept clock-in —
+// with STALE_OPEN and `stale` on the reply; Already left at a stated time
+// ends it. (D29) A phone that thinks it is on the clock when it is not is
+// told so. (D27) Started earlier never moves the block a break planned.
+{
+  props = { WRITE_ENABLED: 'true', OAUTH_CLIENT_ID: 'cid' }; cacheStore = {}; fetched = [];
+  let openNow = null, day = [], n = 0;
+  const made = [], closes = [];
+  const entry = (id, startedAt, jobId, ci, notes) => ({ id, startedAt, endedAt: null, minutes: 0, notes: notes || '',
+    job: { id: jobId, name: '261490 Courtney_Roof', number: '26-1490', location: {} },
+    costItem: { id: ci, name: ci === 'tr9' ? 'Travel Related Labor' : 'Roofing', costCode: { number: ci === 'tr9' ? '01GR-9' : '07TM-1', name: 'x' } } });
+  const base = route({ member: MEMBER_ME, people: PEOPLE, jobs: JOBS,
+    entries: (q) => { const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+      return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' ? (openNow ? [openNow] : []) : k === 'day' ? day.concat(openNow ? [openNow] : []) : [] } } }) }; } });
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.createTimeEntry) { const a = q.createTimeEntry.$, id = 'ts' + (++n); made.push(a); openNow = entry(id, a.startedAt, a.jobId, a.costItemId, a.notes);
+      return { code: 200, body: JSON.stringify({ createTimeEntry: { createdTimeEntry: { id } } }) }; }
+    if (q.updateTimeEntry) { const a = q.updateTimeEntry.$; closes.push(a);
+      if (openNow && openNow.id === a.id && a.endedAt) { day.push({ ...openNow, endedAt: a.endedAt }); openNow = null; }
+      return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    if (q.createComment) return { code: 200, body: '{"createComment":{"createdComment":{"id":"c1"}}}' };
+    return base(url, opts); };
+  const postR = (fn, args, rid) => JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok', fn, args, rid }) } }).getContent());
+  const yesterday7 = (() => { const d = new Date(Date.now() - 24 * 3600e3); d.setUTCHours(11, 2, 0, 0); return d.toISOString(); })();   // 7:02a Ohio, the day before
+  const stale = () => entry('tyday', yesterday7, 'j9', 'ci1');
+
+  openNow = stale();
+  const tries = [
+    ['a clock-out', () => sandbox.clockOut(ME, null, 'ph_end')],
+    ['a code change', () => sandbox.switchCode(ME, 'j9', 'ci2', null, '', '')],
+    ['a break', () => sandbox.startBreak(ME, null, 30, 'en')],
+    ['a drive', () => sandbox.startTravel(ME, 'j2', 'tr2', null, 'ph_e', 'Drive to 26-1591 Dirham')],
+    ['a clock-in', () => sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s')],
+    ['a kept clock-in', () => sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s', { queued: { at: Date.now() - 20 * 60e3, sentAt: Date.now() } })],
+  ];
+  t('D21: a block open since yesterday is refused by every ordinary write, and none of them writes',
+    [tries.map(([, f]) => /^STALE_OPEN: You are still on the clock from \w{3} \w{3} \d+ at 7:02a\. Say when you left that day first\.$/.test(refusedBy(f))), made.length, closes.length],
+    [[true, true, true, true, true, true], 0, 0]);
+  const sp = postR('clockOut', [null, 'ph_end'], 'rid-t233-0001');
+  t('…and the reply carries it as data, so the phone asks when they left', [sp.ok, sp.stale && sp.stale.startedAt, sp.stale && sp.stale.jobId], [false, yesterday7, 'j9']);
+  const leftAt = new Date(Date.parse(yesterday7) + 9 * 3600e3).toISOString();   // 4:02p that day
+  const lr = sandbox.leftSite(ME, leftAt, null, { kind: 'out' });
+  t('…Already left at a stated time ends it then', [lr.closed, closes[0] && closes[0].endedAt], ['tyday', leftAt]);
+  closes.length = 0;
+  sandbox.clockIn(ME, 'j9', 'ci1', null, 'ph_s');
+  t('…and then the day starts as any other', [made.length, closes.length, Math.abs(Date.now() - Date.parse(made[0].startedAt)) < 5000], [1, 0, true]);
+
+  // D29: the phone thought they were on the clock.
+  openNow = null; day = []; made.length = 0; closes.length = 0;
+  const out = sandbox.clockOut(ME, null, 'ph_end');
+  t('D29: a clock-out with nothing open says so instead of "clocked out"', [out.ok, out.closed, out.notOn], [true, null, true]);
+  t('…a code change with nothing open is refused, writing nothing', [/^NOT_ON_CLOCK/.test(refusedBy(() => sandbox.switchCode(ME, 'j9', 'ci2', null, '', 'ph_s'))), made.length], [true, 0]);
+  const np = postR('switchCode', ['j9', 'ci2', null, '', 'ph_s'], 'rid-t233-0002');
+  t('…and the reply says notOn, as data', [np.ok, np.notOn], [false, true]);
+  sandbox.switchCode(ME, 'j9', 'ci1', null, '', 'ph_s', { queued: { at: Date.now() - 10 * 60e3, sentAt: Date.now() } });
+  t('…but an arrival kept with no signal still lands: it is the person\'s own record', made.length, 1);
+
+  // D27: Started earlier and the block a break planned.
+  openNow = null; day = []; made.length = 0; closes.length = 0;
+  const brkEnd = Date.now() - 5 * 60e3, brkStart = brkEnd - 30 * 60e3 + 20e3;   // JobTread floors the restart to the minute
+  day = [{ ...entry('tbefore', new Date(brkStart - 2 * 3600e3).toISOString(), 'j9', 'ci1'), endedAt: new Date(brkStart).toISOString() }];
+  openNow = entry('tafter', new Date(brkEnd).toISOString(), 'j9', 'ci1');
+  t('D27: Started earlier cannot move the block a 30-minute break planned back into the break',
+    [/Started earlier cannot shorten a break/.test(refusedBy(() => sandbox.startedEarlier(ME, new Date(brkStart).toISOString()))), closes.length], [true, 0]);
+  props['brk_u1'] = JSON.stringify({ entryId: 'tafter' });
+  day = [];
+  t('…nor one the server remembers starting a break', /cannot shorten a break/.test(refusedBy(() => sandbox.startedEarlier(ME, new Date(brkEnd - 10 * 60e3).toISOString()))), true);
+  delete props['brk_u1'];
+  day = [{ ...entry('tlunch', new Date(brkEnd - 4 * 3600e3).toISOString(), 'j9', 'ci1'), endedAt: new Date(brkEnd - 75 * 60e3).toISOString() }];
+  t('…but a clock-in after time off the clock still may (back from lunch at 12:30, clocked in at 1:15)',
+    refusedBy(() => sandbox.startedEarlier(ME, new Date(brkEnd - 30 * 60e3).toISOString())), '');
+  fetchImpl = () => ({ code: 200, body: '{}' });
+}
+
+// ---- T2.33: what the phone is told, said truthfully (audit D26) ----
+t('D26: the missing-start-photo push no longer says the office was copied',
+  [/office has been copied/.test(src), /Se le avisó a la oficina/.test(src), /Take the start photo now\./.test(src)], [false, false, true]);
 
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);

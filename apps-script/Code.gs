@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.32 (2026-10-30)';
+var APP_BUILD = 'T2.33 (2026-11-02)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -507,6 +507,8 @@ function doPost(e) {
     if (err && err.why) out.authWhy = err.why;
     if (err && err.email) out.email = err.email;
     if (err && err.refuse) out.refuse = err.refuse;   // a kept clock-in not added, as data (T2.31)
+    if (err && err.stale) out.stale = err.stale;      // a block still open from a day before (T2.33)
+    if (err && err.notOn) out.notOn = true;           // the phone thought they were on the clock (T2.33)
   }
   // Where the time went, on every reply — the sign-in check, the membership
   // lookup, the work itself and JobTread inside it — so a phone that waited
@@ -2501,7 +2503,7 @@ function morningCheck_(me, coords, opts) {
       '📍 ' + me.name + (also ? ' and ' + also : '') + ' clocked in for the day at ' + clockWords_(new Date()) + ' ' + where +
       ' — not at the shop or the office. Sent from DB Crew.', opsDirector_());
     return { ok: false, where: where, notice: notice };
-  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+  } catch (e) { return { ok: null, error: String(e && e.message || e) }; }   // not known: nobody was told, and the phone says nothing (T2.33)
 }
 
 // ---- the clock-out, checked where it happened (T2.27) ----------------------
@@ -2524,7 +2526,7 @@ function eveningCheck_(me, coords, closed) {
       '📍 ' + me.name + (also ? ' and ' + also : '') + ' clocked out for the day at ' + clockWords_(new Date()) + ' ' + where +
       ' — not at the shop or the office' + on + '. Sent from DB Crew.', opsDirector_());
     return { ok: false, where: where, notice: notice };
-  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+  } catch (e) { return { ok: null, error: String(e && e.message || e) }; }   // not known: nobody was told, and the phone says nothing (T2.33)
 }
 
 function clockIn(me, jobId, costItemId, coords, startPhotoId, opts) {
@@ -2599,6 +2601,9 @@ function queuedNo_(why, words, at) {
  *  just read it, which saves asking again. */
 function openEntry_(me, jobId, costItemId, coords, notes, known, startMs) {
   var open = known !== undefined ? known : openEntryFor_(me.userId);
+  // Closing a block left open from a day before "now" is a 24- to 36-hour
+  // entry (T2.33): it ends only at the time the person says they left.
+  assertNotStale_(open);
   // On a break the open entry is the block planned for after it, starting in
   // the future: closing it would end it before it began. Starting work ends
   // the break early, so it goes — what JobTread's own app does.
@@ -2641,11 +2646,14 @@ function clockOut(me, coords, endPhotoId) {
     forgetBreak_(me.userId);
     return { ok: true, closed: null, cancelled: open.id, entries: getMyDay(me), evening: eveningCheck_(me, coords, open) };
   }
+  // Nothing open: the office (or another phone) ended it already. Said, not
+  // reported as a clock-out (T2.33), so the phone reads its clock again.
+  if (!open) return { ok: true, closed: null, notOn: true, entries: getMyDay(me) };
+  assertNotStale_(open);
   // Out at the end of a drive (T2.18): the photo was taken where the drive
   // began; the end of one is the inside of a truck. Out at the shop owes
   // none either (T2.23): the end photo is of a job site, left for the day.
   if (endPhotoOwed_(open)) requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
-  if (!open) return { ok: true, closed: null };
   assertWrite_(open.job && open.job.id);
   closeEntry_(open.id, coords);
   return { ok: true, closed: open.id, entries: getMyDay(me), evening: eveningCheck_(me, coords, open) };
@@ -2661,6 +2669,10 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId, opt
   // photo is owed only when this starts work at a site not started today:
   // arriving from a drive, or a job changed with no drive between.
   var open = openEntryFor_(me.userId);
+  // Nothing open and not a kept arrival: the clock was stopped elsewhere, and
+  // starting one here would put a block on the job with nobody noticing
+  // (T2.33). The phone reads its clock again.
+  if (!open && !(opts && opts.queued)) throw notOnClock_();
   if (!startPhotoId && startPhotoOwed_(me, jobId, open)) requirePhoto_(startPhotoId, 'A start photo is required to start work at this job.');
   assertWrite_(jobId);
   // An arrival made with no signal (T2.31): the drive ends, and the work
@@ -2790,7 +2802,11 @@ function startedEarlier(me, startedAt) {
   if (at >= began) throw new Error('That is not before you clocked in (' + clockWords_(new Date(began)) + ').');
   if (began - at > STARTED_EARLIER_MAX_MS) throw new Error('That is more than 4 hours before you clocked in — ask the office to fix the day.');
   if (isoDay_(new Date(at)) !== isoDay_(new Date(began))) throw new Error('That was the day before — ask the office to fix it.');
-  var clash = getMyDay(me).filter(function (x) {
+  var day = getMyDay(me);
+  // The block a break planned starts when the break ends (T2.33, audit D27):
+  // moving it back would shorten an unpaid break after the fact.
+  if (afterBreak_(me, open, day)) throw new Error('That block started when your break ended — Started earlier cannot shorten a break. Ask the office if you came back early.');
+  var clash = day.filter(function (x) {
     if (x.id === open.id || isFuture_(x.startedAt)) return false;
     var end = Date.parse(x.endedAt || '');
     return !isNaN(end) && end > at;
@@ -3004,6 +3020,50 @@ function deleteEntry_(entryId) {
   pave({ deleteTimeEntry: { '$': { id: entryId } } });
 }
 
+// ---- a block still open from a day before (T2.33, audit D21) ---------------
+// A clock left running overnight ends only at the time the person says they
+// left — "When did you leave?" (leftSite) — never by the next ordinary write,
+// which would close it now and make a 24- to 36-hour entry. Every write that
+// would close it refuses with STALE_OPEN and `stale` on the reply; the phone
+// asks when they left that day, then carries on.
+function staleOpen_(open) {
+  if (!open || isFuture_(open.startedAt)) return false;
+  var t = Date.parse(open.startedAt || '');
+  return !isNaN(t) && isoDay_(new Date(t)) < isoDay_(new Date());
+}
+function assertNotStale_(open) {
+  if (!staleOpen_(open)) return;
+  var began = new Date(Date.parse(open.startedAt));
+  var e = new Error('STALE_OPEN: You are still on the clock from ' + Utilities.formatDate(began, Session.getScriptTimeZone(), 'EEE MMM d') +
+                    ' at ' + clockWords_(began) + '. Say when you left that day first.');
+  e.stale = { startedAt: open.startedAt, jobId: (open.job && open.job.id) || null };
+  throw e;
+}
+// The phone thought they were on the clock (or on a break) and they are not
+// (T2.33, audit D29): said as data, so it reads its clock again.
+function notOnClock_() {
+  var e = new Error('NOT_ON_CLOCK: You are not on the clock any more — it was ended elsewhere. Clock in to start again.');
+  e.notOn = true;
+  return e;
+}
+// The block a JobTread break planned: the same job and code as a block that
+// ended a break's length (15, 30, 45 or 60 minutes, floored to the minute)
+// before it began — or the one this server remembered starting the break.
+function afterBreak_(me, open, day) {
+  if (!open || !open.job || !open.code) return false;
+  try {
+    var b = JSON.parse(PropertiesService.getScriptProperties().getProperty('brk_' + me.userId) || 'null');
+    if (b && b.entryId === open.id) return true;
+  } catch (e) {}
+  var began = Date.parse(open.startedAt);
+  return (day || []).some(function (x) {
+    if (x.id === open.id || !x.endedAt || !x.job || !x.code) return false;
+    if (x.job.id !== open.job.id || x.code.id !== open.code.id) return false;
+    var gap = (began - Date.parse(x.endedAt)) / 60000;
+    return BREAK_CHOICES.some(function (m) { return gap > m - 1.05 && gap <= m + 0.05; });
+  });
+}
+
 function startBreak(me, coords, minutes, lang) {
   var open = openEntryFor_(me.userId);
   // An older phone sends no length: the block closes and Back to work
@@ -3011,6 +3071,7 @@ function startBreak(me, coords, minutes, lang) {
   if (minutes == null || minutes === '') {
     if (!open) return { ok: true, closed: null, entries: getMyDay(me) };
     if (isFuture_(open.startedAt)) return { ok: true, closed: null, open: open, breakEnd: open.startedAt, entries: getMyDay(me) };
+    assertNotStale_(open);
     assertWrite_(open.job && open.job.id);
     closeEntry_(open.id, coords);
     return { ok: true, closed: open.id, entries: getMyDay(me) };
@@ -3020,6 +3081,7 @@ function startBreak(me, coords, minutes, lang) {
   if (!open) throw new Error('You are not on the clock, so there is no break to start.');
   // Already on one (a second tap, or a break taken in the JobTread app).
   if (isFuture_(open.startedAt)) return { ok: true, open: open, breakEnd: open.startedAt, minutes: null, entries: getMyDay(me) };
+  assertNotStale_(open);
   assertWrite_(open.job && open.job.id);
 
   var args = { id: open.id, endNow: { breakDuration: minutes } };
@@ -3053,7 +3115,10 @@ function startBreak(me, coords, minutes, lang) {
 // End break. Before the planned restart: that block goes and one starts now,
 // here — JobTread's End break. After it: the clock already restarted on its
 // own at the planned time, so there is nothing to write. No open entry at all
-// is a break taken on an older build, which closed the block: re-open the code.
+// is no break: the office (or another phone) ended the clock, and re-opening a
+// code here would start a block with no photo and nobody told (T2.33, audit
+// D29) — refused, and the phone reads its clock again. A phone older than
+// T2.13 took breaks that closed the block; none is left in use.
 function endBreak(me, jobId, costItemId, coords) {
   var open = openEntryFor_(me.userId);
   forgetBreak_(me.userId);
@@ -3074,12 +3139,7 @@ function endBreak(me, jobId, costItemId, coords) {
     return openEntryFor_(me.userId);
   }
   if (open) return open;
-  if (!jobId) throw new Error('Missing job id.');
-  if (!costItemId) throw new Error('Missing the code to go back to.');
-  assertWrite_(jobId);
-  var back = openEntry_(me, jobId, costItemId, coords);
-  if (back) markNudged(back.id);
-  return back;
+  throw notOnClock_();
 }
 
 // ---- the two break reminders ---------------------------------------------
@@ -3596,9 +3656,11 @@ function sweepBeforePhotoNudges() {
     var mins = Math.max(1, Math.round(ageMin)), es = pushLangFor_(userId) === 'es';
     var res;
     try {
+      // Nothing is sent to the office from here, so the push never says so
+      // (T2.33, audit D26).
       res = sendPush_(token, es ? 'Falta la foto de inicio' : 'Before photo not taken',
-        es ? label + ' empezó hace ' + mins + ' minutos. Se le avisó a la oficina.'
-           : label + ' started ' + mins + ' minutes ago. The office has been copied.',
+        es ? label + ' empezó hace ' + mins + ' minutos. Toma la foto de inicio ahora.'
+           : label + ' started ' + mins + ' minutes ago. Take the start photo now.',
         { kind: 'before-photo', timeEntryId: t.id, jobId: (t.job || {}).id || '' });
     } catch (e) {
       res = { ok: false, error: String(e && e.message || e) };
