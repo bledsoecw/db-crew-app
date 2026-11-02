@@ -1367,6 +1367,37 @@ fetched = [];
 t('no area named -> refused here, never sent', [/Missing work area/.test(refusedBy(() => sandbox.coCloseArea(ALBERTO, 'j1', { notes: 'x' }, 'ca_8'))), fetched.length], [true, 0]);
 t('a crew member cannot close an area either', /^NO_CLOSEOUT/.test(refusedBy(() => sandbox.coCloseArea(ME, 'j1', { area: 'gutters' }, 'ca_9'))), true);
 
+// ---- T2.35 (audit I10): can't finish a repair today ----
+fetchImpl = () => ({ code: 200, body: '{"ok":true,"waiting":{"reason":"access","note":"Gate locked"},"sentTo":"Dave Elick"}' }); fetched = [];
+r = sandbox.coBlocked(ALBERTO, 'pt7', 'j1', 'access', 'Gate locked', 'cb_1');
+t('T2.35: can\'t finish goes to the repair\'s own route, with the reason, the words, the job and its ref',
+  [fetched[0].url, fetched[0].opts.method, fetched[0].opts.headers['X-Client-Ref'], JSON.parse(fetched[0].opts.payload), r.body.sentTo],
+  ['https://closeout.example.com/tasks/pt7/blocked', 'post', 'cb_1', { reason: 'access', note: 'Gate locked', jobId: 'j1' }, 'Dave Elick']);
+fetched = [];
+sandbox.coBlocked(ALBERTO, 'pt7', null, 'weather', '', 'cb_2');
+t('…no words and no job: an empty note, no jobId — the server decides whether the words are needed', JSON.parse(fetched[0].opts.payload), { reason: 'weather', note: '' });
+fetched = [];
+t('…a reason the server has no name for is refused here, never sent',
+  [/Pick why it could not be finished/.test(refusedBy(() => sandbox.coBlocked(ALBERTO, 'pt7', 'j1', 'lunch', 'x', 'cb_3'))),
+   /Pick why/.test(refusedBy(() => sandbox.coBlocked(ALBERTO, 'pt7', 'j1', '', 'x', 'cb_4'))), fetched.length], [true, true, 0]);
+t('…a bad task id never reaches the server', [/Missing task id/.test(refusedBy(() => sandbox.coBlocked(ALBERTO, '../x', 'j1', 'access', 'x', 'cb_5'))), fetched.length], [true, 0]);
+t('…a crew member cannot say it', /^NO_CLOSEOUT/.test(refusedBy(() => sandbox.coBlocked(ME, 'pt7', 'j1', 'access', 'x', 'cb_6'))), true);
+fetchImpl = () => ({ code: 422, body: '{"error":"That repair is already done."}' }); fetched = [];
+props['cop_u2'] = JSON.stringify({ pt7: 'r2026-11-03|Turner Roof', tI1: 'i2026-11-04|Lane Roof' });
+r = sandbox.coBlocked(ALBERTO, 'pt7', 'j1', 'material', 'Short 2 bundles', 'cb_7');
+t('…a refusal comes back as status and body, not a throw', [r.status, r.body.error], [422, 'That repair is already done.']);
+t('…and leaves their Close Out push snapshot as it was', JSON.parse(props['cop_u2']).pt7, 'r2026-11-03|Turner Roof');
+fetchImpl = () => ({ code: 200, body: '{"ok":true,"waiting":{"reason":"material","note":"Short 2 bundles"},"sentTo":"Dave Elick"}' });
+sandbox.coBlocked(ALBERTO, 'pt7', 'j1', 'material', 'Short 2 bundles', 'cb_8');
+t('…said, the day comes off the repair in their own snapshot — and only that repair', JSON.parse(props['cop_u2']), { pt7: 'r|Turner Roof', tI1: 'i2026-11-04|Lane Roof' });
+const dayless = [{ id: 'pt7', kind: 'repair', name: 'REPORT: Rear slope', jobId: 'j1', jobNumber: '26-0470', jobName: '260470 Turner_Roof', date: null },
+  { id: 'tI1', kind: 'inspection', name: 'Final inspection', jobId: 'j2', jobNumber: '26-0540', jobName: '260540 Lane_Roof', date: '2026-11-04' }];
+t('…so the hourly push does not tell them "Moved … to no day" about their own tap', sandbox.coChanges_(JSON.parse(props['cop_u2']), dayless, []).parts, []);
+t('…while a partner on the repair, whose snapshot still has the day, is told', sandbox.coChanges_({ pt7: 'r2026-11-03|Turner Roof' }, dayless.slice(0, 1), []).parts.map((p) => p.what), ['moved']);
+delete props['cop_u2'];
+sandbox.coBlocked(ALBERTO, 'pt7', 'j1', 'material', 'Short 2 bundles', 'cb_9');
+t('…no snapshot yet (no phone registered for push): nothing is written', props['cop_u2'], undefined);
+
 // ---- T2.19: left the site without clocking out ----
 // The block ends at the time they say they left, with no photo; its notes say
 // so; the job's PM and Carl get a comment. Then: out, the drive, or the work.

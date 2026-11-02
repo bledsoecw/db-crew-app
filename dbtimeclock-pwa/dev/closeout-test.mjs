@@ -754,7 +754,7 @@ const allErrs = [];
   await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-mason').before.pt9, null, { timeout: 10000 });
   await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-mason').after.pt9, null, { timeout: 10000 });
   await page.locator('#coRepairNote').fill('Counter-flashing reset'); await page.locator('#coRepairNote').blur(); await page.waitForTimeout(600);
-  check('the last repair on the roof says so, not that the job moves', [await txt(page, '#coDone'), /^Es la última reparación en el techo de tejas\./.test(await txt(page, '#coBody > .foot:last-child'))], ['Terminar y mandar al PM', true]);
+  check('the last repair on the roof says so, not that the job moves', [await txt(page, '#coDone'), /^Es la última reparación en el techo de tejas\./.test(await txt(page, '#coDone + .foot'))], ['Terminar y mandar al PM', true]);
   await tap(page, '#coDone', 2500);
   check('…finished: the roof\'s repairs went to Dave', [await txt(page, '#coRepairsSent .sl'), await txt(page, '#coRepairsSent .ss')], ['Reparaciones listas en el techo de tejas', 'Enviado a Dave Elick.']);
   // A job still in production offers no roof checklist until the roof is booked.

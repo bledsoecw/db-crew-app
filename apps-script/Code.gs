@@ -467,6 +467,7 @@ function doPost(e) {
       coClose: coClose,
       coCloseArea: coCloseArea,
       coComplete: coComplete,
+      coBlocked: coBlocked,
       coTranslate: coTranslate
     };
     var PLAIN = {
@@ -4545,6 +4546,35 @@ function coComplete(me, taskId, jobId, note, ref) {
   var body = { note: String(note || '').slice(0, 2000) };
   if (jobId) body.jobId = coId_(jobId, 'job id');
   return coFetch_(me, 'post', '/tasks/' + coId_(taskId, 'task id') + '/complete', body, ref);
+}
+// Can't finish today (T2.35, audit I10): the repair stays open with its
+// reason, and the area's PM is told. The server checks the reason and the
+// words; this only passes them on.
+var CO_WAIT_REASONS = { material: 1, access: 1, weather: 1, decision: 1, other: 1 };
+function coBlocked(me, taskId, jobId, reason, note, ref) {
+  reason = String(reason || '');
+  if (!CO_WAIT_REASONS[reason]) throw new Error('Pick why it could not be finished.');
+  var id = coId_(taskId, 'task id');
+  var body = { reason: reason, note: String(note || '').slice(0, 2000) };
+  if (jobId) body.jobId = coId_(jobId, 'job id');
+  var r = coFetch_(me, 'post', '/tasks/' + id + '/blocked', body, ref);
+  // DB CheckOut takes the repair's day off, so the PM books it again. The
+  // hourly Close Out push would then tell this person "Moved: repair at … to
+  // no day" about their own tap, so their snapshot learns it now. A partner
+  // on the same repair is still told; the PM's new day is news to everyone.
+  if (r.status === 200 && r.body && r.body.ok) coSnapDayOff_(me, id);
+  return r;
+}
+function coSnapDayOff_(me, taskId) {
+  try {
+    var props = PropertiesService.getScriptProperties(), key = 'cop_' + String(me.userId || '');
+    var raw = props.getProperty(key);
+    if (!raw) return;
+    var snap = JSON.parse(raw), was = snap && snap[taskId] != null ? String(snap[taskId]) : null;
+    if (was == null) return;
+    var bar = was.indexOf('|'), next = was.charAt(0) + (bar > -1 ? was.slice(bar) : '|');
+    if (next !== was) { snap[taskId] = next; props.setProperty(key, JSON.stringify(snap)); }
+  } catch (e) {}   // the push saying it an hour later is the worst that can happen
 }
 // to: 'es' (JobTread text for the crew) or 'en' (the crew's note for the office)
 function coTranslate(me, texts, to) {

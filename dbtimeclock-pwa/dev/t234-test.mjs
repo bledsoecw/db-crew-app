@@ -295,15 +295,17 @@ const coOpen = async (page, jobId) => {
   await ctx.close();
 }
 
-// ---- the contract level: the phone needs 3 ----
+// ---- the contract level: what the phone needs, read from the page (the T2.30
+// lesson — a level pinned here failed on the next build that raised it) ----
 {
   const { ctx, page, errs } = await boot("window.__MOCK_ROLE='service';");
   await page.evaluate(() => setTab('diag')); await page.waitForTimeout(900);
-  check('the phone needs Close Out contract 3, and a server at 3 raises no warning', [await page.evaluate(() => CO_CONTRACT_NEED), await page.locator('#verWarn').isHidden()], [3, true]);
-  await page.evaluate(() => { window.__MOCK_BUILDS = { api: APP_BUILD, closeOut: { configured: true, ok: true, build: { on: 'vercel', commit: 'eb84c5a' }, deployed: 'eb84c5a', contract: 2 } }; return loadBuilds(); });
+  const need = await page.evaluate(() => CO_CONTRACT_NEED);
+  check('the phone needs Close Out contract 3 or more, and the mock server at that level raises no warning', [need >= 3, await page.locator('#verWarn').isHidden()], [true, true]);
+  await page.evaluate((n) => { window.__MOCK_BUILDS = { api: APP_BUILD, closeOut: { configured: true, ok: true, build: { on: 'vercel', commit: 'eb84c5a' }, deployed: 'eb84c5a', contract: n - 1 } }; return loadBuilds(); }, need);
   await page.waitForTimeout(300);
-  check('…a server still at 2 (T2.33) is called behind, in words that say what to deploy',
-    [await page.locator('#verWarn').isVisible(), (await txt(page, '#verWarn')).indexOf('The Close Out server is older than this app needs (contract 2, needs 3). Deploy DB CheckOut’s main.') > -1], [true, true]);
+  check('…a server one level behind is called behind, in words that say what to deploy',
+    [await page.locator('#verWarn').isVisible(), (await txt(page, '#verWarn')).indexOf(`The Close Out server is older than this app needs (contract ${need - 1}, needs ${need}). Deploy DB CheckOut’s main.`) > -1], [true, true]);
   check('no word added twice with different words (T2.34)', await page.evaluate(() => I18N_CLASH), []);
   check('no page errors (contract)', errs, []);
   await ctx.close();

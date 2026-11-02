@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.34 (2026-11-02)';
+var APP_BUILD = 'T2.35 (2026-11-02)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -569,6 +569,7 @@ function coVisitIdle(v){
   if ((v.photos || []).length || v.sending) return false;
   if ((v.reports || []).some(function(r){ return !r.sentAt; })) return false;
   if (Object.keys(v.before || {}).length || Object.keys(v.after || {}).length || Object.keys(v.repairMore || {}).length) return false;
+  if (Object.keys(v.cantPhotos || {}).some(function(k){ return (v.cantPhotos[k] || []).length; }) || Object.keys(v.cantNote || {}).some(function(k){ return String(v.cantNote[k] || '').trim(); })) return false;
   for (var a in (v.answers || {})) if (Object.keys(v.answers[a] || {}).length) return false;
   for (var ak in (v.areas || {})){ var av = v.areas[ak] || {}; if ((av.photos || []).length || av.note) return false; }
   return true;
@@ -1594,7 +1595,7 @@ function pushWords(){
    (T2.34): an N/A goes with its reason and every line says who answered
    it, a camera photo is filed under the time it was taken, and GET
    /assigned answers the hourly Close Out push. */
-var CO_CONTRACT_NEED = 3;
+var CO_CONTRACT_NEED = 4;   /* 4 (T2.35, audit I10): Can't finish today, and a repair says why it waits */
 function buildNum(b){ var m = /T(\d+)\.(\d+)/.exec(String(b || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
 function loadBuilds(){
   if (!S.me || !API_URL || !S.online) return Promise.resolve();
@@ -7957,6 +7958,38 @@ coAdd({
         naWhyK: 'Por qué no aplica', naWhyPh: 'p. ej. este techo no tiene chimenea', naWhyNone: 'Sin razón todavía',
         whyNa: 'Di por qué no aplica la línea {n}' }
 }); /* CO-T234 */
+coAdd({
+  en: { cantBtn: 'Can’t finish today', cantAgain: 'Change why it’s waiting', cantBtnSub: 'It stays open — say why, and your PM books it again',
+        cantHead: 'Can’t finish today', cantIntro: 'The repair stays open. Your PM sees why on the Production Board and books it again.',
+        cantWhyK: 'Why?',
+        cantR_material: 'Waiting on material', cantS_material: 'Something is short or missing',
+        cantR_access: 'No access', cantS_access: 'Locked, nobody home, something in the way',
+        cantR_weather: 'The weather', cantS_weather: 'Rain, wind, too cold',
+        cantR_decision: 'Needs a decision', cantS_decision: 'The PM or the customer has to decide',
+        cantR_other: 'Something else', cantS_other: 'Say what happened',
+        cantNoteK_material: 'What’s short?', cantNoteK_access: 'What happened?', cantNoteK_weather: 'Anything to add?',
+        cantNoteK_decision: 'What needs deciding?', cantNoteK_other: 'What happened?',
+        cantNotePh: 'Say it or type it', cantPhotoK: 'A photo · optional', cantPhotoLabel: 'Photo for the PM', cantSend: 'Send it to the PM',
+        cantNeedWhy: 'why', cantNeedNote: 'a note', cantQueued: 'Saved — it goes to your PM', cantDone: 'Couldn’t finish · sent',
+        cantWaitSending: 'Saved on this phone — going to your PM', cantRefused: 'Not sent — see Waiting to send',
+        waitPmBooks: 'Your PM books it again',
+        waitR_material: 'Waiting on material', waitR_access: 'No access', waitR_weather: 'The weather', waitR_decision: 'Needs a decision', waitR_other: 'Can’t finish' },
+  es: { cantBtn: 'No puedo terminar hoy', cantAgain: 'Cambiar por qué está en espera', cantBtnSub: 'Sigue abierta — di por qué, y tu PM la vuelve a programar',
+        cantHead: 'No puedo terminar hoy', cantIntro: 'La reparación sigue abierta. Tu PM ve por qué en el Production Board y la vuelve a programar.',
+        cantWhyK: '¿Por qué?',
+        cantR_material: 'Falta material', cantS_material: 'Falta algo o no alcanza',
+        cantR_access: 'No hay acceso', cantS_access: 'Cerrado, no hay nadie, algo estorba',
+        cantR_weather: 'El clima', cantS_weather: 'Lluvia, viento, mucho frío',
+        cantR_decision: 'Hay que decidir algo', cantS_decision: 'El PM o el cliente tiene que decidir',
+        cantR_other: 'Otra cosa', cantS_other: 'Di qué pasó',
+        cantNoteK_material: '¿Qué falta?', cantNoteK_access: '¿Qué pasó?', cantNoteK_weather: '¿Algo más?',
+        cantNoteK_decision: '¿Qué hay que decidir?', cantNoteK_other: '¿Qué pasó?',
+        cantNotePh: 'Dilo o escríbelo', cantPhotoK: 'Una foto · opcional', cantPhotoLabel: 'Foto para el PM', cantSend: 'Mandarlo al PM',
+        cantNeedWhy: 'por qué', cantNeedNote: 'una nota', cantQueued: 'Guardado — se manda a tu PM', cantDone: 'No se terminó · enviado',
+        cantWaitSending: 'Guardado en este teléfono — se manda a tu PM', cantRefused: 'No se mandó — mira Por enviar',
+        waitPmBooks: 'Tu PM la vuelve a programar',
+        waitR_material: 'Esperando material', waitR_access: 'Sin acceso', waitR_weather: 'El clima', waitR_decision: 'Falta una decisión', waitR_other: 'No se puede terminar' }
+}); /* CO-T235 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -7973,6 +8006,8 @@ function coVisit(jobId){
   if (!v){ v = coStore.visits[jobId] = { answers: { inspection: {}, cleanup: {} }, notes: { inspection: '', cleanup: '' }, reports: [], photos: [], before: {}, after: {}, repairNote: {}, doneTasks: {}, sentAt: 0, startedAt: Date.now() }; coPersist(); }
   v.reports = v.reports || []; v.photos = v.photos || []; v.before = v.before || {}; v.after = v.after || {}; v.repairNote = v.repairNote || {}; v.doneTasks = v.doneTasks || {};
   v.repairMore = v.repairMore || {}; v.repairEn = v.repairEn || {};
+  // Can't finish today (T2.35, audit I10): the draft per repair, and what was sent.
+  v.cantReason = v.cantReason || {}; v.cantNote = v.cantNote || {}; v.cantPhotos = v.cantPhotos || {}; v.cantEn = v.cantEn || {};
   return v;
 }
 function coCount(v, items, which){ var a = v.answers[which] || {}; return items.filter(function(i){ return !!a[i.key]; }).length; }
@@ -8382,6 +8417,11 @@ function coBack(){
   if (s === 'job' || s === 'queue'){ CO.screen = 'queue'; CO.jobId = null; CO.job = null; coLoadQueue(false); }
   else if (s === 'report'){ CO.reportIdx = null; CO.screen = CO.reportFrom || (CO.ctxArea ? 'area' : 'job'); }
   else if (s === 'repair'){ CO.screen = 'repairs'; CO.taskId = null; }
+  else if (s === 'cant'){
+    // Back to the repair — or, when the office took it off meanwhile, to the list.
+    var jc = CO.job || coJobById(CO.jobId), still = jc && (jc.punchTasks || []).some(function(x){ return x.id === CO.taskId; });
+    if (still) CO.screen = 'repair'; else { CO.screen = 'repairs'; CO.taskId = null; }
+  }
   else if (s === 'area') CO.screen = 'job';
   else CO.screen = CO.ctxArea ? 'area' : 'job';
   coGo(CO.screen);
@@ -8390,7 +8430,7 @@ function coBack(){
 /* ---- translation, for what JobTread wrote in English ---- */
 function coTranslateTasks(job){
   var texts = [];
-  (job.punchTasks || []).forEach(function(t){ [coTaskName(t), t.description].forEach(function(x){ if (x && !CO.trans[x] && !CO.transBusy[x]) texts.push(x); }); });
+  (job.punchTasks || []).forEach(function(t){ [coTaskName(t), coWhat(t)].forEach(function(x){ if (x && !CO.trans[x] && !CO.transBusy[x]) texts.push(x); }); });
   texts = texts.filter(function(x, i, a){ return a.indexOf(x) === i; }).slice(0, 40);
   if (!texts.length) return;
   texts.forEach(function(x){ CO.transBusy[x] = 1; });
@@ -8402,6 +8442,9 @@ function coTranslateTasks(job){
   }).catch(function(){ texts.forEach(function(x){ delete CO.transBusy[x]; CO.trans[x] = x; }); coRender(); });
 }
 function es(text){ return (S.lang === 'es' && CO.trans[text]) || text || ''; }
+/* A repair's description without its waiting line (T2.35): the line is shown
+   as its own card, in the phone's language, and is never "what to do". */
+function coWhat(t){ return String((t && t.description) || '').split('\n').filter(function(l){ return l.trim().indexOf('\u23f3 Waiting') !== 0; }).join('\n').trim(); }
 /* The punch to-do's name without CheckOut's "REPORT:" marker — stripped
    BEFORE translating, or the marker comes back in Spanish. */
 function coTaskName(t){ return String((t && t.name) || '').replace(/^REPORT:\s*/i, ''); }
@@ -8572,6 +8615,7 @@ function coAddPhoto(target, file, origin){
     else if (target.kind === 'before') v.before[target.taskId] = rec;
     else if (target.kind === 'after') v.after[target.taskId] = rec;
     else if (target.kind === 'more'){ (v.repairMore[target.taskId] = v.repairMore[target.taskId] || []).push(rec); }
+    else if (target.kind === 'cant'){ (v.cantPhotos[target.taskId] = v.cantPhotos[target.taskId] || []).push(rec); }
     coPersist(); coRender();
   }).catch(function(e){ failed('close out · photo', e); });
 }
@@ -8579,7 +8623,7 @@ function coAddPhoto(target, file, origin){
    photos fits (a problem, the visit), one where only one belongs. */
 function coPickPhotos(target){
   CO.photoFor = target;
-  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit' || target.kind === 'area' || target.kind === 'more'; g.value = ''; g.click();
+  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit' || target.kind === 'area' || target.kind === 'more' || target.kind === 'cant'; g.value = ''; g.click();
 }
 /* An AFTER photo is the proof the repair was done (Carl, 13 Oct 2026): one
    taken before the repair was asked for cannot show the fix, and one with no
@@ -8614,6 +8658,7 @@ function coPhotoOf(target, id){
   else if (target.kind === 'before') list = v.before[target.taskId] ? [v.before[target.taskId]] : [];
   else if (target.kind === 'after') list = v.after[target.taskId] ? [v.after[target.taskId]] : [];
   else if (target.kind === 'more') list = v.repairMore[target.taskId] || [];
+  else if (target.kind === 'cant') list = v.cantPhotos[target.taskId] || [];
   return list.filter(function(p){ return p && p.id === id; })[0] || null;
 }
 /* The photo full size, with Keep it and Remove this photo (asks twice). */
@@ -8642,6 +8687,7 @@ function coRemovePhoto(target, id){
   else if (target.kind === 'before') delete v.before[target.taskId];
   else if (target.kind === 'after') delete v.after[target.taskId];
   else if (target.kind === 'more') v.repairMore[target.taskId] = (v.repairMore[target.taskId] || []).filter(function(p){ return p.id !== id; });
+  else if (target.kind === 'cant') v.cantPhotos[target.taskId] = (v.cantPhotos[target.taskId] || []).filter(function(p){ return p.id !== id; });
   coPhotoDel(id); coPersist(); coRender();
 }
 function coPhotoPut(rec){ return idb().then(function(db){ return new Promise(function(res, rej){ var t = db.transaction('cophotos', 'readwrite'); t.objectStore('cophotos').put(rec); t.oncomplete = res; t.onerror = function(){ rej(t.error); }; }); }); }
@@ -8702,7 +8748,7 @@ function coEnFix(it){
     var text = en !== f.said ? en + '\n\n(' + f.said + ')' : f.said;
     if (f.field === 'final'){ it.payload.notes = it.payload.notes || {}; it.payload.notes.final = text; }
     else if (f.field === 'area') it.payload.notes = text;
-    else if (f.field === 'repair') it.payload.note = text;
+    else if (f.field === 'repair' || f.field === 'cant') it.payload.note = text;
     it.enFix = null;
     return coObPut(it);
   }).catch(function(){});
@@ -8718,6 +8764,7 @@ function coSendItemNow(it){
   else if (it.kind === 'close') call = apiCall('coClose', [it.jobId, it.payload, it.id], { timeout: 60000 });
   else if (it.kind === 'area') call = apiCall('coCloseArea', [it.jobId, it.payload, it.id], { timeout: 60000 });
   else if (it.kind === 'complete') call = apiCall('coComplete', [it.taskId, it.jobId, it.payload.note || '', it.id], { timeout: 60000 });
+  else if (it.kind === 'blocked') call = apiCall('coBlocked', [it.taskId, it.jobId, it.payload.reason, it.payload.note || '', it.id], { timeout: 60000 });
   else if (it.kind === 'photo'){
     call = coPhotoGet(it.photoId).then(function(rec){
       if (!rec || !rec.blob) return { status: 410, body: { error: 'photo is gone from this phone' } };
@@ -8819,6 +8866,11 @@ function coLanded(it, body){
     // On a job with work areas the last repair on ONE area sends that area to
     // its PM while the others go on: the server names who it went to.
     else if (body && body.sentTo) CO.repairsSent = { jobId: it.jobId, at: Date.now(), sentTo: body.sentTo, area: it.repairArea || null, whole: false }; }
+  // Can't finish today (T2.35): the server's waiting line from now on; the
+  // repair list says who it went to, and the job is read again to show it.
+  if (it.kind === 'blocked'){
+    CO.cantSent = { jobId: it.jobId, taskId: it.taskId, at: Date.now(), sentTo: (body && body.sentTo) || null };
+    if (CO.jobId === it.jobId) coLoadJob(it.jobId); }
   if (it.kind === 'photo' && it.photoId) coPhotoDel(it.photoId);
   coPersist();
 }
@@ -9434,14 +9486,15 @@ function coRepairsHtml(){
   var shown = CO.listFilter === 'mine' && mine.length ? mine : tasks;
   var h = '', multi = coMultiArea(j);
   if (!tasks.length) return '<div class="jempty">' + esc(co('noRepairs')) + '</div>';
-  h += coRepairsSentHtml(j.id);
+  h += coRepairsSentHtml(j.id) + coCantSentHtml(j.id);
   if (CO.listFilter === 'mine' && !mine.length) h += '<div class="foot" style="text-align:left;margin:0 0 10px">' + esc(co('nothingForYou')) + '</div>';
   h += '<div class="jcard" style="margin-top:0">' + shown.map(function(x){
     var t = x.t, name = es(coTaskName(t)), pend = v.doneTasks[t.id] === 'queued', ta = multi && t.area ? coAreaByKey(j, t.area) : null;
     // Which work area it is for, on a job with more than one.
-    var desc = [ta ? coAreaName(ta) : '', t.description ? es(t.description).slice(0, 120) : ''].filter(Boolean).join(' · ');
+    var what = coWhat(t), desc = [ta ? coAreaName(ta) : '', what ? es(what).slice(0, 120) : ''].filter(Boolean).join(' · '), wt = coWaitOf(v, t);
     return '<button class="rep' + (x.done ? ' done' : '') + '" data-corepair="' + esc(t.id) + '"' + (x.done && !pend ? ' disabled' : '') + '><span class="dot">' + (x.done ? CK_TICK_SM : '›') + '</span><span class="bi"><span class="es">' + esc(name) + '</span>' +
            (desc && !x.done ? '<span class="en">' + esc(desc) + '</span>' : '') +
+           (!x.done && wt ? '<span class="chips" style="margin-top:6px"><span class="chip cowait">' + esc(coWaitWord(wt.reason)) + (wt.queued ? ' · ' + esc(co('queued')) : '') + '</span></span>' : '') +
            (x.done ? '<span class="en">' + esc(pend ? co('queued') : co('ready')) + '</span>' : t.mine ? '<span class="chips" style="margin-top:6px"><span class="chip" style="background:var(--total);color:var(--acc)">' + esc(co('forYou')) + '</span></span>' : (t.assigneeNames || []).length ? '<span class="en">' + esc(co('assignedTo') + ' ' + t.assigneeNames.join(', ')) + '</span>' : '') +
            '</span></button>';
   }).join('') + '</div>';
@@ -9460,19 +9513,23 @@ function coRepairEn(v, tid){ var o = v.repairEn[tid] = v.repairEn[tid] || {}; o.
 function coRepairMissing(v, tid){
   return [v.before[tid] ? '' : co('needBefore'), v.after[tid] ? '' : co('needAfter'), (v.repairNote[tid] || '').trim() ? '' : co('needNote')].filter(Boolean);
 }
+/* The repair is not on the job (T2.34, audit D32): read from the server and
+   not on its list, the office took it off — said, with the way back, never
+   "Loading…" for good. The repair screen and Can't finish today share it. */
+function coNoRepairHtml(){
+  if (CO.jobFresh === CO.jobId && !CO.jobLoading)
+    return '<div class="jempty" id="coRepairGone">' + esc(co('repairGone')) + '</div><button class="btn btn-nav" id="coRepairGoneBack" style="margin-top:14px">' + esc(co('repairGoneBack')) + '</button>';
+  return '<div class="jempty">' + esc(CO.jobLoading ? co('loading') : (CO.jobErr || co('loading'))) + '</div>';
+}
 function coRepairHtml(){
   var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0];
-  if (!t){
-    // Read from the server and not on the job's list: the office took it off
-    // (T2.34, audit D32) — said, with the way back, never "Loading…" for good.
-    if (CO.jobFresh === CO.jobId && !CO.jobLoading)
-      return '<div class="jempty" id="coRepairGone">' + esc(co('repairGone')) + '</div><button class="btn btn-nav" id="coRepairGoneBack" style="margin-top:14px">' + esc(co('repairGoneBack')) + '</button>';
-    return '<div class="jempty">' + esc(CO.jobLoading ? co('loading') : (CO.jobErr || co('loading'))) + '</div>';
-  }
+  if (!t) return coNoRepairHtml();
   var tb = JSON.stringify({ kind: 'before', jobId: CO.jobId, taskId: t.id }), ta = JSON.stringify({ kind: 'after', jobId: CO.jobId, taskId: t.id }), tm = JSON.stringify({ kind: 'more', jobId: CO.jobId, taskId: t.id });
   var b = v.before[t.id], a = v.after[t.id], more = v.repairMore[t.id] || [], h = '';
-  h += '<div class="rvcard" style="margin-top:4px"><div class="rvstory"><span class="rk">' + esc(co('whatToDo')) + ' · ' + esc(co('whatToDoSub')) + '</span><span class="rt">' + esc(es(t.description) || es(coTaskName(t))) + '</span>' +
-       (S.lang === 'es' && CO.trans[t.description || t.name] ? '<span class="small-note" style="font:400 13px/1.4 var(--sans);color:var(--mut)">' + esc(co('autoTranslated')) + '</span>' : '') + '</div>' +
+  var wt = coWaitOf(v, t), what = coWhat(t);
+  if (wt) h += coWaitCardHtml(wt);
+  h += '<div class="rvcard" style="margin-top:4px"><div class="rvstory"><span class="rk">' + esc(co('whatToDo')) + ' · ' + esc(co('whatToDoSub')) + '</span><span class="rt">' + esc(es(what) || es(coTaskName(t))) + '</span>' +
+       (S.lang === 'es' && CO.trans[what || t.name] ? '<span class="small-note" style="font:400 13px/1.4 var(--sans);color:var(--mut)">' + esc(co('autoTranslated')) + '</span>' : '') + '</div>' +
        (t.endDate ? '<div class="rvrow"><span class="rk">' + esc(co('assignedBy')) + '</span><span class="rv">' + esc(coDay(t.endDate)) + '</span></div>' : '') +
        // Given to somebody else (T2.34, D32): whose it is now, before the work is done twice.
        (!t.mine && (t.assigneeNames || []).length ? '<div class="rvrow" id="coRepairWho"><span class="rk">' + esc(co('assignedTo')) + '</span><span class="rv">' + esc(t.assigneeNames.join(', ')) + '</span></div>' : '') + '</div>';
@@ -9502,7 +9559,101 @@ function coRepairHtml(){
   var lastSub = tar ? co('doneLastAreaSub').replace('{the}', coAreaThe(tar)) : co('doneLastSub');
   h += '<button class="ctaBig" id="coDone" style="margin-top:22px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co(last ? 'doneLast' : 'done')) + '</button>';
   h += '<div class="foot">' + esc(can ? (last ? lastSub : co('pmChecks')) : co('doneSubAll') + ': ' + miss.join(' · ')) + '</div>';
+  // Can't finish today (T2.35, audit I10): open, with the reason, to the PM —
+  // never beside a Done this phone has already sent or is still sending.
+  if (coCanSayWaiting() && !v.doneTasks[t.id]){
+    h += '<button class="btn btn-out" id="coCant" style="margin-top:18px">' + ico('alert', 20) + esc(co(wt ? 'cantAgain' : 'cantBtn')) + '</button>';
+    h += '<div class="foot">' + esc(co('cantBtnSub')) + '</div>';
+  }
   return h;
+}
+
+/* ---- Can't finish today (T2.35, audit I10) ----
+   A repair had one way out, Done. Now the crew can say why it cannot be
+   finished — waiting on material, no access, the weather, a decision, or
+   anything else — with a note and a photo if they want one. The repair stays
+   open; DB CheckOut writes the board's waiting line on it, takes its spent
+   day off and tags the area's PM, who books it again from the Close-out
+   panel. Material, a decision and anything else need words; access and the
+   weather can go without. Sent through the same outbox as Done. */
+var CO_CANT_REASONS = ['material', 'access', 'weather', 'decision', 'other'];
+var CO_CANT_NOTE = { material: 1, decision: 1, other: 1 };
+/* A server older than contract 4 has no door for it: the button is not drawn. */
+function coCanSayWaiting(){ var c = S.builds && S.builds.closeOut; return !(c && c.contract != null && c.contract < 4); }
+function coWaitWord(reason){ return co('waitR_' + (CO_CANT_REASONS.indexOf(reason) === -1 ? 'other' : reason)); }
+/* Why a repair waits: what this phone is still sending, else the server's line. */
+function coWaitOf(v, t){
+  var it = t && CO.outbox.filter(function(x){ return x.kind === 'blocked' && x.taskId === t.id; }).slice(-1)[0];
+  if (it) return { reason: it.payload.reason, note: it.said || it.payload.note || '', queued: true, rejected: it.status === 'rejected' };
+  return t && t.waiting && t.waiting.reason ? { reason: t.waiting.reason, note: t.waiting.note || '', queued: false } : null;
+}
+function coWaitCardHtml(w){
+  return '<div class="hero warn" id="coWaitCard" style="margin:4px 0 14px"><span class="sl"><span class="dot"></span>' + esc(coWaitWord(w.reason)) + '</span>' +
+    (w.note ? '<span class="ss">' + esc(w.note) + '</span>' : '') +
+    '<span class="ss">' + esc(w.queued ? co(w.rejected ? 'cantRefused' : 'cantWaitSending') : co('waitPmBooks')) + '</span></div>';
+}
+function coCantSentHtml(jobId){
+  var r = CO.cantSent; if (!r || r.jobId !== jobId) return '';
+  return '<div class="hero" id="coCantSent" style="margin:4px 0 14px"><span class="sl"><span class="dot"></span>' + esc(co('cantDone')) + '</span><span class="st">' + esc(clockLabel(r.at)) + '</span>' +
+    '<span class="ss">' + esc(r.sentTo ? co('sentTo').replace('{who}', r.sentTo) + '. ' + co('waitPmBooks') : co('waitPmBooks')) + '</span></div>';
+}
+function coCantEn(v, tid){ var o = v.cantEn[tid] = v.cantEn[tid] || {}; o.note = v.cantNote[tid] || ''; return o; }
+function coCantMissing(v, tid){
+  var why = v.cantReason[tid] || '';
+  return [why ? '' : co('cantNeedWhy'), why && CO_CANT_NOTE[why] && !String(v.cantNote[tid] || '').trim() ? co('cantNeedNote') : ''].filter(Boolean);
+}
+function coCantHtml(){
+  var j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0];
+  if (!t) return coNoRepairHtml();
+  var why = v.cantReason[t.id] || '', note = v.cantNote[t.id] || '', en = v.cantEn[t.id] || {}, photos = v.cantPhotos[t.id] || [];
+  var target = JSON.stringify({ kind: 'cant', jobId: CO.jobId, taskId: t.id }), h = '';
+  h += '<div class="foot" style="text-align:left;margin-top:4px">' + esc(co('cantIntro')) + '</div>';
+  h += '<div class="k" style="margin-top:16px">' + esc(co('cantWhyK')) + '</div>';
+  h += '<div class="jcard" style="margin-top:6px">' + CO_CANT_REASONS.map(function(r){
+    var on = why === r;
+    return '<button class="jtile cantopt' + (on ? ' on' : '') + '" data-cocant="' + r + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="bi"><span class="es">' + esc(co('cantR_' + r)) + '</span><span class="en">' + esc(co('cantS_' + r)) + '</span></span>' + (on ? CK_TICK_SM : '') + '</button>';
+  }).join('') + '</div>';
+  if (why){
+    h += '<div class="k" style="margin-top:22px">' + esc(co('cantNoteK_' + why)) + ' — <span style="color:var(--ckamber)">' + esc(co(CO_CANT_NOTE[why] ? 'required' : 'optional')) + '</span></div>';
+    h += '<div class="talkrow">' + recBtnHtml('coCantNote', 'coCantRec') + '</div>';
+    h += '<div class="story' + (note ? ' has' : '') + '" style="margin-top:10px"><textarea id="coCantNote" placeholder="' + esc(co('cantNotePh')) + '" rows="3">' + esc(note) + '</textarea></div>';
+    h += '<div class="reccap hidden" data-reccap="coCantNote"></div>';
+    if (note.trim() && en.noteSrc === note.trim() && en.noteEn && en.noteEn !== note.trim())
+      h += '<div class="rvcard" style="margin-top:10px"><div class="rvstory"><span class="rk">' + esc(co('englishNote')) + '</span><span class="rt">' + esc(en.noteEnBusy ? co('translating') : en.noteEn) + '</span></div></div>';
+    h += '<div class="k" style="margin-top:22px">' + esc(co('cantPhotoK')) + '</div>';
+    h += '<div class="photos">' + photos.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(target) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+         '<button class="ph add" data-cophoto=\'' + esc(target) + '\'>' + ico('camera', 26) + esc(photos.length ? co('anotherPhoto') : co('photo')) + '</button>' +
+         '<button class="ph add gal" data-cogallery=\'' + esc(target) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
+  }
+  var miss = coCantMissing(v, t.id), can = !miss.length;
+  h += '<button class="btn btn-go sendbig' + (can ? '' : ' off') + '" id="coCantSend" style="margin-top:22px"' + (can ? '' : ' disabled') + '>' + esc(co('cantSend')) + '</button>';
+  h += '<div class="foot">' + esc(can ? co('waitPmBooks') : co('doneSubAll') + ': ' + miss.join(' · ')) + '</div>';
+  return h;
+}
+/* Send lights up as the words are typed, without re-drawing under the finger. */
+function coCantSendState(){
+  var b = $('coCantSend'), v = coVisit(CO.jobId); if (!b || CO.screen !== 'cant') return;
+  var miss = coCantMissing(v, CO.taskId), can = !miss.length;
+  b.disabled = !can; b.classList.toggle('off', !can);
+  var ft = b.nextElementSibling; if (ft && ft.classList.contains('foot')) ft.textContent = can ? co('waitPmBooks') : co('doneSubAll') + ': ' + miss.join(' · ');
+}
+function coSendCant(jobId, taskId){
+  var v = coVisit(jobId), why = v.cantReason[taskId];
+  if (!why || coCantMissing(v, taskId).length || v.doneTasks[taskId]) return Promise.resolve();
+  var en = coCantEn(v, taskId), said = (en.note || '').trim();
+  // Saved at the tap, its English as it goes (the T2.33 rule for notes).
+  if (said) coToEnglish(en);
+  var items = [], ref = 'cb' + uid();
+  // Its photos ride ".m0"… after the send's reference, as a repair's extra photos do.
+  (v.cantPhotos[taskId] || []).forEach(function(p, i){ items.push({ id: ref + '.m' + i, kind: 'photo', jobId: jobId, photoId: p.id, label: co('cantPhotoLabel'), payload: coPayload({ label: 'REPAIR', taskId: taskId }, p) }); });
+  var eng = (en.noteSrc === said && en.noteEn) ? en.noteEn.trim() : said;
+  var note = eng && said && eng !== said ? eng + '\n\n(' + said + ')' : eng;
+  var needR = coEnNeed(en, said);
+  items.push({ id: ref, kind: 'blocked', jobId: jobId, taskId: taskId, label: co('cantBtn'), said: said, payload: { reason: why, note: note },
+               enFix: needR ? { field: 'cant', said: needR } : null });
+  delete v.cantReason[taskId]; delete v.cantNote[taskId]; delete v.cantPhotos[taskId]; delete v.cantEn[taskId];
+  coPersist();
+  return coEnqueue(items).then(function(){ toast(co('cantQueued')); coGo('repairs'); });
 }
 
 /* A gutters or siding inspection: photos of how it was left (one at least),
@@ -9571,7 +9722,7 @@ function coAreaHtml(){
 function coAfterTap(fn){ setTimeout(fn, 260); }
 
 /* ---- drawing the one view ---- */
-var CO_HEADS = { job: 'inspection', area: 'inspection', problems: 'problems', photos: 'sitePhotos', final: 'finalNotes', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', outbox: 'queued' };
+var CO_HEADS = { job: 'inspection', area: 'inspection', problems: 'problems', photos: 'sitePhotos', final: 'finalNotes', report: 'problems', send: 'finishSend', repairs: 'repairs', repair: 'repairs', cant: 'cantHead', outbox: 'queued' };
 function coRender(){
   if (S.tab !== 'co') return;
   var sc = CO.screen, j = CO.job || coJobById(CO.jobId), queue = sc === 'queue';
@@ -9600,7 +9751,7 @@ function coRender(){
     if (sc === 'report'){ var r = coVisit(CO.jobId).reports[CO.reportIdx], it = r && coItemByKey(r.itemKey), ra = r && r.area && j ? coAreaByKey(j, r.area) : null; kw = co('problems') + (it ? ' · ' + co('fixK').split(' ·')[1].trim() + ' ' + it.n : ''); label = it ? coLabel(it).split(/[,—]/)[0] : ra ? coAreaName(ra) : label; }
     if (sc === 'area'){ var aa = j && coAreaByKey(j, CO.areaKey); label = aa ? coAreaName(aa) : label; }
     else if (CO.ctxArea && j && sc !== 'job' && sc !== 'report'){ var ca2 = coAreaByKey(j, CO.ctxArea); if (ca2) label = coAreaName(ca2); }
-    if (sc === 'repair'){ var t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0]; label = t ? es(coTaskName(t)) : label; }
+    if (sc === 'repair' || sc === 'cant'){ var t = j && (j.punchTasks || []).filter(function(x){ return x.id === CO.taskId; })[0]; label = t ? es(coTaskName(t)) : label; }
     // The waiting list on its own is named for what it is (T2.29), not "—".
     if (sc === 'outbox' && !j){ kw = co('tab'); label = co('queued'); }
     $('coK').textContent = kw + (j && j.number ? ' · JT #' + j.number : '');
@@ -9640,12 +9791,13 @@ function coRender(){
   else if (sc === 'send') html = coSendHtml();
   else if (sc === 'repairs') html = coRepairsHtml();
   else if (sc === 'repair') html = coRepairHtml();
+  else if (sc === 'cant') html = coCantHtml();
   else if (sc === 'outbox') html = coOutboxHtml();
   else html = '';
   // Never rebuild under a finger typing — the note boxes commit on input.
   var ae = document.activeElement;
   if (ae && ae.tagName === 'TEXTAREA' && body.contains(ae) && body.__co === html) return;
-  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote' || ae.id === 'coFinal') && body.contains(ae)){
+  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coCantNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote' || ae.id === 'coFinal') && body.contains(ae)){
     // keep the field; repaint only what sits around it
     var keep = ae.id, pos = ae.selectionStart, val = ae.value;
     body.innerHTML = html; body.__co = html; coWire();
@@ -9742,6 +9894,12 @@ function coWire(){
   var asd = $('coAreaSend'); if (asd) asd.onclick = function(){ var av = coAreaV(coVisit(CO.jobId), CO.areaKey); if (av.photos.length < coPhotosNeed(CO.jobId) || !String(av.note || '').trim() || CO.areaSending) return; coSendArea(CO.jobId, CO.areaKey); };
   var abk = $('coAreaBack'); if (abk) abk.onclick = function(){ CO.receipt = null; coGo('job'); };
   var dn = $('coDone'); if (dn) dn.onclick = function(){ var v = coVisit(CO.jobId); if (coRepairMissing(v, CO.taskId).length) return; if (dlRec.want) dlRecStop(); dn.disabled = true; coFinishRepair(CO.jobId, CO.taskId); };
+  // Can't finish today (T2.35)
+  var cn = $('coCant'); if (cn) cn.onclick = function(){ if (dlRec.want) dlRecStop(); coGo('cant'); };
+  [].forEach.call($('coBody').querySelectorAll('[data-cocant]'), function(b){ b.onclick = function(){ var v = coVisit(CO.jobId); v.cantReason[CO.taskId] = b.getAttribute('data-cocant'); coPersist(); coRender(); }; });
+  var ctn = $('coCantNote'); if (ctn){ ctn.oninput = function(){ var v = coVisit(CO.jobId); v.cantNote[CO.taskId] = ctn.value; coPersist(); autoGrow(ctn); coCantSendState(); };
+    ctn.onblur = function(){ var v = coVisit(CO.jobId), tid = CO.taskId; coAfterTap(function(){ coToEnglish(coCantEn(v, tid)); coRender(); }); }; autoGrow(ctn); }
+  var cs = $('coCantSend'); if (cs) cs.onclick = function(){ var v = coVisit(CO.jobId); if (coCantMissing(v, CO.taskId).length) return; if (dlRec.want) dlRecStop(); cs.disabled = true; coSendCant(CO.jobId, CO.taskId); };
 }
 /* Done lights up as the note is typed, without re-drawing under the finger. */
 function coRepairDoneState(){

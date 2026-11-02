@@ -328,7 +328,7 @@
   }
 
   // ---- Close Out fixtures: DB CheckOut's demo jobs, in its own shapes ----
-  var CO_LANDED = {}, CO_DONE = {};
+  var CO_LANDED = {}, CO_DONE = {}, CO_WAITING = {};
   var CO_JOBS = FX.coJobs ? FX.coJobs({ isoAdd: isoAdd }) : [
     { id: 'co-hartman', number: '26-0418', name: '260418 Hartman_Roof', status: 'Final Inspection', jobType: 'Roofing', projectTypes: ['R-Shingles'], isService: false,
       projectManager: 'Neal Deitemeyer', salesRep: 'Austin Leeth', address: '1427 Prairie View Dr, Lima, OH 45801, USA', openPunchCount: 0, mine: true, openPunchTotal: 0,
@@ -839,7 +839,7 @@
     // T2.30: what each system is running. A test sets __MOCK_BUILDS to try a
     // server behind the phone.
     getBuilds: function () {
-      return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 3 } };
+      return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 4 } };
     },
     markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
     exchangeSession: function () { return { token: 'h.' + payload + '.s', exp: 4102444800 }; },
@@ -867,6 +867,15 @@
       var removed = [].concat(window.__MOCK_CO_REMOVED || []), reopen = [].concat(window.__MOCK_CO_REOPEN || []);
       out.punchTasks = out.punchTasks.filter(function (t) { return removed.indexOf(t.id) === -1; });
       out.punchTasks.forEach(function (t) { if (CO_DONE[t.id] && reopen.indexOf(t.id) === -1) t.progress = 1; });
+      // T2.35 (audit I10): a repair the crew could not finish carries its
+      // waiting line and has lost its day, as DB CheckOut writes it.
+      out.punchTasks.forEach(function (t) {
+        var w = CO_WAITING[t.id];
+        if (!w || t.progress >= 1) return;
+        t.waiting = { reason: w.reason, note: w.note };
+        t.description = (t.description ? t.description + '\n\n' : '') + w.line;
+        t.endDate = null;
+      });
       // __MOCK_CO_FORM (T2.25): the server's form, as data — the phone draws
       // this one, not its own copy. A form object here replaces the roof's.
       if (window.__MOCK_CO_FORM) { out.forms = { roof: window.__MOCK_CO_FORM }; out.jobForm = 'roof'; }
@@ -940,6 +949,21 @@
       }
       if (j && j.status === 'Punch List' && j.punchTasks.length && j.punchTasks.every(function (t) { return t.progress >= 1 || CO_DONE[t.id]; })) { j.status = 'PM Review'; flipped = 'PM Review'; }
       return { status: 200, body: { ok: true, flipped: flipped } };
+    },
+    // T2.35 (audit I10): Can't finish today, as DB CheckOut answers it.
+    coBlocked: function (taskId, jobId, reason, note, ref) {
+      window.__CO.push({ fn: 'coBlocked', taskId: taskId, jobId: jobId, reason: reason, note: note, ref: ref });
+      if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      if (window.__MOCK_CO_GONE === taskId) return { status: 410, reason: 'http-410', body: { error: 'That repair is no longer in JobTread', gone: true } };
+      if (CO_DONE[taskId]) return { status: 422, reason: 'http-422', body: { error: 'That repair is already marked done — nothing was changed.', done: true } };
+      if (['material', 'decision', 'other'].indexOf(reason) !== -1 && !String(note || '').trim()) return { status: 400, reason: 'http-400', body: { error: 'Say what is needed, so the PM can act on it.' } };
+      var HEAD = { material: '⏳ Waiting on material', access: '⏳ Waiting on access', weather: '⏳ Waiting on the weather', decision: '⏳ Waiting on a decision', other: '⏳ Waiting' };
+      var said = String(note || '').split(/\n\s*\n/)[0].replace(/\s+/g, ' ').trim(), who = '(' + HANDLERS.getBoot().name + ', Nov 3)';
+      var tail = [said, who].filter(Boolean).join(' ');
+      CO_WAITING[taskId] = { reason: reason, note: tail, line: HEAD[reason] + ' — ' + tail };
+      var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
+      var t = j && j.punchTasks.filter(function (x) { return x.id === taskId; })[0];
+      return { status: 200, body: { ok: true, waiting: { reason: reason, note: tail }, sentTo: (t && t.area && CO_REVIEWER[t.area]) || 'Dave Elick' } };
     },
     // ---- People (T2.0): Operations only, as Code.gs enforces ----
     getPeople: function () {

@@ -811,3 +811,51 @@ regeneration, Linux only.
   match. Never force. If `main` ever holds a commit the branch lacks, merge
   `main` into the branch first (a merge commit), then fast-forward; if both
   changed the same thing, ask Carl.
+
+## T2.35 (2 Nov 2026) — Can't finish today (audit I10), what the README does not say
+
+- **Step 3 of the second audit** (the report:
+  https://claude.ai/artifact/FB4xEquJajG6UtLuarxmZr) starts here. Its order:
+  I10 (this) → I11 → D25 → I13 → I15, D31, D39, I17, D28, D30. The server half
+  is DB CheckOut's bf552e1 (`POST /tasks/:id/blocked`, `PHONE_CONTRACT` 4),
+  the board half is `bledsoecw/DB_Production_Board` f2099e6 (the *Couldn't
+  finish* group); neither was on its `main` when this was written.
+- **The waiting line is one family in three repos**: `⏳ Waiting on
+  material` · `on access` · `on the weather` · `on a decision` · a bare
+  `⏳ Waiting` (anything else), then ` — <words> (<name>, <Mon D>)`. DB
+  CheckOut writes it (`waitingLine` in `packages/shared/src/jobtread.ts`),
+  the board reads it (`waitingOf` in `src/lib/trades.ts`) and the phone hides
+  it from *what to do* (`coWhat`). Change the three together. The board's own
+  `⏳ Waiting on material` is the first of the family, so a crew's material
+  line and the PM's read as one thing.
+- **The day comes off on the server, on purpose**: the board's Close-out list
+  asks only about open repairs with no day, so a repair that kept its spent
+  day would never reach the PM. The PM's new day answers any waiting line
+  (`punchDescription` on the board); Done strips it (`completeTask`).
+- **`coSnapDayOff_`** rewrites the sayer's own Close Out push snapshot
+  (`cop_<userId>`) when the send lands, so the hourly push does not tell them
+  *Moved: repair at … to no day* about their own tap. A sweep already running
+  when the send lands can write the old day back; then the push says it an
+  hour later, which is the worst case and not worth a lock.
+- **An outbox item of kind `blocked`**, sent as `coBlocked(taskId, jobId,
+  reason, note, ref)`. Its photos ride `<ref>.m0`… ahead of it, the shape a
+  repair's extra photos use, and DB CheckOut links up to eight of them
+  (`REPAIR_MORE_MAX`) to the message; the rest are on the repair, unlinked.
+  The draft lives in `coVisit` as `cantReason` / `cantNote` / `cantPhotos` /
+  `cantEn` by task, and keeps the visit from being trimmed (`coVisitIdle`).
+- **Vocab**: `coAdd({ … }) /* CO-T235 */`. `cantReach`, `cantReachSub` and
+  `waitSending` already existed, so the new keys are `cantBtn`, `cantR_*`,
+  `cantS_*`, `cantNoteK_*`, `cantWaitSending`, `waitR_*` and the rest;
+  `I18N_CLASH` stays empty (t235-test checks it).
+- **Not done on purpose**: Today's jobs still counts a waiting repair as one
+  of the *repairs open* — it has done that for any undated open repair since
+  T2.34 ("booked today or has repairs open"). A per-job waiting count in DB
+  CheckOut's `/queue` would let Today leave them out; ask Carl first.
+- **Two suites moved with the build**: t234's contract check reads
+  `CO_CONTRACT_NEED` from the page now (the T2.30 lesson again), and
+  closeout-test reads Done's own line (`#coDone + .foot`) instead of the
+  screen's last one, which is the new button's now. The mock
+  keeps `CO_WAITING` per task and lays the line over `coJob` the way DB
+  CheckOut writes it; `getBuilds` reports contract 4.
+- **The training videos are further out of date** (the new button). Carl's
+  "Do not recreate videos yet" stands.

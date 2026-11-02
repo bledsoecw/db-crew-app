@@ -1362,6 +1362,50 @@ that, and `SETUP.md` 4b has the order to switch pushes on — test to your own
 phone first, `PUSH_ENABLED` last. That order was run on 2 Nov 2026: the test
 push landed, and every push has been on since.
 
+**A repair that can't be finished today says why** (T2.35, 2 Nov 2026). The
+first item of Step 3 of the second audit (I10; Carl: *"go, start Step 3"*). A
+repair used to have one way out, Done, so a crew short on material, locked
+out, rained off or waiting on an answer either left it open and said nothing
+or marked it done. Under Done there is now **Can't finish today**:
+
+- **Five reasons**: *Waiting on material*, *No access*, *The weather*, *Needs
+  a decision*, *Something else*. Material, a decision and anything else need
+  words (*What's short?*, *What needs deciding?*, *What happened?*), said or
+  typed, in either language — the PM reads the English with the words as said
+  beside it, like every other note. Access and the weather can go without.
+  A photo is optional.
+- **Saved at the tap and sent like Done**: the same waiting list, the same
+  retries with no signal, and a repair JobTread no longer has, or one already
+  marked done, is refused and said (*Not sent — see Waiting to send*).
+- **The repair stays open.** Close Out writes why on it in JobTread, in the
+  board's own words (*⏳ Waiting on access — Gate locked (Alberto Gonzalez,
+  Nov 3)*), takes its spent day off, and posts the message on the repair with
+  the photo, tagged to whoever reviews that work area (Dave for a shingle
+  roof). On the board it is the first group of the Close-out panel, *Couldn't
+  finish*, with the crew's words, until the PM books a new day; a crew short
+  on material lands under *Waiting on material* with what is short. Booking
+  the day answers it. Done later takes the line off.
+- **The phone says it waits**: the repairs list marks it (*Waiting on
+  material*), the repair says why and that the PM books it again, and the
+  button reads *Change why it's waiting*. The waiting line is never shown as
+  what to do.
+- **The hourly Close Out push does not echo it back.** Taking the day off
+  would have told the person who tapped it *Moved: repair at … to no day*;
+  their own snapshot learns it when the send lands, so only a partner on the
+  same repair is told, and the PM's new day is news to everyone.
+- **Contract 4.** A Close Out server older than that has no door for it, so
+  the phone does not draw the button; Diagnostics says the server is behind.
+
+`dev/t235-test.mjs` walks it (53 checks); `apps-script/code-test.mjs` has the
+Apps Script's forwarding and the push snapshot; DB CheckOut's
+`test/routes.test.ts` and `test/jt.test.ts` the server's half; the board's
+`closeout.test.ts` and `trades.test.ts` its reading of the line. **Needs, in
+this order:** the board's `main` (it reads the new reasons; before it, a
+crew's reason other than material reads as nothing and the repair sits under
+*Book the repair*), DB CheckOut's `main` (its `/health` then reads
+`contract: 4`), the Apps Script (no new permission: `clasp push -f` then
+`clasp deploy`), then `firebase deploy --only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
