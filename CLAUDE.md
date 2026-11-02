@@ -819,7 +819,7 @@ regeneration, Linux only.
   I10 (this) → I11 → D25 → I13 → I15, D31, D39, I17, D28, D30. The server half
   is DB CheckOut's bf552e1 (`POST /tasks/:id/blocked`, `PHONE_CONTRACT` 4),
   the board half is `bledsoecw/DB_Production_Board` f2099e6 (the *Couldn't
-  finish* group); neither was on its `main` when this was written.
+  finish* group); both reached their `main` on 2 Nov 2026 (the last bullet).
 - **The waiting line is one family in three repos**: `⏳ Waiting on
   material` · `on access` · `on the weather` · `on a decision` · a bare
   `⏳ Waiting` (anything else), then ` — <words> (<name>, <Mon D>)`. DB
@@ -859,3 +859,18 @@ regeneration, Linux only.
   CheckOut writes it; `getBuilds` reports contract 4.
 - **The training videos are further out of date** (the new button). Carl's
   "Do not recreate videos yet" stands.
+- **The board and the server halves are live**: at 23:01Z on 2 Nov 2026
+  (Carl: *"go, deploy the board and the server"*) the board's `main` was
+  fast-forwarded to f2099e6 (`dpl_F5LzePBDcQVViXcxxfBYTQ44Vj2u`, ready
+  23:01:50Z on ops.deitemeyerbrothers.com; the rollback is 7e4db6e,
+  `dpl_Fe5wogiwNDfrY3UWUZ16cZXy6KKN`) and DB CheckOut's to 414e503
+  (`dpl_36KKNELGSejzERJQcEimcTva4aXg`), whose `/health` answered
+  `{"source":"5405cbdbf6c5","on":"vercel","commit":"414e503"}` with
+  `"contract":4` by 23:01:52Z (the rollback is 831136a,
+  `dpl_CWU9ZMs7gP7zzHuvhn7MDmpXdUMe`). With no token, `POST /tasks/x/blocked`
+  answers the API's own 401 JSON — the route is routed, not the notice page —
+  and so do `/queue`, `/jobs` and `/assigned`. The server showed no runtime
+  errors; the board's one error group (a JobTread 25-second stall on
+  `/api/schedule` at 21:35Z) was on the deployment before. A T2.34 phone needs
+  contract 3 and reads 4 without a warning. The Apps Script and the phones
+  are Carl's chain (`clasp deploy … -d "T2.35"`, `firebase deploy`).
