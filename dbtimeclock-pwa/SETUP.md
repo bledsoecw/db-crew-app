@@ -331,7 +331,11 @@ it). The service worker keeps the page and its script as a pair and serves
 the script from its cache, so a changed `app.js` under the same build would
 never reach a phone that already has it. `check-build.mjs` runs before every
 deploy and stops one whose build differs between the four, or whose `app.js`
-changed while the build stayed the same as the live site's. For server changes, publish a new Apps Script deployment
+changed while the build stayed the same as the live site's. The Apps
+Script carries the build too, as `APP_BUILD` in `apps-script/Code.gs`, which
+Diagnostics shows as the API: bump it with the four, or every phone warns
+that the app is newer than the API (`apps-script/code-test.mjs` fails when it
+is older). For server changes, publish a new Apps Script deployment
 **version** on the SAME deployment so the `/exec` URL stays stable.
 
 ## Previewing without JobTread

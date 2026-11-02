@@ -874,3 +874,15 @@ regeneration, Linux only.
   `/api/schedule` at 21:35Z) was on the deployment before. A T2.34 phone needs
   contract 3 and reads 4 without a warning. The Apps Script and the phones
   are Carl's chain (`clasp deploy … -d "T2.35"`, `firebase deploy`).
+- **The phones are live; the API's label was left behind.** Carl ran the
+  chain the same evening: db-crews.web.app served `index.html`, `sw.js` and
+  `app.js?b=T2.35` byte-identical to the branch by 23:16Z, `/` `no-cache`
+  with the report-only policy. But his Diagnostics read API T2.34: 8e47084
+  never bumped `APP_BUILD` in `Code.gs`, so the API ran the T2.35 code under
+  the old label and every phone's Diagnostics warned *"This app (T2.35) is
+  newer than the API (T2.34)"* (`buildWarnings`; it gates nothing).
+  `check-build.mjs`'s message names `Code.gs` but never read it, and it runs
+  after `clasp deploy` in the chain anyway. code-test now fails when
+  `Code.gs`'s build is older than `app.js`'s, the same comparison the phone
+  makes. The label goes out with a second `clasp push` / `clasp deploy` of
+  the same branch (no `firebase deploy`: the phones already have T2.35).

@@ -2014,5 +2014,19 @@ t('D26: the missing-start-photo push no longer says the office was copied',
   t('…and the web app still runs as the account that deployed it, open to the phones', manifest.webapp, { executeAs: 'USER_DEPLOYING', access: 'ANYONE_ANONYMOUS' });
 }
 
+// ---- the API's build is never older than the phone's ----
+// T2.35 shipped with Code.gs still saying T2.34, and every phone's
+// Diagnostics then warned "This app (T2.35) is newer than the API (T2.34)"
+// about an API that was running the T2.35 code. buildWarnings() in app.js
+// compares the two the same way, so this fails exactly when that would.
+{
+  const appSrc = readFileSync(new URL('../dbtimeclock-pwa/public/app.js', import.meta.url), 'utf8');
+  const num = (b) => { const m = /T(\d+)\.(\d+)/.exec(String(b || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; };
+  const phone = (/var APP_BUILD = '([^']+)'/.exec(appSrc) || [])[1];
+  const api = String(sandbox.APP_BUILD).split(' ')[0], app = String(phone || '').split(' ')[0];
+  t('the Apps Script\'s APP_BUILD is not older than the phone\'s (bump Code.gs with app.js, or Diagnostics warns on every phone)',
+    !phone ? 'no APP_BUILD in app.js' : num(api) >= num(app) ? 'ok' : `Code.gs says ${api}, app.js ${app}`, 'ok');
+}
+
 console.log(`\n${pass}/${pass+fail} passed`);
 process.exit(fail ? 1 : 0);
