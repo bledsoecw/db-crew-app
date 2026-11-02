@@ -884,5 +884,7 @@ regeneration, Linux only.
   `check-build.mjs`'s message names `Code.gs` but never read it, and it runs
   after `clasp deploy` in the chain anyway. code-test now fails when
   `Code.gs`'s build is older than `app.js`'s, the same comparison the phone
-  makes. The label goes out with a second `clasp push` / `clasp deploy` of
-  the same branch (no `firebase deploy`: the phones already have T2.35).
+  makes. The label went out with a second `clasp push` / `clasp deploy` of
+  the same branch (`-d "T2.35 label"`, no `firebase deploy`: the phones
+  already had T2.35), and Carl's Diagnostics then read App and API both
+  T2.35. **T2.35 is live in all four places.**
