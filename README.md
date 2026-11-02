@@ -1359,7 +1359,8 @@ so no push of any kind had reached a phone. Since then the script sends on
 its own Google sign-in, because the company's Google organization refuses
 service account keys; `apps-script/appsscript.json` lists its permissions for
 that, and `SETUP.md` 4b has the order to switch pushes on — test to your own
-phone first, `PUSH_ENABLED` last.
+phone first, `PUSH_ENABLED` last. That order was run on 2 Nov 2026: the test
+push landed, and every push has been on since.
 
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a

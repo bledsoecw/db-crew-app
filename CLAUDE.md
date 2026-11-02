@@ -728,8 +728,9 @@ regeneration, Linux only.
   is already live and app.js is unchanged". The Apps Script's build was not
   read from here; in the chain Carl runs, `firebase deploy` only starts once
   `clasp deploy` has worked. The Close Out server and the board showed no
-  runtime errors from their deploys to 20:05Z. **The Close Out push is the
-  one part not running**, because no push ever was — next section.
+  runtime errors from their deploys to 20:05Z. **The Close Out push was the
+  last part to start**: no push of any kind had ever been sent, and it went
+  live with all the others that evening — next section.
 
 ## Pushes on the script's own sign-in (2 Nov 2026) — what the README does not say
 
@@ -773,18 +774,24 @@ regeneration, Linux only.
   `testPushToMe` ignores `PUSH_ENABLED`, so it is the test that reaches no
   one else. The hourly line is counts only (`schedule pushes: {…}`), never a
   token or an address.
-- **Tested here against stubs only.** That FCM takes the script's own token
-  for db-time-clock is proven by nothing until Carl's `testPushToMe` lands.
-  `PUSH_ENABLED` is Carl's to set afterwards, and it turns on every push
-  whose trigger is installed, for everyone, at once.
+- **Proven live, not only against stubs**: Carl's `testPushToMe` landed on
+  his phone (2 Nov 2026), so FCM takes the script's own token for
+  db-time-clock with the `X-Goog-User-Project` header — the Cloud project
+  move above was never needed. `PUSH_ENABLED` turns on every push whose
+  trigger is installed, for everyone, at once.
 - **Switched on, about 21:30Z on 2 Nov 2026.** Carl ran SETUP 4b's order
   from 3383459: the Overview's four permissions matched the new list,
   `FCM_PROJECT_ID` = `db-time-clock`, `clasp push -f`, approve and
   `testPushToMe` in the editor, then `clasp deploy … -d "T2.34 push
   sign-in"`, and set `PUSH_ENABLED` = `true`. The web app's GET answered
   "Opening DB Crew" at 21:36Z (an unapproved deployment answers
-  "Authorization is required"). Not read from here: what `testPushToMe`
-  logged, which of the other two push triggers are installed, and the first
-  hourly line — the Executions page has them. That first run after 4pm sends
-  "Tomorrow" to every registered phone with a booking the next day; the Close
-  Out part and "Schedule changed" only take their snapshots on it.
+  "Authorization is required"). The test push landed, and all three push
+  triggers are installed (`sweepSchedulePushes` hourly,
+  `sweepBeforePhotoNudges` every 5 minutes, `sweepBreakReminders` every
+  minute), so every push is live from then: the before-photo nudge, the 7pm
+  "Still on the clock", the break reminders, "Tomorrow" / "Schedule changed"
+  and the Close Out push. The first hourly run after 4pm sends "Tomorrow" to
+  every registered phone with a booking the next day; the Close Out part and
+  "Schedule changed" only take their snapshots on it. Its line on the
+  Executions page (`schedule pushes: {…}`, `"failed":0` both places) was not
+  read from here.
