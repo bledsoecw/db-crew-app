@@ -953,3 +953,16 @@ regeneration, Linux only.
   videos yet" stands; the notices are edge-case screens), and a conflict on
   the sign-off line (it cannot happen with a boolean, so the phone has words
   for it and no test reaches it).
+- **The board half is live**: at 01:24Z on 3 Nov 2026 (8:24pm on 2 Nov in
+  Ohio; Carl: *"go, deploy the board"*) the board's `main` was fast-forwarded
+  to f8613c1, after its 890 tests, `tsc` and lint ran clean
+  (`dpl_4fvcF99mwFHnNqmS3HQBPEgXpDL4`, ready 01:24:51Z on
+  ops.deitemeyerbrothers.com, no alias error; the rollback is f2099e6,
+  `dpl_F5LzePBDcQVViXcxxfBYTQ44Vj2u`). With no token, `GET
+  /api/crew/assignments` answers the route's own 401 JSON, and the
+  deployment showed no runtime errors after the switch. `checklist.saves`
+  itself was not read from here (the route needs `CREW_APP_SECRET`); the
+  deployment's commit is the proof. Until the Apps Script and the phones are
+  T2.36, every phone sends the whole list, which the board applies as sent
+  (a body with no `was`). The Apps Script and the phones are Carl's chain
+  (`clasp deploy … -d "T2.36"`, `firebase deploy --only hosting`).
