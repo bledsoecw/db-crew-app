@@ -1040,3 +1040,11 @@ regeneration, Linux only.
   Carl's call. The roll-out notice's half-landed comment (T2.33's note) is
   still open. `Code.gs` changed only its build label. The training videos:
   Carl's "Do not recreate videos yet" stands.
+- **T2.37 is live**: Carl ran the chain the same evening (`clasp deploy …
+  -d "T2.37"`, `firebase deploy --only hosting`) and his Diagnostics read App
+  and API both T2.37. By 02:41Z on 3 Nov 2026 db-crews.web.app served
+  `index.html`, `sw.js` and `app.js?b=T2.37` identical to the branch at
+  5aacc1b (line endings aside), `/` and `/index.html` `no-cache` with the
+  report-only policy, and `check-build.mjs` against the live site says "T2.37
+  is already live and app.js is unchanged". No board change; the board showed
+  no runtime errors from 01:24Z to then.
