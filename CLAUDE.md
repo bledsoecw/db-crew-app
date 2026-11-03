@@ -1129,3 +1129,12 @@ regeneration, Linux only.
   *a break waits for it* — the rule, not a regression.
 - **The training videos are further out of date** (the clock-waiting sheet
   lists the chain now). Carl's "Do not recreate videos yet" stands.
+- **T2.38 is live**: Carl ran the chain the same day (`clasp deploy … -d
+  "T2.38"`, `firebase deploy --only hosting`) and his Diagnostics read App and
+  API both T2.38. By 23:05Z on 3 Nov 2026 db-crews.web.app served
+  `index.html`, `sw.js` and `app.js?b=T2.38` identical to the branch at
+  b1dc40d (line endings aside), `/` and `/index.html` `no-cache` with the
+  report-only policy, `check-build.mjs` against the live site says "T2.38 is
+  already live and app.js is unchanged", and the API deployment's GET answers
+  "Opening DB Crew" (an unapproved one answers "Authorization is required").
+  No board change.
