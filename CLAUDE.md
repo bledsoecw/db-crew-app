@@ -966,3 +966,12 @@ regeneration, Linux only.
   T2.36, every phone sends the whole list, which the board applies as sent
   (a body with no `was`). The Apps Script and the phones are Carl's chain
   (`clasp deploy … -d "T2.36"`, `firebase deploy --only hosting`).
+- **T2.36 is live in all four places**: Carl ran the chain the same evening
+  and his Diagnostics read App and API both T2.36. By 01:30Z db-crews.web.app
+  served `index.html`, `sw.js` and `app.js?b=T2.36` identical to the branch,
+  `/` and `/index.html` `no-cache` with the report-only policy, and
+  `check-build.mjs` against the live site says "T2.36 is already live and
+  app.js is unchanged". The board showed no runtime errors from its deploy to
+  01:30Z. **The live files carry Windows line endings** (CRLF, from Carl's
+  checkout): a raw byte compare reads every file as different, so compare
+  with the `\r` taken out, as `check-build.mjs` does.
