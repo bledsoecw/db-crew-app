@@ -1448,6 +1448,42 @@ one turns it on with the last step: the board's `main` (until then the phone
 keeps sending the whole list), the Apps Script (no new permission: `clasp push
 -f` then `clasp deploy`), then `firebase deploy --only hosting`.
 
+**A shared phone keeps each person's work for them** (T2.37, 3 Nov 2026). D31
+of the second audit (Carl: *"go, start D31"*). Nothing waiting on a phone said
+whose it was. When the API refused someone's sign-in (a session that ran out,
+access switched off) and somebody else signed in on that phone, the first
+person's photos, day log, site checks, pre-start, roll-out notes and Close Out
+items went as the second person's.
+
+- **Everything that waits carries whose it is**, from the moment it is made:
+  photos, kept clock-ins, site checks, the pre-start, the day log, the
+  roll-out notes, Close Out items and an inspection in progress.
+- **Somebody else's work is never sent under your sign-in.** It is kept on the
+  phone for them and goes when they sign in on that phone again. It is not
+  yours to send, so it never holds up your sign-out, and your sign-out never
+  erases it — the last tap says so by name (*Tyler B.'s 7:02a clock-in and
+  other unsent work stay on this phone and go when they sign in*).
+- **Waiting to send says whose**: their rows read *Waiting for Tyler B.* with
+  *Goes when they sign in on this phone*, listed after your own. Diagnostics
+  has an `others` line with the same.
+- **Signing in after somebody was signed out starts clean.** The phone sets
+  the last person's unsent work aside for them, clears what it kept for them
+  otherwise (their job, photo strip, schedule, place on the screen) the way
+  Sign out would, and starts again for you — so you never see, tick over or
+  send their unsent checks, day log or inspection. The same person signing
+  back in gets everything back as it was.
+- **A page whose sign-in the API refused sends nothing more** until someone
+  signs in, so nothing can slip out under the next person's sign-in.
+- Work saved before T2.37 has no owner on it; it is taken as the last person
+  the phone knew.
+
+`dev/t237-test.mjs` walks it (32 checks: Tyler's work, a refused session,
+Kenton signing in, Kenton's own work going, Kenton signing out, Tyler back;
+work from before T2.37; the same person back). **Deploys**: the Apps Script
+only changes its build label (`clasp push -f` then `clasp deploy`, so
+Diagnostics does not warn), then `firebase deploy --only hosting`. No board
+change.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

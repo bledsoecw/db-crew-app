@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.36 (2026-11-02)';
+var APP_BUILD = 'T2.37 (2026-11-03)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -79,6 +79,9 @@ var CHECKS_RO_MEMORY_MS = 7 * 24 * 3600 * 1000;
    then a 30-day app session so the crew isn't re-prompted.
    ========================================================= */
 var AUTH = { token:'', exp:0, waiters:[] };
+/* Whose work is whose on a shared phone (T2.37, audit D31) — see WHOSE WORK
+   IT IS. Here because the API's lanes read `frozen` from the very first call. */
+var OWN = { frozen: false, adopter: '', adopterName: '' };
 /* Set by Sign out and cleared by the next sign-in: Google's One Tap must not
    quietly pick the account that was just signed out (T2.1). */
 var PICK_ACCOUNT_KEY = 'dbtc_pick_account';
@@ -241,6 +244,10 @@ function requireSignIn(msg){
 /* The API said no to this token. Which words, and whether One Tap may pick
    the same account again, depends on whose token it was. */
 function authRefused(j){
+  // Nothing more leaves this page (T2.37, audit D31): whoever signs in next,
+  // the page starts again, and the new page decides whose work is whose
+  // before anything goes — never a flush under the next person's sign-in.
+  OWN.frozen = true;
   var p = jwtPayload(AUTH.token), email = String(p.email || (j && j.email) || '');
   var wasGoogle = !!p.iss && p.iss !== 'dbtc-session';
   authClear();
@@ -419,6 +426,9 @@ var RID_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite
 function newRid(){ return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 function apiCall(fn, args, co){
   if (!API_URL) return Promise.reject(new Error('config.js is missing apiUrl.'));
+  // A page whose sign-in was refused sends nothing but the trade of a new
+  // sign-in (T2.37, audit D31). Read as signed out: every lane waits, uncounted.
+  if (OWN.frozen && fn !== 'exchangeSession'){ var fz = new Error('Waiting for the sign-in'); fz.auth = true; fz.frozen = true; return Promise.reject(fz); }
   co = co || {};
   if (co.timeout == null && API_TIMEOUTS[fn]) co.timeout = API_TIMEOUTS[fn];
   if (RID_FNS[fn] && !co.rid) co.rid = newRid();
@@ -1176,10 +1186,13 @@ function renderToday(){
    on this phone, sending, trying again at a time, needs you, or waiting for
    a sign-in. The no-signal bar and the Clock tab's card open it.
    ========================================================= */
-var WAIT_ORDER = { you: 0, signin: 1, retry: 2, sending: 3, saved: 4 };
-var WAIT_CLS = { you: 'bad', signin: 'wait', retry: 'wait', sending: 'nav', saved: '' };
+/* `held` (T2.37, audit D31): another person's, kept on this phone for them —
+   the least pressing for whoever is signed in, so last. */
+var WAIT_ORDER = { you: 0, signin: 1, retry: 2, sending: 3, saved: 4, held: 5 };
+var WAIT_CLS = { you: 'bad', signin: 'wait', retry: 'wait', sending: 'nav', saved: '', held: 'wait' };
 function waitStateWords(st, t, who){
-  return st === 'you' ? L('Needs you') : st === 'sending' ? L('Sending…') : st === 'signin' ? (who ? Lf('Waiting for {name}', { name: who }) : L('Waiting for sign-in'))
+  return st === 'you' ? L('Needs you') : st === 'sending' ? L('Sending…') : st === 'held' ? Lf('Waiting for {name}', { name: who || L('Someone') })
+       : st === 'signin' ? (who ? Lf('Waiting for {name}', { name: who }) : L('Waiting for sign-in'))
        : st === 'retry' ? (t ? Lf('Trying again at {t}', { t: clockLabel(new Date(t)) }) : L('Trying again soon')) : L('Saved on this phone');
 }
 function coWaitState(it){
@@ -1211,12 +1224,12 @@ function waitItems(){
   var push = function(it){ out.push(it); };
   clockQ.forEach(function(it){
     var mine = cqMine(it);
-    var st = it.inflight ? 'sending' : (it.refused || it.stale) ? 'you' : !mine ? 'signin'
+    var st = !mine ? 'held' : it.inflight ? 'sending' : (it.refused || it.stale) ? 'you'
            : (signedOut || /sign in again/i.test(it.err || '')) ? 'signin' : (it.tries && it.next > now) ? 'retry' : 'saved';
     push({ lane: 'clock', jobId: it.jobId || (it.job && it.job.id), what: Lf(it.kind === 'switch' ? 'Arrival {t}' : 'Clock-in {t}', { t: clockLabel(new Date(it.at)) }),
            state: st, t: it.next, who: mine ? '' : (it.ownerName || L('Someone')),
-           hint: it.refused ? L('Tap to see why') : it.stale ? L('Say when you left the day before') : '',
-           go: it.refused ? function(){ openSheet('clockq'); } : it.stale ? leftAsk : null });
+           hint: !mine ? L('Goes when they sign in on this phone') : it.refused ? L('Tap to see why') : it.stale ? L('Say when you left the day before') : '',
+           go: !mine ? null : it.refused ? function(){ openSheet('clockq'); } : it.stale ? leftAsk : null });
   });
   (S.qItems || []).forEach(function(x){
     var r = qRetry[x.id];
@@ -1266,6 +1279,28 @@ function waitItems(){
     push({ lane: 'roll', jobId: w.args && w.args[0], what: L(x.kind === 'daily' ? 'Shop checks record' : 'Roll-out note'),
            state: signedOut ? 'signin' : (w.tries && w.next > now) ? 'retry' : 'saved', t: w.next, hint: '', go: null });
   });
+  // Another person's work on this phone (T2.37, audit D31): kept for them,
+  // never sent as the signed-in person's, said by name. Their drafts (a log
+  // not sent, an inspection in progress) are kept too, but are not waiting.
+  var theirs = function(lane, jobId, what, name, label){
+    push({ lane: lane, jobId: jobId, jobLabel: label || '', what: what, state: 'held', who: name, hint: L('Goes when they sign in on this phone'), go: null });
+  };
+  var theirRids = cqNotMineRids();
+  (S.qOthers || []).forEach(function(x){ if (!(x.waitRid && theirRids[x.waitRid])) theirs('photos', x.jobId, photoWhat(x), ownName(x.owner, x)); });
+  ((window.CO && CO.others) || []).forEach(function(it){ if (it.status !== 'rejected') theirs('closeout', it.jobId, it.label || it.kind, ownName(ownOf(it), it)); });
+  Object.keys(held).forEach(function(o){
+    var h = held[o], name = ownName(o);
+    Object.keys(h.ck || {}).forEach(function(t){ var e = h.ck[t]; if (e.dirty) theirs('checks', e.jobId, L('Site checks'), name, e.jobLabel); });
+    Object.keys(h.pr || {}).forEach(function(t){ var e = h.pr[t]; theirs('prestart', e.jobId, L('Pre-start'), name, e.jobLabel); });
+    Object.keys(h.dl || {}).forEach(function(k){
+      var e = h.dl[k], label = e.jobLabel || e.jobNum;
+      if (e.wantSend && !e.sent) theirs('log', e.jobId, e.date === today ? L('Today’s log') : Lf('Log for {d}', { d: dayWords(new Date(e.date + 'T12:00:00')) }), name, label);
+      (e.notes || []).forEach(function(n){ if (n.later && n.pending) theirs('log', e.jobId, L('Line added to the log'), name, label); });
+    });
+    Object.keys(h.roll || {}).forEach(function(k){
+      ownRollPending(h.roll[k]).forEach(function(kind){ var w = h.roll[k][kind]; theirs('roll', w.args[0], L(kind === 'daily' ? 'Shop checks record' : 'Roll-out note'), name); });
+    });
+  });
   return out;
 }
 function waitingHtml(){
@@ -1275,7 +1310,12 @@ function waitingHtml(){
   var groups = [], byJob = {};
   items.forEach(function(it, i){
     var key = it.jobId || '-';
-    if (!byJob[key]){ byJob[key] = { label: jobWordsFor(it.jobId), rows: [] }; groups.push(byJob[key]); }
+    if (!byJob[key]){
+      // A job only another person's work knew may be gone from this phone's
+      // copies (T2.37): the label their work kept says which.
+      var w = jobWordsFor(it.jobId);
+      byJob[key] = { label: (w === L('Another job') && it.jobLabel) ? it.jobLabel : w, rows: [] }; groups.push(byJob[key]);
+    }
     byJob[key].rows.push(i);
   });
   var h = '<div class="sheetpad" style="gap:12px"><div class="body">' + esc(L(S.online
@@ -1794,10 +1834,14 @@ function wipePhoneState(){
   // Where-you-were (T2.27) stops saving first, or the page's own leaving
   // writes it back for the next person.
   S.whereReady = false;
-  // Another person's clock-in kept on this phone (T2.33, audit D24) is theirs:
-  // it and its start photo stay for when they sign in. Read before the
-  // sign-in is cleared, which is what says whose is whose.
+  // Another person's work on this phone is theirs (T2.33 for a kept clock-in
+  // and its start photo; T2.37, audit D31, for everything else): it stays for
+  // when they sign in. Read before the sign-in is cleared, which is what says
+  // whose is whose. Only the signed-in person's goes — and nothing of theirs
+  // is still waiting, or Sign out would not have got this far.
   var keepQ = clockQ.filter(function(it){ return !cqMine(it); }), keepRid = cqNotMineRids();
+  var me = myEmail(), theirs = function(v){ var o = ownOf(v); return !!o && !!me && o !== me; };
+  var heldJson = Object.keys(held).length ? JSON.stringify(held) : '';
   authClear();
   try {
     var keys = [];
@@ -1807,19 +1851,27 @@ function wipePhoneState(){
     clockQ = keepQ;
     if (keepQ.length) localStorage.setItem(CQ_KEY, JSON.stringify(keepQ));
   } catch(e){}
+  if (heldJson) storeSet(HELD_KEY, heldJson);
   return idb().then(function(db){
-    return Promise.all(['q', 'co', 'cophotos'].map(function(st){
+    var coPhotos = {};
+    var sweep = function(st, keep){
       return new Promise(function(res){
         try {
-          var tx = db.transaction(st, 'readwrite'), os = tx.objectStore(st);
-          if (st === 'q' && keepQ.length){
-            os.openCursor().onsuccess = function(e){ var c = e.target.result; if (!c) return; if (!(c.value && c.value.waitRid && keepRid[c.value.waitRid])) c.delete(); c.continue(); };
-          } else os.clear();
+          var tx = db.transaction(st, 'readwrite');
+          tx.objectStore(st).openCursor().onsuccess = function(e){ var c = e.target.result; if (!c) return; if (!keep(c.value)) c.delete(); c.continue(); };
           tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
         }
         catch(e){ res(); }
       });
-    }));
+    };
+    return Promise.all([
+      sweep('q', function(v){ return !!v && (theirs(v) || !!(v.waitRid && keepRid[v.waitRid])); }),
+      sweep('co', function(v){ var k = !!v && theirs(v); if (k && v.photoId) coPhotos[v.photoId] = 1; return k; })
+    ]).then(function(){
+      // Close Out's photos: those another person's waiting items will send, and
+      // those their visits set aside still show.
+      return sweep('cophotos', function(v){ return !!v && (!!coPhotos[v.id] || (!!heldJson && heldJson.indexOf(v.id) !== -1)); });
+    });
   }).catch(function(){});
 }
 function signOut(){
@@ -1841,11 +1893,12 @@ function signOutStep(){
   if (!signOutArmed || Date.now() - signOutArmed > 8000){
     signOutArmed = Date.now();
     btn.textContent = drafts.length ? 'Tap again to erase them and sign out' : 'Tap again to sign out';
-    var theirs = cqOthers().map(function(x){ return (x.ownerName || 'Someone') + '’s ' + clockLabel(x.at) + ' clock-in'; });
+    // Another person's work stays for them, by name (T2.33 clock-ins; T2.37 the rest).
+    var theirs = ownOthersWords();
     foot.textContent = (drafts.length
       ? 'Not sent, and erased if you sign out now: ' + drafts.join(', ') + '. Send them first, or tap again to erase them.'
       : 'This phone forgets ' + ((S.me && S.me.name) || 'you') + ' and shows the sign-in screen, where any account can be picked.') +
-      (theirs.length ? ' ' + theirs.join(', ') + ' stays on this phone and goes when they sign in.' : '');
+      (theirs.length ? ' ' + theirs.join(' ') : '');
     setTimeout(function(){ if (signOutArmed && Date.now() - signOutArmed >= 8000){ signOutArmed = 0; btn.textContent = 'Sign out'; } }, 8300);
     return;
   }
@@ -2539,6 +2592,7 @@ function ckEntry(v){
     e = ckStore[tid] = { state: ckStateFor(live), base: ckNorm(live.checks && live.checks.state), dirty: false,
                          seq: (e && e.seq) || 0, savedAt: (e && e.savedAt) || 0, conflicts: (e && e.conflicts) || null,
                          at: Date.now(), err: '', jobId: live.jobId, jobLabel: jobLabelOf(live) };
+    ownStamp(e);   // whose ticks these are (T2.37, audit D31)
   }
   return e;
 }
@@ -2890,6 +2944,7 @@ function prTouch(v, key){
     // `base`: the boxes as the board last handed them over (T2.36).
     var live = prVisit(tid) || v;
     e = prStore[tid] = { done: prBoardDone(live), base: prBoardDone(live), seq: (e && e.seq) || 0, savedAt: (e && e.savedAt) || 0, jobId: live.jobId, jobLabel: jobLabelOf(live) };
+    ownStamp(e);
   }
   e.done[key] = !e.done[key];
   e.dirty = true; e.seq = (e.seq || 0) + 1; e.at = Date.now(); e.err = ''; e.refused = false; e.why = '';
@@ -4593,7 +4648,10 @@ var cqTimer = null;
 function cqPersist(){ storeSet(CQ_KEY, JSON.stringify(clockQ)); }
 /* Whose it is (T2.33, audit D24): a clock-in kept on a shared phone waits
    for the person who made it, never lands as somebody else's hours. */
-function myEmail(){ return String((S.me && S.me.email) || jwtPayload(AUTH.token).email || '').toLowerCase(); }
+/* The sign-in's own email first (T2.37): the token is what the API acts as,
+   so it is whose the work is. The profile is the same person; it is only the
+   fallback for the moment between a refused token and the next sign-in. */
+function myEmail(){ return String(jwtPayload(AUTH.token).email || (S.me && S.me.email) || '').toLowerCase(); }
 function cqMine(it){ return !it.owner || !myEmail() || it.owner === myEmail(); }
 function cqWaiting(){ return clockQ.filter(function(it){ return !it.refused && cqMine(it); })[0] || null; }
 function cqRefused(){ return clockQ.filter(function(it){ return it.refused && cqMine(it); })[0] || null; }
@@ -4604,6 +4662,228 @@ function cqOthers(){ return clockQ.filter(function(it){ return !it.refused && !c
 function cqNotMineRids(){ var o = {}; clockQ.forEach(function(it){ if (!cqMine(it)) o[it.rid] = 1; }); return o; }
 function qMine(items){ var o = cqNotMineRids(); return items.filter(function(x){ return !(x.waitRid && o[x.waitRid]); }); }
 function cqHas(rid){ return !!rid && clockQ.some(function(it){ return it.rid === rid; }); }
+
+/* =========================================================
+   WHOSE WORK IT IS (T2.37, audit D31)
+   Nothing waiting on the phone said whose it was. When the API refused a
+   sign-in (a session that ran out, access switched off) and someone else
+   signed in on that phone, the first person's photos, day log, checklist
+   ticks, roll-out notes and Close Out items went as the second person's —
+   and before T2.33, a kept clock-in became the second person's hours. Now
+   everything that waits carries the email of whoever made it, and work that
+   is not the signed-in person's is never sent, never counted as theirs to
+   send (it never holds up their sign-out), never erased by their sign-out,
+   and is said on Waiting to send as waiting for its owner.
+   - The stores keyed by a list, a job or a day — site checks, the pre-start,
+     the day log, the roll-out, Close Out's visits in progress — hold one
+     entry per key, so another person's are SET ASIDE whole (`held`, by
+     email) and come back when that person signs in on this phone. The
+     signed-in person never sees, edits or sends them.
+   - The queues kept in IndexedDB (photos, Close Out's waiting list) and the
+     kept clock-ins (T2.33) stay where they are and are read by owner.
+   - A different person signing in after a sign-out the API made (nobody
+     tapped Sign out, so nothing was wiped) is a hand-over: the last person's
+     work is set aside for them, what the phone kept for them otherwise
+     (their job, photo strip, schedule, place on the screen, copies) goes
+     the way Sign out takes it, and the page starts again for the new person.
+   - Work saved before T2.37 has no owner. It is taken as the last person
+     the phone knew (dbtc_me), else as whoever is signed in, and written onto
+     it once — so it never changes hands later.
+   ========================================================= */
+var HELD_KEY = 'dbtc_held';
+var held = (function(){
+  var h = {}; try { h = JSON.parse(localStorage.getItem(HELD_KEY) || '{}') || {}; } catch(e){ h = {}; }
+  if (!h || typeof h !== 'object' || Array.isArray(h)) h = {};
+  // A morning set aside keeps the roll-out's three days (rollStore).
+  var cut = addDaysLocal(isoLocal(), -3);
+  Object.keys(h).forEach(function(o){ var r = h[o] && h[o].roll; if (r) for (var k in r) if (String(k).slice(-10) < cut) delete r[k]; });
+  return h;
+})();
+/* The stores set aside whole: what of each is worth keeping (a list's plain
+   copy of the board is not), and what was only ever a page's. */
+var OWN_STORES = [
+  { key: 'ck', store: function(){ return ckStore; }, save: function(){ ckPersist(); }, rest: function(e){ e.inflight = false; },
+    keep: function(e){ return !!e.dirty || !!(e.conflicts && e.conflicts.length); } },
+  { key: 'pr', store: function(){ return prStore; }, save: function(){ prPersist(); }, rest: function(e){ e.inflight = false; },
+    keep: function(e){ return !!e.dirty; } },
+  { key: 'dl', store: function(){ return dlStore; }, save: function(){ dlPersist(); }, rest: function(e){ e.sending = false; },
+    keep: function(e){ return (e.notes || []).some(function(n){ return n.later && n.pending; }) || (!e.sent && !!(e.wantSend || String(e.story || '').trim() || (e.lines || []).length)); } },
+  { key: 'roll', store: function(){ return rollStore; }, save: function(){ rollPersist(); }, rest: function(){},
+    keep: function(d){ return ownRollPending(d).length > 0 || !!(d.tarps || d.today || d.bring); } },
+  { key: 'co', store: function(){ return coStore.visits; }, save: function(){ coPersist(); }, rest: function(){},
+    keep: function(v){ return !coVisitIdle(v); } }
+];
+function ownRollPending(d){ return ['forgot', 'daily'].filter(function(k){ var w = d && d[k]; return !!(w && w.args && !w.sent && !w.refused); }); }
+function ownTokenEmail(){ return String(jwtPayload(AUTH.token).email || '').toLowerCase(); }
+/* Who was signed in at this phone's last start: the sign-in's email, written
+   at every start. A phone from before T2.37 has none, and the last profile it
+   kept (dbtc_me) says it instead. Never the profile otherwise: a plain reload
+   must never read as somebody else. */
+var WHO_KEY = 'dbtc_who';
+function ownLastSeen(){
+  var seen = null, who = '';
+  try { var c = JSON.parse(localStorage.getItem(ME_KEY) || 'null'); if (c && c.email) seen = { email: String(c.email).toLowerCase(), name: (c.me && c.me.name) || '' }; } catch(e){}
+  try { who = String(localStorage.getItem(WHO_KEY) || '').toLowerCase(); } catch(e){}
+  if (who) return { email: who, name: seen && seen.email === who ? seen.name : '' };
+  return seen;
+}
+function ownOf(x){ return String((x && x.owner) || OWN.adopter || '').toLowerCase(); }
+function ownMine(x){ var o = ownOf(x), me = myEmail(); return !o || !me || o === me; }
+function ownName(email, x){ return (x && x.ownerName) || (held[email] && held[email].name) || (email && email === OWN.adopter && OWN.adopterName) || email || L('Someone'); }
+/* Written onto anything new that will wait to be sent. */
+function ownStamp(x){
+  if (x && !x.owner){ var me = myEmail(); if (me){ x.owner = me; x.ownerName = (meNow() && meNow().name) || ''; } }
+  return x;
+}
+function ownHeldCount(o){
+  var h = held[o], n = 0; if (!h) return 0;
+  OWN_STORES.forEach(function(s){ n += Object.keys(h[s.key] || {}).length; });
+  return n;
+}
+function heldPersist(){
+  Object.keys(held).forEach(function(o){ if (!ownHeldCount(o)) delete held[o]; });
+  if (Object.keys(held).length) storeSet(HELD_KEY, JSON.stringify(held));
+  else { try { localStorage.removeItem(HELD_KEY); } catch(e){} }
+}
+/* Work saved before T2.37 is written down as `email`'s, once. */
+function ownAdopt(email, name){
+  if (!email) return Promise.resolve();
+  OWN_STORES.forEach(function(s){
+    var st = s.store(), ch = false;
+    Object.keys(st).forEach(function(k){ var e = st[k]; if (e && typeof e === 'object' && !e.owner){ e.owner = email; if (name) e.ownerName = name; ch = true; } });
+    if (ch) s.save();
+  });
+  var byRid = {}, cq = false;
+  clockQ.forEach(function(it){ if (!it.owner){ it.owner = email; it.ownerName = it.ownerName || name || ''; cq = true; } byRid[it.rid] = it; });
+  if (cq) cqPersist();
+  return idb().then(function(db){
+    return Promise.all(['q', 'co'].map(function(st){
+      return new Promise(function(res){
+        try {
+          var tx = db.transaction(st, 'readwrite');
+          tx.objectStore(st).openCursor().onsuccess = function(ev){
+            var c = ev.target.result; if (!c) return;
+            var v = c.value;
+            if (v && !v.owner){
+              // A start photo is its clock-in's, whoever's that is.
+              var q = v.waitRid && byRid[v.waitRid];
+              v.owner = q ? q.owner : email; v.ownerName = (q && q.ownerName) || v.ownerName || name || '';
+              c.update(v);
+            }
+            c.continue();
+          };
+          tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+        } catch(e){ res(); }
+      });
+    }));
+  }).catch(function(){});
+}
+/* Set aside every entry that is not `me`'s — or, for a hand-over, every one
+   worth keeping, `me`'s too, to come back once the page has started again. */
+function ownHold(me, all){
+  var ch = false;
+  OWN_STORES.forEach(function(s){
+    var st = s.store(), sch = false;
+    Object.keys(st).forEach(function(k){
+      var e = st[k]; if (!e || typeof e !== 'object') return;
+      var o = ownOf(e);
+      if (!o || (!all && o === me)) return;
+      if (s.keep(e)){
+        s.rest(e);
+        var h = held[o] || (held[o] = {});
+        if (!h.name) h.name = e.ownerName || (o === OWN.adopter ? OWN.adopterName : '') || '';
+        (h[s.key] || (h[s.key] = {}))[k] = e;
+        ch = true;
+      }
+      delete st[k]; sch = true;
+    });
+    if (sch) s.save();
+  });
+  if (ch) heldPersist();
+}
+/* `me`'s work set aside earlier, back where it was. */
+function ownRestore(me){
+  var h = held[me], n = 0;
+  if (!h) return 0;
+  OWN_STORES.forEach(function(s){
+    var part = h[s.key]; if (!part) return;
+    var st = s.store(), sch = false;
+    Object.keys(part).forEach(function(k){
+      var cur = st[k];
+      // Work of their own made since would win; there is none — whatever was
+      // theirs came back the last time they signed in on this phone.
+      if (cur && cur !== part[k] && typeof cur === 'object' && s.keep(cur)) return;
+      st[k] = part[k]; delete part[k]; n++; sch = true;
+    });
+    if (sch) s.save();
+    if (!Object.keys(part).length) delete h[s.key];
+  });
+  heldPersist();
+  return n;
+}
+/* What the phone kept for the person signed out goes, the way Sign out takes
+   it, except the sign-in just made and the work waiting for anyone. */
+var OWN_KEEP_KEYS = { dbtc_auth: 1, dbtc_held: 1, dbtc_clockq: 1, dbtc_co_seq: 1, dbtc_qretry: 1 };
+function ownWipeKept(){
+  S.whereReady = false;
+  try {
+    var keys = [];
+    for (var i = 0; i < localStorage.length; i++){ var key = localStorage.key(i); if (/^dbtc_/.test(key) && !OWN_KEEP_KEYS[key]) keys.push(key); }
+    keys.forEach(function(key){ localStorage.removeItem(key); });
+  } catch(e){}
+}
+/* At start, before anything is read or sent. True when the page is starting
+   again for a hand-over, which start() leaves to the reload. */
+function ownHandover(){
+  var me = ownTokenEmail();
+  if (!me) return false;
+  var last = ownLastSeen();
+  OWN.adopter = (last && last.email) || me;
+  OWN.adopterName = (last && last.name) || '';
+  var adopted = ownAdopt(OWN.adopter, OWN.adopterName);
+  if (last && last.email !== me){
+    ownHold(me, true);
+    if (held[last.email] && !held[last.email].name) held[last.email].name = last.name;
+    heldPersist();
+    ownWipeKept();
+    // Once the queued items say whose they are; never stuck on the sign-in
+    // spinner if IndexedDB does not answer (another tab holding it open).
+    var go = function(){ if (go.done) return; go.done = true; location.reload(); };
+    adopted.then(go); setTimeout(go, 4000);
+    return true;
+  }
+  ownHold(me, false);
+  ownRestore(me);
+  storeSet(WHO_KEY, me, true);
+  return false;
+}
+/* Diagnostics: whose work this phone keeps for someone else, and how much. */
+function ownDiagWords(){
+  var by = {}, order = [];
+  waitItems().forEach(function(i){ if (i.state !== 'held') return; if (!(i.who in by)){ by[i.who] = 0; order.push(i.who); } by[i.who]++; });
+  return order.length ? order.map(function(w){ return w + ' · ' + by[w] + ' waiting for them'; }).join('; ') : 'none';
+}
+/* Whose work stays through a sign-out, by name — for the last tap's words. */
+function ownOthersWords(){
+  var me = myEmail(), by = {}, order = [];
+  var add = function(o, name, clock){
+    o = String(o || '').toLowerCase(); if (!o || o === me) return;
+    var b = by[o]; if (!b){ b = by[o] = { name: '', clock: [], other: 0 }; order.push(o); }
+    if (!b.name && name) b.name = name;
+    if (clock) b.clock.push(clock); else b.other++;
+  };
+  cqOthers().forEach(function(x){ add(x.owner, x.ownerName, clockLabel(x.at) + ' clock-in'); });
+  var theirRids = cqNotMineRids();
+  (S.qOthers || []).forEach(function(x){ if (!(x.waitRid && theirRids[x.waitRid])) add(x.owner, x.ownerName); });
+  ((window.CO && CO.others) || []).forEach(function(it){ if (it.status !== 'rejected') add(ownOf(it), it.ownerName); });
+  Object.keys(held).forEach(function(o){ for (var n = ownHeldCount(o); n > 0; n--) add(o, held[o].name); });
+  return order.map(function(o){
+    var b = by[o], name = b.name || ownName(o), c = b.clock;
+    if (c.length && !b.other) return name + '’s ' + c.join(' and ') + (c.length > 1 ? ' stay on this phone and go' : ' stays on this phone and goes') + ' when they sign in.';
+    if (c.length) return name + '’s ' + c.join(', ') + ' and other unsent work stay on this phone and go when they sign in.';
+    return name + '’s unsent work stays on this phone and goes when they sign in.';
+  });
+}
 /* The clock as the phone shows it meanwhile: running since it was made.
    `kept`, never `queued` — the API's own answer carries a `queued` field. */
 function cqOpen(it){ return { id: 'q:' + it.rid, job: it.job, code: it.code, startedAt: new Date(it.at).toISOString(), endedAt: null, minutes: 0, notes: '', kept: true }; }
@@ -5325,6 +5605,7 @@ function rollPersist(){ storeSet(ROLL_KEY, JSON.stringify(rollStore)); }
 function rollDay(jobId, date){ return rollStore[jobId + '|' + (date || isoLocal())] || null; }
 function rollSet(jobId, field, val){
   var k = jobId + '|' + isoLocal(), d = rollStore[k] || (rollStore[k] = {});
+  ownStamp(d);
   d[field] = val; rollPersist();
 }
 /* Day n of the stay, the board's way: day 1 is the first day whatever day it
@@ -5478,6 +5759,7 @@ function rollForgot(jobId){
   if (!x) return;
   var k = jobId + '|' + isoLocal(), d = rollStore[k] || (rollStore[k] = {});
   if (d.forgot) return;
+  ownStamp(d);
   d.forgot = { args: [jobId, jobLabelOf(x.v), x.miss.map(function(m){ return m.label; })], rid: newRid(), tries: 0 };
   rollPersist();
   rollFlush();
@@ -5851,6 +6133,7 @@ function idbPut(item){ return idb().then(function(db){ db.transaction('q','readw
 function idbDel(id){ return idb().then(function(db){ db.transaction('q','readwrite').objectStore('q').delete(id); }); }
 
 function enqueueUpload(item){
+  ownStamp(item);   // whose photo this is (T2.37, audit D31)
   idbPut(item).then(function(){ S.queued++; render(); pump(); });
 }
 /* How many photos are waiting, from the phone's own store (T2.30). The
@@ -5859,9 +6142,11 @@ function enqueueUpload(item){
 function qCount(){ return idbAll().then(function(items){ qKeep(items); return items; }); }
 /* What the waiting list shows of each photo (T2.34): never the file. */
 function qKeep(items){
-  var mine = qMine(items);
+  var mine = qMine(items).filter(ownMine);
   S.queued = mine.length;
   S.qItems = mine.map(function(x){ return { id: x.id, tag: x.tag, at: x.at, jobId: x.jobId, waitRid: x.waitRid || '' }; });
+  // Another person's photos, kept for them (T2.37, audit D31): said, never sent.
+  S.qOthers = items.filter(function(x){ return !ownMine(x); }).map(function(x){ return { id: x.id, tag: x.tag, at: x.at, jobId: x.jobId, waitRid: x.waitRid || '', owner: ownOf(x), ownerName: x.ownerName || '' }; });
 }
 
 /* Each photo keeps its own tries (T2.30, D7). One that will not go used to
@@ -5908,6 +6193,8 @@ function pump(){
         // and never from this list, read before the clock-in may have landed:
         // landing stamps it with the entry, saves it again and runs the pump.
         if (item.waitRid) return;
+        // Another person's (T2.37, audit D31): theirs to send, when they sign in here.
+        if (!ownMine(item)) return;
         pumpCur = item.id;
         return sendOne(item).then(function(){
           if (qRetry[item.id]){ delete qRetry[item.id]; qRetrySave(); }
@@ -5922,7 +6209,7 @@ function pump(){
   }).catch(function(){}).then(function(){
     pumping = false; pumpCur = null;
     idbAll().then(function(rest){
-      S.queued = rest.length;
+      qKeep(rest);
       // A photo still marked pending with nothing left in the queue has no
       // upload behind it any more (an older build discarded refused uploads;
       // a phone can lose its store). Say so, rather than wait on it. A minute
@@ -5945,7 +6232,7 @@ function pump(){
       // A photo waiting on its clock-in is no reason to run again: the
       // clock-in landing runs the pump.
       var soon = Infinity;
-      rest.forEach(function(it){ if (it.waitRid) return; var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
+      rest.forEach(function(it){ if (it.waitRid || !ownMine(it)) return; var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
       if (soon < Infinity) pumpTimer = setTimeout(pump, Math.max(3000, soon - Date.now()));
       dlRetryPending();
     });
@@ -5978,6 +6265,7 @@ function qDiscard(id){
 var TAG_UI = { before: 'Start', during: 'During', after: 'End' };
 function openPhotoQ(){
   return qCount().then(function(items){
+    items = qMine(items).filter(ownMine);   // only the signed-in person's to retry or discard (T2.37)
     items.sort(function(a, b){ return (a.at || 0) - (b.at || 0); });
     S.pqItems = items.map(function(it){ return { id: it.id, at: it.at, tag: it.tag, jobId: it.jobId, waitRid: it.waitRid || '' }; });
     openSheet('photoQ');
@@ -6679,6 +6967,10 @@ esAdd({
   'Let go': 'Descartar',
   'Let go — it won’t be sent.': 'Descartado — no se va a mandar.'
 }); /* T2.36-ES */
+/* Another person's work kept on this phone (T2.37, audit D31). */
+esAdd({
+  'Goes when they sign in on this phone': 'Se envía cuando esa persona inicie sesión en este teléfono'
+}); /* T2.37-ES */
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
@@ -6820,6 +7112,7 @@ function dlTouch(jobId, date, info){
     e = dlStore[k] = { jobId:jobId, date:date, jobLabel:'', jobNum:'', cust:'', address:'', alongside:null, pm:'', reps:[],
                        story:'', lines:[], fields:{}, safety:null, alert:null, notes:[],
                        sent:null, wantSend:false, sending:false, err:'', prompt:false, activity:false, at:Date.now(), seq:0 };
+    ownStamp(e);
   }
   if (!e.lines) e.lines = [];
   if (!e.fields) e.fields = {};
@@ -7762,6 +8055,10 @@ function start(){
   // refused the old token, never starts a second copy of the app on top.
   if (S.started) return;
   S.started = true;
+  // Someone else signing in after the last person was signed out without a
+  // sign-out (T2.37, audit D31): what the last person left unsent is set
+  // aside for them, and the page starts again clean for this one.
+  if (ownHandover()) return;
   gateBusy(false);
   $('gate').classList.add('hidden');
   $('app').classList.remove('hidden');
@@ -8291,7 +8588,7 @@ try { coStore = JSON.parse(localStorage.getItem(CO_KEY) || '{"visits":{}}') || {
 function coPersist(){ storeSet(CO_KEY, JSON.stringify(coStore)); }
 function coVisit(jobId){
   var v = coStore.visits[jobId];
-  if (!v){ v = coStore.visits[jobId] = { answers: { inspection: {}, cleanup: {} }, notes: { inspection: '', cleanup: '' }, reports: [], photos: [], before: {}, after: {}, repairNote: {}, doneTasks: {}, sentAt: 0, startedAt: Date.now() }; coPersist(); }
+  if (!v){ v = coStore.visits[jobId] = ownStamp({ answers: { inspection: {}, cleanup: {} }, notes: { inspection: '', cleanup: '' }, reports: [], photos: [], before: {}, after: {}, repairNote: {}, doneTasks: {}, sentAt: 0, startedAt: Date.now() }); coPersist(); }
   v.reports = v.reports || []; v.photos = v.photos || []; v.before = v.before || {}; v.after = v.after || {}; v.repairNote = v.repairNote || {}; v.doneTasks = v.doneTasks || {};
   v.repairMore = v.repairMore || {}; v.repairEn = v.repairEn || {};
   // Can't finish today (T2.35, audit I10): the draft per repair, and what was sent.
@@ -9007,10 +9304,17 @@ function coObPutAll(items){
   }); });
 }
 function coEnqueue(items){
-  items.forEach(function(it){ it.seq = coNextSeq(); it.at = it.at || Date.now(); it.status = 'queued'; it.tries = 0; it.err = ''; });
+  items.forEach(function(it){ ownStamp(it); it.seq = coNextSeq(); it.at = it.at || Date.now(); it.status = 'queued'; it.tries = 0; it.err = ''; });
   return coObPutAll(items).then(coRefreshOutbox).then(coPump);
 }
-function coRefreshOutbox(){ return coObAll().then(function(items){ CO.outbox = items; coHealSending(); }); }
+function coRefreshOutbox(){ return coObAll().then(function(items){ coSplitOutbox(items); coHealSending(); }); }
+/* The signed-in person's items are the waiting list every screen reads; another
+   person's are kept apart, said on Waiting to send, never sent (T2.37, audit D31). */
+function coSplitOutbox(items){
+  CO.outbox = items.filter(ownMine);
+  CO.others = items.filter(function(it){ return !ownMine(it); });
+  return CO.outbox;
+}
 function coDiscard(id){ coObDel(id).then(coRefreshOutbox).then(coRender); }
 function coRetryNow(id){ coObAll().then(function(items){ var it = items.filter(function(x){ return x.id === id; })[0]; if (!it) return; it.status = 'queued'; it.tries = 0; it.next = 0; it.err = ''; return coObPut(it); }).then(coRefreshOutbox).then(function(){ CO.pumpFails = 0; coPump(); }); }
 /* Discard is offered on anything that has failed this often (T2.33, audit
@@ -9095,7 +9399,7 @@ function coPump(){
   clearTimeout(CO.pumpTimer);
   var landed = [], blocked = {}, signedOut = false, now = Date.now();
   coObAll().then(function(items){
-    CO.outbox = items;
+    items = coSplitOutbox(items);
     return items.reduce(function(chain, it){
       return chain.then(function(){
         if (signedOut || it.status === 'rejected' || blocked[it.jobId]) return;
@@ -10412,6 +10716,7 @@ $('copyDiagBtn').onclick = function(){
     'checks   ' + ckDiag(),
     'daylog   ' + dlDiag(),
     'photos   ' + S.queued + ' queued' + (function(){ var b = S.photos.filter(function(p){ return p.pending && p.err; })[0]; return b ? ' · ' + b.err : ''; })(),
+    'others   ' + ownDiagWords(),
     'config   apiUrl ' + (c.apiUrl ? 'set' : 'MISSING') + ', clientId ' + (c.clientId ? 'set' : 'MISSING') +
              ', fb.apiKey ' + (fb.apiKey ? 'set' : 'MISSING') + ', fb.projectId ' + (fb.projectId || 'MISSING') +
              ', vapidKey ' + (c.vapidKey ? String(c.vapidKey).length + ' chars' : 'MISSING'),

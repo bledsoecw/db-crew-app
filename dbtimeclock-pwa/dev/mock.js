@@ -25,8 +25,24 @@
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   // A phone that just signed out (T2.1) stays signed out across the reload the
   // sign-out ends on, so the gate can be seen; everything else boots signed in.
-  if (localStorage.getItem('dbtc_pick_account') !== '1')
+  // __MOCK_KEEP_AUTH (T2.37): a sign-in the test made stays across the reload
+  // a sign-in or a hand-over ends on, instead of Tyler B.'s coming back.
+  if (localStorage.getItem('dbtc_pick_account') !== '1' && !(window.__MOCK_KEEP_AUTH && localStorage.getItem('dbtc_auth')))
     localStorage.setItem('dbtc_auth', JSON.stringify({ token: 'h.' + payload + '.s', exp: 4102444800 }));
+  // __MOCK_PEOPLE_TOKENS (T2.37, audit D31): the API answers for whoever the
+  // token names — getBoot's person, exchangeSession's session — and every call
+  // is logged with that email in sessionStorage.mock_calls, which outlives the
+  // page's reloads, so a test can say whose sign-in each write went under.
+  var DEFAULT_EMAIL = 'tyler.b@deitemeyerbrothers.com', CUR_EMAIL = DEFAULT_EMAIL;
+  function tokEmail(t) {
+    try { return String(JSON.parse(atob(String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).email || '').toLowerCase(); } catch (e) { return ''; }
+  }
+  function mockToken(email, iss) {
+    return 'h.' + btoa(JSON.stringify({ email: email, iss: iss || 'dbtc-session', exp: 4102444800 })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') + '.s';
+  }
+  window.__mockToken = mockToken;
+  var NAMES = { 'tyler.b@deitemeyerbrothers.com': 'Tyler B.', 'kentonmccomas@gmail.com': 'Kenton McComas', 'tylermohr94@gmail.com': 'Tyler Mohr',
+                'alberto@deitemeyerbrothers.com': 'Alberto Gonzalez', 'zac@deitemeyerbrothers.com': 'Zac Deitemeyer' };
 
   var JOB = {
     id: 'j_2841', name: '260890 Webster_Foundation', number: '26-0890',
@@ -427,7 +443,8 @@
       // service · ops. The default is a site manager, which is what every
       // test and screenshot before T2.0 assumed (Tyler has the Day log).
       var appRole = window.__MOCK_ROLE || 'siteManager';
-      var who = FX.who && FX.who[appRole] ? FX.who[appRole]
+      var who = window.__MOCK_PEOPLE_TOKENS && CUR_EMAIL && CUR_EMAIL !== DEFAULT_EMAIL ? { email: CUR_EMAIL, name: NAMES[CUR_EMAIL] || CUR_EMAIL }
+              : FX.who && FX.who[appRole] ? FX.who[appRole]
               : appRole === 'service' ? { email: 'alberto@deitemeyerbrothers.com', name: 'Alberto Gonzalez' }
               : appRole === 'ops' ? { email: 'operations@deitemeyerbrothers.com', name: 'Operations' }
               : { email: 'tyler.b@deitemeyerbrothers.com', name: 'Tyler B.' };
@@ -899,7 +916,7 @@
       return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 4 } };
     },
     markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
-    exchangeSession: function () { return { token: 'h.' + payload + '.s', exp: 4102444800 }; },
+    exchangeSession: function () { return { token: window.__MOCK_PEOPLE_TOKENS && CUR_EMAIL ? mockToken(CUR_EMAIL) : 'h.' + payload + '.s', exp: 4102444800 }; },
 
     // ---- Close Out (T2.0): Code.gs forwards to the DB CheckOut server and
     // hands its answer back as { status, body, reason }. The fixtures are
@@ -1071,6 +1088,14 @@
       var body = JSON.parse((opts && opts.body) || '{}');
       if (window.__MOCK_NONET) return noNet();
       __TOKENS.push({ fn: body.fn, t: body.t });
+      CUR_EMAIL = tokEmail(body.t) || DEFAULT_EMAIL;
+      if (window.__MOCK_PEOPLE_TOKENS) {
+        try {
+          var log = JSON.parse(sessionStorage.getItem('mock_calls') || '[]'), a0 = (body.args || [])[0];
+          log.push([body.fn, tokEmail(body.t), typeof a0 === 'string' ? a0.slice(0, 60) : '']);
+          sessionStorage.setItem('mock_calls', JSON.stringify(log));
+        } catch (e) {}
+      }
       __RIDS.push([body.fn, body.rid || null]);
       if (body.rid && RID_SEEN[body.rid]) {
         var again = JSON.stringify(Object.assign({}, RID_SEEN[body.rid], { repeat: true }));

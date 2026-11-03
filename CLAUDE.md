@@ -975,3 +975,68 @@ regeneration, Linux only.
   01:30Z. **The live files carry Windows line endings** (CRLF, from Carl's
   checkout): a raw byte compare reads every file as different, so compare
   with the `\r` taken out, as `check-build.mjs` does.
+
+## T2.37 (3 Nov 2026) — whose work is waiting on a shared phone (audit D31), what the README does not say
+
+- **Two mechanisms, chosen by the store's shape.** The stores keyed by a
+  list, a job or a day (`OWN_STORES`: `ckStore`, `prStore`, `dlStore`,
+  `rollStore`, `coStore.visits`) can hold one entry per key, so another
+  person's entries are moved out whole into `held` (`dbtc_held`, by email)
+  and every screen, count and sender reads only the signed-in person's. The
+  queues keyed by item (IndexedDB `q` and `co`) and `clockQ` stay in place
+  and are read by owner (`ownMine`): `CO.outbox` is the signed-in person's
+  only (`coSplitOutbox`; `CO.others` holds the rest), `S.qItems` / `S.queued`
+  the same (`S.qOthers` the rest). A new store keyed by job or day must join
+  `OWN_STORES` with its `keep` and `rest`, and anything new that waits must
+  call `ownStamp` where it is made (`ckEntry`, `prTouch`, `dlTouch`,
+  `rollSet`, `rollForgot`, `coVisit`, `enqueueUpload`, `coEnqueue`;
+  `startKept` has stamped clock-ins since T2.33) — or it goes as whoever is
+  signed in.
+- **`ownHandover()` runs first in `start()`.** `me` is the token's email;
+  `last` is `dbtc_who`, the token's email written at the previous start —
+  never the API's profile, because a plain reload must never read as somebody
+  else (the mock signs a service-role phone in with Tyler B.'s token and
+  answers Alberto as the profile; comparing with `dbtc_me` broke
+  closeout-test's reopen-where-you-were on the first cut). `dbtc_me` stands in
+  only on a phone from before T2.37, which has no `dbtc_who`. `myEmail()`
+  now reads the token first for the same reason: the token is who the API
+  acts as, so it is whose the work is. Different: every entry
+  worth keeping goes into `held` (the new person's own too, to come back),
+  `ownWipeKept` removes every `dbtc_*` key except `OWN_KEEP_KEYS` (the new
+  sign-in, `held`, `clockQ`, the Close Out sequence, the photo tries), and
+  the page reloads once the IndexedDB owners are written — the in-memory
+  stores were loaded at parse time and still hold the last person's. After
+  the reload `dbtc_me` is gone, so the routine path runs: others' entries
+  aside (normally none), the signed-in person's back (`ownRestore`), and
+  `dbtc_who` written.
+- **`OWN.frozen`**: `authRefused` sets it, and `apiCall` then rejects every
+  call but `exchangeSession` as `e.auth` (every lane waits, uncounted). Without
+  it, the same-page sign-in (the gate that came up over the app) stores the new
+  token while the old page's timers and its `pagehide` flush still hold the
+  last person's work. The page always reloads after that sign-in.
+- **Work saved before T2.37 is adopted once** (`ownAdopt`): for `last`, else
+  `me` — on an upgrading phone that is `dbtc_me`, the last profile it kept. A start photo takes its clock-in's owner. T2.33's rule (an ownerless
+  kept clock-in counts as whoever is signed in) is now only the in-memory
+  fallback before the adoption is written.
+- **`wipePhoneState` keeps** `held`, others' `clockQ` items, IndexedDB items
+  not the leaving person's, and the Close Out photos those items or `held`
+  visits reference (a plain `indexOf` of the photo id in `held`'s JSON — ids
+  are `uid()` strings).
+- **`held` is a sixth waiting state** (after the five of T2.34): `WAIT_ORDER.held` is last,
+  words *Waiting for {name}* (the T2.33 key), hint *Goes when they sign in on
+  this phone*. T2.33's other-person clock rows moved from `signin` to `held`
+  with the same words. Their drafts (a day log not sent, an inspection in
+  progress) are set aside but not listed — they are not waiting to send.
+- **The mock grew switches**: `__MOCK_KEEP_AUTH` (a sign-in the test made
+  survives the reloads), `__MOCK_PEOPLE_TOKENS` (getBoot answers for the
+  token's email, `exchangeSession` mints for it, and every call is logged as
+  `[fn, email]` in `sessionStorage.mock_calls`, which outlives reloads), and
+  `window.__mockToken(email, iss)`. A phone that never opens Close Out never
+  starts the mock's `window.__CO`, so a test that sends a Close Out item there
+  sets `window.__CO=[]` first, or the mock's handler throws.
+- **Not done on purpose**: nobody can let go of another person's held work —
+  if they never sign in on that phone again it stays there (the Waiting card
+  and Diagnostics say whose); letting the office or Operations release it is
+  Carl's call. The roll-out notice's half-landed comment (T2.33's note) is
+  still open. `Code.gs` changed only its build label. The training videos:
+  Carl's "Do not recreate videos yet" stands.
