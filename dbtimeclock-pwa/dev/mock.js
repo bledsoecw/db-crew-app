@@ -667,11 +667,18 @@
     // waited. __MOCK_QREFUSE refuses it: words alone (a reason the phone has
     // no name for), or { why, at } as Code.gs sends it beside its words;
     // `open: true` also puts them on the clock at `at`, as the office did.
-    __queued: function (opts, jobId, costItemId) {
+    // T2.38 (audit I17): the change of code, the drive and the clock-out are
+    // kept too (`kind`: change, drive, out), each with its own note, and none
+    // may land under a block that began after it — Code.gs's own refusals.
+    __queued: function (opts, jobId, costItemId, kind) {
       var qd = opts && opts.queued;
       if (!qd) return null;
-      (window.__QUEUED = window.__QUEUED || []).push({ jobId: jobId, costItemId: costItemId, at: qd.at, sentAt: qd.sentAt });
+      kind = kind || 'in';
+      var noun = { in: 'clock-in', change: 'change', drive: 'drive', out: 'clock-out' }[kind] || 'clock-in';
+      (window.__QUEUED = window.__QUEUED || []).push({ jobId: jobId, costItemId: costItemId, at: qd.at, sentAt: qd.sentAt, kind: kind });
+      // __MOCK_QREFUSE_ONCE (T2.38): the same, for the next kept write only.
       var qr = window.__MOCK_QREFUSE;
+      if (!qr && window.__MOCK_QREFUSE_ONCE) { qr = window.__MOCK_QREFUSE_ONCE; window.__MOCK_QREFUSE_ONCE = null; }
       if (qr && typeof qr === 'object') {
         if (qr.open && qr.at && !(ST.open && ST.open.startedAt === new Date(qr.at).toISOString())) HANDLERS.__open(jobId, costItemId, 'Put on the clock by the office', Date.parse(qr.at));
         var said = qr.at ? new Date(qr.at).toLocaleTimeString() : '';
@@ -682,16 +689,32 @@
       }
       if (qr) throw new Error(String(qr));
       var waited = Number(qd.sentAt) - Number(qd.at);
-      if (!(waited >= 0)) { var ce = new Error('The phone’s clock changed while that clock-in waited.'); ce.refuse = { why: 'clock' }; throw ce; }
+      if (!(waited >= 0)) { var ce = new Error('The phone’s clock changed while that ' + noun + ' waited.'); ce.refuse = { why: 'clock' }; throw ce; }
+      if (waited > 16 * 3600e3) { var oe = new Error('That ' + noun + ' waited on the phone over 16 hours.'); oe.refuse = { why: 'old' }; throw oe; }
       var start = Date.now() - waited;
+      var said = { in: 'Clocked in', change: 'Started', drive: 'Started the drive', out: 'Clocked out' }[kind] || 'Clocked in';
+      var note = said + ' with no signal at ' + new Date(start).toLocaleTimeString() + ' — sent from DB Crew.';
+      if (kind === 'out') {
+        // Never before the block began, unless it is the block a break planned.
+        if (ST.open && Date.parse(ST.open.startedAt) >= start && !(Date.parse(ST.open.startedAt) > Date.now() || ST.brkId === ST.open.id)) HANDLERS.__since(ST.open.startedAt, noun);
+        return { start: start, waited: waited, note: note };
+      }
       if (ST.open && ST.open.job && ST.open.job.id === jobId && ST.open.code && ST.open.code.id === costItemId && Math.abs(Date.parse(ST.open.startedAt) - start) <= 300000) return { already: ST.open };
-      return { start: start, waited: waited, note: 'Clocked in with no signal at ' + new Date(start).toLocaleTimeString() + ' — sent from DB Crew.' };
+      if (ST.open && Date.parse(ST.open.startedAt) <= Date.now() && Date.parse(ST.open.startedAt) > start) HANDLERS.__since(ST.open.startedAt, noun);
+      return { start: start, waited: waited, note: note };
+    },
+    __since: function (at, noun) {
+      var se = new Error('You were put on the clock at ' + new Date(at).toLocaleTimeString() + ' while that ' + noun + ' waited.');
+      se.refuse = { why: 'since', at: at };
+      throw se;
     },
     // T2.33: a block still open from a day before ends only at a stated time
     // (leftSite), as Code.gs refuses every other write that would close it.
-    __stale: function () {
+    // T2.38: judged against the moment of the write — a change kept the
+    // evening the block began closes it that evening.
+    __stale: function (atMs) {
       if (!ST.open || Date.parse(ST.open.startedAt) > Date.now()) return;
-      var today = new Date(); today.setHours(0, 0, 0, 0);
+      var today = new Date(atMs || Date.now()); today.setHours(0, 0, 0, 0);
       if (Date.parse(ST.open.startedAt) >= today.getTime()) return;
       var e = new Error('STALE_OPEN: You are still on the clock from a day before. Say when you left that day first.');
       e.stale = { startedAt: ST.open.startedAt, jobId: ST.open.job && ST.open.job.id };
@@ -699,7 +722,7 @@
     },
     __notOn: function () { var e = new Error('NOT_ON_CLOCK: You are not on the clock any more — it was ended elsewhere. Clock in to start again.'); e.notOn = true; return e; },
     __open: function (jobId, costItemId, notes, startMs) {
-      HANDLERS.__stale();
+      HANDLERS.__stale(startMs);
       HANDLERS.__dropPlanned();
       var at = new Date(startMs || Date.now()).toISOString();
       if (ST.open) ST.open.endedAt = at;
@@ -712,7 +735,7 @@
       // Nothing open and not a kept arrival: the clock ended elsewhere (T2.33).
       if (!ST.open && !(opts && opts.queued)) throw HANDLERS.__notOn();
       if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to start work at this job.');
-      var q = HANDLERS.__queued(opts, jobId, costItemId);
+      var q = HANDLERS.__queued(opts, jobId, costItemId, 'change');
       if (q && q.already) return q.already;
       var e = HANDLERS.__open(jobId, costItemId, [opts && opts.notes, q && q.note].filter(Boolean).join(' '), q ? q.start : 0);
       if (q) e.queued = { start: e.startedAt, waited: q.waited };
@@ -777,20 +800,36 @@
     __driving: function () { return !!(ST.open && Date.parse(ST.open.startedAt) <= Date.now() && ((ST.open.code && /travel/i.test(ST.open.code.name || '')) || /^(drive (to|back)|supply run)\b/i.test(ST.open.notes || ''))); },
     startTravel: function (jobId, costItemId, coords, endPhotoId, notes, opts) {
       (window.__CLOCK = window.__CLOCK || []).push(['startTravel', jobId, costItemId, endPhotoId || null, notes || '', !!(opts && opts.doneHere)]);
-      if (!ST.open) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');
+      // Kept with no signal (T2.38) it may open with nothing running, as Code.gs's does.
+      if (!ST.open && !(opts && opts.queued)) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');
       if (!endPhotoId && opts && opts.doneHere && HANDLERS.__endOwed()) throw new Error('PHOTO_REQUIRED: An end photo of the site is required when you leave it for the day.');
-      return HANDLERS.__open(jobId, costItemId, notes);
+      var q = HANDLERS.__queued(opts, jobId, costItemId, 'drive');
+      if (q && q.already) return q.already;
+      var e = HANDLERS.__open(jobId, costItemId, [notes, q && q.note].filter(Boolean).join(' · '), q ? q.start : 0);
+      if (q) e.queued = { start: e.startedAt, waited: q.waited };
+      return e;
     },
-    clockOut: function (coords, endPhotoId) {
+    clockOut: function (coords, endPhotoId, opts) {
       (window.__CLOCK = window.__CLOCK || []).push(['clockOut', endPhotoId || null]);
-      // Out from a break: the planned block goes, no photo (T2.13).
+      // Kept with no signal (T2.38): it ends the block when it was made.
+      var q = opts && opts.queued ? HANDLERS.__queued(opts, null, null, 'out') : null;
+      var at = q ? q.start : Date.now();
+      // Out from a break: the planned block goes, no photo (T2.13) — kept,
+      // also once that block has begun, when the clock-out was made before it.
+      if (q && ST.open && ST.brkId === ST.open.id && Date.parse(ST.open.startedAt) <= Date.now() && Date.parse(ST.open.startedAt) >= at) {
+        var gone = ST.open.id; ST.entries = ST.entries.filter(function (x) { return x.id !== gone; }); ST.open = null;
+        return { ok: true, closed: null, cancelled: gone, entries: ST.entries };
+      }
       if (HANDLERS.__dropPlanned()) return { ok: true, closed: null, entries: ST.entries };
       // Nothing open: said, not a clock-out (T2.33).
       if (!ST.open) return { ok: true, closed: null, notOn: true, entries: ST.entries };
-      HANDLERS.__stale();
+      HANDLERS.__stale(q ? at : 0);
       if (!endPhotoId && HANDLERS.__endOwed()) throw new Error('PHOTO_REQUIRED: An end photo is required to clock out.');
-      if (ST.open) ST.open.endedAt = new Date().toISOString();
+      var closedId = ST.open.id;
+      ST.open.endedAt = new Date(at).toISOString();
+      if (q) ST.open.notes = [ST.open.notes, q.note].filter(Boolean).join(' ');
       ST.open = null;
+      if (q) return { ok: true, closed: closedId, entries: ST.entries, queued: { end: new Date(at).toISOString(), waited: q.waited }, evening: window.__MOCK_AWAY_OUT ? { ok: false, where: 'about 12 miles from the shop on Monroe St', notice: (window.__MOCK_NOTICEFAIL ? { ok: false, error: 'JobTread did not answer' } : { ok: true }) } : { ok: true, at: 'the shop on Monroe St' } };
       // Out away from the shop and the office (T2.27): __MOCK_AWAY_OUT plays
       // the server telling the PM and the Ops Director; __MOCK_NOTICEFAIL the
       // comment to them failing (T2.33).
@@ -913,7 +952,7 @@
     // T2.30: what each system is running. A test sets __MOCK_BUILDS to try a
     // server behind the phone.
     getBuilds: function () {
-      return window.__MOCK_BUILDS || { api: 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 4 } };
+      return window.__MOCK_BUILDS || { api: window.__MOCK_API_BUILD || 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 4 } };
     },
     markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
     exchangeSession: function () { return { token: window.__MOCK_PEOPLE_TOKENS && CUR_EMAIL ? mockToken(CUR_EMAIL) : 'h.' + payload + '.s', exp: 4102444800 }; },

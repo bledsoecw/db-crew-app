@@ -1048,3 +1048,84 @@ regeneration, Linux only.
   report-only policy, and `check-build.mjs` against the live site says "T2.37
   is already live and app.js is unchanged". No board change; the board showed
   no runtime errors from 01:24Z to then.
+
+## T2.38 (3 Nov 2026) — a clock change kept behind a waiting one (audit I17), what the README does not say
+
+- **One chain, in the order it was made** (`cqChain()`: this person's kept
+  items not refused; `cqPending()`). The kinds are `in`, `switch` (`arrive`
+  true for an arrival — out of a drive, or onto another job — false for a code
+  change; one kept before T2.38 has neither and was an arrival, `cqKind`),
+  `travel` and `out`. `commitStart`, `commitTravel`, `commitOut`,
+  `doTravelOut` and `doBreakOut` keep when there is no signal OR anything is
+  pending, so nothing made later can overtake a change still on the phone —
+  including one made with signal while the one before it is on its way. Only
+  the first is ever sent (`cqSend`); `cqLanded` sends the next at once
+  (`next.next = 0`). A refused one does not stop the chain: what was made
+  after it stands on its own, at its own moment.
+- **`cqOverlay` shows the last change**, off the clock after an `out`, and
+  takes the job of the last change that is not an `out` — after a clock-out
+  the job is the person's to pick again. `cqOverlay(true)` (after When did you
+  leave?) takes it whatever the kind. Boot and `clockReread` do not take
+  JobTread's job while anything is pending (`cqTakesJob()`), except while one
+  waits on a block from a day before, which is the job that question is
+  about. t238-test proves the re-read line matters: put the old one back and
+  two of its checks fail.
+- **End photos wait on the change that opened their block** (`endPhotoOf`:
+  `waitRid` = `S.open.id` without its `q:`), so Webster's end photo goes with
+  the code-change block, never the clock-in's. A photo written while its
+  change was landing would have waited for good (the release had already
+  walked the store): the pump stamps it from `CQ_DONE` (the page's own record
+  of what each change landed as) and saves it again rather than send that copy.
+- **The server judges "a day before" at the write's own moment**
+  (`staleOpen_(open, atMs)`): a change kept the evening the block began, sent
+  the next morning, closes it that evening; a clock-out kept this afternoon
+  under a block left open overnight is still asked about. A kept clock-out
+  still needs its end photo (a refused one says to check the clock); the
+  block a break planned goes when the clock-out was made before it began
+  (`plannedBreak`), even once JobTread has started it; a kept drive may open
+  with nothing running, as a kept arrival may.
+- **The wait is counted back from the API's own clock**, so a request held in
+  flight lands late by however long it was held. t238-test measured it (a
+  request held five minutes put the clock-in at 7:07 for 7:02); a real one
+  gives up after 25 seconds, which is the most it can be off by.
+- **The gate**: `cqKeepsAll()` — the API's build (`S.builds.api`, else
+  `me.build`, else the remembered `meSeen`) at T2.38 or later; an API the
+  phone has not heard from is taken as current, because the phones get T2.38
+  only after the Apps Script does. Below it the phone keeps no drive or
+  clock-out and holds every move (`CQ_HOLDS_OLD`), as T2.31 did: an older
+  Apps Script ignores `queued` on `startTravel` and `clockOut` and would put
+  them at the moment they arrived — hours on the wrong side of the drive, with
+  nothing said.
+- **Today's hours read the kept blocks** (`dayEntries()`, the table only):
+  JobTread's block running when the first change was made ends there, and
+  each kept change runs to the next. Nothing that decides anything reads it —
+  `startPhotoOwed` has its own look at the chain (`workedHereToday`), and the
+  day log's hours do not count kept blocks yet.
+- **What still waits**: a break, Started earlier and Already left (`CQ_HOLDS`).
+  Each is checked against the entry itself, and a break kept with no signal
+  would need its own past-time door on the server (JobTread takes a break as
+  `endNow: { breakDuration }`, now or never) — whether to build one is a
+  payroll call for Carl, not assumed here. Already left is hidden on the
+  camera, the move sheet and the roll-out while changes wait.
+- **The codes of today's booked jobs are fetched behind the schedule**
+  (`assignPrefetchCodes`, six at most, the reads lane), so the drive to one
+  finds its travel line with no signal. A job never opened and not booked
+  today still needs signal to pick a code — measured, not fixed.
+- **The mock grew**: `__queued(opts, jobId, costItemId, kind)` with Code.gs's
+  `since` and `old` refusals and its notes, kept `startTravel` and
+  `clockOut`, `__stale(atMs)`, `__MOCK_QREFUSE_ONCE` (the next kept write
+  only), `__QUEUED` entries carry `kind`, and `getBuilds` answers
+  `__MOCK_API_BUILD`. `__RIDS` is the mock's own array: empty it in place
+  (`.length = 0`) — a test that replaces it reads an empty list for ever.
+- **Two traps for a test, both hit writing t238**: a read (`getStart`) waits
+  behind a write in flight on the `main` lane, so a test that holds a write's
+  request and then awaits a clock re-read deadlocks — `page.evaluate` has no
+  timeout of its own; and `apiCall` retries a dropped request by itself, so
+  dropping one fetch never leaves a change waiting — drop them until the
+  change has its first try counted. The suite runs on a page clock
+  (`page.clock.install`, then `setSystemTime` for each change) in an Ohio
+  `timezoneId`, so each change really is made hours after the last.
+- **A suite moved with the rule**: t231's *clocking out waits for it* became
+  *a break waits for it* — the rule, not a regression.
+- **The training videos are further out of date** (the clock-waiting sheet
+  lists the chain now). Carl's "Do not recreate videos yet" stands.

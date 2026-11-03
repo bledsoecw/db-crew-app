@@ -1745,6 +1745,103 @@ t('…no snapshot yet (no phone registered for push): nothing is written', props
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
 
+// ---- T2.38: a drive and a clock-out kept with no signal (audit I17) ----
+// Behind a kept clock-in, each change of the clock is kept with its own
+// moment and sent in order: the drive starts, and the block ends, when the
+// phone says — bounded and refused like a kept clock-in.
+{
+  props = { WRITE_ENABLED: 'true', OAUTH_CLIENT_ID: 'cid' }; cacheStore = {}; fetched = [];
+  let openNow = null, day = [], n = 0;
+  const made = [], closes = [], gone = [];
+  const entry = (id, startedAt, jobId, ci, notes) => ({ id, startedAt, endedAt: null, minutes: 0, notes: notes || '',
+    job: { id: jobId, name: '261490 Courtney_Roof', number: '26-1490', location: {} },
+    costItem: { id: ci, name: ci === 'tr9' ? 'Travel Related Labor' : 'Roofing', costCode: { number: ci === 'tr9' ? '01GR-9' : '07TM-1', name: 'x' } } });
+  const base = route({ member: MEMBER_ME, people: PEOPLE,
+    entries: (q) => { const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+      return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' ? (openNow ? [openNow] : []) : k === 'day' ? day.concat(openNow ? [openNow] : []) : [] } } }) }; } });
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.createTimeEntry) { const a = q.createTimeEntry.$, id = 'tk' + (++n); made.push(a); openNow = entry(id, a.startedAt, a.jobId, a.costItemId, a.notes);
+      return { code: 200, body: JSON.stringify({ createTimeEntry: { createdTimeEntry: { id } } }) }; }
+    if (q.updateTimeEntry) { const a = q.updateTimeEntry.$; closes.push(a);
+      if (openNow && openNow.id === a.id && a.endedAt) { day.push({ ...openNow, endedAt: a.endedAt, notes: a.notes || openNow.notes }); openNow = null; }
+      return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    if (q.deleteTimeEntry) { gone.push(q.deleteTimeEntry.$.id); if (openNow && openNow.id === q.deleteTimeEntry.$.id) openNow = null; return { code: 200, body: '{"deleteTimeEntry":{}}' }; }
+    if (q.createComment) return { code: 200, body: '{"createComment":{"createdComment":{"id":"c1"}}}' };
+    return base(url, opts); };
+  const reset = () => { made.length = 0; closes.length = 0; gone.length = 0; openNow = null; day = []; delete props['brk_u1']; };
+  const refusal = (fn) => { try { fn(); return null; } catch (e) { return [e.message, JSON.parse(JSON.stringify(e.refuse || null))]; } };
+  const ago = (min) => new Date(Date.now() - min * 60e3).toISOString();
+  const kept = (min) => ({ queued: { at: Date.now() - min * 60e3, sentAt: Date.now() } });
+
+  // The drive.
+  reset(); openNow = entry('tw1', ago(120), 'j9', 'ci1');
+  const d1 = sandbox.startTravel(ME, 'j1', 'tr9', null, 'ph_end', 'Drive to 26-1045 Lucas · from 26-1490 Courtney', Object.assign({ doneHere: true }, kept(60)));
+  t('I17: a drive made with no signal ends the work and starts the drive at that moment',
+    [closes[0].id, Math.abs(Date.parse(closes[0].endedAt) - (Date.now() - 60 * 60e3)) < 5000, made[0].startedAt === closes[0].endedAt, !!d1.queued], ['tw1', true, true, true]);
+  t('…and its notes say where to, then that it was kept',
+    /^Drive to 26-1045 Lucas · from 26-1490 Courtney · Started the drive with no signal at \d+:\d\d[ap] — sent from DB Crew at \d+:\d\d[ap]\.$/.test(made[0].notes), true);
+  reset();
+  const d2 = sandbox.startTravel(ME, 'j1', 'tr9', null, '', 'Drive to 26-1045 Lucas', kept(30));
+  t('…kept with nothing running (what came before it was refused, or ended by the office), it still opens the drive at its moment',
+    [made.length, Math.abs(Date.parse(made[0].startedAt) - (Date.now() - 30 * 60e3)) < 5000, !!d2.queued], [1, true, true]);
+  reset(); openNow = entry('tlater', ago(10), 'j9', 'ci1');
+  const dSince = refusal(() => sandbox.startTravel(ME, 'j1', 'tr9', null, '', 'Drive to 26-1045 Lucas', kept(30)));
+  t('…not under a block that began after it', [/while that drive waited\.$/.test(dSince[0]), dSince[1] && dSince[1].why, made.length + closes.length], [true, 'since', 0]);
+  t('…not when it waited over 16 hours', refusal(() => sandbox.startTravel(ME, 'j1', 'tr9', null, '', 'Drive to 26-1045 Lucas', kept(17 * 60))), ['That drive waited on the phone over 16 hours.', { why: 'old' }]);
+  t('…and a drive with signal still needs the clock running', /not on the clock/.test(refusal(() => { openNow = null; sandbox.startTravel(ME, 'j1', 'tr9', null, '', 'Drive to 26-1045 Lucas'); })[0]), true);
+
+  // A change of code or job, kept: the note says what it was.
+  reset(); openNow = entry('tw2', ago(90), 'j9', 'ci1');
+  sandbox.switchCode(ME, 'j9', 'ci2', null, '', '', kept(40));
+  t('…a kept change ends the block and starts the next at its moment, and its note says it started there with no signal',
+    [closes[0].id, made[0].startedAt === closes[0].endedAt, /^Started with no signal at \d+:\d\d[ap] — sent from DB Crew at \d+:\d\d[ap]\.$/.test(made[0].notes || '')], ['tw2', true, true]);
+
+  // The clock-out.
+  reset(); openNow = entry('tw3', ago(40), 'j9', 'ci1', 'Roof day');
+  const o1 = sandbox.clockOut(ME, null, 'ph_end', kept(25));
+  t('I17: a clock-out made with no signal ends the block at that moment, not when it arrived',
+    [o1.ok, o1.closed, Math.abs(Date.parse(closes[0].endedAt) - (Date.now() - 25 * 60e3)) < 5000, !!o1.queued, o1.queued && o1.queued.end === closes[0].endedAt], [true, 'tw3', true, true, true]);
+  t('…the block\'s own notes stay, and it says it was kept', /^Roof day Clocked out with no signal at \d+:\d\d[ap] — sent from DB Crew at \d+:\d\d[ap]\.$/.test(closes[0].notes || ''), true);
+  t('…its end photo is still asked for, as any clock-out of a site', /^PHOTO_REQUIRED/.test(refusal(() => { reset(); openNow = entry('tw4', ago(60), 'j9', 'ci1'); sandbox.clockOut(ME, null, '', kept(5)); })[0]), true);
+  reset(); openNow = entry('tw5', ago(10), 'j9', 'ci1');
+  const oSince = refusal(() => sandbox.clockOut(ME, null, 'ph_end', kept(30)));
+  t('…not over a block that began after it — the office put them on the clock', [/^You were put on the clock at \d+:\d\d[ap] while that clock-out waited\.$/.test(oSince[0]), oSince[1].why, closes.length], [true, 'since', 0]);
+  t('…not when it waited over 16 hours', refusal(() => sandbox.clockOut(ME, null, 'ph_end', kept(17 * 60))), ['That clock-out waited on the phone over 16 hours.', { why: 'old' }]);
+  t('…not without its time', refusal(() => sandbox.clockOut(ME, null, 'ph_end', { queued: { at: 0 } })), ['That clock-out came from the phone without its time.', { why: 'notime' }]);
+  reset();
+  const o2 = sandbox.clockOut(ME, null, 'ph_end', kept(20));
+  t('…with nothing running, the clock had already ended elsewhere: said, nothing written', [o2.ok, o2.notOn, o2.closed, closes.length], [true, true, null, 0]);
+  // A day before is judged at the write's own moment: made the evening the
+  // block began and sent the next morning, it is that block's end, the time
+  // T2.33 asks for; made today under a block left open since yesterday, it is
+  // not, and they are asked when they left.
+  const yday7 = sandbox.addDays_(sandbox.isoDay_(new Date()), -1) + 'T11:02:00.000Z';
+  t('…a block is from a day before only against the moment the write was made',
+    [sandbox.staleOpen_({ startedAt: yday7 }, Date.parse(yday7) + 9 * 3600e3), sandbox.staleOpen_({ startedAt: yday7 }, Date.now()), sandbox.staleOpen_({ startedAt: yday7 })],
+    [false, true, true]);
+  reset(); openNow = entry('tw6', yday7, 'j9', 'ci1');
+  let o3 = null; try { sandbox.clockOut(ME, null, 'ph_end', kept(1)); } catch (e) { o3 = e; }
+  t('…so a clock-out kept today, under a block open since yesterday, is asked about rather than ending a day and a half',
+    [!!o3 && /^STALE_OPEN/.test(o3.message), o3 && o3.stale && o3.stale.startedAt, closes.length], [true, yday7, 0]);
+  // Out from a break: the block JobTread planned after it goes.
+  reset(); openNow = entry('tplan', new Date(Date.now() + 10 * 60e3).toISOString(), 'j9', 'ci1');
+  const o4 = sandbox.clockOut(ME, null, '', kept(5));
+  t('…made during a break, the block planned after it goes, as a clock-out from a break always has', [o4.ok, o4.cancelled, gone, closes.length], [true, 'tplan', ['tplan'], 0]);
+  reset(); openNow = entry('tplan2', ago(5), 'j9', 'ci1'); props['brk_u1'] = JSON.stringify({ entryId: 'tplan2', until: Date.now() - 5 * 60e3, minutes: 30 });
+  const o5 = sandbox.clockOut(ME, null, '', kept(20));
+  t('…and when that block has started by the time it arrives but the clock-out was made before it, it goes too — never refused as the office\'s',
+    [o5.ok, o5.cancelled, gone], [true, 'tplan2', ['tplan2']]);
+  reset(); openNow = entry('tw7', ago(30), 'j9', 'ci1');
+  const o6 = sandbox.clockOut(ME, null, 'ph_end');
+  t('…and a clock-out with signal ends it now, as it always did', [o6.closed, Math.abs(Date.parse(closes[0].endedAt) - Date.now()) < 5000, closes[0].notes, o6.queued], ['tw7', true, undefined, undefined]);
+  reset(); openNow = entry('tw8', ago(60), 'j9', 'ci1');
+  const oPost = postR2('clockOut', [null, 'ph_end', kept(10)], 'rid-t238-0001');
+  const oPost2 = postR2('clockOut', [null, 'ph_end', kept(10)], 'rid-t238-0001');
+  t('…sent twice with one id it ends the block once, and the repeat gets the first answer', [oPost.ok, oPost2.ok, !!oPost2.repeat, closes.length], [true, true, true, 1]);
+  fetchImpl = () => ({ code: 200, body: '{}' });
+  function postR2(fn, args, rid) { return JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok', fn, args, rid }) } }).getContent()); }
+}
+
 // ---- T2.33: nothing ends a block from a day before but the time they left ----
 // (audit D21) A clock left running overnight is refused by every ordinary
 // write — clock-out, code change, break, drive, clock-in, a kept clock-in —

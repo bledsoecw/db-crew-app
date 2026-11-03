@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.37 (2026-11-03)';
+var APP_BUILD = 'T2.38 (2026-11-03)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -1226,17 +1226,17 @@ function waitItems(){
     var mine = cqMine(it);
     var st = !mine ? 'held' : it.inflight ? 'sending' : (it.refused || it.stale) ? 'you'
            : (signedOut || /sign in again/i.test(it.err || '')) ? 'signin' : (it.tries && it.next > now) ? 'retry' : 'saved';
-    push({ lane: 'clock', jobId: it.jobId || (it.job && it.job.id), what: Lf(it.kind === 'switch' ? 'Arrival {t}' : 'Clock-in {t}', { t: clockLabel(new Date(it.at)) }),
+    push({ lane: 'clock', jobId: it.jobId || (it.job && it.job.id), what: cqWords(it, 'what'),
            state: st, t: it.next, who: mine ? '' : (it.ownerName || L('Someone')),
            hint: !mine ? L('Goes when they sign in on this phone') : it.refused ? L('Tap to see why') : it.stale ? L('Say when you left the day before') : '',
-           go: !mine ? null : it.refused ? function(){ openSheet('clockq'); } : it.stale ? leftAsk : null });
+           go: !mine ? null : it.refused ? function(){ openSheet('clockq', 'no:' + it.rid); } : it.stale ? leftAsk : null });
   });
   (S.qItems || []).forEach(function(x){
     var r = qRetry[x.id];
     var st = pumpCur === x.id ? 'sending' : (r && r.tries >= PHOTO_STUCK_TRIES) ? 'you' : x.waitRid ? 'saved'
            : signedOut ? 'signin' : (r && r.next > now) ? 'retry' : 'saved';
     push({ lane: 'photos', jobId: x.jobId, what: photoWhat(x), state: st, t: r && r.next,
-           hint: x.waitRid ? L('Goes after its clock-in') : st === 'you' ? L('Tap to try again or discard') : '', go: st === 'you' ? openPhotoQ : null });
+           hint: x.waitRid ? photoWaitWords(x.waitRid) : st === 'you' ? L('Tap to try again or discard') : '', go: st === 'you' ? openPhotoQ : null });
   });
   // A refused save opens its list, where it can be let go (T2.36); one whose
   // list is no longer on this phone can only be let go, from here — or it
@@ -1464,6 +1464,8 @@ function renderClock(){
     $('bandCodeName').textContent = (S.open.code && S.open.code.name) || '';
     $('bandSub').textContent = startedBefore() ? Lf('Since {d}, {t} · on {j}’s travel line', { d: dayWords(new Date(S.open.startedAt)), t: clockLabel(S.open.startedAt), j: jobWord(S.job) })
       : Lf('Since {t} · on {j}’s travel line', { t: clockLabel(S.open.startedAt), j: jobWord(S.job) });
+    // Kept on the phone (T2.38): the drive runs, and says so.
+    if (S.open.kept) $('bandSub').textContent = Lf('Since {t} · saved on this phone', { t: clockLabel(S.open.startedAt) }) + ' · ' + cqStatusWords();
     var stale = leftOvernight();
     var rc = sup ? supplyReturn() : null;
     var coa = !stale && !sup && !back ? coArrival(S.job) : '';
@@ -1495,11 +1497,8 @@ function renderClock(){
                              ' · ' + Lf(n === 1 ? '{n} photo on this code' : '{n} photos on this code', { n: n });
   // Kept on the phone with no signal (T2.31): the clock runs, and says so.
   if (S.open.kept){
-    var qw = cqWaiting();
     $('band').querySelector('.lbl').textContent = L('On the clock · saved on this phone');
-    $('bandSub').textContent = Lf('Started {t}', { t: clockLabel(S.open.startedAt) }) + ' · ' +
-      (qw && qw.inflight ? L('Sending…') : !S.online ? L('Sends when there’s signal')
-       : qw && qw.tries && qw.next > Date.now() ? Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(qw.next) }) : L('Sends in a moment'));
+    $('bandSub').textContent = Lf('Started {t}', { t: clockLabel(S.open.startedAt) }) + ' · ' + cqStatusWords();
   }
   $('leaveLbl').textContent = L(atShop() ? 'Leave the shop' : 'Leave the site');
   // On the clock at a Close Out job (T2.27): one tap back into its work.
@@ -1522,10 +1521,32 @@ function renderClock(){
     : 'A start photo when you start here, an end photo when you leave for the day — nothing in between.');
 }
 
+/* Today's blocks as the day really went (T2.38, audit I17): JobTread's,
+   with what the phone still keeps laid over them — the block running when
+   the first kept change was made ends there, and each kept change runs to
+   the next. For the table only: nothing that decides anything reads it.
+   Not while one waits on a block from a day before, which is asked first. */
+function dayEntries(){
+  var c = cqChain();
+  if (!c.length || c.some(function(x){ return x.stale; })) return S.entries;
+  var first = c[0].at, out = [];
+  S.entries.forEach(function(e){
+    if (e.endedAt || Date.parse(e.startedAt) > first){ out.push(e); return; }
+    var cut = {}; for (var k in e) cut[k] = e[k];
+    cut.endedAt = new Date(first).toISOString();
+    out.push(cut);
+  });
+  c.forEach(function(x, i){
+    if (x.kind === 'out' || !x.code) return;
+    var nx = c[i + 1];
+    out.push({ id: 'q:' + x.rid, job: x.job, code: x.code, startedAt: new Date(x.at).toISOString(), endedAt: nx ? new Date(nx.at).toISOString() : null, kept: true });
+  });
+  return out;
+}
 function renderDay(){
   // Roll today's entries up by cost item; the open one counts live.
   var by = {}, order = [];
-  S.entries.forEach(function(e){
+  dayEntries().forEach(function(e){
     if (!e.code) return;
     var k = e.code.id;
     if (!by[k]) { by[k] = { code:e.code, sec:0, live:false }; order.push(k); }
@@ -1597,7 +1618,7 @@ function renderCam(){
   $('galLbl').textContent = L('From my photos');
   // Already left (T2.19): only for an end photo of work — a move, the drive,
   // the end of the day — never a code switch where you still stand.
-  var canLeave = !!gate && gate !== 'start' && !!S.open && !onTravel() && !onBreakNow() && (gate !== 'end-switch' || !!S.pendingJob);
+  var canLeave = !!gate && gate !== 'start' && !!S.open && !onTravel() && !onBreakNow() && (gate !== 'end-switch' || !!S.pendingJob) && !cqPending();
   $('leftBtn').classList.toggle('hidden', !canLeave);
   if (canLeave) $('leftLbl').textContent = Lf('Already left {p}? Say when — no photo', { p: pw(S.job) });
   $('camBack').classList.toggle('hidden', !gate);
@@ -1995,6 +2016,18 @@ function keepFresh(a, askedAt){
   saveAssign();
   ckReconcile(S.assign); prReconcile(S.assign);
   seedTodayJob();
+  assignPrefetchCodes();
+}
+/* The codes of today's booked jobs, fetched behind the schedule (T2.38,
+   audit I17): a move to one of them with no signal needs its travel line
+   and its codes on the phone. A handful, on the reads lane. */
+function assignPrefetchCodes(){
+  if (!S.online || !API_URL || !canTab('job')) return;
+  var today = isoLocal(), seen = {};
+  ((S.assign && S.assign.visits) || []).filter(function(v){
+    if (!v.jobId || seen[v.jobId] || !v.start || v.start > today || (v.end || v.start) < today || codesCached(v.jobId)) return false;
+    return (seen[v.jobId] = true);
+  }).slice(0, 6).forEach(function(v){ loadCodes(v.jobId, true).catch(function(){}); });
 }
 
 /* The code list, the recent-jobs picker and the foreman's crew block are all
@@ -3258,14 +3291,16 @@ function nudgeItems(){
   if (stuck && canTab('job') && S.writeEnabled !== false){
     items.push({ kind: 'photos', k: L('Photos'), at: Date.now(), text: stuck === 1 ? L('1 photo hasn’t sent — tap to see it') : Lf('{n} photos haven’t sent — tap to see them', { n: stuck }), go: openPhotoQ });
   }
-  // A clock-in kept on the phone (T2.31): waiting, or refused — said until it goes.
-  var cqw = cqWaiting(), cqr = cqRefused();
+  // A clock change kept on the phone (T2.31; every kind, T2.38): waiting,
+  // or refused — said until it goes.
+  var cqc = cqChain(), cqw = cqc[0] || null, cqr = cqRefused();
   // Somebody else's, kept on this phone before a sign-out (T2.33): it waits for them.
-  cqOthers().forEach(function(x){ if (canTab('job')) items.push({ kind: 'clockq', k: L('Clock-in'), at: x.at,
-    text: Lf('{name}’s {t} clock-in waits for them to sign in on this phone', { name: x.ownerName || L('Someone'), t: clockLabel(x.at) }), go: function(){} }); });
-  if (cqr && canTab('job')) items.push({ kind: 'clockq-no', k: L('Clock-in'), at: cqr.at, text: Lf('Your {t} clock-in wasn’t added — tap to see why', { t: clockLabel(cqr.at) }), go: function(){ openSheet('clockq'); } });
-  else if (cqw && cqw.stale && canTab('job')) items.push({ kind: 'clockq', k: L('Clock-in'), at: cqw.at, text: Lf('Your {t} clock-in goes once you say when you left the day before', { t: clockLabel(cqw.at) }), go: function(){ if (!overnightFirst()) openSheet('clockq'); } });
-  else if (cqw && canTab('job')) items.push({ kind: 'clockq', k: L('Clock-in'), at: cqw.at, text: Lf('Your {t} clock-in is on this phone — it goes when there’s signal', { t: clockLabel(cqw.at) }), go: function(){ openSheet('clockq'); } });
+  cqOthers().forEach(function(x){ if (canTab('job')) items.push({ kind: 'clockq', k: cqWords(x, 'kind'), at: x.at,
+    text: Lf(cqKind(x) === 'in' ? '{name}’s {t} clock-in waits for them to sign in on this phone' : '{name}’s {t} clock change waits for them to sign in on this phone', { name: x.ownerName || L('Someone'), t: clockLabel(x.at) }), go: function(){} }); });
+  if (cqr && canTab('job')) items.push({ kind: 'clockq-no', k: cqWords(cqr, 'kind'), at: cqr.at, text: cqWords(cqr, 'nudgeNo'), go: function(){ openSheet('clockq', 'no:' + cqr.rid); } });
+  if (cqw && cqw.stale && canTab('job')) items.push({ kind: 'clockq', k: cqWords(cqw, 'kind'), at: cqw.at, text: cqWords(cqw, 'stale'), go: function(){ if (!overnightFirst()) openSheet('clockq'); } });
+  else if (cqw && canTab('job')) items.push({ kind: 'clockq', k: cqc.length > 1 ? L('Clock changes') : cqWords(cqw, 'kind'), at: cqw.at,
+    text: cqc.length > 1 ? Lf('{n} clock changes since {t} are on this phone — they go in order when there’s signal', { n: cqc.length, t: clockLabel(cqw.at) }) : cqWords(cqw, 'nudge'), go: function(){ openSheet('clockq'); } });
   // Still on the clock from a day before (T2.19): first, above everything.
   if (canTab('job') && leftOvernight()){
     var b0 = new Date(S.open.startedAt);
@@ -3898,7 +3933,7 @@ function openSheet(kind, promptKind){
             : kind==='coWhy' ? co('whyTitle')
             : kind==='coPhoto' ? co('photoTitle')
             : kind==='photoQ' ? L('Photos waiting to send')
-            : kind==='clockq' ? L(cqWaiting() ? 'Clock-in not sent yet' : 'Clock-in not added')
+            : kind==='clockq' ? cqSheetTitle()
             : kind==='waiting' ? L('Waiting to send')
             : kind==='dest' ? L('Where are you going?')
             : kind==='left' ? L('When did you leave?')
@@ -4121,7 +4156,7 @@ function moveHowHtml(){
     (atShop() ? row('data-move="drive"', L('Driving there now'), Lf('The drive goes on {p}’s travel line', { p: there }), 'truck')
       : row('data-move="drive-later"', L('Driving there · back here later'), L('The drive · no photo — you’re coming back'), 'truck') +
         row('data-move="drive"', L('Driving there · done here today'), L(logRequired() ? 'Today’s log, the end photo, then the drive' : 'End photo, then the drive'), 'camera')) +
-    row('data-move="left"', Lf('Already there — I left {p} at…', { p: here }), L('Say when · no photo · your PM and the Ops Director are told'), 'chev') +
+    (cqPending() ? '' : row('data-move="left"', Lf('Already there — I left {p} at…', { p: here }), L('Say when · no photo · your PM and the Ops Director are told'), 'chev')) +
     row('data-move="wrong"', Lf('Wrong job — I was never at {p}', { p: here }), L('The clock moves here now'), 'chev') +
   '</div>';
 }
@@ -4462,7 +4497,9 @@ function beginStart(){
 function isWorkEntry(e){ return !!(e && e.job && Date.parse(e.startedAt) <= Date.now() && !isTravelCode(e.code) && !DRIVE_NOTES.test(e.notes || '')); }
 function workedHereToday(jobId){
   var today = isoLocal();
-  return (S.entries || []).some(function(e){ return e.job && e.job.id === jobId && isWorkEntry(e) && isoLocal(new Date(e.startedAt)) === today; });
+  return (S.entries || []).some(function(e){ return e.job && e.job.id === jobId && isWorkEntry(e) && isoLocal(new Date(e.startedAt)) === today; }) ||
+    // Work kept on the phone at that job today, not sent yet (T2.38).
+    cqChain().some(function(x){ return (x.kind === 'in' || x.kind === 'switch') && x.jobId === jobId && !isTravelCode(x.code) && isoLocal(new Date(x.at)) === today; });
 }
 function startPhotoOwed(job){
   if (!job) return true;
@@ -4872,7 +4909,8 @@ function ownOthersWords(){
     if (!b.name && name) b.name = name;
     if (clock) b.clock.push(clock); else b.other++;
   };
-  cqOthers().forEach(function(x){ add(x.owner, x.ownerName, clockLabel(x.at) + ' clock-in'); });
+  // Sign-out's words are English (the sign-in gate is not translated); each kind its noun (T2.38).
+  cqOthers().forEach(function(x){ var k = cqKind(x); add(x.owner, x.ownerName, clockLabel(x.at) + ' ' + (k === 'out' ? 'clock-out' : k === 'travel' ? 'drive' : k === 'code' ? 'code change' : k === 'arrive' ? 'arrival' : 'clock-in')); });
   var theirRids = cqNotMineRids();
   (S.qOthers || []).forEach(function(x){ if (!(x.waitRid && theirRids[x.waitRid])) add(x.owner, x.ownerName); });
   ((window.CO && CO.others) || []).forEach(function(it){ if (it.status !== 'rejected') add(ownOf(it), it.ownerName); });
@@ -4884,10 +4922,36 @@ function ownOthersWords(){
     return name + '’s unsent work stays on this phone and goes when they sign in.';
   });
 }
+/* Every change of the clock made while one is still on the phone goes
+   behind it (T2.38, audit I17): a code change, a move to another job, the
+   drive, the clock-out — each with its own moment, sent in the order it was
+   made. Before T2.38 they waited for signal instead, so leaving one job for
+   another with none could not be recorded at all. A break, Started earlier
+   and Already left still wait: each is checked against the entry itself. */
+function cqChain(){ return clockQ.filter(function(it){ return !it.refused && cqMine(it); }); }
+function cqPending(){ return cqChain().length > 0; }
 /* The clock as the phone shows it meanwhile: running since it was made.
    `kept`, never `queued` — the API's own answer carries a `queued` field. */
-function cqOpen(it){ return { id: 'q:' + it.rid, job: it.job, code: it.code, startedAt: new Date(it.at).toISOString(), endedAt: null, minutes: 0, notes: '', kept: true }; }
-function cqOverlay(){ var w = cqWaiting(); if (w && !w.stale) S.open = cqOpen(w); }
+function cqOpen(it){ return { id: 'q:' + it.rid, job: it.job, code: it.code, startedAt: new Date(it.at).toISOString(), endedAt: null, minutes: 0, notes: it.kind === 'travel' ? (it.notes || '') : '', kept: true }; }
+/* The last change kept is the clock the phone shows — off it, after a kept
+   clock-out — at the job it was made at. After a clock-out the job is the
+   person's to pick again, so it is set then only when asked (`withJob`:
+   back from a block from a day before, whose job the screen was showing).
+   Never over a block from a day before (T2.33): that one is asked about
+   first, on the block itself. */
+function cqOverlay(withJob){
+  var c = cqChain();
+  if (!c.length || c.some(function(x){ return x.stale; })) return;
+  var l = c[c.length - 1];
+  S.open = l.kind === 'out' ? null : cqOpen(l);
+  if ((withJob || l.kind !== 'out') && l.job && l.job.id && !(S.job && S.job.id === l.job.id)) S.job = l.job;
+}
+/* While changes wait on the phone, its job is theirs, not the one JobTread
+   last saw — except while one waits on a block from a day before, which is
+   the job the question is about. */
+function cqTakesJob(){ var c = cqChain(); return !c.length || c.some(function(x){ return x.stale; }); }
+/* A photo waiting on a kept change (T2.31, T2.38): which kind it waits on. */
+function photoWaitWords(rid){ var q = clockQ.filter(function(x){ return x.rid === rid; })[0]; return L(q && q.kind && q.kind !== 'in' ? 'Goes after its clock change' : 'Goes after its clock-in'); }
 /* A photo still marked for a clock-in the phone no longer holds goes as it is. */
 function cqOrphans(){
   return idbAll().then(function(items){
@@ -4899,14 +4963,56 @@ function cqOrphans(){
 /* No answer, or the API still at it, is kept; anything the API answered is shown. */
 function cqCanQueue(e){ return !!e && !e.auth && !e.readOnly && !e.noAccess && (!e.answered || !!e.busy); }
 function cqJobSnap(j){ return { id: j.id, number: j.number || '', name: j.name || '', customer: j.customer || '', address: j.address || '' }; }
-function cqCodeSnap(c){ return { id: c.id, number: c.number || '', name: c.name || '' }; }
-/* Kept: the clock runs on the phone, the photo waits for the entry. */
-function startKept(keep, item, rec, code, prev){
-  // Its own next try, on the outbox's backoff: a phone that still thinks it
-  // has signal (a bar, no data) never says "online" again.
+function cqCodeSnap(c){ return { id: c.id, number: c.number || '', name: c.name || '', travel: c.travel == null ? null : !!c.travel }; }
+/* What kind of change it was. A switch after a drive, or to another job, is
+   the arrival; on the same job, a change of code. One kept before T2.38
+   says neither and was an arrival — the only switch kept then. */
+function cqKind(it){ return it.kind === 'switch' ? (it.arrive === false ? 'code' : 'arrive') : (it.kind || 'in'); }
+/* Its words, each kind its own sentence (Spanish names each differently). */
+function cqWords(it, form){
+  var k = cqKind(it), t = { t: clockLabel(new Date(it.at)) };
+  if (form === 'what') return Lf(k === 'out' ? 'Clock-out {t}' : k === 'travel' ? 'Drive {t}' : k === 'code' ? 'Code change {t}' : k === 'arrive' ? 'Arrival {t}' : 'Clock-in {t}', t);
+  if (form === 'kept') return Lf(k === 'out' ? 'No signal — your {t} clock-out is saved on this phone and goes when there’s signal'
+    : k === 'travel' ? 'No signal — your {t} drive is saved on this phone and goes when there’s signal'
+    : k === 'code' ? 'No signal — your {t} code change is saved on this phone and goes when there’s signal'
+    : k === 'arrive' ? 'No signal — your {t} arrival is saved on this phone and goes when there’s signal'
+    : 'No signal — your {t} clock-in is saved on this phone and goes when there’s signal', t);
+  if (form === 'landed') return Lf(k === 'out' ? 'Your {t} clock-out has reached JobTread' : k === 'travel' ? 'Your {t} drive has reached JobTread'
+    : k === 'code' ? 'Your {t} code change has reached JobTread' : k === 'arrive' ? 'Your {t} arrival has reached JobTread' : 'Your {t} clock-in has reached JobTread', t);
+  if (form === 'no') return Lf(k === 'out' ? 'Your {t} clock-out wasn’t added — tap the notice to see why' : k === 'travel' ? 'Your {t} drive wasn’t added — tap the notice to see why'
+    : k === 'code' ? 'Your {t} code change wasn’t added — tap the notice to see why' : k === 'arrive' ? 'Your {t} arrival wasn’t added — tap the notice to see why'
+    : 'Your {t} clock-in wasn’t added — tap the notice to see why', t);
+  if (form === 'nudgeNo') return Lf(k === 'out' ? 'Your {t} clock-out wasn’t added — tap to see why' : k === 'travel' ? 'Your {t} drive wasn’t added — tap to see why'
+    : k === 'code' ? 'Your {t} code change wasn’t added — tap to see why' : k === 'arrive' ? 'Your {t} arrival wasn’t added — tap to see why'
+    : 'Your {t} clock-in wasn’t added — tap to see why', t);
+  if (form === 'nudge') return Lf(k === 'out' ? 'Your {t} clock-out is on this phone — it goes when there’s signal' : k === 'travel' ? 'Your {t} drive is on this phone — it goes when there’s signal'
+    : k === 'code' ? 'Your {t} code change is on this phone — it goes when there’s signal' : k === 'arrive' ? 'Your {t} arrival is on this phone — it goes when there’s signal'
+    : 'Your {t} clock-in is on this phone — it goes when there’s signal', t);
+  if (form === 'stale') return Lf(k === 'in' ? 'Your {t} clock-in goes once you say when you left the day before' : 'Your clock changes go once you say when you left the day before', t);
+  if (form === 'kind') return L(k === 'out' ? 'Clock-out' : k === 'travel' ? 'Drive' : k === 'code' ? 'Code change' : k === 'arrive' ? 'Arrival' : 'Clock-in');
+  if (form === 'unsent') return L(k === 'out' ? 'Clock-out not sent yet' : k === 'travel' ? 'Drive not sent yet' : k === 'code' ? 'Code change not sent' : k === 'arrive' ? 'Arrival not sent yet' : 'Clock-in not sent yet');
+  if (form === 'notAdded') return L(k === 'out' ? 'Clock-out not added' : k === 'travel' ? 'Drive not added' : k === 'code' ? 'Code change not added' : k === 'arrive' ? 'Arrival not added' : 'Clock-in not added');
+  // The line on the sheet: when, and what it was.
+  var a = { t: t.t, code: codeLabel(it.code), p: pw(it.job) };
+  if (k === 'out') return Lf('{t} · Clock out', a);
+  if (k === 'code') return Lf('{t} · Change to {code}', a);
+  if (k === 'arrive') return Lf('{t} · Start at {p} · {code}', a);
+  if (k === 'travel') return it.back ? Lf('{t} · The drive back', a) : it.supply ? Lf('{t} · Supply run · {p}', a) : Lf('{t} · The drive to {p}', a);
+  return Lf('{t} · {code} at {p}', a);
+}
+/* Kept: its own next try, on the outbox's backoff — a phone that still
+   thinks it has signal (a bar, no data) never says "online" again — and
+   whose it is. One behind another goes as soon as that one has. */
+function cqKeep(keep){
   keep.tries = keep.tries || 0; keep.next = Date.now() + obRetryMs(1);
   keep.owner = myEmail(); keep.ownerName = (S.me && S.me.name) || '';
+  var behind = cqPending();
   clockQ.push(keep); cqPersist();
+  toast(behind && S.online ? L('Saved on this phone — it goes once the change before it has') : cqWords(keep, 'kept'));
+}
+/* Kept: the clock runs on the phone, the photo waits for the entry. */
+function startKept(keep, item, rec, code, prev){
+  cqKeep(keep);
   S.open = cqOpen(keep);
   if (item){
     item.entryId = ''; item.codeLabel = codeLabel(code); item.waitRid = keep.rid;
@@ -4923,7 +5029,6 @@ function startKept(keep, item, rec, code, prev){
   S.rollPending = null;
   savePrefs();
   if (item) enqueueUpload(item);
-  toast(Lf('No signal — your {t} clock-in is saved on this phone and goes when there’s signal', { t: clockLabel(keep.at) }));
   render();
   cqSchedule();
 }
@@ -4939,8 +5044,9 @@ function cqSend(){
   // How long it waited is counted to the moment it leaves, not to when it
   // joined the lane (a boot call retrying ahead of it is seconds).
   var co = { rid: it.rid, partner: !!it.partner, beforeSend: function(){ opts.queued.sentAt = Date.now(); } };
-  var call = it.kind === 'switch'
-    ? apiCall('switchCode', [it.jobId, it.costItemId, it.coords || null, it.endPhotoId || '', it.startPhotoId || '', opts], co)
+  var call = it.kind === 'switch' ? apiCall('switchCode', [it.jobId, it.costItemId, it.coords || null, it.endPhotoId || '', it.startPhotoId || '', opts], co)
+    : it.kind === 'travel' ? apiCall('startTravel', [it.jobId, it.costItemId, it.coords || null, it.endPhotoId || '', it.notes || '', opts], co)
+    : it.kind === 'out' ? apiCall('clockOut', [it.coords || null, it.endPhotoId || '', opts], co)
     : apiCall('clockIn', [it.jobId, it.costItemId, it.coords || null, it.startPhotoId || '', opts], co);
   return call.then(function(open){ it.inflight = false; cqLanded(it, open); }, function(e){ cqFailed(it, e); });
 }
@@ -4949,15 +5055,34 @@ function cqSchedule(){
   var it = cqWaiting();
   if (it && it.next) cqTimer = setTimeout(cqSend, Math.max(3000, it.next - Date.now()));
 }
-function cqLanded(it, open){
+/* How many went in a row, for the one receipt when the last has gone — and a
+   place notice one of them brought back (clocked in, or out, away from the
+   shop and the office: the PM and the Ops Director were told), which the
+   receipt says instead. */
+var CQ_RUN = { n: 0, place: null };
+function cqLanded(it, r){
   clockQ = clockQ.filter(function(x){ return x.rid !== it.rid; }); cqPersist();
-  if (open && (!S.open || S.open.kept)) S.open = open;
+  var out = it.kind === 'out', open = out ? null : r, next = cqWaiting();
+  if (out && r && r.entries) S.entries = r.entries;
+  // More behind it: the phone's clock is still the last of them.
+  if (next) cqOverlay();
+  else if (!S.open || S.open.kept) S.open = open;
+  if (out && !S.open){ S.brk = null; S.onBreak = null; }
   cqReleasePhoto(it.rid, open);
-  if (open) placeCheckToast(open.morning, false);
+  CQ_DONE[it.rid] = { id: open && open.id ? open.id : '', code: open ? open.code : null };
   if (it.rollForgot) rollForgot(it.rollForgot);
-  toast(Lf('Your {t} clock-in has reached JobTread', { t: clockLabel(it.at) }));
+  CQ_RUN.n++;
+  var ev = out && r && r.evening, mo = it.kind === 'in' && open && open.morning;
+  if (ev && ev.ok === false && !ev.quiet) CQ_RUN.place = { m: ev, out: true };
+  else if (mo && mo.ok === false && !mo.quiet) CQ_RUN.place = { m: mo, out: false };
+  if (!next){
+    if (CQ_RUN.place) placeCheckToast(CQ_RUN.place.m, CQ_RUN.place.out);
+    else toast(CQ_RUN.n > 1 ? Lf('Your {n} clock changes have reached JobTread', { n: CQ_RUN.n }) : cqWords(it, 'landed'));
+    CQ_RUN.n = 0; CQ_RUN.place = null;
+  }
   savePrefs(); enablePush(); refreshDayLater(); render();
-  if (S.sheet === 'clockq') closeSheet();
+  if (next){ next.next = 0; cqSend(); if (S.sheet === 'clockq') openSheet('clockq'); }
+  else if (S.sheet === 'clockq') closeSheet();
 }
 function cqFailed(it, e){
   it.inflight = false;
@@ -4977,14 +5102,22 @@ function cqFailed(it, e){
     return;
   }
   // Refused: the phone said they were on the clock, and they are not —
-  // what the API does have is read again, and the reason is said.
+  // what the API does have is read again, and the reason is said. Anything
+  // kept behind it still goes, each at its own moment (T2.38): it was made
+  // after this one, and stands on its own.
   it.refused = true; it.refuse = (e && e.refuse) || null; cqPersist();
+  CQ_RUN.n = 0; CQ_RUN.place = null;
   if (S.open && S.open.id === 'q:' + it.rid) S.open = null;
-  apiCall('getStart', [(S.job && S.job.id) || null]).then(function(d){ if (d){ S.open = d.open; S.entries = d.entries || S.entries; } render(); }).catch(function(){});
-  toast(Lf('Your {t} clock-in wasn’t added — tap the notice to see why', { t: clockLabel(it.at) }), true);
+  var next = cqWaiting();
+  if (next){ cqOverlay(); next.next = 0; cqSend(); }
+  else apiCall('getStart', [(S.job && S.job.id) || null]).then(function(d){ if (d && !cqPending()){ S.open = d.open; S.entries = d.entries || S.entries; } render(); }).catch(function(){});
+  toast(cqWords(it, 'no'), true);
   render();
   if (S.sheet === 'clockq') openSheet('clockq');
 }
+/* What each kept change landed as, for a photo stamped while it was on its
+   way (T2.38): its entry, or none. A page's, never kept. */
+var CQ_DONE = {};
 /* The start photo waited for its entry: stamped with it and sent. A refused
    clock-in lets it go as it is — it still shows where they were. */
 function cqReleasePhoto(rid, open){
@@ -4997,52 +5130,118 @@ function cqReleasePhoto(rid, open){
     }));
   }).then(function(){ savePrefs(); pump(); }).catch(function(){});
 }
-/* OK on a refused clock-in: it goes, and its photo with it. */
+/* A photo stamped for a change that went while the photo was still being
+   written (T2.38): what that change landed as, when this page saw it; else
+   as it is, as a refused one's goes. */
+function cqReleaseLate(x){
+  var d = CQ_DONE[x.waitRid];
+  delete x.waitRid;
+  if (d && d.id){ x.entryId = d.id; x.codeLabel = codeLabel(d.code); }
+  var p = photoRec(x.id); if (p) delete p.waitRid;
+  return idbPut(x);
+}
+/* An end photo is of the block that is running. One the phone is still
+   keeping (T2.38) has no entry yet: the photo waits for the change that
+   opened it, and is stamped with that entry when it lands. */
+function endPhotoOf(item, rec, open){
+  item.codeLabel = codeLabel(open.code);
+  rec.codeId = open.code ? open.code.id : null;
+  if (open.kept){ item.entryId = ''; item.waitRid = rec.waitRid = String(open.id).slice(2); }
+  else item.entryId = open.id;
+}
+/* OK on a refused one: it goes, and its photo with it. */
 function cqDismiss(){
-  var it = cqRefused(); if (!it) return;
+  var it = cqShownNo() || cqRefused(); if (!it) return;
   clockQ = clockQ.filter(function(x){ return x.rid !== it.rid; }); cqPersist();
   cqReleasePhoto(it.rid, null);
   closeSheet(); render();
+  var nr = cqRefused(); if (nr) openSheet('clockq', 'no:' + nr.rid);
 }
-/* A clock-out, a break or a move while a clock-in waits: it needs the entry
-   the clock-in makes, so the sheet says what is waiting instead. */
-var CQ_HOLDS = { codes: 1, jobs: 1, leave: 1, outhow: 1, break: 1, earlier: 1, left: 1, dest: 1, moveHow: 1, travelCodes: 1 };
+/* While a change waits on the phone, what is checked against the entry
+   itself waits for it — a break, Started earlier, Already left — and the
+   sheet says what is waiting instead. A clock-out, a change of code, a move
+   and the drive are kept behind it (T2.38): they no longer wait. */
+var CQ_HOLDS = { break: 1, earlier: 1, left: 1 };
+/* A kept drive or clock-out needs an API that lands it at its own moment
+   (T2.38): an older one would put it at the moment it arrived — hours on the
+   wrong side of the drive. While the phone knows its API is older, those and
+   every move wait for the clock-in as before (T2.31). An API it has not heard
+   from is taken as current: the phones get T2.38 only after the API does. */
+var CQ_HOLDS_OLD = { codes: 1, jobs: 1, leave: 1, outhow: 1, break: 1, earlier: 1, left: 1, dest: 1, moveHow: 1, travelCodes: 1 };
+function cqKeepsAll(){
+  var m = S.me || S.meSeen, api = (S.builds && S.builds.api) || (m && m.build) || '', b = buildNum(api);
+  return b ? b >= 2038 : true;
+}
 /* One waiting on a block from a day before (T2.33) is waiting on When did you
    leave? itself, so that one sheet is never held — or neither could ever go. */
-function cqHolds(kind){ var w = cqWaiting(); return !!(CQ_HOLDS[kind] && w && !(w.stale && kind === 'left')); }
+function cqHolds(kind){ var w = cqWaiting(), h = cqKeepsAll() ? CQ_HOLDS : CQ_HOLDS_OLD; return !!(h[kind] && w && !(w.stale && kind === 'left')); }
 /* Why a kept clock-in was not added (T2.31). The API sends the reason as data
    beside its words, so it is said in the phone's language; anything it has
    no name for is the API's own words. What to do about it follows on the
    sheet, once. */
 function cqWhy(it){
-  var r = it.refuse || {}, t = r.at ? clockLabel(r.at) : '';
-  if (r.why === 'since' && t) return Lf('You were put on the clock at {t} while this clock-in waited.', { t: t });
+  var r = it.refuse || {}, t = r.at ? clockLabel(r.at) : '', inK = cqKind(it) === 'in';
+  if (r.why === 'since' && t) return Lf(inK ? 'You were put on the clock at {t} while this clock-in waited.' : 'You were put on the clock at {t} while this waited.', { t: t });
   if (r.why === 'until' && t) return Lf('Your day already has time on the clock until {t}.', { t: t });
-  if (r.why === 'clock') return L('The phone’s clock changed while this clock-in waited.');
-  if (r.why === 'old') return L('This clock-in waited on the phone over 16 hours.');
-  if (r.why === 'notime') return L('This clock-in left the phone without its time.');
+  if (r.why === 'clock') return L(inK ? 'The phone’s clock changed while this clock-in waited.' : 'The phone’s clock changed while this waited.');
+  if (r.why === 'old') return L(inK ? 'This clock-in waited on the phone over 16 hours.' : 'This waited on the phone over 16 hours.');
+  if (r.why === 'notime') return L(inK ? 'This clock-in left the phone without its time.' : 'This left the phone without its time.');
   return it.err || L('JobTread didn’t take it.');
 }
+/* What to do about a refused one, once — each kind its own. */
+function cqAfterNo(it){
+  var k = cqKind(it);
+  return L(k === 'out' ? 'Check your clock — clock out again, or tell the office when you left.'
+    : k === 'travel' ? 'Tell the office when the drive started. Your photos still go.'
+    : k === 'in' ? 'Tell the office when you started. Your start photo still goes.'
+    : 'Tell the office when you started on it. Your photos still go.');
+}
+/* The refused one a notice or a row opened (`no:<id>`), else none. */
+function cqShownNo(){
+  var k = String(S.promptKind || ''), rid = k.indexOf('no:') === 0 ? k.slice(3) : '';
+  return (rid && clockQ.filter(function(x){ return x.rid === rid && x.refused; })[0]) || null;
+}
+function cqSheetTitle(){
+  var no = cqShownNo(), c = cqChain(), r = cqRefused();
+  if (no) return cqWords(no, 'notAdded');
+  if (c.length > 1) return L('Clock changes to send');
+  if (c.length) return cqWords(c[0], 'unsent');
+  return r ? cqWords(r, 'notAdded') : L('Clock-in not added');
+}
+/* How the first one is getting on: the band and the sheet say the same. */
+function cqStatusWords(it){
+  it = it || cqWaiting();
+  return it && it.inflight ? L('Sending…') : !S.online ? L('Sends when there’s signal')
+    : it && it.tries && it.next > Date.now() ? Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(it.next) }) : L('Sends in a moment');
+}
 function clockqHtml(){
-  var it = cqWaiting() || cqRefused();
+  var no = cqShownNo(), c = cqChain(), it = no || c[0] || cqRefused();
   if (!it) return '<div class="sheetpad"><div class="jempty">' + esc(L('Nothing waiting')) + '</div></div>';
-  var what = Lf('{t} · {code} at {p}', { t: clockLabel(it.at), code: codeLabel(it.code), p: pw(it.job) });
   if (it.refused){
-    return '<div class="sheetpad"><div class="body"><b>' + esc(what) + '</b></div>' +
+    return '<div class="sheetpad"><div class="body"><b>' + esc(cqWords(it, 'line')) + '</b></div>' +
       '<div class="body" style="margin-top:10px">' + esc(cqWhy(it)) + '</div>' +
-      '<div class="body" style="margin-top:10px">' + esc(L('Tell the office when you started. Your start photo still goes.')) + '</div>' +
+      '<div class="body" style="margin-top:10px">' + esc(cqAfterNo(it)) + '</div>' +
       '<button class="btn btn-go" id="cqOk" style="margin-top:16px">' + esc(L('OK')) + '</button></div>';
   }
-  if (it.stale) return '<div class="sheetpad"><div class="body"><b>' + esc(what) + '</b></div>' +
-    '<div class="body" style="margin-top:10px">' + esc(L('It waits until you say when you left the day before — then it goes with its own time.')) + '</div>' +
+  // Every change waiting, in the order it goes; the first is the one on its way.
+  var lines = c.map(function(x, i){ return '<div class="body"' + (i ? ' style="margin-top:6px"' : '') + '>' + (i ? '' : '<b>') + esc(cqWords(x, 'line')) + (i ? '' : '</b>') + '</div>'; }).join('');
+  var only = c.length === 1;
+  if (it.stale) return '<div class="sheetpad">' + lines +
+    '<div class="body" style="margin-top:10px">' + esc(L(only ? 'It waits until you say when you left the day before — then it goes with its own time.' : 'They wait until you say when you left the day before — then they go, each with its own time.')) + '</div>' +
     '<button class="btn btn-go" id="cqLeft" style="margin-top:16px">' + esc(L('When did you leave?')) + '</button></div>';
+  var k = cqKind(it), t = { t: clockLabel(it.at) };
+  var goes = !only ? L('They go to JobTread in order as soon as there’s signal — each at the time you made it.')
+    : Lf(k === 'out' ? 'It goes to JobTread as soon as there’s signal — your hours end at {t} either way.'
+       : k === 'travel' ? 'It goes to JobTread as soon as there’s signal — the drive starts at {t} either way.'
+       : k === 'in' ? 'It goes to JobTread as soon as there’s signal — your hours start at {t} either way.'
+       : 'It goes to JobTread as soon as there’s signal — the change is at {t} either way.', t);
   var st = it.inflight ? L('Sending…') : !S.online ? L('Waiting for signal')
          : it.tries && it.next > Date.now() ? Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(it.next) }) : L('Sends in a moment');
-  return '<div class="sheetpad"><div class="body"><b>' + esc(what) + '</b></div>' +
-    '<div class="body" style="margin-top:10px">' + esc(Lf('It goes to JobTread as soon as there’s signal — your hours start at {t} either way.', { t: clockLabel(it.at) })) + '</div>' +
-    '<div class="body" style="margin-top:10px">' + esc(L('Clocking out, a break and moving wait until it has gone.')) + '</div>' +
+  return '<div class="sheetpad">' + lines +
+    '<div class="body" style="margin-top:10px">' + esc(goes) + '</div>' +
+    '<div class="body" style="margin-top:10px">' + esc(L(only ? 'A break, Started earlier and Already left wait until it has gone.' : 'A break, Started earlier and Already left wait until they have gone.')) + '</div>' +
     '<div class="body" style="margin-top:10px;color:var(--mut)">' + esc(st) + (it.err && !it.inflight ? ' · ' + esc(it.err) : '') + '</div>' +
-    (S.online && !it.inflight ? '<button class="btn btn-go" id="cqSend" style="margin-top:16px">' + esc(L('Send it now')) + '</button>' : '') +
+    (S.online && !it.inflight ? '<button class="btn btn-go" id="cqSend" style="margin-top:16px">' + esc(L(only ? 'Send it now' : 'Send them now')) + '</button>' : '') +
     '<button class="btn btn-out" id="cqClose" style="margin-top:12px">' + esc(L('OK')) + '</button></div>';
 }
 
@@ -5069,8 +5268,12 @@ function commitStart(item, rec){
       startPhotoId: pid, endPhotoId: sw ? (sw.endPhotoId || '') : '',
       opts: sw ? (swOpts || {}) : { todayJobId: todayJobForNotice() },
       at: madeAt, job: cqJobSnap(target), code: cqCodeSnap(code), partner: !!(S.partner && S.partnerOn),
+      // A switch out of a drive, or to another job, is the arrival (T2.38).
+      arrive: !!(sw && (sw.fromTravel || onTravel() || !prev || prev.id !== target.id)),
       rollForgot: S.rollPending && S.rollPending === target.id ? target.id : '', tries: 0 };
-    if (keep && !S.online){ startKept(keep, item, rec, code, prev); busy(false); clockFlowDone(); return; }
+    // Kept with no signal (T2.31) — and behind any change still on the phone
+    // (T2.38), which it must never overtake.
+    if (keep && (!S.online || cqPending())){ startKept(keep, item, rec, code, prev); busy(false); clockFlowDone(); return; }
     // Already left the last job (T2.19): it ends when they left, the drive
     // from then to now on this job's travel line, and the work from now.
     var travel = sw && sw.leftAt ? S.codes.filter(isTravelCode)[0] : null;
@@ -5127,15 +5330,17 @@ function commitOut(item, rec){
   var open = S.open, job = S.job;
   if (!open){ S.clockGate = null; setTab('job'); return; }
   if (item){
-    item.entryId = open.id; item.codeLabel = codeLabel(open.code);
-    rec.codeId = open.code ? open.code.id : null;
+    endPhotoOf(item, rec, open);
     S.photos.push(rec);
     savePrefs();
     enqueueUpload(item);
   }
   busy(true, 'Clocking out…');
+  var rid = newRid(), madeAt = Date.now();
   withCoords(function(coords){
-    apiCall('clockOut', [coords, rec ? rec.id : '']).then(function(r){
+    var keep = cqKeepsAll() ? cqOutKeep(rid, madeAt, coords, rec ? rec.id : '', open, job) : null;
+    if (keep && (!S.online || cqPending())){ cqKeepOut(keep); busy(false); landAfterOut(job); return; }
+    apiCall('clockOut', [coords, rec ? rec.id : ''], { rid: rid }).then(function(r){
       S.open = null; S.clockGate = null; S.onBreak = null; S.switching = null;
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
@@ -5143,11 +5348,28 @@ function commitOut(item, rec){
       if (r && r.notOn){ toast(L('Your clock was already ended elsewhere — you’re off the clock now.'), true); clockReread(true); }
       else outToast(r, 'Clocked out · sent to JobTread');
       refreshDayLater();
-    }).catch(function(e){ if (!rec && photoRefused(e, 'end-out')) return 'camera'; S.clockGate = null; showErr(e); }).then(function(v){
+    }).catch(function(e){
+      if (!rec && photoRefused(e, 'end-out')) return 'camera';
+      // No answer (T2.38): kept, ending at the moment it was made.
+      if (keep && cqCanQueue(e)){ cqKeepOut(keep); return; }
+      S.clockGate = null; showErr(e);
+    }).then(function(v){
       busy(false);
       if (v !== 'camera') landAfterOut(job);
     });
   });
+}
+/* A clock-out kept with no signal, or behind a change still on the phone
+   (T2.38, audit I17): it ends the block at the moment it was made. */
+function cqOutKeep(rid, madeAt, coords, endPhotoId, open, job){
+  var j = (open && open.job) || job || {};
+  return { rid: rid, kind: 'out', jobId: j.id || '', coords: coords || null, endPhotoId: endPhotoId || '', opts: {},
+           at: madeAt, job: cqJobSnap(j), code: open && open.code ? cqCodeSnap(open.code) : null, partner: !!(S.partner && S.partnerOn), tries: 0 };
+}
+function cqKeepOut(keep){
+  cqKeep(keep);
+  S.open = null; S.clockGate = null; S.onBreak = null; S.switching = null; S.brk = null;
+  savePrefs(); render(); cqSchedule();
 }
 /* Out away from the shop and the office (T2.27): the server has told the PM
    and the Ops Director, so the phone says so instead of the plain receipt. */
@@ -5168,8 +5390,7 @@ function landAfterOut(job){
 function afterEndShot(item, rec){
   var open = S.open;
   if (item){
-    item.entryId = open.id; item.codeLabel = codeLabel(open.code);
-    rec.codeId = open.code ? open.code.id : null;
+    endPhotoOf(item, rec, open);
     S.photos.push(rec);
     enqueueUpload(item);
   }
@@ -5220,8 +5441,7 @@ function placeWord(j){ return j ? (j.customer || streetOf(j.address) || jobTitle
 function afterTravelShot(item, rec){
   var open = S.open;
   if (item){
-    item.entryId = open.id; item.codeLabel = codeLabel(open.code);
-    rec.codeId = open.code ? open.code.id : null;
+    endPhotoOf(item, rec, open);
     S.photos.push(rec);
     enqueueUpload(item);
   }
@@ -5301,9 +5521,24 @@ function commitTravel(job, code, back, codes, opts){
            : back ? 'Drive back · end of the day · from ' + jobWord(prev)
                   : 'Drive to ' + jobWord(job) + (prev && prev.id !== job.id ? ' · from ' + (fromShop ? 'the shop' : jobWord(prev)) : '');
   busy(true, supply ? 'Starting the supply run…' : 'Starting the drive…');
+  var rid = newRid(), madeAt = Date.now();
   withCoords(function(coords){
+    // The drive kept with no signal, or behind a change still on the phone
+    // (T2.38, audit I17): it starts at the moment it was made. Never after
+    // Already left, whose time is the person's answer.
+    var keep = sw.leftAt || !cqKeepsAll() ? null : { rid: rid, kind: 'travel', jobId: job.id, costItemId: code.id, coords: coords || null,
+      endPhotoId: sw.endPhotoId || '', notes: note, opts: { doneHere: !!sw.doneHere }, at: madeAt, job: cqJobSnap(job), code: cqCodeSnap(code),
+      partner: !!(S.partner && S.partnerOn), back: !!back, supply: supply, tries: 0 };
+    var kept = function(){
+      cqKeep(keep);
+      S.open = cqOpen(keep); S.switching = null; S.travelTo = null; S.pendingJob = null; S.moving = false;
+      if (!back && (!prev || prev.id !== job.id)){ S.job = job; S.dlJobId = job.id; S.jobPickedDay = isoLocal(); if (codes) S.codes = codes; }
+      S.leaveMode = null;
+      savePrefs(); render(); cqSchedule();
+    };
+    if (keep && (!S.online || cqPending())){ kept(); busy(false); clockFlowDone(); return; }
     var call = sw.leftAt ? apiCall('leftSite', [sw.leftAt, coords, { kind: 'drive', jobId: job.id, costItemId: code.id, notes: note }]).then(function(r){ if (r && r.entries) S.entries = r.entries; return r.open; })
-                         : apiCall('startTravel', [job.id, code.id, coords, sw.endPhotoId || '', note, { doneHere: !!sw.doneHere }]);
+                         : apiCall('startTravel', [job.id, code.id, coords, sw.endPhotoId || '', note, { doneHere: !!sw.doneHere }], { rid: rid });
     call.then(function(open){
       S.open = open; S.switching = null; S.travelTo = null; S.pendingJob = null; S.moving = false;
       if (!back && (!prev || prev.id !== job.id)){
@@ -5317,22 +5552,25 @@ function commitTravel(job, code, back, codes, opts){
     }).catch(function(e){
       // The API wanted the end photo of the site after all.
       if (!sw.endPhotoId && sw.doneHere && photoRefused(e, 'end-travel')) return 'camera';
+      if (keep && cqCanQueue(e)){ kept(); return; }
       S.switching = null; S.travelTo = null; S.pendingJob = null; S.moving = false; showErr(e);
     }).then(function(v){ busy(false); if (v !== 'camera') clockFlowDone(); });
   });
 }
 /* Out for the day from a drive: no photo. */
 function doTravelOut(){
-  var job = S.job;
+  var job = S.job, open = S.open, rid = newRid(), madeAt = Date.now();
   busy(true, 'Clocking out…');
   withCoords(function(coords){
-    apiCall('clockOut', [coords, '']).then(function(r){
+    var keep = cqKeepsAll() ? cqOutKeep(rid, madeAt, coords, '', open, job) : null;
+    if (keep && (!S.online || cqPending())){ cqKeepOut(keep); busy(false); landAfterOut(job); return; }
+    apiCall('clockOut', [coords, ''], { rid: rid }).then(function(r){
       S.open = null; S.switching = null;
       if (r && r.entries) S.entries = r.entries;
       savePrefs();
       outToast(r, 'Clocked out · the drive is saved');
       refreshDayLater();
-    }).catch(showErr).then(function(){ busy(false); landAfterOut(job); });
+    }).catch(function(e){ if (keep && cqCanQueue(e)){ cqKeepOut(keep); return; } showErr(e); }).then(function(){ busy(false); landAfterOut(job); });
   });
 }
 /* =========================================================
@@ -5432,9 +5670,10 @@ function leftOut(iso, overnight, next){
       savePrefs();
       toast(Lf('Clocked out at {t}', { t: clockLabel(new Date(iso)) }) + toldWords(r && r.notice), !!(r && r.notice && !r.notice.ok));
       refreshDayLater();
-      // A clock-in kept with no signal waited for this (T2.33): it goes now.
+      // A clock-in kept with no signal waited for this (T2.33): it goes now,
+      // and everything kept behind it (T2.38).
       clockQ.forEach(function(x){ x.stale = null; }); cqPersist();
-      if (cqWaiting()){ cqOverlay(); cqSend(); }
+      if (cqWaiting()){ cqOverlay(true); cqSend(); }
     }).catch(function(e){ if (S.pendingJob) cancelMove(); showErr(e); }).then(function(){
       busy(false);
       if (!overnight){ landAfterOut(job); return; }
@@ -5741,7 +5980,7 @@ function rollHtml(){
   var left = rollOwed().reduce(function(n, x){ return n + x.miss.length; }, 0);
   return '<div class="sheetpad" style="gap:10px"><div class="body">' + esc(L('Today’s jobs, before the truck leaves the shop. The drive starts once these are done.')) + '</div>' + rollListHtml() +
     '<button class="btn btn-go" id="rollGo" style="min-height:76px;margin-top:6px"' + (left ? ' disabled' : '') + '>' + esc(left ? Lf('{n} left to check', { n: left }) : L('All done · start the drive')) + '</button>' +
-    '<button class="btn btn-out" id="rollLeft" style="min-height:52px;font-size:13px;color:var(--mut);border-color:var(--line)">' + esc(L('Already left the shop? Say when')) + '</button></div>';
+    (cqPending() ? '' : '<button class="btn btn-out" id="rollLeft" style="min-height:52px;font-size:13px;color:var(--mut);border-color:var(--line)">' + esc(L('Already left the shop? Say when')) + '</button>') + '</div>';
 }
 function forgotHtml(){
   var x = rollOwed(S.rollFor)[0];
@@ -5877,10 +6116,14 @@ function doBackToWork(){
 function doBreakOut(){
   if (breakOver()){ S.brk = null; savePrefs(); beginEnd('end-out'); return; }
   if (onBreakNow()){
-    var job = S.job;
+    var job = S.job, open = S.open, rid = newRid(), madeAt = Date.now();
     busy(true, 'Clocking out…');
     withCoords(function(coords){
-      apiCall('clockOut', [coords, null]).then(function(r){
+      // Kept with no signal (T2.38): the block planned after the break goes
+      // when it is sent — it was never worked.
+      var keep = cqKeepsAll() ? cqOutKeep(rid, madeAt, coords, '', open, job) : null;
+      if (keep && (!S.online || cqPending())){ cqKeepOut(keep); busy(false); landAfterOut(job); render(); return; }
+      apiCall('clockOut', [coords, null], { rid: rid }).then(function(r){
         S.open = null; S.brk = null; S.onBreak = null;
         if (r && r.entries) S.entries = r.entries;
         savePrefs();
@@ -5888,7 +6131,7 @@ function doBreakOut(){
         busy(false);
         landAfterOut(job);
         refreshDayLater();
-      }).catch(function(e){ busy(false); showErr(e); }).then(function(){ render(); });
+      }).catch(function(e){ busy(false); if (keep && cqCanQueue(e)){ cqKeepOut(keep); landAfterOut(job); return; } showErr(e); }).then(function(){ render(); });
     });
     return;
   }
@@ -6192,7 +6435,9 @@ function pump(){
         // Its clock-in is still on the phone (T2.31): it goes once that has —
         // and never from this list, read before the clock-in may have landed:
         // landing stamps it with the entry, saves it again and runs the pump.
-        if (item.waitRid) return;
+        // One whose change landed while it was still being written (T2.38) is
+        // stamped now and saved again; the next run sends it, never this copy.
+        if (item.waitRid){ if (!cqHas(item.waitRid)) return cqReleaseLate(item); return; }
         // Another person's (T2.37, audit D31): theirs to send, when they sign in here.
         if (!ownMine(item)) return;
         pumpCur = item.id;
@@ -6289,7 +6534,7 @@ function photoQHtml(){
     var what = L(TAG_UI[it.tag] || 'Photo') + (when ? ' · ' + when : '');
     var job = jobLabelById(it.jobId), st, cls = '', btns = '';
     if (r && r.tries) anyFailed = true;
-    if (it.waitRid) st = L('Goes after its clock-in');
+    if (it.waitRid) st = photoWaitWords(it.waitRid);
     else if (!S.online) st = L('Waiting for signal');
     else if (pumpCur === it.id) st = L('Sending…');
     else if (r && r.tries >= PHOTO_STUCK_TRIES){ st = Lf('Couldn’t send · tried {n} times', { n: r.tries }); cls = ' bad'; }
@@ -6971,6 +7216,74 @@ esAdd({
 esAdd({
   'Goes when they sign in on this phone': 'Se envía cuando esa persona inicie sesión en este teléfono'
 }); /* T2.37-ES */
+/* Every clock change kept behind a waiting one (T2.38, audit I17). */
+esAdd({
+  'Clock-out {t}': 'Salida {t}',
+  'Drive {t}': 'Viaje {t}',
+  'Code change {t}': 'Cambio de código {t}',
+  'No signal — your {t} clock-out is saved on this phone and goes when there’s signal': 'Sin señal — tu salida de las {t} quedó guardada en este teléfono y se envía cuando haya señal',
+  'No signal — your {t} drive is saved on this phone and goes when there’s signal': 'Sin señal — tu viaje de las {t} quedó guardado en este teléfono y se envía cuando haya señal',
+  'No signal — your {t} code change is saved on this phone and goes when there’s signal': 'Sin señal — tu cambio de código de las {t} quedó guardado en este teléfono y se envía cuando haya señal',
+  'No signal — your {t} arrival is saved on this phone and goes when there’s signal': 'Sin señal — tu llegada de las {t} quedó guardada en este teléfono y se envía cuando haya señal',
+  'Your {t} clock-out has reached JobTread': 'Tu salida de las {t} ya llegó a JobTread',
+  'Your {t} drive has reached JobTread': 'Tu viaje de las {t} ya llegó a JobTread',
+  'Your {t} code change has reached JobTread': 'Tu cambio de código de las {t} ya llegó a JobTread',
+  'Your {t} arrival has reached JobTread': 'Tu llegada de las {t} ya llegó a JobTread',
+  'Your {n} clock changes have reached JobTread': 'Tus {n} cambios de reloj ya llegaron a JobTread',
+  'Your {t} clock-out wasn’t added — tap the notice to see why': 'Tu salida de las {t} no se agregó — toca el aviso para ver por qué',
+  'Your {t} drive wasn’t added — tap the notice to see why': 'Tu viaje de las {t} no se agregó — toca el aviso para ver por qué',
+  'Your {t} code change wasn’t added — tap the notice to see why': 'Tu cambio de código de las {t} no se agregó — toca el aviso para ver por qué',
+  'Your {t} arrival wasn’t added — tap the notice to see why': 'Tu llegada de las {t} no se agregó — toca el aviso para ver por qué',
+  'Your {t} clock-out wasn’t added — tap to see why': 'Tu salida de las {t} no se agregó — toca para ver por qué',
+  'Your {t} drive wasn’t added — tap to see why': 'Tu viaje de las {t} no se agregó — toca para ver por qué',
+  'Your {t} code change wasn’t added — tap to see why': 'Tu cambio de código de las {t} no se agregó — toca para ver por qué',
+  'Your {t} arrival wasn’t added — tap to see why': 'Tu llegada de las {t} no se agregó — toca para ver por qué',
+  'Your {t} clock-out is on this phone — it goes when there’s signal': 'Tu salida de las {t} está en este teléfono — se envía cuando haya señal',
+  'Your {t} drive is on this phone — it goes when there’s signal': 'Tu viaje de las {t} está en este teléfono — se envía cuando haya señal',
+  'Your {t} code change is on this phone — it goes when there’s signal': 'Tu cambio de código de las {t} está en este teléfono — se envía cuando haya señal',
+  'Your {t} arrival is on this phone — it goes when there’s signal': 'Tu llegada de las {t} está en este teléfono — se envía cuando haya señal',
+  '{n} clock changes since {t} are on this phone — they go in order when there’s signal': '{n} cambios de reloj desde las {t} están en este teléfono — se envían en orden cuando haya señal',
+  'Your clock changes go once you say when you left the day before': 'Tus cambios de reloj se envían cuando digas a qué hora te fuiste el día anterior',
+  '{name}’s {t} clock change waits for them to sign in on this phone': 'El cambio de reloj de las {t} de {name} espera a que inicie sesión en este teléfono',
+  'Clock-out': 'Salida',
+  'Drive': 'Viaje',
+  'Code change': 'Cambio de código',
+  'Arrival': 'Llegada',
+  'Clock changes': 'Cambios de reloj',
+  'Clock-out not sent yet': 'Salida sin enviar',
+  'Drive not sent yet': 'Viaje sin enviar',
+  'Code change not sent': 'Cambio sin enviar',
+  'Arrival not sent yet': 'Llegada sin enviar',
+  'Clock changes to send': 'Cambios por enviar',
+  'Clock-out not added': 'Salida no agregada',
+  'Drive not added': 'Viaje no agregado',
+  'Code change not added': 'Cambio no agregado',
+  'Arrival not added': 'Llegada no agregada',
+  '{t} · Clock out': '{t} · Marcar salida',
+  '{t} · Change to {code}': '{t} · Cambiar a {code}',
+  '{t} · Start at {p} · {code}': '{t} · Empezar en {p} · {code}',
+  '{t} · The drive back': '{t} · El viaje de regreso',
+  '{t} · Supply run · {p}': '{t} · Ir por material · {p}',
+  '{t} · The drive to {p}': '{t} · El viaje a {p}',
+  'Saved on this phone — it goes once the change before it has': 'Guardado en este teléfono — se envía en cuanto se envíe el cambio anterior',
+  'You were put on the clock at {t} while this waited.': 'Te pusieron en el reloj a las {t} mientras esto esperaba.',
+  'The phone’s clock changed while this waited.': 'El reloj del teléfono cambió mientras esto esperaba.',
+  'This waited on the phone over 16 hours.': 'Esto esperó en el teléfono más de 16 horas.',
+  'This left the phone without its time.': 'Esto salió del teléfono sin su hora.',
+  'Check your clock — clock out again, or tell the office when you left.': 'Revisa tu reloj — marca la salida otra vez, o dile a la oficina a qué hora te fuiste.',
+  'Tell the office when the drive started. Your photos still go.': 'Dile a la oficina a qué hora empezó el viaje. Tus fotos se envían de todos modos.',
+  'Tell the office when you started on it. Your photos still go.': 'Dile a la oficina a qué hora empezaste con eso. Tus fotos se envían de todos modos.',
+  'They wait until you say when you left the day before — then they go, each with its own time.': 'Esperan a que digas a qué hora te fuiste el día anterior — luego se envían, cada uno con su propia hora.',
+  'They go to JobTread in order as soon as there’s signal — each at the time you made it.': 'Se envían a JobTread en orden en cuanto haya señal — cada uno a la hora en que lo hiciste.',
+  'It goes to JobTread as soon as there’s signal — your hours end at {t} either way.': 'Se envía a JobTread en cuanto haya señal — tus horas terminan a las {t} de todos modos.',
+  'It goes to JobTread as soon as there’s signal — the drive starts at {t} either way.': 'Se envía a JobTread en cuanto haya señal — el viaje empieza a las {t} de todos modos.',
+  'It goes to JobTread as soon as there’s signal — the change is at {t} either way.': 'Se envía a JobTread en cuanto haya señal — el cambio queda a las {t} de todos modos.',
+  'A break, Started earlier and Already left wait until it has gone.': 'Un descanso, decir que empezaste antes y decir que ya te fuiste esperan a que se haya enviado.',
+  'A break, Started earlier and Already left wait until they have gone.': 'Un descanso, decir que empezaste antes y decir que ya te fuiste esperan a que se hayan enviado.',
+  'Send them now': 'Enviarlos ahora',
+  'Since {t} · saved on this phone': 'Desde las {t} · guardado en este teléfono',
+  'Goes after its clock change': 'Se envía después de su cambio de reloj'
+}); /* T2.38-ES */
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
@@ -8123,8 +8436,8 @@ function bootStart(lastJob, attempt){
     // A session over a week old is renewed in the background (T2.8).
     ensureSession(false).catch(function(){});
     S.open = d.open;
-    cqOverlay();   // the API has not had it yet: the phone's clock-in stands (T2.31)
-    S.job = d.job;
+    if (cqTakesJob() || !S.job) S.job = d.job;
+    cqOverlay();   // the API has not had it yet: the phone's clock-in stands (T2.31), and every change kept behind it (T2.38)
     S.entries = d.entries || [];
     S.recent = d.recent || [];
     if (d.shop && d.shop.id){ S.shop = d.shop; savePrefs(); }
@@ -10802,7 +11115,7 @@ function obWake(){
   OB_LANES.forEach(function(l){ try { l.wake(); } catch(e){ failed('outbox · ' + l.key, e, true); } });
 }
 var obPlural = function(n, one, many){ return n + ' ' + (n === 1 ? one : many); };
-obLane({ key: 'clock', count: function(){ return cqWaiting() ? 1 : 0; }, words: function(){ return 'a clock-in'; },
+obLane({ key: 'clock', count: function(){ return cqChain().length; }, words: function(n){ return n === 1 ? (cqKind(cqWaiting() || {}) === 'in' ? 'a clock-in' : 'a clock change') : n + ' clock changes'; },
          wake: function(){ var w = cqWaiting(); if (w) w.next = 0; cqSend(); } });
 obLane({ key: 'photos', count: function(){ return S.queued || 0; }, words: function(n){ return obPlural(n, 'photo', 'photos'); },
          fresh: qCount, wake: function(){ qWake(); pump(); } });
@@ -10852,12 +11165,12 @@ function clockReread(force){
     CLOCK_REREAD.p = null;
     if (!d) return;
     S.open = d.open || null;
-    cqOverlay();
+    if (S.open && d.job && cqTakesJob()) S.job = d.job;
+    cqOverlay();   // what the phone still keeps is the clock (T2.38)
     if (d.entries) S.entries = d.entries;
     if (!S.open){ S.brk = null; S.onBreak = null; }
-    else if (d.job) S.job = d.job;
     savePrefs(); render();
-    if (had && !S.open && !force) toast(L('Your clock was already ended elsewhere — you’re off the clock now.'), true);
+    if (had && !S.open && !force && !cqPending()) toast(L('Your clock was already ended elsewhere — you’re off the clock now.'), true);
   }, function(){ CLOCK_REREAD.p = null; });
 }
 

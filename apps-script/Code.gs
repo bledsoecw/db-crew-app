@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.37 (2026-11-03)';
+var APP_BUILD = 'T2.38 (2026-11-03)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -2552,7 +2552,7 @@ function morningCheck_(me, coords, opts) {
 // the same radius, the same notice — on the job of the block just closed
 // (its PM), else the shop's job, assigned to the Ops Director as well. It
 // never fails the clock-out.
-function eveningCheck_(me, coords, closed) {
+function eveningCheck_(me, coords, closed, atMs) {
   try {
     var near = nearestShopPlace_(coords);
     if (near && near.m <= shopRadius_()) return { ok: true, at: near.place.name };
@@ -2562,7 +2562,7 @@ function eveningCheck_(me, coords, closed) {
     var jobId = closed && closed.job && closed.job.id ? closed.job.id : SHOP_JOB.id;
     var on = closed && closed.code ? ' (last on ' + [closed.code.number, closed.code.name].filter(Boolean).join(' ') + ')' : '';
     var notice = noticeToPm_(jobId,
-      '📍 ' + me.name + (also ? ' and ' + also : '') + ' clocked out for the day at ' + clockWords_(new Date()) + ' ' + where +
+      '📍 ' + me.name + (also ? ' and ' + also : '') + ' clocked out for the day at ' + clockWords_(new Date(atMs || Date.now())) + ' ' + where +
       ' — not at the shop or the office' + on + '. Sent from DB Crew.', opsDirector_());
     return { ok: false, where: where, notice: notice };
   } catch (e) { return { ok: null, error: String(e && e.message || e) }; }   // not known: nobody was told, and the phone says nothing (T2.33)
@@ -2599,20 +2599,30 @@ function clockIn(me, jobId, costItemId, coords, startPhotoId, opts) {
 // running began. A repeat that comes after its request id is forgotten finds
 // the entry it opened rather than opening another.
 var QUEUED_MAX_MS = 16 * 3600 * 1000, QUEUED_SAME_MS = 5 * 60 * 1000;
-function queuedStart_(me, q, jobId, costItemId, open) {
-  if (!q || typeof q !== 'object') return null;
+// What was kept, for its words and its note (T2.38, audit I17): a clock-in, a
+// change of code or job (an arrival included), or the drive to the next job.
+var QUEUED_KINDS = { in: ['clock-in', 'Clocked in'], change: ['change', 'Started'], drive: ['drive', 'Started the drive'], out: ['clock-out', 'Clocked out'] };
+/** The moment a kept write was made, checked: counted back from now by how
+ *  long the phone says it waited, never more than 16 hours back. */
+function queuedMoment_(q, kind) {
+  var noun = (QUEUED_KINDS[kind] || QUEUED_KINDS['in'])[0];
   var at = Number(q.at), sent = Number(q.sentAt), now = Date.now();
-  if (!isFinite(at) || !isFinite(sent) || !at || !sent) throw queuedNo_('notime', 'That clock-in came from the phone without its time.');
+  if (!isFinite(at) || !isFinite(sent) || !at || !sent) throw queuedNo_('notime', 'That ' + noun + ' came from the phone without its time.');
   var waited = sent - at;
-  if (waited < 0) throw queuedNo_('clock', 'The phone’s clock changed while that clock-in waited.');
-  if (waited > QUEUED_MAX_MS) throw queuedNo_('old', 'That clock-in waited on the phone over 16 hours.');
-  var start = now - waited, said = clockWords_(new Date(start));
+  if (waited < 0) throw queuedNo_('clock', 'The phone’s clock changed while that ' + noun + ' waited.');
+  if (waited > QUEUED_MAX_MS) throw queuedNo_('old', 'That ' + noun + ' waited on the phone over 16 hours.');
+  return { at: now - waited, waited: waited, now: now, noun: noun };
+}
+function queuedStart_(me, q, jobId, costItemId, open, kind) {
+  if (!q || typeof q !== 'object') return null;
+  var m = queuedMoment_(q, kind), waited = m.waited, now = m.now, noun = m.noun;
+  var start = m.at, said = clockWords_(new Date(start));
   if (open === undefined) open = openEntryFor_(me.userId);
   if (open && !isFuture_(open.startedAt) && open.job && open.job.id === jobId && open.code && open.code.id === costItemId &&
       Math.abs(Date.parse(open.startedAt) - start) <= QUEUED_SAME_MS) return { already: open };
   if (open && !isFuture_(open.startedAt) && Date.parse(open.startedAt) > start)
     throw queuedNo_('since', 'You were put on the clock at ' + clockWords_(new Date(Date.parse(open.startedAt))) +
-                    ' while that clock-in waited.', open.startedAt);
+                    ' while that ' + noun + ' waited.', open.startedAt);
   var clash = getMyDay(me).filter(function (x) {
     if ((open && x.id === open.id) || isFuture_(x.startedAt)) return false;
     var end = Date.parse(x.endedAt || '');
@@ -2621,7 +2631,19 @@ function queuedStart_(me, q, jobId, costItemId, open) {
   if (clash) throw queuedNo_('until', 'Your day already has time on the clock until ' + clockWords_(new Date(Date.parse(clash.endedAt))) + '.',
                              clash.endedAt);
   return { start: start, waited: waited,
-           note: 'Clocked in with no signal at ' + said + ' — sent from DB Crew at ' + clockWords_(new Date(now)) + '.' };
+           note: (QUEUED_KINDS[kind] || QUEUED_KINDS['in'])[1] + ' with no signal at ' + said + ' — sent from DB Crew at ' + clockWords_(new Date(now)) + '.' };
+}
+/** A clock-out made with no signal (T2.38, audit I17): the block ends when
+ *  the phone says. Never before the block began — the office putting them on
+ *  the clock after it is said, as for a clock-in. */
+function queuedEnd_(q, open) {
+  if (!q || typeof q !== 'object') return null;
+  var m = queuedMoment_(q, 'out');
+  if (open && Date.parse(open.startedAt) >= m.at && !open.plannedBreak)
+    throw queuedNo_('since', 'You were put on the clock at ' + clockWords_(new Date(Date.parse(open.startedAt))) +
+                    ' while that clock-out waited.', open.startedAt);
+  return { end: m.at, waited: m.waited,
+           note: 'Clocked out with no signal at ' + clockWords_(new Date(m.at)) + ' — sent from DB Crew at ' + clockWords_(new Date(m.now)) + '.' };
 }
 
 /** Why a kept clock-in was not added: the reason in words, and as data the
@@ -2641,8 +2663,9 @@ function queuedNo_(why, words, at) {
 function openEntry_(me, jobId, costItemId, coords, notes, known, startMs) {
   var open = known !== undefined ? known : openEntryFor_(me.userId);
   // Closing a block left open from a day before "now" is a 24- to 36-hour
-  // entry (T2.33): it ends only at the time the person says they left.
-  assertNotStale_(open);
+  // entry (T2.33): it ends only at the time the person says they left. A kept
+  // write is judged at its own moment (T2.38).
+  assertNotStale_(open, startMs);
   // On a break the open entry is the block planned for after it, starting in
   // the future: closing it would end it before it began. Starting work ends
   // the break early, so it goes — what JobTread's own app does.
@@ -2667,35 +2690,51 @@ function openEntry_(me, jobId, costItemId, coords, notes, known, startMs) {
   return openEntryFor_(me.userId);
 }
 
-function closeEntry_(entryId, coords, endMs) {
+function closeEntry_(entryId, coords, endMs, notes) {
   var args = { id: entryId, endedAt: new Date(endMs || Date.now()).toISOString() };
+  if (notes) args.notes = String(notes).slice(0, 500);
   var ec = coordArg_(coords);
   if (ec) args.endCoordinates = ec;
   pave({ updateTimeEntry: { '$': args } });
 }
 
-function clockOut(me, coords, endPhotoId) {
+function clockOut(me, coords, endPhotoId, opts) {
   var open = openEntryFor_(me.userId);
+  // Made with no signal (T2.38, audit I17): it ends when the phone says. A
+  // block JobTread planned after a break that began after that moment was
+  // never worked — they left from the break — so it goes, as below.
+  var kept = opts && opts.queued;
+  if (kept && open && (isFuture_(open.startedAt) || afterBreak_(me, open, getMyDay(me)))) {
+    var m0 = queuedMoment_(kept, 'out');
+    if (isFuture_(open.startedAt) || Date.parse(open.startedAt) >= m0.at) open.plannedBreak = true;
+  }
+  var q = kept ? queuedEnd_(kept, open) : null;
   // Out for the day from a break: the block before it closed when the break
   // began, so there is nothing to photograph — the block planned for after
   // it goes, as a clock-out from a break does in JobTread's own app.
-  if (open && isFuture_(open.startedAt)) {
+  if (open && (isFuture_(open.startedAt) || open.plannedBreak)) {
     assertWrite_(open.job && open.job.id);
     deleteEntry_(open.id);
     forgetBreak_(me.userId);
-    return { ok: true, closed: null, cancelled: open.id, entries: getMyDay(me), evening: eveningCheck_(me, coords, open) };
+    return { ok: true, closed: null, cancelled: open.id, entries: getMyDay(me), evening: eveningCheck_(me, coords, open, q ? q.end : 0) };
   }
   // Nothing open: the office (or another phone) ended it already. Said, not
   // reported as a clock-out (T2.33), so the phone reads its clock again.
   if (!open) return { ok: true, closed: null, notOn: true, entries: getMyDay(me) };
-  assertNotStale_(open);
+  // A block from a day before ends only at a stated time (T2.33). A kept
+  // clock-out carries one, the moment it was made — on the day the block
+  // began, that is the time they left; on a later day it is not (a block left
+  // open overnight, and a clock-out this afternoon), and they are asked.
+  assertNotStale_(open, q ? q.end : 0);
   // Out at the end of a drive (T2.18): the photo was taken where the drive
   // began; the end of one is the inside of a truck. Out at the shop owes
   // none either (T2.23): the end photo is of a job site, left for the day.
   if (endPhotoOwed_(open)) requirePhoto_(endPhotoId, 'An end photo is required to clock out.');
   assertWrite_(open.job && open.job.id);
-  closeEntry_(open.id, coords);
-  return { ok: true, closed: open.id, entries: getMyDay(me), evening: eveningCheck_(me, coords, open) };
+  closeEntry_(open.id, coords, q ? q.end : 0, q ? [open.notes, q.note].filter(Boolean).join(' ') : null);
+  var out = { ok: true, closed: open.id, entries: getMyDay(me), evening: eveningCheck_(me, coords, open, q ? q.end : 0) };
+  if (q) out.queued = { end: new Date(q.end).toISOString(), waited: q.waited };
+  return out;
 }
 
 // Close the running entry and open the next one in a single call, so a
@@ -2716,7 +2755,7 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId, opt
   assertWrite_(jobId);
   // An arrival made with no signal (T2.31): the drive ends, and the work
   // starts, when the phone says.
-  var q = queuedStart_(me, opts && opts.queued, jobId, costItemId, open);
+  var q = queuedStart_(me, opts && opts.queued, jobId, costItemId, open, 'change');
   if (q && q.already) return q.already;
   var notes = [opts && opts.notes ? String(opts.notes).trim().slice(0, 200) : '', q ? q.note : ''].filter(Boolean).join(' ') || null;
   var e = openEntry_(me, jobId, costItemId, coords, notes, open, q ? q.start : 0);   // closes what is running, then opens
@@ -3014,7 +3053,10 @@ function startTravel(me, jobId, costItemId, coords, endPhotoId, notes, opts) {
   if (!jobId) throw new Error('Missing job id.');
   if (!costItemId) throw new Error('Pick the line to drive on.');
   var open = openEntryFor_(me.userId);
-  if (!open) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');
+  // A drive kept with no signal (T2.38, audit I17) may open with nothing
+  // running, as a kept arrival may: what came before it was refused, or the
+  // office ended it, and the drive itself still happened.
+  if (!open && !(opts && opts.queued)) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');
   // The end photo is of a site left for the day (T2.23, `doneHere`): a supply
   // run, a trip to another job and back, the shop, a drive or a break owe
   // none. A phone older than T2.23 sends no doneHere and always a photo.
@@ -3024,8 +3066,12 @@ function startTravel(me, jobId, costItemId, coords, endPhotoId, notes, opts) {
   // The notes are what make a drive on a job with no travel line a drive.
   notes = String(notes || '').trim();
   if (!DRIVE_NOTES.test(notes)) notes = 'Drive to ' + jobId + (notes ? ' · ' + notes : '');
-  var e = openEntry_(me, jobId, costItemId, coords, notes, open);
+  var q = queuedStart_(me, opts && opts.queued, jobId, costItemId, open, 'drive');
+  if (q && q.already) return q.already;
+  if (q) notes = notes + ' · ' + q.note;
+  var e = openEntry_(me, jobId, costItemId, coords, notes, open, q ? q.start : 0);
   if (e) markNudged(e.id);
+  if (e && q) e.queued = { start: new Date(q.start).toISOString(), waited: q.waited };
   return e;
 }
 
@@ -3065,13 +3111,17 @@ function deleteEntry_(entryId) {
 // which would close it now and make a 24- to 36-hour entry. Every write that
 // would close it refuses with STALE_OPEN and `stale` on the reply; the phone
 // asks when they left that day, then carries on.
-function staleOpen_(open) {
+// A day before the write's own moment (T2.38, audit I17): a change kept with
+// no signal late one evening and sent the next morning closes that evening's
+// block at its moment — the same day — while a clock-in kept this morning,
+// under a block left open since yesterday, is still asked.
+function staleOpen_(open, atMs) {
   if (!open || isFuture_(open.startedAt)) return false;
   var t = Date.parse(open.startedAt || '');
-  return !isNaN(t) && isoDay_(new Date(t)) < isoDay_(new Date());
+  return !isNaN(t) && isoDay_(new Date(t)) < isoDay_(new Date(atMs || Date.now()));
 }
-function assertNotStale_(open) {
-  if (!staleOpen_(open)) return;
+function assertNotStale_(open, atMs) {
+  if (!staleOpen_(open, atMs)) return;
   var began = new Date(Date.parse(open.startedAt));
   var e = new Error('STALE_OPEN: You are still on the clock from ' + Utilities.formatDate(began, Session.getScriptTimeZone(), 'EEE MMM d') +
                     ' at ' + clockWords_(began) + '. Say when you left that day first.');

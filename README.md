@@ -1139,8 +1139,9 @@ then the Apps Script (`getBuilds`, the push-token rule), then `firebase deploy
   phone says it waited — so a phone set to the wrong time still lands on the
   right minute — and notes it on the entry (*Clocked in with no signal at
   7:02a — sent from DB Crew at 8:15a*). The start photo waits for the entry
-  and goes stamped with it. Until it has gone, clocking out, a break or a move
-  wait for it, and the sheet says why: each needs the entry it makes. The API
+  and goes stamped with it. Until it has gone, a break waits for it, and the
+  sheet says why: it needs the entry the clock-in makes (since T2.38 a
+  clock-out, a change of code and a move are kept behind it instead). The API
   refuses one that would start more than 16 hours back, under a block that
   began since, or over another block of the day; the phone says why, once (the
   reason comes as data beside the API's words, so a Spanish phone says it in
@@ -1483,6 +1484,57 @@ work from before T2.37; the same person back). **Deploys**: the Apps Script
 only changes its build label (`clasp push -f` then `clasp deploy`, so
 Diagnostics does not warn), then `firebase deploy --only hosting`. No board
 change.
+
+**A day with no signal is still a day on the clock** (T2.38, 3 Nov 2026). I17
+of the second audit (Carl: *"go, start I17"*). Since T2.31 a clock-in made with
+no signal is kept on the phone with its moment and sent when there is signal —
+but while it waited, every move, code change and clock-out waited with it, so
+a crew with no signal all morning could not record leaving one job for another
+at all.
+
+- **Every change of the clock is kept behind it now**, each with the moment it
+  was made: a change of code, the drive to the next job, the arrival there, a
+  supply run, the clock-out (from a site, a drive or a break). They go to
+  JobTread in the order they were made as soon as there is signal, and each
+  lands at its own time — the API counts each one back from its own clock by
+  how long the phone says it waited, as it does a kept clock-in. A change made
+  with signal while one is still on its way goes behind it too, never ahead.
+- **The phone shows the day as it went.** The clock is the last change kept
+  (the drive band says *saved on this phone*), today's hours count the kept
+  blocks, and the clock-waiting sheet lists every change in order
+  (*9:15a · Change to 02ST-1 Final Clean*, *11:30a · The drive to Lucas*,
+  *3:40p · Clock out*). Waiting to send has a row for each; sign-out names
+  them (*5 clock changes*).
+- **Every photo goes with the block it is of.** The end photo of a block that
+  is still on the phone waits for the change that opened it and is stamped
+  with that entry when it lands; the start photo of an arrival waits for the
+  arrival.
+- **A refused one is said, and the rest still go.** If JobTread will not take
+  one (the office put them on the clock at 7:40 while the 7:02 clock-in
+  waited), its notice says which and why, and the changes made after it still
+  land at their own times. A clock-out refused says to check the clock and
+  clock out again, or tell the office when they left.
+- **What still waits for it**: a break, *Started earlier* and *Already left*.
+  Each is checked against the entry itself, so each waits until the changes
+  before it have gone, and the sheet says so. *Already left* is not offered
+  on the camera while changes wait.
+- **The next job's codes are on the phone.** The codes of today's booked jobs
+  are fetched behind the schedule, so the drive to one of them finds its
+  travel line with no signal. A job never opened and not booked today still
+  needs signal to pick a code.
+- A block from a day before is still asked about first (T2.33): a change kept
+  the evening the block began closes it that evening; one kept the next
+  morning under a block left open overnight waits behind *When did you leave?*.
+
+`dev/t238-test.mjs` walks it (a day with no signal, a refusal in the middle,
+a change made while one is on its way, yesterday's block, out away from the
+shop, an API older than T2.38); `dev/t231-test.mjs` moved with it (a
+clock-out no longer waits); `apps-script/code-test.mjs` has the kept drive and
+clock-out. **Deploys**: the Apps Script first (`clasp push -f` then `clasp
+deploy`, no new permission), then `firebase deploy --only hosting`. No board
+change. An older Apps Script would put a kept drive or clock-out at the moment
+it arrived, so a phone that knows its API is older than T2.38 keeps neither
+and holds every move for the clock-in as T2.31 did.
 
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
