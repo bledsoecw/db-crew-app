@@ -437,7 +437,7 @@
                // for a JT Site Manager, so that case has to read Crew).
                role: window.__MOCK_FOREMAN ? 'Foreman' : (appRole === 'siteManager' && !window.__MOCK_NOTMANAGER ? 'Site Manager' : 'Crew'), isForeman: !!window.__MOCK_FOREMAN,
                appRole: appRole, appRoleSource: appRole === 'ops' ? 'code' : 'default', ops: appRole === 'ops', closeOut: !window.__MOCK_CO_UNSET,
-               writeEnabled: !window.__MOCK_READONLY, build: 'mock' };
+               writeEnabled: !window.__MOCK_READONLY, build: window.__MOCK_API_BUILD || 'mock' };
     },
     getStart: function (jobId) {
       var b = HANDLERS.getBoot();
@@ -482,7 +482,10 @@
         crew: FX.crew ? FX.crew(window.__MOCK_ROLE || 'siteManager') : { id: 'c1', name: 'Alberto', leadMembershipId: 'm1', leadUserName: 'Alberto Gonzalez' },
         range: { from: isoAdd(-1), to: isoAdd(13) },
         visits: visits(), jobs: [],
-        checklist: JSON.parse(JSON.stringify(CHECKLIST))
+        // `saves: 'lines'` (T2.36): this board takes a save a line at a time.
+        // __MOCK_OLD_BOARD answers as a board from before it, which reads any
+        // save as the whole list.
+        checklist: (function () { var c = JSON.parse(JSON.stringify(CHECKLIST)); if (!window.__MOCK_OLD_BOARD) c.saves = 'lines'; return c; })()
       };
     },
     // The board's PUT /api/crew/checks, as Code.gs hands it back: status and
@@ -491,43 +494,97 @@
     //   __MOCK_NOTMANAGER  the board's 403: not a site manager
     //   __MOCK_PUTFAIL     the board's 502: JobTread write failed
     //   __MOCK_SLOWPUT     hold the answer this many ms
+    // The board's PUT /api/crew/checks, a line at a time (T2.36, audit D25):
+    // with `was`, a field still as the phone saw it (or already as it wants
+    // it) goes through, and one with words on it that somebody else changed
+    // meanwhile stays and comes back in `conflicts`; with no `was`, as sent.
+    // The magnet's name and the signature left out are untouched.
+    //   __MOCK_CK_EDIT  function(list) — somebody else's change, landing just
+    //                   before the next save (then cleared)
+    //   __MOCK_CK_BY    who that was, for the conflict's by/at
     saveSiteChecks: function (taskId, jobId, jobLabel, today, checks) {
       window.__PUTS = window.__PUTS || [];
       window.__PUTS.push(JSON.parse(JSON.stringify({ taskId: taskId, jobId: jobId, jobLabel: jobLabel, today: today, checks: checks })));
       if (window.__MOCK_NOTMANAGER) return { status: 403, reason: 'board-http-403', body: { error: 'Only a site manager can tick the site checks \u2014 ask the office.' } };
       if (window.__MOCK_PUTFAIL) return { status: 502, reason: 'board-http-502', body: { error: 'JobTread write failed' } };
+      if (window.__MOCK_CK_REFUSE) return { status: 400, reason: 'board-http-400', body: { error: window.__MOCK_CK_REFUSE } };
       var cur = CHECKS[taskId];
       if (!cur) return { status: 400, reason: 'board-http-400', body: { error: 'membershipId, taskId, jobId and checks are required' } };
+      if (typeof window.__MOCK_CK_EDIT === 'function') { window.__MOCK_CK_EDIT(cur); window.__MOCK_CK_EDIT = null; }
       var previous = JSON.parse(JSON.stringify(cur));
+      var clean = function (t, n) { return String(t == null ? '' : t).replace(/\s+/g, ' ').trim().slice(0, n); };
+      var label = function (k) { var l = CHECKLIST.lines.filter(function (x) { return x.key === k; })[0]; return l ? l.label.split(' \u2014 ')[0].replace(/:$/, '') : k; };
+      var c = JSON.parse(JSON.stringify(checks)), conflicts = [], was = c.was;
+      // A board from before T2.36 reads every save as the whole list: no
+      // `was`, and a sign-off or a magnet name left out comes off.
+      if (window.__MOCK_OLD_BOARD) { was = null; delete c.was; if (!('signOff' in c)) c.signOff = false; if (!('magnetBy' in c)) c.magnetBy = null; }
+      c.done = c.done || {}; c.na = c.na || {}; c.notes = c.notes || {};
+      if (was) {
+        var lw = was.lines || {}, tick = function (d, n) { return n ? 'na:' + n : d ? 'done' : 'open'; };
+        var keys = {}; Object.keys(c.done).concat(Object.keys(c.na)).forEach(function (k) { keys[k] = 1; });
+        Object.keys(keys).forEach(function (k) {
+          var w = lw[k]; if (!w || k === 'signoff' || (w.done === undefined && w.na === undefined)) return;
+          var now = tick(cur.done[k], (cur.na || {})[k]), before = tick(w.done, w.na);
+          var sentNa = k in c.na ? clean(c.na[k], 80) : undefined;
+          var to = sentNa ? 'na:' + sentNa : k in c.done ? (c.done[k] ? 'done' : 'open') : now.indexOf('na:') === 0 ? 'open' : now;
+          if (now === before || now === to) return;
+          delete c.done[k]; delete c.na[k];
+          conflicts.push({ key: k, label: label(k), what: 'tick', now: { done: !!cur.done[k], na: (cur.na || {})[k] || '' } });
+        });
+        Object.keys(c.notes).forEach(function (k) {
+          var w = lw[k]; if (!w || w.note === undefined) return;
+          var now = (cur.notes || {})[k] || '';
+          if (now === w.note || now === clean(c.notes[k], 140)) return;
+          delete c.notes[k];
+          conflicts.push({ key: k, label: label(k), what: 'note', now: { note: now } });
+        });
+        ['magnetBy', 'coveredBy', 'watertightWith'].forEach(function (f) {
+          if (!Object.prototype.hasOwnProperty.call(c, f) || !Object.prototype.hasOwnProperty.call(was, f)) return;
+          var now = cur[f] || null;
+          if (now === (was[f] || null) || now === (clean(c[f], 60) || null)) return;
+          delete c[f];
+          var vl = CHECKLIST.lines.filter(function (x) { return x.value === f; })[0];
+          conflicts.push({ key: vl ? vl.key : f, label: vl ? label(vl.key) : f, what: 'name', now: { value: now } });
+        });
+        if (window.__MOCK_CK_BY) conflicts.forEach(function (x) { x.by = window.__MOCK_CK_BY; x.at = new Date().toISOString(); });
+      }
       var done = Object.assign({}, cur.done);
-      for (var k in (checks.done || {})) if (LINE_KEYS[k]) done[k] = !!checks.done[k];
-      var signedOff = checks.signOff ? (cur.signedOff || ((FX.signer || 'Tyler') + ' \u00b7 ' + shortDate(today))) : null;
+      for (var k in c.done) if (LINE_KEYS[k]) done[k] = !!c.done[k];
+      var signedOff = !Object.prototype.hasOwnProperty.call(c, 'signOff') ? (cur.signedOff || null)
+                    : c.signOff ? (cur.signedOff || ((FX.signer || 'Tyler') + ' \u00b7 ' + shortDate(today))) : null;
       done.signoff = !!signedOff;
       var notes = Object.assign({}, cur.notes || {});
-      for (var nk in (checks.notes || {})) if (LINE_KEYS[nk]) { var nt = String(checks.notes[nk] || '').replace(/\s+/g, ' ').trim().slice(0, 140); if (nt) notes[nk] = nt; else delete notes[nk]; }
+      for (var nk in c.notes) if (LINE_KEYS[nk]) { var nt = clean(c.notes[nk], 140); if (nt) notes[nk] = nt; else delete notes[nk]; }
       // N/A as the board takes it: a reason sets it, "" clears it, and a tick
       // this save does not also send as n/a clears an old one.
       var na = Object.assign({}, cur.na || {});
-      for (var ak in (checks.na || {})) if (LINE_KEYS[ak]) { var ar = String(checks.na[ak] || '').replace(/\s+/g, ' ').trim().slice(0, 80); if (ar) { na[ak] = ar; done[ak] = false; } else delete na[ak]; }
-      for (var tk in done) if (done[tk] && !(checks.na && checks.na[tk])) delete na[tk];
-      var nameOf = function (f) { return Object.prototype.hasOwnProperty.call(checks, f) ? (String(checks[f] || '').trim().slice(0, 60) || null) : (cur[f] || null); };
-      cur = CHECKS[taskId] = { done: done, magnetBy: String(checks.magnetBy || '').trim().slice(0, 40) || null, coveredBy: nameOf('coveredBy'), watertightWith: nameOf('watertightWith'),
+      for (var ak in c.na) if (LINE_KEYS[ak]) { var ar = clean(c.na[ak], 80); if (ar) { na[ak] = ar; done[ak] = false; } else delete na[ak]; }
+      for (var tk in c.done) if (c.done[tk] && !(tk in c.na)) delete na[tk];
+      var nameOf = function (f, n) { return Object.prototype.hasOwnProperty.call(c, f) ? (clean(c[f], n) || null) : (cur[f] || null); };
+      cur = CHECKS[taskId] = { done: done, magnetBy: nameOf('magnetBy', 40), coveredBy: nameOf('coveredBy', 60), watertightWith: nameOf('watertightWith', 60),
                                signedOff: signedOff, notes: notes, na: na };
       return { status: 200, reason: '', body: {
         human: jobLabel + ' \u2014 ' + checksWords(cur), api: [],
-        checks: JSON.parse(JSON.stringify(cur)), previous: previous } };
+        checks: JSON.parse(JSON.stringify(cur)), previous: previous, conflicts: conflicts } };
     },
-    // The board's PUT /api/crew/prestart: the whole state, every time (T2.25).
+    // The board's PUT /api/crew/prestart (T2.25): with `was` (T2.36) only the
+    // lines named, else the whole state.
     //   __MOCK_PRE_FORBID  the board's 403: not on the bench, not a site manager
-    savePrestart: function (taskId, jobId, jobLabel, done) {
+    //   __MOCK_PRE_EDIT    function(list) — somebody else's ticks, just before the next save
+    //   __MOCK_PRE_REFUSE  the board's 400, with these words
+    savePrestart: function (taskId, jobId, jobLabel, done, was) {
       window.__PREPUTS = window.__PREPUTS || [];
-      window.__PREPUTS.push(JSON.parse(JSON.stringify({ taskId: taskId, jobId: jobId, jobLabel: jobLabel, done: done })));
+      window.__PREPUTS.push(JSON.parse(JSON.stringify({ taskId: taskId, jobId: jobId, jobLabel: jobLabel, done: done, was: was === undefined ? null : was })));
       if (window.__MOCK_PRE_FORBID) return { status: 403, reason: 'board-http-403', body: { error: 'Only the construction bench or a site manager can tick the pre-start \u2014 ask the office.' } };
+      if (window.__MOCK_PRE_REFUSE) return { status: 400, reason: 'board-http-400', body: { error: window.__MOCK_PRE_REFUSE } };
       if (window.__MOCK_PUTFAIL) return { status: 502, reason: 'board-http-502', body: { error: 'JobTread write failed' } };
       var cur = PRESTART[taskId];
       if (!cur) return { status: 400, reason: 'board-http-400', body: { error: 'membershipId, taskId, jobId and done are required' } };
+      if (typeof window.__MOCK_PRE_EDIT === 'function') { window.__MOCK_PRE_EDIT(cur); window.__MOCK_PRE_EDIT = null; }
       var previous = JSON.parse(JSON.stringify(cur)), next = { done: {} };
-      PRESTART_LINES.forEach(function (l) { next.done[l.key] = done[l.key] === true; });
+      PRESTART_LINES.forEach(function (l) {
+        next.done[l.key] = was && typeof was === 'object' && !window.__MOCK_OLD_BOARD ? (l.key in done ? done[l.key] === true : !!cur.done[l.key]) : done[l.key] === true;
+      });
       PRESTART[taskId] = next;
       return { status: 200, reason: '', body: { taskId: taskId, human: jobLabel + ' \u2014 ' + prestartWords(next), api: [], prestart: JSON.parse(JSON.stringify(next)), previous: previous } };
     },

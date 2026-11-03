@@ -610,9 +610,9 @@ regeneration, Linux only.
 - **The training videos are further out of date**: the morning-after screen,
   the "couldn't be told" words and sign-out's draft warning are new on screen.
   Carl's "Do not recreate videos yet" still stands.
-- **`CREW-ASSIGNMENTS-API.md` still spells color the British way** (line 165). It must stay
-  byte-identical with the board's copy, so it changes in both repos in one
-  session, not here alone.
+- **`CREW-ASSIGNMENTS-API.md` spelled color the British way** (line 165). It
+  must stay byte-identical with the board's copy, so it changed in both repos
+  in one session — T2.36's, with the line-by-line save.
 - **T2.33 is live**: Carl ran the one chain (`clasp deploy … -d "T2.33"`,
   `firebase deploy --only hosting`) after the Close Out server; by 16:37Z on
   2 Nov 2026 db-crews.web.app served `index.html`, `sw.js` and
@@ -888,3 +888,68 @@ regeneration, Linux only.
   the same branch (`-d "T2.35 label"`, no `firebase deploy`: the phones
   already had T2.35), and Carl's Diagnostics then read App and API both
   T2.35. **T2.35 is live in all four places.**
+
+## T2.36 (2 Nov 2026) — checklists saved a line at a time (audit D25), what the README does not say
+
+- **Two gates, both needed** (`ckLineSaves()`): the job list's
+  `checklist.saves === 'lines'` (the board says it takes a partial save) AND
+  an API at T2.36 or later (`buildNum(api) >= 2036`; `'mock'` counts as new,
+  an empty build does not). Either missing and the phone sends the whole list,
+  exactly as T2.35 did. An older board reads any save as the whole list (an
+  absent `signOff` unsigns, an absent `magnetBy` is wiped, a pre-start line
+  left out is unticked); an older `Code.gs` drops `was` and always sends
+  `magnetBy` and `signOff`. With both gates the deploy order cannot do harm —
+  the board half's flag (`saves: "lines"` on `checklistShape()`) is what made
+  that true, added after the first cut relied on the order alone.
+- **`base` on each entry is the board's list as last handed over**, never the
+  phone's copy. `ckDelta` (the board's `checksSave` in the phone's words)
+  sends what differs from it; `ckMerge` lays what was touched DURING a save
+  back over the board's answer; a line the board did not take carries the
+  board's value afterwards, so it is never sent again over somebody else's
+  change without the person seeing it. Never rebase `base` while an entry is
+  dirty: a newer board answer would turn the phone's stale untouched lines
+  into "changes" and overwrite with no conflict.
+- **A clean save hands the entry back** (`ckReconcile`: `state` and `base`
+  null once the next job list lands), so a test reads the board's copy off
+  `visitForChecks(tid).checks.state`, not off `ckStore`. An entry kept from
+  before T2.36 has no `base` and goes whole once.
+- **Refused means `e.refused`**: `true` for a 400 (not asked again until a
+  change, a sign tap, or Let go), `'role'` for a 403 (asked again at once when
+  `ckClearRO()` runs — the profile says Site Manager — else at most hourly on
+  waking, `roleRetry`/`e.roleTry`). A 200 clears the read-only memory, because
+  the board took a write from this person. The status chip says *Not saved*;
+  the notice says the reason (`ckReasonWords`, the err without its prefix);
+  the board's own words ride `e.why`, never inside `e.err` (which is looked up
+  in Spanish).
+- **A refused list no longer on the phone is let go from Waiting to send**
+  (`drop` on the item, two taps, `S.waitDrop`), or it would block sign-out
+  with no way to open it. The checks screen's *Let my changes go* arms for
+  eight seconds (`LETGO`).
+- **Conflicts live on the entry** (`e.conflicts`) until *Got it*, so they
+  survive a reload and the hand-back. Only a line with words can conflict; a
+  tick, the signature and every pre-start box cannot (booleans: the board
+  finds them either as the phone saw them or as it wants them).
+- **The mock grew switches**: `__MOCK_OLD_BOARD` (no `saves`; a save read as
+  the whole list), `__MOCK_API_BUILD` (what getBoot says), `__MOCK_CK_EDIT`
+  (somebody else's change just before the next save) with `__MOCK_CK_BY`,
+  `__MOCK_CK_REFUSE` (the 400), `__MOCK_PRE_EDIT` and `__MOCK_PRE_REFUSE`.
+- **`dev/t236-test.mjs` reads a missing element as empty** (`txt`, `cls`,
+  `box`, `val`, `tap`) so a run against an older build reports what is missing
+  instead of timing out: against the T2.35 phone 44 of its 73 checks fail, and
+  all pass on T2.36. `checks-test.mjs` moved with the rule (the whole-state
+  checks became line checks; the 403 keeps the tick) and reads today's date at
+  the check, not at the start.
+- **clock-test's evening-push step fails between about 00:30 and 02:00 UTC**
+  whatever the build: `__MOCK_OPEN_AGO=90` then started yesterday, and the
+  T2.33 day-before rule answers instead. Measured on the T2.35 phone at 00:35
+  UTC with the same failure. It is the container's clock, not the app: run
+  with the browser on Ohio time (`TZ=America/New_York node
+  dev/clock-test.mjs`) it passes 229/229 at the same hour. code-test's D21
+  check had the same fault in its own setup — "yesterday" was the UTC date
+  less one, still Ohio's today until midnight Ohio — and crashed the suite at
+  00:55 UTC; it takes the script's day now (`addDays_(today, -1)`). push-test
+  is 6/14 here as before.
+- **Not done on purpose**: the training videos (Carl's "Do not recreate
+  videos yet" stands; the notices are edge-case screens), and a conflict on
+  the sign-off line (it cannot happen with a boolean, so the phone has words
+  for it and no test reaches it).

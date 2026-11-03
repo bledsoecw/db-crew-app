@@ -614,6 +614,19 @@ cacheStore = {}; fetched = [];
 sandbox.saveSiteChecks(ME, 't_roof', 'j9', '', '2026-09-20', { done: {} });
 t('…and left out when it did not, so the board keeps what is there', ['coveredBy' in JSON.parse(fetched[0].opts.payload).checks, 'watertightWith' in JSON.parse(fetched[0].opts.payload).checks], [false, false]);
 
+// ---- T2.36 (audit D25): a line at a time ----
+cacheStore = {}; fetched = [];
+sandbox.saveSiteChecks(ME, 't_roof', 'j9', '', '2026-11-02', { done: { septic: true }, na: { septic: '' },
+  was: { lines: { septic: { done: false, na: '', note: '' }, bogus: 'x', address: { done: 1, na: '  city   sewer ', note: 'Gate' } }, magnetBy: '  Kenton ', signedOff: true, extra: 1 } });
+const lb = JSON.parse(fetched[0].opts.payload).checks;
+t('T2.36: what the phone left out stays out — the magnet\'s name and the signature are untouched now', ['magnetBy' in lb, 'signOff' in lb, lb.done], [false, false, { septic: true }]);
+t('…and `was` goes along, cleaned: each line\'s tick, n/a and note, the names, the signature',
+  lb.was, { lines: { septic: { done: false, na: '', note: '' }, address: { na: 'city sewer', note: 'Gate' } }, magnetBy: 'Kenton', signedOff: true });
+cacheStore = {}; fetched = [];
+sandbox.saveSiteChecks(ME, 't_roof', 'j9', '', '2026-11-02', { done: {}, magnetBy: null, signOff: true });
+t('…a phone that sends the magnet\'s name or the signature still has them forwarded, and no `was` means none is sent',
+  (({ magnetBy, signOff, was }) => [magnetBy, signOff, was === undefined])(JSON.parse(fetched[0].opts.payload).checks), [null, true, true]);
+
 // ---- the bench's pre-start (T2.25): the whole state to PUT /api/crew/prestart ----
 cacheStore = {}; fetched = [];
 fetchImpl = () => ({ code: 200, body: JSON.stringify({ taskId: 't_start', human: '26-1040 Agler — Pre-start — 3 of 7 done', api: [], prestart: { done: { precon: true } }, previous: { done: {} } }) });
@@ -629,12 +642,19 @@ t('a 403 is data with the board\'s words, never thrown', [r.status, r.reason, /c
 let badPre = '';
 try { sandbox.savePrestart(ME, '', 'j_agler', '', {}); } catch (e) { badPre = e.message; }
 t('no list id is the app\'s bug', /pre-start list id/.test(badPre), true);
+fetchImpl = () => ({ code: 200, body: JSON.stringify({ taskId: 't_start', human: '', api: [], prestart: { done: {} }, previous: { done: {} } }) });
+cacheStore = {}; fetched = [];
+sandbox.savePrestart(ME, 't_start', 'j_agler', '26-1040 Agler', { utilities: true }, { utilities: false, junk: 'x' });
+sandbox.savePrestart(ME, 't_start', 'j_agler', '26-1040 Agler', { precon: true });
+t('T2.36: the pre-start sends the lines changed with what each was; with no `was`, none (the board reads the whole state)',
+  [JSON.parse(fetched[0].opts.payload).done, JSON.parse(fetched[0].opts.payload).was, 'was' in JSON.parse(fetched[1].opts.payload)],
+  [{ utilities: true }, { utilities: false }, false]);
 fetchImpl = () => ({ code: 200, body: JSON.stringify({ human: '', api: [], checks: written, previous: {} }) });
 
 
 // A bad date from the phone falls back to the script's own today, not to nothing.
 cacheStore = {}; fetched = [];
-sandbox.saveSiteChecks(ME, 't_roof', 'j9', '', 'yesterday-ish', { done: {} });
+sandbox.saveSiteChecks(ME, 't_roof', 'j9', '', 'yesterday-ish', { done: {}, magnetBy: '   ' });
 t('a garbage date -> the script\'s today', JSON.parse(fetched[0].opts.payload).today, today);
 t('an empty magnet name is null, not ""', JSON.parse(fetched[0].opts.payload).checks.magnetBy, null);
 
@@ -1750,7 +1770,10 @@ t('…no snapshot yet (no phone registered for push): nothing is written', props
     if (q.createComment) return { code: 200, body: '{"createComment":{"createdComment":{"id":"c1"}}}' };
     return base(url, opts); };
   const postR = (fn, args, rid) => JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok', fn, args, rid }) } }).getContent());
-  const yesterday7 = (() => { const d = new Date(Date.now() - 24 * 3600e3); d.setUTCHours(11, 2, 0, 0); return d.toISOString(); })();   // 7:02a Ohio, the day before
+  // 7:02a Ohio on the day before the SCRIPT's today, not the UTC one: from
+  // midnight UTC to midnight Ohio the UTC "yesterday" is still Ohio's today
+  // and the block is not stale (this check failed at 00:55 UTC on 3 Nov 2026).
+  const yesterday7 = sandbox.addDays_(today, -1) + 'T11:02:00.000Z';
   const stale = () => entry('tyday', yesterday7, 'j9', 'ci1');
 
   openNow = stale();

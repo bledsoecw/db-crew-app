@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.35 (2026-11-02)';
+var APP_BUILD = 'T2.36 (2026-11-02)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -1802,12 +1802,16 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
   var cfg = boardConfig_();
   if (!cfg.url || !cfg.secret) { out.reason = 'not-configured'; return out; }
 
-  // The whole state the phone holds, coerced to the contract's shape. The
-  // sign-off VALUE (name, date) is never sent — the board stamps it from the
-  // membership; `signOff` is only whether it should be signed.
+  // What the phone sends, coerced to the contract's shape. Since T2.36 (audit
+  // D25) that is only what it changed, with `was` — what each field was when
+  // the phone last had the list — so the board applies it a line at a time
+  // and names any line somebody else changed meanwhile. The sign-off VALUE
+  // (name, date) is never sent — the board stamps it from the membership;
+  // `signOff` is only whether it should be signed.
+  var has = function (o, f) { return Object.prototype.hasOwnProperty.call(o, f); };
   var done = {};
   var src = (checks.done && typeof checks.done === 'object') ? checks.done : {};
-  for (var k in src) if (Object.prototype.hasOwnProperty.call(src, k)) done[String(k)] = !!src[k];
+  for (var k in src) if (has(src, k)) done[String(k)] = !!src[k];
   var payload = {
     membershipId: me.membershipId,
     taskId: taskId,
@@ -1817,8 +1821,6 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
     today: /^\d{4}-\d{2}-\d{2}$/.test(String(today || '')) ? today : isoDay_(new Date()),
     checks: {
       done: done,
-      magnetBy: (checks.magnetBy == null || String(checks.magnetBy).trim() === '') ? null : String(checks.magnetBy).trim().slice(0, 40),
-      signOff: !!checks.signOff,
       // Not applicable, per line, with the reason; "" clears it (T2.25). The
       // board drops an n/a with no reason, so the phone never sends one.
       na: (function () {
@@ -1838,13 +1840,21 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
       })()
     }
   };
+  // Left out, the board keeps what is there; null clears. The magnet's name
+  // and the signature used to go on every save (an absent signOff unsigned the
+  // list); since T2.36 they go only when the phone changed them.
+  if (has(checks, 'magnetBy')) {
+    payload.checks.magnetBy = (checks.magnetBy == null || String(checks.magnetBy).trim() === '') ? null : String(checks.magnetBy).trim().slice(0, 40);
+  }
+  if (has(checks, 'signOff')) payload.checks.signOff = !!checks.signOff;
   // The two names that ride their lines (T2.25): sent only when the phone
   // drew them — left out, the board keeps what is there; null clears.
   ['coveredBy', 'watertightWith'].forEach(function (f) {
-    if (!Object.prototype.hasOwnProperty.call(checks, f)) return;
+    if (!has(checks, f)) return;
     var v = checks[f] == null ? '' : String(checks[f]).replace(/\s+/g, ' ').trim().slice(0, 60);
     payload.checks[f] = v || null;
   });
+  if (checks.was && typeof checks.was === 'object') payload.checks.was = checksWas_(checks.was);
 
   var startedMs = Date.now(), elapsedMs = 0;
   try {
@@ -1886,18 +1896,41 @@ function saveSiteChecks(me, taskId, jobId, jobLabel, today, checks) {
   return out;
 }
 
+/** `was` cleaned to the contract's shape (T2.36, audit D25): per line what its
+ *  tick, n/a and note were, the names, and whether it was signed. */
+function checksWas_(was) {
+  var out = { lines: {} }, lines = (was.lines && typeof was.lines === 'object') ? was.lines : {}, n = 0;
+  for (var key in lines) {
+    var w = lines[key];
+    if (!Object.prototype.hasOwnProperty.call(lines, key) || !w || typeof w !== 'object' || n++ >= 60) continue;
+    var o = {};
+    if (typeof w.done === 'boolean') o.done = w.done;
+    if (typeof w.na === 'string') o.na = w.na.replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (typeof w.note === 'string') o.note = w.note.replace(/\s+/g, ' ').trim().slice(0, 140);
+    out.lines[String(key).slice(0, 40)] = o;
+  }
+  ['magnetBy', 'coveredBy', 'watertightWith'].forEach(function (f) {
+    if (!Object.prototype.hasOwnProperty.call(was, f)) return;
+    var v = was[f] == null ? '' : String(was[f]).replace(/\s+/g, ' ').trim().slice(0, 60);
+    out[f] = v || null;
+  });
+  if (typeof was.signedOff === 'boolean') out.signedOff = was.signedOff;
+  return out;
+}
+
 // ===========================================================
 // THE BENCH'S PRE-START LIST (T2.25, 29 Oct 2026)
 //
 // Construction's first checklist on the phone. The board writes seven boxes
 // on the job's Start Date line when the bench is booked (`visits[].prestart`
-// on getMyJobs) and takes them back through PUT /api/crew/prestart — the
-// WHOLE state each time, a key left out reading as unticked. Who may tick is
+// on getMyJobs) and takes them back through PUT /api/crew/prestart — since
+// T2.36 (audit D25) only the lines changed, with `was`; a body without `was`
+// is the whole state, a key left out reading as unticked. Who may tick is
 // the board's call: a construction bench member or a site manager; anybody
 // else gets a 403 with words to show. Every save with a change posts one job
 // comment, so the phone saves when the list is left, not per tap.
 // ===========================================================
-function savePrestart(me, taskId, jobId, jobLabel, done) {
+function savePrestart(me, taskId, jobId, jobLabel, done, was) {
   taskId = String(taskId || '').trim();
   jobId = String(jobId || '').trim();
   if (!taskId) throw new Error('Missing the pre-start list id.');
@@ -1912,6 +1945,11 @@ function savePrestart(me, taskId, jobId, jobLabel, done) {
   var d = {};
   for (var k in done) if (Object.prototype.hasOwnProperty.call(done, k)) d[String(k).slice(0, 40)] = !!done[k];
   var payload = { membershipId: me.membershipId, taskId: taskId, jobId: jobId, jobLabel: String(jobLabel || '').slice(0, 80), done: d };
+  if (was && typeof was === 'object') {
+    var w = {};
+    for (var wk in was) if (Object.prototype.hasOwnProperty.call(was, wk) && typeof was[wk] === 'boolean') w[String(wk).slice(0, 40)] = was[wk];
+    payload.was = w;
+  }
 
   var startedMs = Date.now(), elapsedMs = 0;
   try {

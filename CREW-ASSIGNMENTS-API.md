@@ -150,7 +150,8 @@ job. Don't lose that by filtering the result again on `start >= from`.
       { "key": "magnet",     "phase": "finished", "label": "Magnet run, lawn and beds — by:", "value": "magnetBy" },
       { "key": "watertight", "phase": "finished", "label": "Watertight confirmed with:",      "value": "watertightWith" },
       { "key": "signoff",    "phase": "finished", "label": "Signed off:",                     "value": "signedOff" }
-    ]
+    ],
+    "saves": "lines"                           // this board takes a site-checks or pre-start save a line at a time (added 2026-11-02); absent on an older board — send it the whole list
   },
   "fetchedAt": "2026-09-14T11:02:00.000Z"
 }
@@ -162,7 +163,7 @@ the card loses a line the crew already expects to see.
 
 `material` is `materialWords`' own return value — `{ text, cls }` where `cls` is
 `good` | `warn` | `bad`, or `null` when no chip applies. This app renders the
-text as-is and colours from `cls`; it deliberately does **not** re-derive the
+text as-is and colors from `cls`; it deliberately does **not** re-derive the
 words, so they stay defined in one place.
 
 **The words changed on 18 Sep 2026 and the phone must not paper over it.**
@@ -362,19 +363,24 @@ Content-Type: application/json
   "today":   "2026-09-15",          // the PHONE's date — a UTC server is a day out every evening
   "checks": {
     "done": { "address": true, "homeowner": true },  // only the keys you changed are needed
-    "magnetBy": "Kenton",                              // or null
+    "magnetBy": "Kenton",                              // or null; LEAVE OUT to keep what is there (changed 2026-11-02)
     "coveredBy": "Kenton, back by 3:30",               // or null; LEAVE OUT to keep what is there (added 2026-09-21)
     "watertightWith": "Jason Zehr",                    // or null; LEAVE OUT to keep what is there (added 2026-09-21)
-    "signOff": true,                                   // sign it (false takes a signature off)
+    "signOff": true,                                   // sign it (false takes a signature off); LEAVE OUT to keep (changed 2026-11-02)
     "notes": { "septic": "Tank lid is under the back deck", "address": "" },  // a note per line key; "" clears (added 2026-09-20)
-    "na": { "septic": "city sewer", "sign": "" }        // NOT APPLICABLE per line key, with the reason; "" clears (added 2026-09-21)
+    "na": { "septic": "city sewer", "sign": "" },       // NOT APPLICABLE per line key, with the reason; "" clears (added 2026-09-21)
+    "was": {                                           // what each changed field was when this phone last had the list (added 2026-11-02)
+      "lines": { "address": { "done": false, "na": "", "note": "" }, "septic": { "done": false, "na": "", "note": "" } },
+      "magnetBy": null,
+      "signedOff": false
+    }
   }
 }
 ```
 
 | Case | Status | Body |
 | --- | --- | --- |
-| Written | 200 | `{ "human": "…", "api": […], "checks": {…}, "previous": {…} }` — `checks` is the state as written; adopt it. `previous` is what it was, so an Undo is this same call with `previous` posted back. |
+| Written | 200 | `{ "human": "…", "api": […], "checks": {…}, "previous": {…}, "conflicts": […] }` — `checks` is the state as written; adopt it. `previous` is what it was, so an Undo is this same call taking this save's lines back. `conflicts` (added 2026-11-02) lists the lines somebody else changed after this phone last had the list; see below. |
 | Membership is not a site manager | **403** | `{ "error": "Only a site manager can tick the site checks — ask the office." }` |
 | Missing/short ids, no `checks` | 400 | `{ "error": "…" }` |
 | Wrong or missing bearer token | 401 | as GET |
@@ -386,11 +392,47 @@ carry the **"Site Manager"** role there (Chris Blue, Tyler, Kenton as of
 Carl moves people on and off that role in JobTread; nothing needs redeploying.
 The same rule gates the board's own route, so the two can never disagree.
 
-**The whole state is posted every time** — `subtasks` REPLACES on JobTread's
-`updateTask` — and the board rebuilds only its own 28 lines, carrying every
-other item on the checklist across untouched. The sign-off name and date are
-stamped by the board from the membership; once signed, re-saving ticks does not
-re-sign, and `signOff: false` is the only way a signature comes off.
+**The board writes the whole checklist to JobTread every time** — `subtasks`
+REPLACES on JobTread's `updateTask` — rebuilding only its own lines and
+carrying every other item on the checklist across untouched. The sign-off name
+and date are stamped by the board from the membership; once signed, re-saving
+ticks does not re-sign, and `signOff: false` is the only way a signature comes
+off.
+
+**A save names only what this phone changed, a line at a time** (added
+2026-11-02, DB Crew T2.36, audit D25). Every save used to carry the whole list,
+so a phone that had been offline overwrote lines the office or a second site
+manager ticked in the meantime. Now the phone sends only the fields it changed
+— `done` and `na` for a line's tick, `notes` for its note, a name, `signOff` —
+and under `was` what each of them was when the phone last had the list. The
+board writes a field only while its own copy still says what `was` says, or
+already says what the phone wants; a field somebody else changed in between is
+left as it is and answered in `conflicts`:
+
+```jsonc
+"conflicts": [
+  { "key": "address", "label": "Right address, right roof", "what": "note",   // tick | note | name | signature
+    "now": { "note": "Gate 1234" },                                           // tick: { done, na } · name: { value } · signature: { signedOff }
+    "by": "Tyler Mohr", "at": "2026-11-02T19:14:00Z" }                        // from the task's own message for that change, when it has one
+]
+```
+
+`checks` already shows what the list says now. A yes-or-no change can never
+conflict — a real change finds the line either as the phone saw it or already
+as it wants it — so two phones ticking different lines both keep their ticks,
+and only a line with words on it (a note, an N/A reason, a name) can come back
+as somebody else's. The task's message for the save names what was not taken
+(*"not taken, changed first by someone else: Right address, right roof"*). A
+save with no `was` is applied as sent, last write winning — phones from before
+this, and anything that means to restore.
+
+**Send it that way only to a board that says it takes it.** `checklist.saves`
+on the GET is `"lines"` on a board that does. A board without it reads any
+save as the whole list — a sign-off left out unsigns it, a magnet name left out
+is wiped, a pre-start line left out is unticked — so a phone that does not see
+`"lines"` sends the whole list, as before, and so does a phone whose API is
+older than T2.36 (an older `Code.gs` drops `was` and always sends `magnetBy`
+and `signOff`). Which of the three is deployed first then never matters.
 
 The ticks are written on every save. The job comment is not (changed
 2026-09-20): the phone saves in bursts with no button, and a site manager
@@ -418,11 +460,13 @@ on the GET, keyed by `checklist.lines[].key` exactly like `done`, and
   the same trick as `magnetBy` and the sign-off, so a PM reading the task in
   JobTread's own app sees *"Well and septic located — note: Tank lid is under
   the back deck"*.
-- **Send every key you show, `""` for none** — the PUT's `notes` is merged
-  onto what is written: a key present with text sets it, `""` clears it, a key
-  left out is left alone. So a phone that sends all 27 keys every burst is
-  right, and one that sends only the changed key is also right; what is wrong
-  is sending a key with stale text after somebody cleared it in JobTread.
+- **Send only the notes you changed, with what each was** (changed
+  2026-11-02, audit D25) — the PUT's `notes` is merged onto what is written: a
+  key present with text sets it, `""` clears it, a key left out is left alone.
+  A phone used to send all 27 keys every burst, which put stale text back
+  after somebody changed or cleared a note elsewhere; with `was` (above) a note
+  changed elsewhere since the phone last had the list is answered as a
+  conflict and left as it is.
 - **A note is the TASK's message, never the job feed's** (Carl, 20 Sep 2026:
   *"notes land on the task's message, not directly on the activity feed"*).
   Every save that changes anything posts ONE comment on the install task
@@ -692,12 +736,17 @@ sub, a roofer or a trailer gets a 403 with words to show.
 }
 ```
 
-The WHOLE state every time — a key left out reads as unticked, so send every
-key you drew. The response is the board's own write result: `prestart` (the
-state as written — adopt it), `previous`, `human`, `api`. Every save with a
-change posts one job comment naming what moved (*"📋 Bench pre-start 3 of 7
-— ticked Utilities located — via Production Board (Zac Deitemeyer)"*), so
-save when the box is left, not per tap. Undo is `previous` posted back.
+**Only the lines you changed, with what each was** (added 2026-11-02, DB
+Crew T2.36, audit D25): `"done": { "utilities": true }, "was": { "utilities":
+false }`. With `was`, a line left out is untouched, so a box the office or a
+second phone ticked meanwhile keeps its tick. Without `was` the body is the
+WHOLE state, as it always was — a key left out reads as unticked — which is
+what the phone sends while `checklist.saves` is not `"lines"`. The response
+is the board's own write result: `prestart` (the state as written — adopt it),
+`previous`, `human`, `api`. Every save with a change posts one job comment
+naming what moved (*"📋 Bench pre-start 3 of 7 — ticked Utilities located —
+via Production Board (Zac Deitemeyer)"*), so save when the box is left, not per
+tap. Undo takes this save's lines back the same way.
 
 ### This app's half (T2.25, 29 Oct 2026)
 
@@ -706,11 +755,12 @@ save when the box is left, not per tap. Undo is `previous` posted back.
 token, the board's status and JSON handed back verbatim (never thrown), the
 cached job list dropped on a 200 so the card reads the board's new words. The
 phone shows the list on a job that has no site checks, ticks only, in the
-payload's order and words; taps stay on the phone and the whole state is sent
-once, when the list is left or after a minute and a half of nothing, which is
-what keeps the job feed to one comment per visit to the list. A 403 makes the
-list read-only with the board's words; offline or a 5xx keeps the ticks and
-retries on the next open.
+payload's order and words; taps stay on the phone and the lines changed are
+sent once, when the list is left or after a minute and a half of nothing, which
+is what keeps the job feed to one comment per visit to the list. A 403 makes the
+list read-only with the board's words and keeps the unsent ticks until they are
+sent or let go (T2.36); offline or a 5xx keeps the ticks and retries on the
+next open.
 
 `taskName` is read off each visit for the stage words: a name starting
 *Rough-in* or *Finishes* (the construction template's lines, the board's

@@ -50,9 +50,10 @@ const puts = async (page) => {
 const tap = async (page, sel, ms = 300) => { await page.locator(sel).first().click(); await page.waitForTimeout(ms); };
 const txt = async (page, sel) => (await page.locator(sel).first().textContent()).replace(/\s+/g, ' ').trim();
 const cls = (page, sel) => page.locator(sel).first().getAttribute('class');
-const today = new Date();
-const shortToday = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+// Read at the check, not at the start: a run that crosses midnight would
+// otherwise expect yesterday's date from a page that has moved on.
+const shortToday = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const isoToday = () => { const t = new Date(); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); };
 
 // ---- a site manager: the card, the list, the ticks, the magnet, the signature ----
 {
@@ -87,10 +88,12 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   let p = await puts(page);
   check('one save per burst', p.length, 1);
   check('to the LIST\'s id, not the visit\'s', [p[0].taskId, p[0].jobId], ['t2roof', 'j2']);
-  check('the whole state, every key', Object.keys(p[0].checks.done).length, 28);
-  check('with the three ticks', [p[0].checks.done.address, p[0].checks.done.homeowner, p[0].checks.done.scope, p[0].checks.done.color], [true, true, true, false]);
-  check('not signed, and no signature text sent', [p[0].checks.signOff, 'signedOff' in p[0].checks], [false, false]);
-  check('the phone\'s date', p[0].today, isoToday);
+  // T2.36 (audit D25): only what changed, each with what it was.
+  check('only the three lines changed', Object.keys(p[0].checks.done).sort(), ['address', 'homeowner', 'scope']);
+  check('with the three ticks, each with what it was', [p[0].checks.done.address, p[0].checks.done.homeowner, p[0].checks.done.scope, p[0].checks.was.lines.address],
+    [true, true, true, { done: false, na: '', note: '' }]);
+  check('the signature and the magnet name left out (kept as they are), no signature text sent', ['signOff' in p[0].checks, 'magnetBy' in p[0].checks, 'signedOff' in p[0].checks], [false, false, false]);
+  check('the phone\'s date', p[0].today, isoToday());
   check('no membership id from the phone', 'membershipId' in p[0], false);
   check('the job label for the board\'s wording', p[0].jobLabel, '26-1045 Lucas');
   check('says Saved', await txt(page, '#ckSave'), 'Saved');
@@ -109,7 +112,8 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   await page.locator('[data-note="septic"]').press('Enter');
   await page.waitForTimeout(2600);
   p = await puts(page);
-  check('the note rides the next save, every key present', [p.length, p[p.length - 1].checks.notes.septic, p[p.length - 1].checks.notes.address, Object.keys(p[p.length - 1].checks.notes).length], [2, 'septic is east of the drive', '', 27]);
+  check('the note rides the next save, alone, with what it was', [p.length, p[p.length - 1].checks.notes, Object.keys(p[p.length - 1].checks.done).length, p[p.length - 1].checks.was.lines.septic],
+    [2, { septic: 'septic is east of the drive' }, 0, { done: false, na: '', note: '' }]);
   check('...and the pen is lit once it is there', await cls(page, '[data-note-add="septic"]'), 'cknote-pen has');
   check('the box keeps the words after the save', await page.locator('[data-note="septic"]').inputValue(), 'septic is east of the drive');
 
@@ -118,21 +122,22 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   check('the "who ran it?" field is not prefilled', await page.locator('#ckWho').inputValue(), '');
   await tap(page, '#ckWhoMe', 2600);
   p = await puts(page);
-  check('the chip fills the first name and saves it', [p.length, p[2].checks.magnetBy, p[2].checks.done.magnet], [3, 'Tyler', true]);
+  check('the chip fills the first name and saves it', [p.length, p[2].checks.magnetBy, p[2].checks.done.magnet, p[2].checks.was.magnetBy], [3, 'Tyler', true, null]);
 
   check('the sign-off button carries the signed-in first name', await txt(page, '#ckSignBtn'), 'Sign off as Tyler');
   await tap(page, '#ckSignBtn', 500);
   check('the confirm counts what is not ticked', await txt(page, '#sheetBody .body'), '23 lines not ticked — sign anyway?');
   await tap(page, '#skYes', 2200);
   p = await puts(page);
-  check('yes -> one save with signOff true', [p.length, p[3].checks.signOff], [4, true]);
-  check('the signature shown is the board\'s', await txt(page, '.cksign .st'), 'Signed off: Tyler · ' + shortToday);
+  check('yes -> one save with signOff true, and what it was', [p.length, p[3].checks.signOff, p[3].checks.was.signedOff], [4, true, false]);
+  check('the signature shown is the board\'s', await txt(page, '.cksign .st'), 'Signed off: Tyler · ' + shortToday());
   check('the button becomes Unsign', await page.locator('#ckUnsign').count(), 1);
   check('...and the words go green', await cls(page, '#ckWords'), 'jck green');
 
   await tap(page, '.ckrow[data-line="cleanup"]', 2600);
   p = await puts(page);
-  check('ticks stay editable, and keep the signature', [p.length, p[4].checks.signOff, p[4].checks.done.cleanup], [5, true, true]);
+  check('ticks stay editable, and the signature is left out, so it stays', [p.length, 'signOff' in p[4].checks, p[4].checks.done.cleanup, await txt(page, '.cksign .st')],
+    [5, false, true, 'Signed off: Tyler · ' + shortToday()]);
 
   await tap(page, '#ckUnsign', 400);
   await tap(page, '#ukYes', 2200);
@@ -168,7 +173,10 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   await tap(page, '.ckrow[data-line="address"]', 2600);
   check('the save was tried', (await puts(page)).length, 1);
   check('the 403 makes every row read-only', await page.locator('.ckrow[disabled]').count(), 27);
-  check('the tick came back off', await cls(page, '.ckrow[data-line="address"]'), 'ckrow');
+  // T2.36: the tick is kept on this phone, said as not saved — it used to be thrown away.
+  check('the tick stays on this phone', await cls(page, '.ckrow[data-line="address"]'), 'ckrow on');
+  check('…said as not saved, above the list, with the way to let it go', [await txt(page, '#ckSave'), await txt(page, '.cknotice .nk'), await txt(page, '.cknotice .nt'), await page.locator('.cknotice [data-letgo]').count()],
+    ['Not saved', 'Not saved', 'Only a site manager can tick these. Ask the office.', 1]);
   check('one plain line at the top', await txt(page, '#ckRo'), 'The site manager ticks these.');
   check('no sign-off button', await page.locator('#ckSignBtn').count(), 0);
   check('no red error', await page.locator('#toast.err').isVisible(), false);
@@ -180,6 +188,12 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   check('read-only is remembered, so no nudge', /hidden/.test(await cls(page, '#jobsNudge')), true);
   await tap(page, '[data-checks="t2roof"]', 500);
   check('...and the rows stay disabled', await page.locator('.ckrow[disabled]').count(), 27);
+  check('…the kept tick survives the reload, and is not sent again on opening', [await cls(page, '.ckrow[data-line="address"]'), (await puts(page)).length], ['ckrow on', 0]);
+  await tap(page, '.cknotice [data-letgo]', 300);
+  check('Let my changes go asks once more', await txt(page, '.cknotice [data-letgo]'), 'Tap again to throw your changes away');
+  await tap(page, '.cknotice [data-letgo]', 500);
+  check('…a second tap lets it go: the board\'s list, nothing waiting', [await cls(page, '.ckrow[data-line="address"]'), await page.locator('.cknotice').count(), await page.evaluate(() => Object.keys(ckStore).length)],
+    ['ckrow', 0, 0]);
   check('no page errors', errs, []);
   await ctx.close();
 }
@@ -201,7 +215,7 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await page.waitForTimeout(1500);
   let p = await puts(page);
-  check('reconnect: saved once, the whole state', [p.length, p[0].checks.done.address, p[0].checks.done.homeowner], [1, true, true]);
+  check('reconnect: saved once, both ticks', [p.length, p[0].checks.done.address, p[0].checks.done.homeowner], [1, true, true]);
   check('says Saved', await txt(page, '#ckSave'), 'Saved');
 
   await page.evaluate(() => { window.__MOCK_PUTFAIL = true; });
@@ -214,7 +228,7 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(2600);
   p = await puts(page);
-  check('the next open retries what was unsaved', [p.length, p[0].checks.done.scope, p[0].checks.done.address], [1, true, true]);
+  check('the next open retries what was unsaved — that line, the others already in', [p.length, p[0].checks.done.scope, 'address' in p[0].checks.done], [1, true, false]);
   await tap(page, '.tab[data-tab="jobs"]', 900);
   await tap(page, '[data-checks="t2roof"]', 500);
   check('...and shows it saved', await txt(page, '#ckSave'), 'Saved');
@@ -231,7 +245,8 @@ const isoToday = today.getFullYear() + '-' + String(today.getMonth() + 1).padSta
   check('saving is said while in flight', await txt(page, '#ckSave'), 'Saving…');
   await tap(page, '.ckrow[data-line="homeowner"]', 3800);
   const p = await puts(page);
-  check('a tap during a save rides the next one', [p.length, p[0].checks.done.homeowner, p[1].checks.done.address, p[1].checks.done.homeowner], [2, false, true, true]);
+  check('a tap during a save rides the next one, on its own', [p.length, p[0].checks.done.address, 'homeowner' in p[0].checks.done, 'address' in p[1].checks.done, p[1].checks.done.homeowner],
+    [2, true, false, false, true]);
   check('both still ticked on screen', await page.locator('.ckrow.on').count(), 2);
   check('and settled', await txt(page, '#ckSave'), 'Saved');
   check('no page errors', errs, []);
@@ -294,7 +309,7 @@ const dayWords = (d) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] 
   check('…it counts toward its group, and the group says how many are n/a', await txt(page, '.ckphase[data-phase="before"] .ckph .c'), '1 of 11 · 1 n/a');
   await page.waitForTimeout(2200);
   let p = await puts(page);
-  check('…saved with the reason, every other line "" ', [p.length, p[0].checks.na.septic, p[0].checks.na.address, p[0].checks.done.septic], [1, 'city sewer', '', false]);
+  check('…saved with the reason, that line alone', [p.length, p[0].checks.na, p[0].checks.done], [1, { septic: 'city sewer' }, { septic: false }]);
   // A tick takes the n/a off.
   await tap(page, '.ckrow[data-line="septic"]', 2200);
   p = await puts(page);
@@ -333,7 +348,8 @@ const dayWords = (d) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] 
 
 // ---- T2.25: the bench's pre-start list, construction's first checklist ----
 // Seven ticks on Webster's Start Date line, the board's words and order;
-// saved whole when the list is left, never per tap (each save is a comment).
+// saved when the list is left, never per tap (each save is a comment) — the
+// boxes changed, each with what it was (T2.36).
 {
   const { ctx, page, errs } = await boot({ init: 'window.__MOCK_PRESTART=true;' });
   await tap(page, '.tab[data-tab="jobs"]', 900);
@@ -350,8 +366,8 @@ const dayWords = (d) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] 
     [4, 0, 'Saves when you leave the list']);
   await tap(page, '#ckBack', 1200);
   const pp = await page.evaluate(() => window.__PREPUTS || []);
-  check('leaving the list saves it once, the whole state', [pp.length, pp[0] && pp[0].taskId, pp[0] && pp[0].jobId, pp[0] && Object.keys(pp[0].done).length,
-    pp[0] && pp[0].done.utilities, pp[0] && pp[0].done.material, pp[0] && pp[0].done.debris], [1, 'tpre', 'j_2841', 7, true, true, false]);
+  check('leaving the list saves it once, the two boxes, each with what it was', [pp.length, pp[0] && pp[0].taskId, pp[0] && pp[0].jobId, pp[0] && pp[0].done, pp[0] && pp[0].was],
+    [1, 'tpre', 'j_2841', { utilities: true, material: true }, { utilities: false, material: false }]);
   check('…and the card reads the board\'s new words', await txt(page, '.jcard:has([data-prestart="tpre"]) .jck'), 'Pre-start — 4 of 7 done');
   check('no page errors', errs, []);
   await ctx.close();
@@ -364,8 +380,9 @@ const dayWords = (d) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()] 
   await tap(page, '[data-pline="debris"]', 200);
   await page.evaluate(() => prFlush('tpre'));
   await page.waitForTimeout(900);
-  check('the 403: read-only with the board\'s words, the tick dropped', [await page.locator('#ckRo').isVisible(), (await txt(page, '#ckRo')).startsWith('Only the construction bench'), await page.locator('#ckBody .ckrow.on').count(), await page.locator('#ckBody .ckrow[disabled]').count()],
-    [true, true, 2, 7]);
+  check('the 403: read-only with the board\'s words, the tick kept and said as not saved (T2.36)', [await page.locator('#ckRo').isVisible(), (await txt(page, '#ckRo')).startsWith('Only the construction bench'), await page.locator('#ckBody .ckrow.on').count(), await page.locator('#ckBody .ckrow[disabled]').count(),
+    await txt(page, '#ckSave'), await txt(page, '.cknotice .nt'), await page.locator('.cknotice [data-letgo]').count()],
+    [true, true, 3, 7, 'Not saved', 'Only the bench or a site manager can tick these. Ask the office.', 1]);
   check('no page errors (403)', errs, []);
   await ctx.close();
 }

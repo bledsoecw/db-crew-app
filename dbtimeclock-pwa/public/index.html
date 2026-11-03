@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="T2.35">
+<html lang="en" data-build="T2.36">
 <head>
 <meta charset="utf-8">
 <title>DB Crew</title>
@@ -472,6 +472,17 @@ button[disabled]{cursor:default}
 .cknote.ro{display:flex;gap:10px;align-items:baseline}
 .cknote .nk{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--lab);flex:none}
 .cknote .nt{font:400 15px/1.4 var(--sans);color:var(--mut)}
+/* A save the board refused, kept on the phone, and the lines somebody else
+   changed first (T2.36): said above the list, with what can be done. */
+.cknotice{margin-top:14px;border:2px solid var(--warn);border-radius:8px;padding:14px 15px;display:flex;flex-direction:column;gap:9px;background:var(--surf)}
+.cknotice .nk{font:600 10px/1 var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--ckamber)}
+.cknotice .nt{font:700 17px/1.3 var(--sans);color:var(--fg)}
+.cknotice .ns{font:400 15px/1.4 var(--sans);color:var(--mut)}
+.cknotice ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+.cknotice li{font:400 16px/1.35 var(--sans);color:var(--fg)}
+.cknotice li b{font-weight:700}
+.cknotice li .who{display:block;font-size:14px;color:var(--mut);margin-top:2px}
+.cknotice .btn{min-height:56px}
 /* Not applicable (T2.25): settled, never done — dashed and grey, the word
    N/A in the box, the reason under the label. Never green. */
 .ckrow.na{border-top-style:dashed}
@@ -1174,6 +1185,6 @@ html{touch-action:manipulation}
   </div>
 </div>
 
-<script src="app.js?b=T2.35"></script>
+<script src="app.js?b=T2.36"></script>
 </body>
 </html>

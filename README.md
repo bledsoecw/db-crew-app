@@ -1406,6 +1406,48 @@ crew's reason other than material reads as nothing and the repair sits under
 `contract: 4`), the Apps Script (no new permission: `clasp push -f` then
 `clasp deploy`), then `firebase deploy --only hosting`.
 
+**A checklist saves a line at a time** (T2.36, 2 Nov 2026). D25 of the second
+audit (Carl: *"go start D25"*). Every site-checks and pre-start save used to
+carry the whole list, so a phone that had been offline wrote its old copy over
+lines the office or a second site manager had ticked in the meantime, and
+nothing said so.
+
+- **A save sends only what this phone changed**, with what each line was when
+  the phone last had the list. The board takes a line only while it still says
+  that, so two phones ticking different lines both keep their ticks.
+- **A line somebody else changed first is not overwritten — and the phone
+  says so.** Above the list: *Not taken — Somebody changed these lines first*,
+  each line with what it says now (*the note now says "Gate 1234"*) and who and
+  when when the board knows (*Tyler Mohr changed it at 2:14p*); the list shows
+  what is there now, and a toast says it as it lands. *Got it* puts it away;
+  changing the line again sends it, measured against the new words. A tick
+  cannot clash — only a line with words on it (a note, an N/A reason, a name).
+- **Only to a board that says it takes this.** The job list carries
+  `checklist.saves: "lines"` from a board with this change; without it, or with
+  an Apps Script older than T2.36, the phone sends the whole list as before. An
+  older board reads any save as the whole list (a sign-off left out would come
+  off), so the order the three are deployed in can never do harm.
+- **A refused save no longer sits there forever.** The board's 400 (*the
+  board refused it*) is kept on the phone and said above the list with **Let
+  my changes go** — two taps, the first asks once more. It is not tried again
+  by itself; changing something tries again. One whose list is no longer on
+  the phone is let go from **Waiting to send**, so it can never hold sign-out
+  up with no way out.
+- **A 403 no longer throws the ticks away.** *Only a site manager can tick
+  these* (the pre-start: the bench or a site manager) keeps them on the phone,
+  read-only, said as not saved; they go by themselves once the office gives
+  the role — at once when the profile says Site Manager, otherwise the phone
+  asks again at most once an hour — or they can be let go.
+
+`dev/t236-test.mjs` walks it (73 checks; 44 of them fail on the T2.35 phone,
+which is the point); `dev/checks-test.mjs` moved with it (113);
+`apps-script/code-test.mjs` has the Apps Script's forwarding; the board's
+`install-checks.test.ts`, `prestart-checks.test.ts` and
+`crew-assignments.test.ts` its half. **Deploys** — any order is safe, this
+one turns it on with the last step: the board's `main` (until then the phone
+keeps sending the whole list), the Apps Script (no new permission: `clasp push
+-f` then `clasp deploy`), then `firebase deploy --only hosting`.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

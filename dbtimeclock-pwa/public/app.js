@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.35 (2026-11-02)';
+var APP_BUILD = 'T2.36 (2026-11-02)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -1225,16 +1225,22 @@ function waitItems(){
     push({ lane: 'photos', jobId: x.jobId, what: photoWhat(x), state: st, t: r && r.next,
            hint: x.waitRid ? L('Goes after its clock-in') : st === 'you' ? L('Tap to try again or discard') : '', go: st === 'you' ? openPhotoQ : null });
   });
-  var storeItems = function(store, lane, what, open){
+  // A refused save opens its list, where it can be let go (T2.36); one whose
+  // list is no longer on this phone can only be let go, from here — or it
+  // would hold sign-out up for ever.
+  var storeItems = function(store, lane, what, open, onPhone, letGo){
     for (var tid in store){
       var e = store[tid]; if (!e || !e.dirty) continue;
-      var refused = /^Not saved/.test(e.err || '');
+      var refused = !!e.refused || /^Not saved/.test(e.err || ''), here = refused && !!onPhone(tid);
       var st = e.inflight ? 'sending' : refused ? 'you' : signedOut ? 'signin' : (e.err && e.err !== 'offline' && S.online) ? 'retry' : 'saved';
-      push({ lane: lane, jobId: e.jobId, what: what, state: st, hint: refused ? e.err : '', go: refused ? (function(t){ return function(){ open(t); }; })(tid) : null });
+      push({ lane: lane, jobId: e.jobId, what: what, state: st,
+             hint: !refused ? '' : here ? ckErrWords(e) : ckErrWords(e) + ' · ' + L('This list isn’t on your jobs any more, so it can only be let go.'),
+             go: here ? (function(t){ return function(){ open(t); }; })(tid) : null,
+             drop: refused && !here ? (function(t){ return function(){ letGo(t); }; })(tid) : null, dropKey: lane + ':' + tid });
     }
   };
-  storeItems(ckStore, 'checks', L('Site checks'), openChecks);
-  storeItems(prStore, 'prestart', L('Pre-start'), openPrestart);
+  storeItems(ckStore, 'checks', L('Site checks'), openChecks, visitForChecks, ckLetGo);
+  storeItems(prStore, 'prestart', L('Pre-start'), openPrestart, prVisit, prLetGo);
   for (var k in dlStore){
     var e = dlStore[k]; if (!e) continue;
     if (e.wantSend && !e.sent){
@@ -1280,7 +1286,8 @@ function waitingHtml(){
       var it = items[i];
       return '<div class="obrow"><span class="st ' + WAIT_CLS[it.state] + '">' + esc(waitStateWords(it.state, it.t, it.who)) + '</span>' +
              '<span class="ob-t">' + esc(it.what) + (it.hint ? '<br><span class="pqerr">' + esc(it.hint) + '</span>' : '') + '</span>' +
-             (it.go ? '<button data-waitgo="' + i + '">' + esc(L('Open')) + '</button>' : '') + '</div>';
+             (it.go ? '<button data-waitgo="' + i + '">' + esc(L('Open')) + '</button>'
+              : it.drop ? '<button data-waitdrop="' + i + '">' + esc(L(S.waitDrop === it.dropKey && Date.now() - (S.waitDropAt || 0) < 8000 ? 'Tap again' : 'Let go')) + '</button>' : '') + '</div>';
     }).join('') + '</div>';
   });
   if (S.online) h += '<button class="btn btn-out" id="waitSend" style="margin-top:6px;min-height:56px">' + esc(L('Send now')) + '</button>';
@@ -2400,6 +2407,12 @@ function ckSetRO(msg){
 function ckClearRO(){
   S.checksRO = null;
   try { localStorage.removeItem(CK_RO_KEY); } catch(e){}
+  // Ticks kept after a 403 (T2.36) go now: the office gave the role.
+  var i = 0;
+  for (var tid in ckStore){
+    var e = ckStore[tid];
+    if (e && e.dirty && e.refused === 'role'){ e.refused = false; e.err = ''; ckRetries[tid] = 0; ckSchedule(tid, 200 + 50 * i++); }
+  }
 }
 function ckReadOnly(){
   var r = S.checksRO;
@@ -2495,7 +2508,7 @@ function ckReconcile(a){
     if (!e.dirty && !e.inflight && e.signIntent == null && (S.assignAt || 0) >= (e.savedAt || 0)){
       // Hand the list back to the board's copy; keep when it was last saved,
       // so the screen can still say so.
-      e.state = null; e.signIntent = null; changed = true;
+      e.state = null; e.base = null; e.signIntent = null; changed = true;
     }
   });
   for (var k in ckStore){
@@ -2521,7 +2534,10 @@ function ckEntry(v){
     // Build from the freshest answer for this list, never from a copy of the
     // visit that a handler may have been holding since before the last fetch.
     var live = visitForChecks(tid) || v;
-    e = ckStore[tid] = { state: ckStateFor(live), dirty: false, seq: (e && e.seq) || 0, savedAt: (e && e.savedAt) || 0,
+    // `base` is the list as the board last handed it over — what a save is
+    // measured against (T2.36, audit D25) — never the phone's own copy.
+    e = ckStore[tid] = { state: ckStateFor(live), base: ckNorm(live.checks && live.checks.state), dirty: false,
+                         seq: (e && e.seq) || 0, savedAt: (e && e.savedAt) || 0, conflicts: (e && e.conflicts) || null,
                          at: Date.now(), err: '', jobId: live.jobId, jobLabel: jobLabelOf(live) };
   }
   return e;
@@ -2546,7 +2562,8 @@ function ckTouch(v, mutate){
   if (ckReadOnly() || !v || !v.checks) return;
   var e = ckEntry(v);
   mutate(e.state);
-  e.dirty = true; e.seq = (e.seq || 0) + 1; e.at = Date.now(); e.err = '';
+  // A new change is asked about afresh, even after the board refused a save.
+  e.dirty = true; e.seq = (e.seq || 0) + 1; e.at = Date.now(); e.err = ''; e.refused = false; e.why = '';
   ckPersist();
   ckSchedule(v.checks.taskId, CHECKS_SAVE_DEBOUNCE_MS);
   // Activity on a roof starts its log for the day.
@@ -2565,7 +2582,7 @@ function ckTouch(v, mutate){
   }
 }
 
-/* ---- saving: one PUT per burst, the whole state every time ---- */
+/* ---- saving: one PUT per burst, only what changed (T2.36) ---- */
 var ckTimers = {}, ckRetries = {};
 function ckSchedule(tid, ms){
   clearTimeout(ckTimers[tid]);
@@ -2584,28 +2601,28 @@ function ckFlush(tid, opts){
   ckCancel(tid);
   if (opts.signOff != null){
     e.signIntent = !!opts.signOff;
-    e.dirty = true; e.seq = (e.seq || 0) + 1; e.err = ''; e.at = Date.now();
+    e.dirty = true; e.seq = (e.seq || 0) + 1; e.err = ''; e.refused = false; e.why = ''; e.at = Date.now();
     ckPersist();
   }
   if (!e.dirty) return Promise.resolve();
   if (e.inflight) return Promise.resolve();          // the in-flight save re-sends when it lands
   if (!S.me) return Promise.resolve();               // not booted yet; ckRetryPending runs after boot
+  // Refused (T2.36): kept, and not asked again until the person changes
+  // something, lets it go, or — after a 403 — the office gives the role.
+  if (e.refused) return Promise.resolve();
   if (!S.online){ e.err = 'offline'; ckPersist(); renderCkStatus(); return Promise.resolve(); }
 
-  var sentSeq = e.seq || 0;
-  var payload = { done: {}, magnetBy: e.state.magnetBy || null,
-                  signOff: e.signIntent != null ? e.signIntent : !!e.state.signedOff };
-  // The two names go only when the list carries their lines — left out, the
-  // board keeps what is there (T2.25).
-  ['coveredBy', 'watertightWith'].forEach(function(f){ if (ckValueLine(f)) payload[f] = e.state[f] || null; });
-  for (var k in e.state.done) payload.done[k] = !!e.state.done[k];
-  // Every line's note, "" for none — the whole state, like the ticks, so a
-  // note wiped here comes off the line in JobTread too.
-  payload.notes = {};
-  ckLines().forEach(function(l){ if (l.value !== 'signedOff') payload.notes[l.key] = (e.state.notes && e.state.notes[l.key]) || ''; });
-  // …and every line's n/a, "" for none: a tick here clears an old one.
-  payload.na = {};
-  ckLines().forEach(function(l){ if (l.value == null) payload.na[l.key] = (!e.state.done[l.key] && e.state.na && e.state.na[l.key]) || ''; });
+  var sentSeq = e.seq || 0, sent = ckNorm(e.state), payload;
+  if (ckLineSaves() && e.base){
+    payload = ckDelta(e);
+    if (!payload){
+      // Nothing differs from the list as the board last had it (ticked and
+      // unticked again): there is nothing to send.
+      e.dirty = false; e.signIntent = null; e.err = ''; e.at = Date.now();
+      ckPersist(); renderChecksAfterSave();
+      return Promise.resolve();
+    }
+  } else payload = ckWhole(e);                       // an older board or API, or a copy kept from before T2.36
   e.inflight = true; e.err = '';
   renderCkStatus();
   return apiCall('saveSiteChecks', [tid, e.jobId, e.jobLabel, isoLocal(), payload]).then(function(r){
@@ -2613,28 +2630,35 @@ function ckFlush(tid, opts){
     r = r || {};
     if (r.status === 200 && r.body && r.body.checks){
       var wasSigned = !!e.state.signedOff;
-      ckAdopt(e, r.body.checks, sentSeq);
+      var lost = ckLand(e, r.body.checks, sent, sentSeq, r.body.conflicts);
       ckRetries[tid] = 0;
+      if (ckReadOnly()) ckClearRO();       // the board took it, so this phone may tick
       // A signature that just landed is the other moment the log should go.
       if (!wasSigned && e.state.signedOff){ var sv = visitForChecks(tid); if (sv) dlPromptFor(sv.jobId, 'signoff'); }
+      if (lost.length) toast('Some of your changes weren’t taken — somebody changed those lines first.', true);
       if (e.dirty) ckSchedule(tid, 300);   // taps landed while this was in flight
       else ckRefreshWords();
       renderChecksAfterSave();
       return;
     }
     if (r.status === 403){
-      // Not a site manager, says JobTread. Nothing was written, so nothing
-      // the phone holds for this list is true: drop it and go read-only.
+      // Not a site manager, says JobTread. Nothing was written. The list goes
+      // read-only, and the ticks stay on this phone, said as not saved, until
+      // they are let go or the office gives the role (T2.36 — they used to be
+      // thrown away here).
       ckSetRO((r.body && r.body.error) || 'Only a site manager can tick the site checks — ask the office.');
-      ckCancel(tid); delete ckStore[tid]; ckPersist();
+      ckCancel(tid);
+      e.refused = 'role'; e.roleTry = Date.now(); e.err = 'Not saved — only a site manager can tick these. Ask the office.'; e.why = '';
+      ckPersist();
       render();
       return;
     }
     if (r.status === 400){
       // The board refused the shape of this save; asking again changes nothing.
-      e.err = 'Not saved — the board refused it' + (r.body && r.body.error ? ' (' + r.body.error + ')' : '');
-      ckPersist(); renderCkStatus();
-      failed('site checks', new Error(e.err), true);
+      // Kept, said, and the person can let it go (T2.36).
+      e.refused = true; e.err = 'Not saved — the board refused it'; e.why = String((r.body && r.body.error) || '').slice(0, 160);
+      ckPersist(); renderChecksAfterSave();
+      failed('site checks', new Error(e.err + (e.why ? ' (' + e.why + ')' : '')), true);
       return;
     }
     if (r.status === 401) e.err = 'Not saved — the board rejected the app’s key. Ask the office.';
@@ -2662,20 +2686,118 @@ function ckSign(v, signOff){
   ckEntry(v);
   ckFlush(v.checks.taskId, { signOff: !!signOff });
 }
-function ckAdopt(e, checks, sentSeq){
-  var srv = ckNorm(checks);
-  if ((e.seq || 0) === sentSeq){
-    e.state = srv; e.dirty = false; e.signIntent = null;
-  } else {
-    // Taps landed while this save was in flight: keep them, take the board's
-    // signature (only the board writes it), and let the next save carry the rest.
-    e.state.signedOff = srv.signedOff;
-    var sl = ckValueLine('signedOff');
-    if (sl) e.state.done[sl.key] = !!srv.signedOff;
-    if (e.signIntent != null && e.signIntent === !!srv.signedOff) e.signIntent = null;
-  }
+/* ---- a save a line at a time (T2.36, audit D25) ----
+   Every save used to carry the whole list, so a phone that had been offline
+   wrote its old copy over lines the office or a second site manager ticked
+   meanwhile, and nothing said so. Now the phone keeps, beside its own copy,
+   the list as the board last handed it over (`base`), and a save sends only
+   what differs from that — a line's tick with its n/a, its note, a name, the
+   signature — with what each was under `was`. The board takes a field only
+   while its copy still says what `was` says (or already says what the phone
+   wants); one somebody else changed in between is left as it is and comes
+   back in `conflicts`, and the list here then shows what is there now.
+   Only to a board that says it takes this (`checklist.saves`) through an API
+   that forwards it (T2.36): an older one reads any save as the whole list,
+   so a sign-off or a magnet name left out would come off. Otherwise the
+   whole list goes, as before. */
+function ckLineSaves(){
+  var a = S.assign, api = (S.builds && S.builds.api) || (S.me && S.me.build) || '', b = buildNum(api);
+  return !!(a && a.checklist && a.checklist.saves === 'lines') && (b ? b >= 2036 : api === 'mock');
+}
+function ckSignKey(){ var sl = ckValueLine('signedOff'); return sl ? sl.key : 'signoff'; }
+/* A line's tick in one word, the way the phone sends it: ticked wins over an
+   old n/a, as the screen never holds both. */
+function ckTickWord(st, k){
+  var na = !st.done[k] && st.na && st.na[k];
+  return na ? 'na:' + na : st.done[k] ? 'done' : 'open';
+}
+function ckKeysOf(list){
+  var keys = {}, sk = ckSignKey();
+  list.forEach(function(o){ for (var k in (o || {})) if (k !== sk) keys[k] = 1; });
+  return Object.keys(keys);
+}
+/* What to send to go from the base to the phone's copy, or null when they
+   agree. The board's own checksSave says the same thing in TypeScript. */
+function ckDelta(e){
+  var b = e.base, st = e.state, out = { done: {}, na: {}, notes: {}, was: { lines: {} } }, n = 0;
+  var wasLine = function(k){ out.was.lines[k] = { done: !!b.done[k], na: (!b.done[k] && b.na && b.na[k]) || '', note: (b.notes && b.notes[k]) || '' }; };
+  ckKeysOf([b.done, st.done, b.na, st.na, b.notes, st.notes]).forEach(function(k){
+    if (ckTickWord(b, k) !== ckTickWord(st, k)){
+      out.done[k] = !!st.done[k]; out.na[k] = (!st.done[k] && st.na && st.na[k]) || ''; wasLine(k); n++;
+    }
+    var bn = (b.notes && b.notes[k]) || '', sn = (st.notes && st.notes[k]) || '';
+    if (bn !== sn){ out.notes[k] = sn; wasLine(k); n++; }
+  });
+  CK_NAMES.forEach(function(f){ if ((b[f] || null) !== (st[f] || null)){ out[f] = st[f] || null; out.was[f] = b[f] || null; n++; } });
+  if (e.signIntent != null && e.signIntent !== !!b.signedOff){ out.signOff = e.signIntent; out.was.signedOff = !!b.signedOff; n++; }
+  return n ? out : null;
+}
+/* The whole list, as every save was before T2.36: for an older board or API,
+   and once for a copy kept on the phone from before (it has no base). */
+function ckWhole(e){
+  var payload = { done: {}, magnetBy: e.state.magnetBy || null,
+                  signOff: e.signIntent != null ? e.signIntent : !!e.state.signedOff };
+  // The two names go only when the list carries their lines — left out, the
+  // board keeps what is there (T2.25).
+  ['coveredBy', 'watertightWith'].forEach(function(f){ if (ckValueLine(f)) payload[f] = e.state[f] || null; });
+  for (var k in e.state.done) payload.done[k] = !!e.state.done[k];
+  // Every line's note, "" for none — the whole state, like the ticks, so a
+  // note wiped here comes off the line in JobTread too.
+  payload.notes = {};
+  ckLines().forEach(function(l){ if (l.value !== 'signedOff') payload.notes[l.key] = (e.state.notes && e.state.notes[l.key]) || ''; });
+  // …and every line's n/a, "" for none: a tick here clears an old one.
+  payload.na = {};
+  ckLines().forEach(function(l){ if (l.value == null) payload.na[l.key] = (!e.state.done[l.key] && e.state.na && e.state.na[l.key]) || ''; });
+  return payload;
+}
+/* The board's answer, with what was touched here while the save was in
+   flight laid back over it: those changes go with the next save. A line
+   the board did not take carries what is there now, so it is never sent
+   again over somebody else's change without the person seeing it. */
+function ckMerge(srv, sent, cur){
+  var out = ckNorm(srv);
+  ckKeysOf([sent.done, cur.done, sent.na, cur.na, sent.notes, cur.notes]).forEach(function(k){
+    if (ckTickWord(sent, k) !== ckTickWord(cur, k)){
+      out.done[k] = !!cur.done[k];
+      if (!cur.done[k] && cur.na && cur.na[k]) out.na[k] = cur.na[k]; else delete out.na[k];
+    }
+    var sn = (sent.notes && sent.notes[k]) || '', cn = (cur.notes && cur.notes[k]) || '';
+    if (sn !== cn){ if (cn) out.notes[k] = cn; else delete out.notes[k]; }
+  });
+  CK_NAMES.forEach(function(f){ if ((sent[f] || null) !== (cur[f] || null)) out[f] = cur[f] || null; });
+  return out;
+}
+/* A 200: the board's list becomes the base; the phone's copy is that list
+   plus anything still to send. Returns the lines it did not take. */
+function ckLand(e, checks, sent, sentSeq, conflicts){
+  var srv = ckNorm(checks), lost = Array.isArray(conflicts) ? conflicts.filter(function(c){ return c && c.key; }) : [];
+  e.state = (e.seq || 0) === sentSeq ? ckNorm(checks) : ckMerge(srv, sent, e.state);
+  e.base = srv;
+  // The signature is the board's alone: it stamps the name and the date.
+  e.state.signedOff = srv.signedOff;
+  e.state.done[ckSignKey()] = !!srv.signedOff;
+  if (e.signIntent != null && e.signIntent === !!srv.signedOff) e.signIntent = null;
+  e.dirty = !!ckDelta(e);
+  e.refused = false; e.why = '';
+  if (lost.length) e.conflicts = lost;
   e.savedAt = Date.now(); e.at = Date.now(); e.err = '';
   ckPersist();
+  return lost;
+}
+/* Throw the phone's unsaved changes away: the list shows the board's copy. */
+function ckLetGo(tid){ ckCancel(tid); delete ckStore[tid]; ckPersist(); }
+/* The words for a save that has not gone: the reason, and the board's own
+   words after it when it sent any. */
+function ckErrWords(e){
+  if (!e || !e.err) return '';
+  if (e.err === 'retry' || e.err === 'offline') return L('Not saved — will retry');
+  return L(e.err) + (e.why ? ' (' + e.why + ')' : '');
+}
+/* The reason alone, for under a "Not saved" heading: "The board refused it
+   (…)", "Only a site manager can tick these. Ask the office." */
+function ckReasonWords(e){
+  var w = ckErrWords(e).replace(/^[^—]*—\s*/, '');
+  return w.charAt(0).toUpperCase() + w.slice(1);
 }
 function ckRetryLater(tid){
   var n = ckRetries[tid] || 0;
@@ -2687,12 +2809,22 @@ function ckRetryPending(){
   var i = 0;
   for (var tid in ckStore){
     var e = ckStore[tid];
-    if (e && e.dirty && !e.inflight){ ckRetries[tid] = 0; ckSchedule(tid, 100 + 50 * i++); }
+    if (e && e.dirty && !e.inflight && roleRetry(e)){ e.refused = false; e.err = ''; }
+    if (e && e.dirty && !e.inflight && !e.refused){ ckRetries[tid] = 0; ckSchedule(tid, 100 + 50 * i++); }
   }
+}
+/* Ticks kept after a 403 (T2.36) are asked about again at most once an hour,
+   when the app wakes: the board's rule (a JobTread role, or the roster) can
+   change without this phone hearing of it. */
+var ROLE_RETRY_MS = 3600000;
+function roleRetry(e){
+  if (e.refused !== 'role' || Date.now() - (e.roleTry || 0) < ROLE_RETRY_MS) return false;
+  e.roleTry = Date.now();
+  return true;
 }
 function ckFlushAll(){
   ckNoteCommitFocused();
-  for (var tid in ckStore){ var e = ckStore[tid]; if (e && e.dirty && !e.inflight) ckFlush(tid); }
+  for (var tid in ckStore){ var e = ckStore[tid]; if (e && e.dirty && !e.inflight && !e.refused) ckFlush(tid); }
   prFlushAll();
 }
 function ckLeave(){
@@ -2708,7 +2840,7 @@ function ckRefreshWords(){
 }
 function ckDiag(){
   var n = 0, bad = 0;
-  for (var k in ckStore){ if (ckStore[k] && ckStore[k].dirty){ n++; if (ckStore[k].err && ckStore[k].err !== 'retry') bad++; } }
+  for (var k in ckStore){ if (ckStore[k] && ckStore[k].dirty){ n++; if (ckStore[k].refused || (ckStore[k].err && ckStore[k].err !== 'retry' && ckStore[k].err !== 'offline')) bad++; } }
   return (ckReadOnly() ? 'read-only, ' : '') + n + ' unsaved' + (bad ? ', ' + bad + ' refused' : '');
 }
 
@@ -2719,12 +2851,15 @@ function ckDiag(){
    job (`prestart`: taskId, state.done, lines, words). Ticks only — no
    groups, no notes, no N/A, nothing on a line. The words are the
    board's, drawn in its order, so a reworded line needs no build here.
-   Saved through savePrestart, the WHOLE state each time, when the list
-   is LEFT (and on the phone going away): every save with a change is a
-   job comment, so a tap-by-tap save would be seven of them. Who may
-   tick is the board's call — a bench member or a site manager — and its
-   403 is remembered here, apart from the site checks', because a bench
-   member may tick this and not those.
+   Saved through savePrestart when the list is LEFT (and on the phone
+   going away): every save with a change is a job comment, so a
+   tap-by-tap save would be seven of them. Since T2.36 (audit D25) a save
+   carries only the boxes changed here, with what each was, so a box the
+   office or a second phone ticked meanwhile keeps its tick — to a board
+   that says it takes that (`checklist.saves`); otherwise the whole list,
+   as before. Who may tick is the board's call — a bench member or a site
+   manager — and its 403 is remembered here, apart from the site checks',
+   because a bench member may tick this and not those.
    ========================================================= */
 var PR_KEY = 'dbtc_prestart', PR_RO_KEY = 'dbtc_prestart_ro', PR_IDLE_MS = 90000;
 var prStore = {};
@@ -2751,39 +2886,86 @@ function prCls(v){
 function prTouch(v, key){
   if (prRO() || !v || !v.prestart) return;
   var tid = v.prestart.taskId, e = prStore[tid];
-  if (!e || !e.done) e = prStore[tid] = { done: prBoardDone(v), seq: (e && e.seq) || 0, savedAt: (e && e.savedAt) || 0, jobId: v.jobId, jobLabel: jobLabelOf(v) };
+  if (!e || !e.done){
+    // `base`: the boxes as the board last handed them over (T2.36).
+    var live = prVisit(tid) || v;
+    e = prStore[tid] = { done: prBoardDone(live), base: prBoardDone(live), seq: (e && e.seq) || 0, savedAt: (e && e.savedAt) || 0, jobId: live.jobId, jobLabel: jobLabelOf(live) };
+  }
   e.done[key] = !e.done[key];
-  e.dirty = true; e.seq = (e.seq || 0) + 1; e.at = Date.now(); e.err = '';
+  e.dirty = true; e.seq = (e.seq || 0) + 1; e.at = Date.now(); e.err = ''; e.refused = false; e.why = '';
   prPersist();
   // A list left open on the screen still saves, once it has gone quiet.
   clearTimeout(prTimers[tid]); prTimers[tid] = setTimeout(function(){ delete prTimers[tid]; prFlush(tid); }, PR_IDLE_MS);
 }
+/* The boxes that differ between two copies of the list. */
+function prChanged(a, b){
+  var out = [], keys = {};
+  for (var k in (a || {})) keys[k] = 1;
+  for (var k2 in (b || {})) keys[k2] = 1;
+  for (var x in keys) if (!!(a || {})[x] !== !!(b || {})[x]) out.push(x);
+  return out;
+}
+function prCopy(d){ var out = {}; for (var k in (d || {})) out[k] = !!d[k]; return out; }
 function prFlush(tid){
   var e = prStore[tid];
   clearTimeout(prTimers[tid]); delete prTimers[tid];
   if (!e || !e.dirty || e.inflight || !S.me) return Promise.resolve();
+  // Refused (T2.36): kept, and not asked again until the person changes
+  // something or lets it go — or, after a 403, the hourly ask on waking.
+  if (e.refused) return Promise.resolve();
   if (!S.online){ e.err = 'offline'; prPersist(); renderCkStatus(); return Promise.resolve(); }
-  var sentSeq = e.seq || 0, done = {};
-  var v = prVisit(tid);
-  prLines(v).forEach(function(l){ done[l.key] = !!e.done[l.key]; });
-  for (var k in e.done) if (!(k in done)) done[k] = !!e.done[k];
+  var sentSeq = e.seq || 0, sent = prCopy(e.done), done = {}, was = null;
+  if (ckLineSaves() && e.base){
+    was = {};
+    prChanged(e.base, e.done).forEach(function(k){ done[k] = !!e.done[k]; was[k] = !!e.base[k]; });
+    if (!Object.keys(done).length){
+      // Ticked and unticked again: nothing differs from the board's list.
+      e.dirty = false; e.err = ''; e.at = Date.now(); prPersist(); renderChecksAfterSave();
+      return Promise.resolve();
+    }
+  } else {
+    // The whole list: an older board or API, or a copy kept from before T2.36.
+    var v = prVisit(tid);
+    prLines(v).forEach(function(l){ done[l.key] = !!e.done[l.key]; });
+    for (var k in e.done) if (!(k in done)) done[k] = !!e.done[k];
+  }
   e.inflight = true; e.err = ''; renderCkStatus();
-  return apiCall('savePrestart', [tid, e.jobId, e.jobLabel, done]).then(function(r){
+  return apiCall('savePrestart', was ? [tid, e.jobId, e.jobLabel, done, was] : [tid, e.jobId, e.jobLabel, done]).then(function(r){
     e.inflight = false; r = r || {};
     if (r.status === 200){
       prRetries[tid] = 0;
+      if (prRO()){ try { localStorage.removeItem(PR_RO_KEY); } catch(x){} }   // the board took it, so this phone may tick
       var won = r.body && r.body.prestart && r.body.prestart.done;
-      if ((e.seq || 0) === sentSeq){ e.dirty = false; if (won){ e.done = {}; for (var k2 in won) e.done[k2] = !!won[k2]; } }
+      var srv = won ? prCopy(won) : sent;
+      if ((e.seq || 0) === sentSeq) e.done = prCopy(srv);
+      else {
+        // Boxes touched while this was in flight stay, and go next.
+        var merged = prCopy(srv);
+        prChanged(sent, e.done).forEach(function(k2){ merged[k2] = !!e.done[k2]; });
+        e.done = merged;
+      }
+      e.base = srv;
+      e.dirty = prChanged(e.base, e.done).length > 0;
+      e.refused = false; e.why = '';
       e.savedAt = Date.now(); e.at = Date.now(); prPersist();
       if (e.dirty) prFlush(tid); else ckRefreshWords();
       renderChecksAfterSave();
       return;
     }
     if (r.status === 403){
+      // Not the bench, not a site manager. The ticks stay on this phone, said
+      // as not saved, until they are let go (T2.36 — they used to be thrown
+      // away here).
       prSetRO((r.body && r.body.error) || 'Only the bench or a site manager can tick the pre-start — ask the office.');
-      delete prStore[tid]; prPersist(); render(); return;
+      e.refused = 'role'; e.roleTry = Date.now(); e.err = 'Not saved — only the bench or a site manager can tick these. Ask the office.'; e.why = '';
+      prPersist(); render(); return;
     }
-    if (r.status === 400){ e.err = 'Not saved — the board refused it' + (r.body && r.body.error ? ' (' + r.body.error + ')' : ''); prPersist(); renderCkStatus(); return; }
+    if (r.status === 400){
+      e.refused = true; e.err = 'Not saved — the board refused it'; e.why = String((r.body && r.body.error) || '').slice(0, 160);
+      prPersist(); renderChecksAfterSave();
+      failed('pre-start', new Error(e.err + (e.why ? ' (' + e.why + ')' : '')), true);
+      return;
+    }
     e.err = r.status === 401 ? 'Not saved — the board rejected the app’s key. Ask the office.'
           : r.reason === 'not-configured' ? 'Not saved — the board isn’t connected to this app yet.'
           : r.reason === 'no-membership' ? 'Not saved — no JobTread user is linked to you.' : 'retry';
@@ -2802,9 +2984,14 @@ function prRetryLater(tid){
 /* Signal back (T2.31): every unsaved list goes now, even one waiting out its
    backoff — it used to skip any list with a retry timer set. */
 function prRetryPending(){
-  for (var tid in prStore){ var e = prStore[tid]; if (e && e.dirty && !e.inflight){ prRetries[tid] = 0; prFlush(tid); } }
+  for (var tid in prStore){
+    var e = prStore[tid];
+    if (e && e.dirty && !e.inflight && roleRetry(e)){ e.refused = false; e.err = ''; }
+    if (e && e.dirty && !e.inflight && !e.refused){ prRetries[tid] = 0; prFlush(tid); }
+  }
 }
-function prFlushAll(){ for (var tid in prStore){ var e = prStore[tid]; if (e && e.dirty && !e.inflight) prFlush(tid); } }
+function prFlushAll(){ for (var tid in prStore){ var e = prStore[tid]; if (e && e.dirty && !e.inflight && !e.refused) prFlush(tid); } }
+function prLetGo(tid){ clearTimeout(prTimers[tid]); delete prTimers[tid]; delete prStore[tid]; prPersist(); }
 /* A fresh answer from the board: a clean copy of ours hands back to it. */
 function prReconcile(a){
   if (!a || !a.visits) return;
@@ -2819,7 +3006,8 @@ function prStatus(v){
   var e = v && v.prestart && prStore[v.prestart.taskId];
   if (!e) return null;
   if (e.inflight) return { cls: '', text: L('Saving…') };
-  if (e.dirty) return e.err ? { cls: 'bad', text: L(e.err !== 'retry' && e.err !== 'offline' ? e.err : 'Not saved — will retry') } : { cls: '', text: L('Saves when you leave the list') };
+  if (e.dirty && e.refused) return { cls: 'bad', text: L('Not saved') };   // the notice above the list says why
+  if (e.dirty) return e.err ? { cls: 'bad', text: ckErrWords(e) } : { cls: '', text: L('Saves when you leave the list') };
   if (e.savedAt) return { cls: 'ok', text: L('Saved'), tick: true };
   return null;
 }
@@ -2833,7 +3021,7 @@ function openPrestart(tid){
 }
 function prBodyHtml(v){
   var d = prDone(v), ls = prLines(v), ro = !!prRO(), n = ls.filter(function(l){ return d[l.key]; }).length, all = ls.length && n === ls.length;
-  var h = '<div class="ckphase open' + (all ? ' all' : '') + '"><div class="ckph" style="cursor:default"><span class="t"><span class="l">' + esc(L('Before the bench starts')) + '</span>' +
+  var h = ckNoticeHtml(prStore[v.prestart.taskId], 'pre') + '<div class="ckphase open' + (all ? ' all' : '') + '"><div class="ckph" style="cursor:default"><span class="t"><span class="l">' + esc(L('Before the bench starts')) + '</span>' +
           '<span class="w">' + esc(L('Ticks save when you leave the list')) + '</span></span><span class="c tabular' + (all ? ' all' : '') + '">' + esc(Lf('{n} of {m}', { n: n, m: ls.length })) + '</span></div><div class="ckrows">';
   ls.forEach(function(l){
     h += '<div class="ckline"><button class="ckrow' + (d[l.key] ? ' on' : '') + '" data-pline="' + esc(l.key) + '"' + (ro ? ' disabled' : '') + '>' +
@@ -3128,7 +3316,8 @@ function ckStatus(v){
   // Dirty with a failure behind it: kept, and will retry — or the config
   // problem, in words. Clean: saved.
   if (e.inflight || (e.dirty && !e.err)) return { cls: '', text: L('Saving…') };
-  if (e.dirty) return { cls: 'bad', text: L((e.err !== 'retry' && e.err !== 'offline') ? e.err : 'Not saved — will retry') };
+  if (e.dirty && e.refused) return { cls: 'bad', text: L('Not saved') };   // the notice above the list says why
+  if (e.dirty) return { cls: 'bad', text: ckErrWords(e) };
   if (e.savedAt) return { cls: 'ok', text: L('Saved'), tick: true };
   return null;
 }
@@ -3180,6 +3369,7 @@ function renderPrestart(v){
   var body = $('ckBody'), html = prBodyHtml(v);
   if (body.__ck === html) return;
   body.innerHTML = html; body.__ck = html;
+  [].forEach.call(body.querySelectorAll('[data-letgo]'), function(b){ b.onclick = function(){ letGoTap('pre'); }; });
   [].forEach.call(body.querySelectorAll('[data-pline]'), function(b){
     b.onclick = function(){ var cv = S.checksVisit; if (!cv) return; prTouch(cv, b.getAttribute('data-pline')); renderChecks(); };
   });
@@ -3189,11 +3379,59 @@ function renderChecksAfterSave(){
   if (ae && (ae.id === 'ckWho' || ae.hasAttribute('data-note') || ae.hasAttribute('data-val') || ae.hasAttribute('data-na'))){ renderCkStatus(); return; }
   render();
 }
+/* Said above the list (T2.36): a save the board refused, kept on the phone
+   with the way to let it go, and the lines somebody else changed first. */
+var LETGO = { key: '', at: 0 };
+function letGoArmed(kind){ return LETGO.key === kind + ':' + (S.checksTask || '') && Date.now() - LETGO.at < 8000; }
+function ckNoticeHtml(e, kind){
+  if (!e) return '';
+  var h = '';
+  if (e.dirty && e.refused){
+    var role = e.refused === 'role';
+    h += '<div class="cknotice"><span class="nk">' + esc(L('Not saved')) + '</span><span class="nt">' + esc(ckReasonWords(e)) + '</span>' +
+         '<span class="ns">' + esc(L(!role ? 'Trying again won’t change the answer. Tell the office, or let your changes go.'
+           : kind === 'pre' ? 'Your ticks stay on this phone and go by themselves once the office lets you tick the pre-start.'
+           : 'Your ticks stay on this phone and go by themselves once the office makes you a site manager.')) + '</span>' +
+         '<button class="btn btn-out" data-letgo="' + kind + '">' + esc(L(letGoArmed(kind) ? 'Tap again to throw your changes away' : 'Let my changes go')) + '</button></div>';
+  }
+  if (kind === 'ck' && e.conflicts && e.conflicts.length){
+    h += '<div class="cknotice"><span class="nk">' + esc(L('Not taken')) + '</span><span class="nt">' + esc(L('Somebody changed these lines first')) + '</span>' +
+         '<ul>' + e.conflicts.map(ckConflictHtml).join('') + '</ul>' +
+         '<span class="ns">' + esc(L('The list shows what is there now. Change a line again if yours was right.')) + '</span>' +
+         '<button class="btn btn-out" data-ckok="1">' + esc(L('Got it')) + '</button></div>';
+  }
+  return h;
+}
+function ckConflictHtml(c){
+  var line = ckLineByKey(c.key), label = shopText(String(c.label || (line && line.label) || c.key)), now = c.now || {};
+  var what = c.what === 'tick' ? (now.na ? Lf('now not applicable: {r}', { r: now.na }) : L(now.done ? 'now ticked' : 'now not ticked'))
+           : c.what === 'note' ? (now.note ? Lf('the note now says “{t}”', { t: now.note }) : L('the note was taken off'))
+           : c.what === 'name' ? (now.value ? Lf('now says “{t}”', { t: now.value }) : L('the name was taken off'))
+           : L('the signature changed');
+  var d = c.at ? new Date(c.at) : null, ok = d && !isNaN(d), today = ok && isoLocal(d) === isoLocal();
+  var by = c.by ? String(c.by) : '', vars = { by: by, t: ok ? clockLabel(d) : '', d: ok ? dayWords(d) : '' };
+  var who = by ? (!ok ? Lf('{by} changed it', vars) : today ? Lf('{by} changed it at {t}', vars) : Lf('{by} changed it on {d} at {t}', vars))
+               : (!ok ? L('Changed in JobTread or on another phone') : today ? Lf('Changed at {t}', vars) : Lf('Changed on {d} at {t}', vars));
+  return '<li><b>' + esc(label) + '</b> — ' + esc(what) + '<span class="who">' + esc(who) + '</span></li>';
+}
+function letGoTap(kind){
+  var tid = S.checksTask; if (!tid) return;
+  if (!letGoArmed(kind)){
+    LETGO = { key: kind + ':' + tid, at: Date.now() };
+    renderChecks();
+    setTimeout(function(){ if (LETGO.at && Date.now() - LETGO.at >= 8000){ LETGO = { key: '', at: 0 }; renderChecks(); } }, 8300);
+    return;
+  }
+  LETGO = { key: '', at: 0 };
+  if (kind === 'pre') prLetGo(tid); else ckLetGo(tid);
+  toast('Your changes were let go — the list shows what the board has.');
+  render();
+}
 function ckBodyHtml(v){
-  var sh = ckShape();
-  if (!sh) return '<div class="jempty">' + esc(L('The board hasn’t sent the checklist yet. Refresh My jobs, or ask the office to update the app’s API.')) + '</div>';
-  var st = ckStateFor(v), ro = ckReadOnly(), e = ckStore[v.checks.taskId], first = firstName(), later = ckLaterPhase(v);
-  return sh.phases.map(function(p){
+  var sh = ckShape(), e = ckStore[v.checks.taskId];
+  if (!sh) return ckNoticeHtml(e, 'ck') + '<div class="jempty">' + esc(L('The board hasn’t sent the checklist yet. Refresh My jobs, or ask the office to update the app’s API.')) + '</div>';
+  var st = ckStateFor(v), ro = ckReadOnly(), first = firstName(), later = ckLaterPhase(v);
+  return ckNoticeHtml(e, 'ck') + sh.phases.map(function(p){
     var lines = ckLinesOf(p.key);
     var total = lines.length, done = lines.filter(function(l){ return ckSettled(st, l.key); }).length;
     var nna = lines.filter(function(l){ return !st.done[l.key] && st.na && st.na[l.key]; }).length;
@@ -3282,6 +3520,10 @@ function ckSignHtml(st, ro, e){
 function wireChecks(){
   var body = $('ckBody');
   var cur = function(){ return S.checksVisit; };
+  [].forEach.call(body.querySelectorAll('[data-letgo]'), function(b){ b.onclick = function(){ letGoTap('ck'); }; });
+  [].forEach.call(body.querySelectorAll('[data-ckok]'), function(b){
+    b.onclick = function(){ var e = ckStore[S.checksTask]; if (e){ e.conflicts = null; ckPersist(); } renderChecks(); };
+  });
   [].forEach.call(body.querySelectorAll('[data-toggle]'), function(b){
     b.onclick = function(){ var k = b.getAttribute('data-toggle'); S.ckOpen[k] = !S.ckOpen[k]; renderChecks(); };
   });
@@ -3985,6 +4227,14 @@ function wireSheet(){
   if ($('cqLeft')) $('cqLeft').onclick = function(){ closeSheet(); leftAsk(); };
   [].forEach.call(document.querySelectorAll('#sheetBody [data-waitgo]'), function(b){
     b.onclick = function(){ var it = (S.waitShown || [])[Number(b.getAttribute('data-waitgo'))]; closeSheet(); if (it && it.go) it.go(); };
+  });
+  // Let go: two taps, the first arms it for eight seconds (T2.36).
+  [].forEach.call(document.querySelectorAll('#sheetBody [data-waitdrop]'), function(b){
+    b.onclick = function(){
+      var it = (S.waitShown || [])[Number(b.getAttribute('data-waitdrop'))]; if (!it || !it.drop) return;
+      if (S.waitDrop !== it.dropKey || Date.now() - (S.waitDropAt || 0) >= 8000){ S.waitDrop = it.dropKey; S.waitDropAt = Date.now(); openSheet('waiting'); return; }
+      S.waitDrop = ''; it.drop(); toast('Let go — it won’t be sent.'); openSheet('waiting'); renderWaitCard();
+    };
   });
   if ($('waitSend')) $('waitSend').onclick = function(){ obWake(); toast(L('Sending what is waiting…')); setTimeout(function(){ if (S.sheet === 'waiting') openSheet('waiting'); }, 2500); };
   if ($('cqOk')) $('cqOk').onclick = cqDismiss;
@@ -6391,6 +6641,44 @@ esAdd({
   '{n} roll-out notes': '{n} avisos de salida',
   'See everything waiting': 'Ver todo lo pendiente'
 }); /* T2.34-ES */
+/* Checklist saves a line at a time (T2.36, audit D25): a save the board
+   refused, kept on the phone with the way to let it go, and the lines
+   somebody else changed first. */
+esAdd({
+  'Some of your changes weren’t taken — somebody changed those lines first.': 'Algunos de tus cambios no se guardaron — alguien cambió esas líneas primero.',
+  'Not saved — only a site manager can tick these. Ask the office.': 'Sin guardar — solo un encargado de obra puede marcar estas. Pregunta a la oficina.',
+  'Not saved — only the bench or a site manager can tick these. Ask the office.': 'Sin guardar — solo la cuadrilla o un encargado puede marcar estas. Pregunta a la oficina.',
+  'Not saved — the board refused it': 'Sin guardar — el tablero lo rechazó',
+  'Not saved': 'Sin guardar',
+  'Trying again won’t change the answer. Tell the office, or let your changes go.': 'Intentarlo otra vez no cambia la respuesta. Avisa a la oficina o descarta tus cambios.',
+  'Your ticks stay on this phone and go by themselves once the office lets you tick the pre-start.': 'Tus marcas se quedan en este teléfono y se mandan solas cuando la oficina te deje marcar el antes de empezar.',
+  'Your ticks stay on this phone and go by themselves once the office makes you a site manager.': 'Tus marcas se quedan en este teléfono y se mandan solas cuando la oficina te ponga como encargado de obra.',
+  'Tap again to throw your changes away': 'Toca otra vez para descartar tus cambios',
+  'Let my changes go': 'Descartar mis cambios',
+  'Not taken': 'No se guardó',
+  'Somebody changed these lines first': 'Alguien cambió estas líneas primero',
+  'The list shows what is there now. Change a line again if yours was right.': 'La lista muestra lo que hay ahora. Cambia la línea otra vez si lo tuyo era lo correcto.',
+  'Got it': 'Entendido',
+  'now not applicable: {r}': 'ahora no aplica: {r}',
+  'now ticked': 'ahora marcada',
+  'now not ticked': 'ahora sin marcar',
+  'the note now says “{t}”': 'la nota ahora dice “{t}”',
+  'the note was taken off': 'le quitaron la nota',
+  'now says “{t}”': 'ahora dice “{t}”',
+  'the name was taken off': 'le quitaron el nombre',
+  'the signature changed': 'la firma cambió',
+  '{by} changed it': '{by} lo cambió',
+  '{by} changed it at {t}': '{by} lo cambió a las {t}',
+  '{by} changed it on {d} at {t}': '{by} lo cambió el {d} a las {t}',
+  'Changed in JobTread or on another phone': 'Lo cambiaron en JobTread o en otro teléfono',
+  'Changed at {t}': 'Lo cambiaron a las {t}',
+  'Changed on {d} at {t}': 'Lo cambiaron el {d} a las {t}',
+  'Your changes were let go — the list shows what the board has.': 'Se descartaron tus cambios — la lista muestra lo que tiene el tablero.',
+  'This list isn’t on your jobs any more, so it can only be let go.': 'Esta lista ya no está en tus trabajos, así que solo se puede descartar.',
+  'Tap again': 'Toca otra vez',
+  'Let go': 'Descartar',
+  'Let go — it won’t be sent.': 'Descartado — no se va a mandar.'
+}); /* T2.36-ES */
 /* ES-DICT-END */
 var DOW_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function logDateWords(date){
