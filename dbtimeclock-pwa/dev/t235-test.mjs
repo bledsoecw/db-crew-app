@@ -252,11 +252,13 @@ const calls = (page, fn) => page.evaluate((f) => (window.__CO || []).filter((x) 
   check('…never beside a Done this phone is still sending: Done and Can\'t finish would contradict each other', await page.locator('#coCant').count(), 0);
   await page.evaluate(() => { const v = coVisit('co-okafor'); delete v.doneTasks.pt1; coPersist(); coRender(); });
   await page.evaluate(() => setTab('diag')); await page.waitForTimeout(900);
-  check('the phone needs Close Out contract 4, and the mock server at 4 raises no warning', [await page.evaluate(() => CO_CONTRACT_NEED), await page.locator('#verWarn').isHidden()], [4, true]);
+  // The level is read off the page, never pinned (the T2.30 lesson): T2.40 raised it to 5.
+  const need = await page.evaluate(() => CO_CONTRACT_NEED);
+  check('the phone needs Close Out contract 4 or more, and the mock server at its level raises no warning', [need >= 4, await page.locator('#verWarn').isHidden()], [true, true]);
   await page.evaluate(() => { window.__MOCK_BUILDS = { api: APP_BUILD, closeOut: { configured: true, ok: true, build: { on: 'vercel', commit: '831136a' }, deployed: '831136a', contract: 3 } }; return loadBuilds(); });
   await page.waitForTimeout(300);
   check('…a server still at 3 (T2.34) is called behind, in words that say what to deploy',
-    [await page.locator('#verWarn').isVisible(), (await txt(page, '#verWarn')).indexOf('The Close Out server is older than this app needs (contract 3, needs 4). Deploy DB CheckOut’s main.') > -1], [true, true]);
+    [await page.locator('#verWarn').isVisible(), (await txt(page, '#verWarn')).indexOf(`The Close Out server is older than this app needs (contract 3, needs ${need}). Deploy DB CheckOut’s main.`) > -1], [true, true]);
   check('no word added twice with different words (T2.35)', await page.evaluate(() => I18N_CLASH), []);
   check('no page errors (contract)', errs, []);
   await ctx.close();
