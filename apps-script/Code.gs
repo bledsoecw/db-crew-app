@@ -58,7 +58,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.38 (2026-11-03)';
+var APP_BUILD = 'T2.39 (2026-11-04)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -458,7 +458,9 @@ function doPost(e) {
       // Roles (Operations only — enforced inside each)
       getPeople: getPeople,
       setRole: setRole,
-      // Close Out, forwarded to the DB CheckOut server (service and ops only)
+      // Close Out, forwarded to the DB CheckOut server: the whole of it for
+      // the service crew and Operations, anyone else their own work (T2.39)
+      coMine: coMine,
       coQueue: coQueue,
       coJob: coJob,
       coScope: coScope,
@@ -3996,8 +3998,9 @@ function fmtDayShortDow_(iso) {
 // A repair or a final inspection is booked from the board's close-out panel,
 // or straight in JobTread, and nothing told the person it was booked for:
 // they found it the next time they opened Close Out, or did not. Hourly, on
-// the schedule pushes' trigger, for every phone whose owner may use Close Out
-// (service or Operations), the Close Out server's GET /assigned is compared
+// the schedule pushes' trigger, for every phone whose owner has Close Out
+// work (the service crew and Operations always; anyone else while JobTread
+// holds work assigned to them, T2.39), the Close Out server's GET /assigned is compared
 // with what the last run saw, and one push says what changed — assigned to
 // them, moved to another day, taken away (removed in JobTread, or given to
 // somebody else, named). Finished work is said by nobody: whoever finished it
@@ -4027,9 +4030,21 @@ function sweepCloseoutPushes_() {
     if (!rec || !rec.token || !rec.email) continue;   // registers again with the email on the next launch
     var userId = k.slice(3), snapKey = 'cop_' + userId;
     var me = { email: rec.email, name: rec.name || '', userId: userId, membershipId: rec.membershipId || '', role: '' };
-    var allowed = false;
-    try { allowed = closeOutAllowed_(me); } catch (eR) {}
-    if (!allowed) { if (all[snapKey] != null) props.deleteProperty(snapKey); continue; }
+    var scope = 'assigned';
+    try { scope = coScopeOf_(me); } catch (eR) {}
+    // Anyone outside the service crew is told about the work assigned to them
+    // too (T2.39, audit I13). One small JobTread read first: nothing open and
+    // nothing remembered means nothing to say, and the Close Out server is
+    // not asked. The empty snapshot is their starting point, so the first
+    // repair or inspection anyone ever gives them is news, not a snapshot.
+    if (scope !== 'all') {
+      var open = coMyOpen_(me, false);
+      if (!open) { out.failed++; continue; }   // JobTread did not answer: the snapshot stays
+      if (!open.count && (all[snapKey] == null || all[snapKey] === '{}')) {
+        if (all[snapKey] == null) { try { props.setProperty(snapKey, '{}'); } catch (eE) {} }
+        continue;
+      }
+    }
     out.people++;
     var prev = null;
     try { prev = all[snapKey] != null ? JSON.parse(all[snapKey]) : null; } catch (eP) { prev = null; }
@@ -4527,8 +4542,9 @@ function setRole(me, email, role) {
 // the phone asks here with its own session, and this forwards with the
 // shared secret plus WHO is asking, which the server has agreed to trust the
 // way the board trusts this same deployment on /api/crew/*. The person is
-// gated here by role first: a crew member's phone cannot reach a Close Out
-// route at all, whatever it sends.
+// gated here before anything is sent: the service crew and Operations reach
+// every Close Out route; anyone else only the work JobTread has assigned to
+// them (T2.39, audit I13 — coGate_ below), whatever their phone sends.
 //
 // Script Properties: CLOSEOUT_API_URL (the server's origin), CLOSEOUT_SECRET
 // (= that server's CREW_APP_SECRET). Not gated on WRITE_ENABLED: nothing here
@@ -4577,12 +4593,149 @@ function closeoutHealth_() {
   try { cache.put('co_health', JSON.stringify(out), 300); } catch (e) {}
   return out;
 }
-function closeOutAllowed_(me) { var r = roleFor_(me).role; return r === 'service' || r === 'ops'; }
+// ---- who sees what (T2.39, audit I13) -------------------------------------
+// The service crew and Operations see Close Out whole: every job at Final
+// Inspection, Punch List or PM Review, any of them opened, the All tab.
+// Anyone else sees only the close-out work JobTread has assigned to them — a
+// repair the board put on their list, the final inspection of a service call
+// whose last visit they worked (the board's rule since 26 Oct) — and can act
+// on that and nothing else. What is theirs is read from JobTread through their
+// own membership (membership.assignedTasks, one small query, the same task
+// kinds the Close Out server's scan counts), never from that server's name
+// match: two people with one name must not open each other's work.
+var CO_PUNCH_TYPE = '22PLePTbJVrQ', CO_INSPECT_TYPE = '22PNJDrm6TsA';
+var CO_MINE_SEC = 300;       // the open count behind the tab, per person
+var CO_JOBSET_SEC = 21600;   // one job's tasks of theirs, per person (CacheService's limit); read again on a miss
+var CO_NOT_YOURS = 'NO_CLOSEOUT_WORK: This Close Out work is not assigned to you — ask the office.';
+
+function coScopeOf_(me) { var r = roleFor_(me).role; return r === 'service' || r === 'ops' ? 'all' : 'assigned'; }
+/** The whole of Close Out: the service crew and Operations. */
+function closeOutAllowed_(me) { return coScopeOf_(me) === 'all'; }
+
+/** The close-out tasks JobTread's own filter names: a punch to-do, or a final
+ *  inspection (the template line, or a work area's "Final inspection — …";
+ *  never the sales reps' inspection visits, which share the type). */
+function coTaskWhere_(jobId, openOnly) {
+  var parts = [{ or: [
+    { and: [[['taskType', 'id'], '=', CO_PUNCH_TYPE], [['isToDo'], '=', true]] },
+    { and: [[['taskType', 'id'], '=', CO_INSPECT_TYPE], [['name'], 'like', 'Final inspection%']] }
+  ] }];
+  // progress != 1 keeps the tasks nobody has touched (JobTread leaves them null).
+  if (openOnly) parts.push([['progress'], '!=', 1]);
+  parts.push(jobId ? [['job', 'id'], '=', jobId] : [['job', 'closedOn'], '=', null]);
+  return { and: parts };
+}
+/** "2026-11-03" and its end, the Close Out server's bookedDayOf: no day, no booking. */
+function coAddBooked_(list, startDate, endDate, kind) {
+  var start = String(startDate || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
+  var end = String(endDate || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end) || end < start) end = start;
+  for (var i = 0; i < list.length; i++) if (list[i].start === start && list[i].end === end && list[i].kind === kind) return;
+  list.push({ start: start, end: end, kind: kind });
+  list.sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : a.end < b.end ? -1 : a.end > b.end ? 1 : a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0; });
+}
+/** Their open close-out work, by job: { count, jobs: { <jobId>: { repairs, inspect, booked } } }.
+ *  null when JobTread did not answer — never a guessed nothing. Somebody with
+ *  no JobTread membership has nothing assigned. */
+function coMyOpen_(me, fresh) {
+  if (!me || !me.membershipId) return { count: 0, jobs: {} };
+  var key = 'coO_' + String(me.userId || me.membershipId), cache = CacheService.getScriptCache();
+  if (!fresh) { var hit = cache.get(key); if (hit) { try { return JSON.parse(hit); } catch (e) {} } }
+  var d;
+  try {
+    d = pave({ membership: { '$': { id: me.membershipId }, assignedTasks: {
+      '$': { size: 100, where: coTaskWhere_(null, true) },
+      count: {},
+      nodes: { id: {}, startDate: {}, endDate: {}, taskType: { id: {} }, job: { id: {} } } } } });
+  } catch (e) { return null; }
+  var at = ((d && d.membership) || {}).assignedTasks || {}, out = { count: Number(at.count) || 0, jobs: {} };
+  (at.nodes || []).forEach(function (t) {
+    var jid = t && t.job && t.job.id;
+    if (!jid) return;
+    var j = out.jobs[jid] = out.jobs[jid] || { repairs: 0, inspect: false, booked: [] };
+    var punch = !!(t.taskType && t.taskType.id === CO_PUNCH_TYPE);
+    if (punch) j.repairs++; else j.inspect = true;
+    coAddBooked_(j.booked, t.startDate, t.endDate, punch ? 'repair' : 'inspection');
+  });
+  try { cache.put(key, JSON.stringify(out), CO_MINE_SEC); } catch (e) {}
+  return out;
+}
+/** One job's close-out tasks that are theirs, open or done:
+ *  { n, tasks: { <taskId>: { k: 'r' | 'i', done } } }. Done ones count: a
+ *  repair they finished is still theirs to send its photos for, and a send
+ *  that landed and goes again must be answered, never refused. Kept while it
+ *  holds anything; a miss reads JobTread again (coGate_). Throws when JobTread
+ *  does not answer — a gate must not guess, and the phone tries again. */
+function coMyJob_(me, jobId, fresh) {
+  if (!me || !me.membershipId || !jobId) return { n: 0, tasks: {} };
+  var key = 'coJ_' + String(me.userId || me.membershipId) + '_' + jobId, cache = CacheService.getScriptCache();
+  if (!fresh) { var hit = cache.get(key); if (hit) { try { return JSON.parse(hit); } catch (e) {} } }
+  var d = pave({ membership: { '$': { id: me.membershipId }, assignedTasks: {
+    '$': { size: 50, where: coTaskWhere_(jobId, false) },
+    nodes: { id: {}, progress: {}, taskType: { id: {} } } } } });
+  var out = { n: 0, tasks: {} };
+  ((((d && d.membership) || {}).assignedTasks || {}).nodes || []).forEach(function (t) {
+    if (!t || !t.id) return;
+    out.tasks[t.id] = { k: t.taskType && t.taskType.id === CO_PUNCH_TYPE ? 'r' : 'i', done: Number(t.progress) >= 1 };
+    out.n++;
+  });
+  try { if (out.n) cache.put(key, JSON.stringify(out), CO_JOBSET_SEC); else cache.remove(key); } catch (e) {}
+  return out;
+}
+/** The door for someone who sees only their own work. need: { job, task?,
+ *  inspect?, fresh? } — the job must hold work of theirs; a repair named must
+ *  be theirs; inspect wants an inspection of theirs on the job. Returns null
+ *  for the service crew and Operations (everything is theirs), else what is
+ *  theirs on the job. Decisive writes (Done, Can't finish, closing an
+ *  inspection) read JobTread fresh; photos and reports ride the kept copy, so
+ *  ten site photos are one JobTread read, not ten. */
+function coGate_(me, need) {
+  if (coScopeOf_(me) === 'all') return null;
+  if (!need || !need.job) throw new Error('Missing job id.');
+  var has = function (s) {
+    if (need.task) return !!(s.tasks[need.task] && s.tasks[need.task].k === 'r');
+    if (need.inspect) { for (var id in s.tasks) if (s.tasks[id].k === 'i') return true; return false; }
+    return s.n > 0;
+  };
+  var s = coMyJob_(me, need.job, !!need.fresh);
+  if (!has(s) && !need.fresh) s = coMyJob_(me, need.job, true);   // JobTread may have just given it to them
+  if (!has(s)) throw new Error(CO_NOT_YOURS);
+  return s;
+}
+/** The queue as someone who sees only their own work is sent it: the jobs
+ *  holding open work of theirs, each saying what that work is. */
+function coQueueMine_(jobs, mine) {
+  return jobs.filter(function (j) { return j && mine.jobs[j.id]; }).map(function (j) {
+    var w = mine.jobs[j.id];
+    j.mine = true; j.myRepairs = w.repairs; j.myInspect = w.inspect; j.openPunchCount = w.repairs;
+    if (w.booked.length) j.booked = w.booked;
+    return j;
+  });
+}
+/** A job as someone who sees only their own work is sent it: their repairs,
+ *  the work areas whose inspection is theirs, and what of it is still open. On
+ *  a job with work areas an inspection is offered through its area only, so a
+ *  task the areas do not name can never open the roof's checklist. */
+function coOnlyMine_(job, s) {
+  var mineAs = function (id, k) { var t = id && s.tasks[id]; return !!(t && t.k === k); };
+  var hadAreas = Array.isArray(job.areas) && job.areas.length > 0;
+  job.punchTasks = (Array.isArray(job.punchTasks) ? job.punchTasks : []).filter(function (t) { return t && mineAs(t.id, 'r'); });
+  job.punchTasks.forEach(function (t) { t.mine = true; });
+  job.areas = (Array.isArray(job.areas) ? job.areas : []).filter(function (a) { return a && mineAs(a.inspectionTaskId, 'i'); });
+  job.areas.forEach(function (a) { a.mine = true; });
+  var open = job.punchTasks.filter(function (t) { return !(Number(t.progress) >= 1); }).length, inspect = false;
+  if (hadAreas) inspect = job.areas.some(function (a) { return !a.inspected; });
+  else for (var id in s.tasks) if (s.tasks[id].k === 'i' && !s.tasks[id].done) inspect = true;
+  job.openPunchTotal = open; job.openPunchCount = open;
+  job.myRepairs = open; job.myInspect = inspect; job.mine = true; job.scope = 'assigned';
+  return job;
+}
 
 // One call through. Answers { status, body, ms, reason } and never throws for
-// the server's trouble — the phone keeps the item and says why.
+// the server's trouble — the phone keeps the item and says why. Who may ask
+// for what is decided before this, by each Close Out function's own gate.
 function coFetch_(me, method, path, body, ref) {
-  if (!closeOutAllowed_(me)) throw new Error('NO_CLOSEOUT: Close Out is for the service crew — ask the office.');
   var cfg = closeoutConfig_();
   if (!cfg.url || !cfg.secret) return { status: 0, reason: 'not-configured', body: null, ms: 0 };
   var headers = {
@@ -4598,6 +4751,16 @@ function coFetch_(me, method, path, body, ref) {
   catch (e) { return { status: 0, reason: 'unreachable', body: { error: String(e && e.message || e) }, ms: Date.now() - t0 }; }
   var code = resp.getResponseCode(), text = String(resp.getContentText() || ''), parsed = null;
   try { parsed = JSON.parse(text); } catch (e) { parsed = { error: text.slice(0, 200) }; }
+  // The Close Out server acts for the company's addresses and its own allowed
+  // list (GOOGLE_ALLOWED_EMAILS there). Somebody signed in with another
+  // address — the two site managers on Gmail — and not on that list gets its
+  // 401: said as what it is (T2.39), never as the server being down or its
+  // key being wrong, and kept as refused, so Retry sends it once they are added.
+  var who = String(me && me.email || '').toLowerCase().trim();
+  if (code === 401 && who && !/@deitemeyerbrothers\.com$/.test(who)) {
+    return { status: 403, reason: 'not-listed', ms: Date.now() - t0,
+             body: { error: 'Close Out does not act for ' + who + ' yet — the office adds that address to the Close Out server\u2019s allowed list (GOOGLE_ALLOWED_EMAILS).' } };
+  }
   var reason = code === 200 ? '' : (code === 307 || code === 302) ? 'signin-bounce' : 'http-' + code;
   return { status: code, reason: reason, body: parsed, ms: Date.now() - t0 };
 }
@@ -4607,33 +4770,77 @@ function coId_(v, what) {
   return v;
 }
 
-function coQueue(me) { return coFetch_(me, 'get', '/queue', null); }
-function coJob(me, jobId) { return coFetch_(me, 'get', '/jobs/' + coId_(jobId, 'job id'), null); }
-function coScope(me, jobId) { return coFetch_(me, 'get', '/jobs/' + coId_(jobId, 'job id') + '/scope-summary', null); }
+// The phone's question before it draws a Close Out tab for someone outside
+// the service crew (T2.39): how much close-out work JobTread has assigned to
+// them. count null: JobTread did not answer, and the phone keeps what it knew.
+function coMine(me) {
+  if (coScopeOf_(me) === 'all') return { scope: 'all' };
+  if (!closeoutConfigured_()) return { scope: 'assigned', count: 0, configured: false };
+  var o = coMyOpen_(me, false);
+  return o ? { scope: 'assigned', count: o.count, jobs: Object.keys(o.jobs).length } : { scope: 'assigned', count: null };
+}
+function coQueue(me) {
+  if (coScopeOf_(me) === 'all') return coFetch_(me, 'get', '/queue', null);
+  if (!closeoutConfigured_()) return { status: 0, reason: 'not-configured', body: null, ms: 0, scope: 'assigned' };
+  var mine = coMyOpen_(me, true);
+  if (!mine) return { status: 0, reason: 'unreachable', body: { error: 'JobTread did not answer — try again in a minute.' }, ms: 0, scope: 'assigned' };
+  // Nothing assigned: nothing to ask the Close Out server for.
+  var r = mine.count ? coFetch_(me, 'get', '/queue', null) : { status: 200, reason: '', body: [], ms: 0 };
+  if (r.status === 200 && Array.isArray(r.body)) r.body = coQueueMine_(r.body, mine);
+  r.scope = 'assigned'; r.mineCount = mine.count;
+  return r;
+}
+function coJob(me, jobId) {
+  jobId = coId_(jobId, 'job id');
+  var s = coGate_(me, { job: jobId, fresh: true });
+  var r = coFetch_(me, 'get', '/jobs/' + jobId, null);
+  if (s) {
+    if (r.status === 200 && r.body && typeof r.body === 'object') coOnlyMine_(r.body, s);
+    r.scope = 'assigned';
+  }
+  return r;
+}
+function coScope(me, jobId) {
+  jobId = coId_(jobId, 'job id');
+  coGate_(me, { job: jobId });
+  return coFetch_(me, 'get', '/jobs/' + jobId + '/scope-summary', null);
+}
+// A problem found on an inspection: an inspection of theirs on the job.
 function coReport(me, jobId, report, ref) {
   if (!report || typeof report !== 'object') throw new Error('Missing report.');
-  return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/reports', report, ref);
+  jobId = coId_(jobId, 'job id');
+  coGate_(me, { job: jobId, inspect: true });
+  return coFetch_(me, 'post', '/jobs/' + jobId + '/reports', report, ref);
 }
 // { label, imageBase64 (data URI), taskId?, reportRef?, itemKey?, location? }
+// A repair's photo (taskId) is that repair's; any other is the inspection's.
 function coPhoto(me, jobId, photo, ref) {
   if (!photo || typeof photo !== 'object' || !photo.imageBase64) throw new Error('Missing photo.');
-  return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/photos', photo, ref);
+  jobId = coId_(jobId, 'job id');
+  if (photo.taskId) coGate_(me, { job: jobId, task: String(photo.taskId) });
+  else coGate_(me, { job: jobId, inspect: true });
+  return coFetch_(me, 'post', '/jobs/' + jobId + '/photos', photo, ref);
 }
 function coClose(me, jobId, visit, ref) {
   if (!visit || typeof visit !== 'object') throw new Error('Missing visit.');
-  return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/close-inspection', visit, ref);
+  jobId = coId_(jobId, 'job id');
+  coGate_(me, { job: jobId, inspect: true, fresh: true });
+  return coFetch_(me, 'post', '/jobs/' + jobId + '/close-inspection', visit, ref);
 }
 // A work area inspected with notes and photos — the gutters, the siding —
 // rather than the roof checklist: { area, notes?, problemsReported }. Sent
 // last, after that area's reports and photos, like coClose.
 function coCloseArea(me, jobId, body, ref) {
   if (!body || typeof body !== 'object' || !body.area) throw new Error('Missing work area.');
-  return coFetch_(me, 'post', '/jobs/' + coId_(jobId, 'job id') + '/close-area-inspection', body, ref);
+  jobId = coId_(jobId, 'job id');
+  coGate_(me, { job: jobId, inspect: true, fresh: true });
+  return coFetch_(me, 'post', '/jobs/' + jobId + '/close-area-inspection', body, ref);
 }
 function coComplete(me, taskId, jobId, note, ref) {
-  var body = { note: String(note || '').slice(0, 2000) };
+  var id = coId_(taskId, 'task id'), body = { note: String(note || '').slice(0, 2000) };
   if (jobId) body.jobId = coId_(jobId, 'job id');
-  return coFetch_(me, 'post', '/tasks/' + coId_(taskId, 'task id') + '/complete', body, ref);
+  coGate_(me, { job: body.jobId, task: id, fresh: true });
+  return coFetch_(me, 'post', '/tasks/' + id + '/complete', body, ref);
 }
 // Can't finish today (T2.35, audit I10): the repair stays open with its
 // reason, and the area's PM is told. The server checks the reason and the
@@ -4645,6 +4852,7 @@ function coBlocked(me, taskId, jobId, reason, note, ref) {
   var id = coId_(taskId, 'task id');
   var body = { reason: reason, note: String(note || '').slice(0, 2000) };
   if (jobId) body.jobId = coId_(jobId, 'job id');
+  coGate_(me, { job: body.jobId, task: id, fresh: true });
   var r = coFetch_(me, 'post', '/tasks/' + id + '/blocked', body, ref);
   // DB CheckOut takes the repair's day off, so the PM books it again. The
   // hourly Close Out push would then tell this person "Moved: repair at … to
@@ -4667,5 +4875,8 @@ function coSnapDayOff_(me, taskId) {
 // to: 'es' (JobTread text for the crew) or 'en' (the crew's note for the office)
 function coTranslate(me, texts, to) {
   if (!Array.isArray(texts) || !texts.length) throw new Error('Nothing to translate.');
+  // Close Out's translator, for whoever has Close Out work: the whole crew
+  // for the service crew and Operations, anyone else while work is theirs.
+  if (coScopeOf_(me) !== 'all') { var o = coMyOpen_(me, false); if (!o || !o.count) throw new Error(CO_NOT_YOURS); }
   return coFetch_(me, 'post', '/translate', { texts: texts.slice(0, 100).map(function (t) { return String(t || '').slice(0, 4000); }), to: to === 'en' ? 'en' : 'es' }, null);
 }

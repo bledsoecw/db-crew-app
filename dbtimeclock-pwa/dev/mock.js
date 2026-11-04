@@ -415,6 +415,47 @@
       projectManager: 'Kyle Akerman', salesRep: 'Austin Leeth', address: '7 Mill St, Rockford, OH 45882, USA', openPunchCount: 1, mine: true, openPunchTotal: 1,
       booked: [], punchTasks: [{ id: 'pt20', name: 'REPORT: Ridge vent nails', description: 'Two nails backing out on the ridge vent.', progress: 0, endDate: null, createdAt: '2026-10-21T12:00:00.000Z', assignees: [], assigneeNames: ['Alberto Gonzalez'], mine: true }], soldScope: [] });
   }
+  // ---- T2.39 (audit I13): Close Out for anyone the work is assigned to ----
+  // Outside the service crew and Operations the mock answers as Code.gs does:
+  // the work __MOCK_CO_ASSIGNED gives the signed-in person and nothing else,
+  // refused in Code.gs's words. { <jobId>: { repairs: [taskId…], inspect:
+  // true | '<inspection task id>' } } — true is the job's own inspection (the
+  // line area's task on a job with work areas, else 'fi-<jobId>').
+  var CO_NOT_YOURS = 'NO_CLOSEOUT_WORK: This Close Out work is not assigned to you — ask the office.';
+  var CO_INSPECTED = {};
+  function coScopeMock() { var r = window.__MOCK_ROLE || 'siteManager'; return r === 'service' || r === 'ops' ? 'all' : 'assigned'; }
+  function coAssignedMock() { return window.__MOCK_CO_ASSIGNED || {}; }
+  function coInspIdMock(jobId) {
+    var a = coAssignedMock()[jobId];
+    if (!a || !a.inspect) return null;
+    if (typeof a.inspect === 'string') return a.inspect;
+    var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0], line = j && (j.areas || []).filter(function (x) { return x.line; })[0];
+    return line ? line.inspectionTaskId : 'fi-' + jobId;
+  }
+  function coMyOpenMock() {
+    var A = coAssignedMock(), out = { count: 0, jobs: {} };
+    Object.keys(A).forEach(function (jid) {
+      var reps = (A[jid].repairs || []).filter(function (id) { return !CO_DONE[id]; }), insp = !!A[jid].inspect && !CO_INSPECTED[jid];
+      if (!reps.length && !insp) return;
+      out.jobs[jid] = { repairs: reps.length, inspect: insp };
+      out.count += reps.length + (insp ? 1 : 0);
+    });
+    return out;
+  }
+  // need: undefined (any work of theirs on the job), 'inspect', or a repair's task id.
+  // __MOCK_CO_NOTLISTED: the Close Out server does not know this sign-in
+  // (a Gmail site manager not on its GOOGLE_ALLOWED_EMAILS) — Code.gs says so.
+  function coNotListedMock() {
+    return window.__MOCK_CO_NOTLISTED ? { status: 403, reason: 'not-listed', body: { error: 'Close Out does not act for tylermohr94@gmail.com yet — the office adds that address to the Close Out server’s allowed list (GOOGLE_ALLOWED_EMAILS).' } } : null;
+  }
+  function coGateMock(jobId, need) {
+    if (coScopeMock() === 'all') return null;
+    var a = coAssignedMock()[jobId];
+    if (!a) throw new Error(CO_NOT_YOURS);
+    if (need === 'inspect' && !a.inspect) throw new Error(CO_NOT_YOURS);
+    if (need && need !== 'inspect' && (a.repairs || []).indexOf(need) === -1) throw new Error(CO_NOT_YOURS);
+    return a;
+  }
   // The Production Board's rule, as far as the phone can tell it from here:
   // the area furthest behind decides, forward only.
   function coBoardMove(j) {
@@ -964,13 +1005,30 @@
     //   __MOCK_CO_DOWN      the server unreachable
     //   __MOCK_CO_PHOTO409  the first REPORT photo answers 409 once (its report not landed yet)
     //   __MOCK_CO_REJECT    a report answers 400
+    // T2.39: how much is theirs, for the tab of someone outside the service crew.
+    coMine: function () {
+      (window.__CO = window.__CO || []).push({ fn: 'coMine' });
+      if (coScopeMock() === 'all') return { scope: 'all' };
+      if (window.__MOCK_CO_UNSET) return { scope: 'assigned', count: 0, configured: false };
+      var m = coMyOpenMock();
+      return { scope: 'assigned', count: m.count, jobs: Object.keys(m.jobs).length };
+    },
     coQueue: function () {
       window.__CO = window.__CO || [];
       if (window.__MOCK_CO_UNSET) return { status: 0, reason: 'not-configured', body: null };
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: { error: 'DNS' } };
-      return { status: 200, body: CO_JOBS.map(function (j) { var c = JSON.parse(JSON.stringify(j)); delete c.punchTasks; delete c.soldScope; delete c.openPunchTotal; delete c.areas; return c; }) };
+      var rows = CO_JOBS.map(function (j) { var c = JSON.parse(JSON.stringify(j)); delete c.punchTasks; delete c.soldScope; delete c.openPunchTotal; delete c.areas; return c; });
+      if (coScopeMock() === 'assigned') {
+        var mine = coMyOpenMock();
+        if (mine.count && coNotListedMock()) { var nl = coNotListedMock(); nl.scope = 'assigned'; nl.mineCount = mine.count; return nl; }
+        rows = rows.filter(function (j) { return mine.jobs[j.id]; }).map(function (j) {
+          var w = mine.jobs[j.id]; j.mine = true; j.myRepairs = w.repairs; j.myInspect = w.inspect; j.openPunchCount = w.repairs; return j; });
+        return { status: 200, body: rows, scope: 'assigned', mineCount: mine.count };
+      }
+      return { status: 200, body: rows };
     },
     coJob: function (jobId) {
+      var mineA = coGateMock(jobId);
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
       if (!j) return { status: 404, reason: 'http-404', body: { error: 'Job not found' } };
       var out = JSON.parse(JSON.stringify(j));
@@ -993,14 +1051,29 @@
       // this one, not its own copy. A form object here replaces the roof's.
       if (window.__MOCK_CO_FORM) { out.forms = { roof: window.__MOCK_CO_FORM }; out.jobForm = 'roof'; }
       if (window.__MOCK_CO_AREA_FORMS) { out.forms = Object.assign({}, out.forms || {}, { gutters: MOCK_GUTTERS_FORM }); out.jobForm = out.jobForm || 'roof'; }
+      // T2.39: their own work only — as Code.gs's coOnlyMine_ sends it.
+      if (mineA) {
+        var reps = mineA.repairs || [], insp = coInspIdMock(jobId), hadAreas = (out.areas || []).length > 0;
+        out.punchTasks = out.punchTasks.filter(function (t) { return reps.indexOf(t.id) !== -1; });
+        out.punchTasks.forEach(function (t) { t.mine = true; });
+        out.areas = (out.areas || []).filter(function (x) { return insp && x.inspectionTaskId === insp; });
+        out.areas.forEach(function (x) { x.mine = true; });
+        var open = out.punchTasks.filter(function (t) { return !(t.progress >= 1); }).length;
+        out.openPunchTotal = open; out.openPunchCount = open; out.myRepairs = open;
+        out.myInspect = hadAreas ? out.areas.some(function (x) { return !x.inspected; }) : !!insp && !CO_INSPECTED[jobId];
+        out.mine = true; out.scope = 'assigned';
+        return { status: 200, body: out, scope: 'assigned' };
+      }
       return { status: 200, body: out };
     },
-    coScope: function () { if (FX.scope) return { status: 200, body: FX.scope }; return { status: 200, body: { en: 'A 32-square Duration roof in Onyx Black with three pipe boots and new gutters on the back.', es: 'Un techo Duration de 32 cuadros en Onyx Black con tres botas y canales nuevos atrás.' } }; },
+    coScope: function (jobId) { coGateMock(jobId); if (FX.scope) return { status: 200, body: FX.scope }; return { status: 200, body: { en: 'A 32-square Duration roof in Onyx Black with three pipe boots and new gutters on the back.', es: 'Un techo Duration de 32 cuadros en Onyx Black con tres botas y canales nuevos atrás.' } }; },
     coTranslate: function (texts, to) {
+      if (coScopeMock() === 'assigned' && !coMyOpenMock().count) throw new Error(CO_NOT_YOURS);
       window.__CO.push({ fn: 'coTranslate', to: to, n: texts.length });
       return { status: 200, body: { translations: texts.map(function (t) { return FX.translate ? FX.translate(t, to) : to === 'en' ? 'EN: ' + t : 'ES: ' + t; }) } };
     },
     coReport: function (jobId, report, ref) {
+      coGateMock(jobId, 'inspect');
       window.__CO.push({ fn: 'coReport', jobId: jobId, ref: ref, report: report });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
       if (window.__MOCK_CO_REJECT) return { status: 400, reason: 'http-400', body: { error: 'location and englishNote are required' } };
@@ -1010,6 +1083,7 @@
       return { status: 200, body: { taskId: 't_' + ref, photosUploaded: 0 } };
     },
     coPhoto: function (jobId, photo, ref) {
+      coGateMock(jobId, photo.taskId || 'inspect');
       var p = {}; for (var k in photo) p[k] = k === 'imageBase64' ? photo[k].slice(0, 30) + '…(' + photo[k].length + ')' : photo[k];
       window.__CO.push({ fn: 'coPhoto', jobId: jobId, ref: ref, photo: p });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
@@ -1018,11 +1092,13 @@
       return { status: 200, body: { fileId: 'f_' + ref } };
     },
     coClose: function (jobId, visit, ref) {
+      coGateMock(jobId, 'inspect');
       window.__CO.push({ fn: 'coClose', jobId: jobId, ref: ref, visit: visit });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
       // __MOCK_CO_NOTASK: a server older than T2.33 on a job with no Final
       // inspection task — OK, and nothing recorded (audit D22).
       if (window.__MOCK_CO_NOTASK) return { status: 200, body: { completedTaskId: null, flipped: null } };
+      CO_INSPECTED[jobId] = true;
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
       var line = j && j.areas && j.areas.filter(function (a) { return a.line; })[0];
       if (line) {
@@ -1035,15 +1111,19 @@
       return { status: 200, body: { completedTaskId: 'fi_' + jobId, flipped: flipped } };
     },
     coCloseArea: function (jobId, body, ref) {
+      coGateMock(jobId, 'inspect');
       window.__CO.push({ fn: 'coCloseArea', jobId: jobId, ref: ref, body: body });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
       var a = j && (j.areas || []).filter(function (x) { return x.key === body.area; })[0];
       if (!a) return { status: 400, reason: 'http-400', body: { error: 'area must be one of this job\'s work areas' } };
+      if (coInspIdMock(jobId) === a.inspectionTaskId) CO_INSPECTED[jobId] = true;
       a.inspected = true; a.openRepairs += body.problemsReported || 0;
       return { status: 200, body: { completedTaskId: a.inspectionTaskId, flipped: coBoardMove(j), sentTo: CO_REVIEWER[a.key] || null } };
     },
     coComplete: function (taskId, jobId, note, ref) {
+      coGateMock(jobId, taskId);
+      if (coNotListedMock()) return coNotListedMock();
       window.__CO.push({ fn: 'coComplete', taskId: taskId, jobId: jobId, note: note, ref: ref });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
       // T2.33 (audit D23): __MOCK_CO_GONE names a repair JobTread no longer has
@@ -1065,6 +1145,7 @@
     },
     // T2.35 (audit I10): Can't finish today, as DB CheckOut answers it.
     coBlocked: function (taskId, jobId, reason, note, ref) {
+      coGateMock(jobId, taskId);
       window.__CO.push({ fn: 'coBlocked', taskId: taskId, jobId: jobId, reason: reason, note: note, ref: ref });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
       if (window.__MOCK_CO_GONE === taskId) return { status: 410, reason: 'http-410', body: { error: 'That repair is no longer in JobTread', gone: true } };

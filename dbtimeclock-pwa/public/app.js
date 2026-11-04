@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.38 (2026-11-03)';
+var APP_BUILD = 'T2.39 (2026-11-04)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -943,7 +943,15 @@ function handleShootParam(){
   if (/[?&]left=1\b/.test(q)){ history.replaceState(null, '', location.pathname); openLeftFromPush(); return; }
   // A schedule push lands on My jobs.
   var m = /[?&]tab=(jobs|log|job|co|people)\b/.exec(q);
-  if (m){ history.replaceState(null, '', location.pathname); setTab(m[1]); }
+  if (m){
+    history.replaceState(null, '', location.pathname);
+    // A Close Out push to someone outside the service crew (T2.39): the tab
+    // is theirs once the phone has asked, which this answer may be the first
+    // to say — the first repair anyone gives them — so it asks now and opens
+    // Close Out when it hears.
+    if (m[1] === 'co' && !canTab('co') && coMineOnly()){ CO.wanted = true; coMineLoad(true); return; }
+    setTab(m[1]);
+  }
 }
 
 /* =========================================================
@@ -8410,6 +8418,7 @@ function start(){
     // on the other.
     loadAssignments();
     loadExtras();
+    coMineLoad(false);   // a Close Out tab for anyone with work assigned to them (T2.39)
     // Anything kept in a dead spot last time goes now — after the clock's
     // own calls, never ahead of them: every lane of the outbox (T2.31).
     obWake();
@@ -8455,6 +8464,7 @@ function bootStart(lastJob, attempt){
       // The schedule was asked for alongside the first attempt; if that ask
       // came back as the recent-jobs fallback, the board gets a second chance.
       if (!S.assignLoading && (!S.assign || S.assign.source === 'fallback')) loadAssignments();
+      coMineLoad(false);
       obWake();
       toast('Connected');
     }
@@ -8493,7 +8503,11 @@ function appRole(){ var m = meNow(); return (m && TABS_BY_ROLE[m.appRole]) ? m.a
 function isOpsAccount(){ var m = meNow(); return !!(m && m.ops); }
 /* The role in force on this phone: a borrowed one, for Operations only. */
 function effRole(){ return (isOpsAccount() && S.viewAs && TABS_BY_ROLE[S.viewAs] && S.viewAs !== 'ops') ? S.viewAs : appRole(); }
-function roleTabs(){ return TABS_BY_ROLE[effRole()] || TABS_BY_ROLE.crew; }
+function roleTabs(){
+  var t = TABS_BY_ROLE[effRole()] || TABS_BY_ROLE.crew;
+  // Close Out for anyone with close-out work assigned to them (T2.39, audit I13).
+  return t.indexOf('co') === -1 && coAssignedTab() ? t.concat(['co']) : t;
+}
 /* The first screen of a launch, once the API has said who this is (T2.4,
    Carl 6 Oct 2026): the service crew's work is Close Out, so that is where
    they land. A tab tapped before the answer came, or a push deep link
@@ -8888,6 +8902,18 @@ coAdd({
         waitPmBooks: 'Tu PM la vuelve a programar',
         waitR_material: 'Esperando material', waitR_access: 'Sin acceso', waitR_weather: 'El clima', waitR_decision: 'Falta una decisión', waitR_other: 'No se puede terminar' }
 }); /* CO-T235 */
+coAdd({
+  en: { notYoursWork: 'This isn’t assigned to you any more — ask the office.',
+        mineOnlyNote: 'Only the Close Out work JobTread has assigned to you shows here.',
+        noneAssigned: 'Nothing is assigned to you right now. When the office gives you a repair or an inspection, it shows here.',
+        myPartDone: 'Your part of this job is done', myPartDoneSub: 'Nothing else on this job is assigned to you.', repairOne: 'repair',
+        notListed: 'Close Out doesn’t know {email} yet — ask the office to add it to Close Out’s list. What you saved here stays on this phone until then.' },
+  es: { notYoursWork: 'Esto ya no está asignado a ti — pregunta en la oficina.',
+        mineOnlyNote: 'Aquí sale solo el trabajo de Close Out que JobTread te asignó.',
+        noneAssigned: 'No tienes nada asignado por ahora. Cuando la oficina te dé una reparación o una inspección, sale aquí.',
+        myPartDone: 'Tu parte de este trabajo está lista', myPartDoneSub: 'No tienes nada más asignado en este trabajo.', repairOne: 'reparación',
+        notListed: 'Close Out todavía no conoce {email} — pide a la oficina que lo agregue a la lista de Close Out. Lo que guardaste aquí se queda en este teléfono hasta entonces.' }
+}); /* CO-T239 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -8996,6 +9022,14 @@ function coJobLabel(j){ return j ? (streetOf(j.address) || jobTitle({ name: j.na
 function coCustomer(j){ var m = /^\d{6}\s+([^_]+)_/.exec(String(j && j.name || '')); return m ? m[1].trim() : ''; }
 function coSub(j){ return [coCustomer(j), cityOf(j.address), j.isService ? co('service').toLowerCase() : String(j.jobType || '').toLowerCase()].filter(Boolean).join(' · '); }
 function coKindOf(j){
+  // Seen through the work assigned to them (T2.39): their own work decides,
+  // whatever stage the job is at — with both an inspection and repairs, the
+  // stage does, as it always has. Nothing open of theirs reads as their
+  // repairs (done), never as an inspection to start again.
+  if (j.myInspect != null){
+    if (j.myInspect && !(j.myRepairs > 0)) return 'inspect';
+    if (!j.myInspect) return 'repairs';
+  }
   if (j.status === CO_STATUS.pl) return 'repairs';
   if (j.status === CO_STATUS.pr) return 'review';
   if (j.status === CO_STATUS.fi) return 'inspect';
@@ -9077,6 +9111,53 @@ function coAreaTile(j, v, a){
          '<span class="cnt tabular' + (pend || n ? ' warn' : '') + '">' + esc(pend ? co('queued') : n ? n + ' ' + co('photo').toLowerCase() : co('start')) + '</span>' + CK_CHEV + '</button>';
 }
 
+/* ---- Close Out for anyone assigned (T2.39, audit I13) ----
+   The service crew and Operations have the tab always and see every job at
+   Final Inspection, Punch List or PM Review. Anyone else gets it while
+   JobTread holds close-out work assigned to them — a repair the board put on
+   their list, the final inspection of a service call whose last visit they
+   worked — and it shows that work only: the Apps Script reads what is theirs
+   from JobTread and refuses anything else, whatever this phone sends. The
+   phone asks once a launch and when it comes back to the front (at most every
+   half hour), and keeps the answer for the person it was about, so the tab is
+   there at once on the next launch. */
+var CO_MINE_KEY = 'dbtc_comine', CO_MINE_STALE_MS = 30 * 60 * 1000;
+S.coMine = null;
+try { S.coMine = JSON.parse(localStorage.getItem(CO_MINE_KEY) || 'null'); } catch(e){ S.coMine = null; }
+/* Their own work only: everyone but the service crew and Operations. */
+function coMineOnly(){ var r = appRole(); return r !== 'service' && r !== 'ops'; }
+/* The tab, for someone who sees only their own work: while work is theirs —
+   and while they are on it, so finishing the last repair never pulls the
+   screen out from under them. */
+function coAssignedTab(){
+  var m = S.coMine;
+  if (!m || m.who !== myEmail() || m.scope !== 'assigned' || !coMineOnly()) return false;
+  return m.count > 0 || S.tab === 'co';
+}
+function coMineLoad(force){
+  if (!S.me || !coMineOnly() || !S.me.closeOut || !S.online || CO.mineAsking) return;
+  var m = S.coMine;
+  if (!force && m && m.who === myEmail() && Date.now() - (m.at || 0) < CO_MINE_STALE_MS) return;
+  CO.mineAsking = true;
+  apiCall('coMine', [], { lane: 'reads', timeout: 30000 }).then(function(d){
+    CO.mineAsking = false;
+    if (!d || d.count == null) return;   // JobTread did not answer: what was known stands
+    coMineSet(d.scope, d.count);
+  }).catch(function(){ CO.mineAsking = false; });
+}
+function coMineSet(scope, count){
+  var had = coAssignedTab();
+  S.coMine = { who: myEmail(), scope: scope, count: count, at: Date.now() };
+  storeSet(CO_MINE_KEY, JSON.stringify(S.coMine), true);
+  if (coAssignedTab()){
+    // Today, the drive and the arrival read their Close Out jobs from the list.
+    if (!CO.jobs && !CO.loading) coLoadQueue(false);
+    // A Close Out push opened the app before the phone knew the work was theirs.
+    if (CO.wanted){ CO.wanted = false; setTab('co'); return; }
+  }
+  if (had !== coAssignedTab()) render();
+}
+
 /* ---- the queue ---- */
 function coLoadQueue(force){
   if (CO.loading) return;
@@ -9089,6 +9170,8 @@ function coLoadQueue(force){
     if (r.status === 200 && Array.isArray(r.body)){
       CO.jobs = r.body; CO.jobsAt = Date.now(); CO.jobsSource = 'live';
       storeSet(CO_QUEUE_KEY, JSON.stringify({ at: CO.jobsAt, jobs: CO.jobs }), true);
+      // Their own work only (T2.39): the list says how much is theirs, too.
+      if (r.scope === 'assigned'){ CO.filter = 'mine'; if (r.mineCount != null) coMineSet('assigned', r.mineCount); }
       coPrefetchCodes();
       setTimeout(coPrefetchJobs, 1500);
     } else {
@@ -9128,11 +9211,23 @@ function coLoadJob(jobId){
       // The punch to-dos arrive in English; Spanish on screen means asking once.
       if (S.lang === 'es') coTranslateTasks(CO.job);
     } else {
-      CO.jobErr = (r.body && r.body.error) || r.reason || ('http-' + r.status);
+      CO.jobErr = r.reason === 'not-listed' ? co('notListed').replace('{email}', myEmail()) : (r.body && r.body.error) || r.reason || ('http-' + r.status);
       coRestoreJob(jobId);
     }
     coRender();
-  }).catch(function(e){ CO.jobLoading = false; CO.jobErr = (e && e.message) || 'failed'; coRestoreJob(jobId); failed('close out · job', e, true); coRender(); });
+  }).catch(function(e){
+    CO.jobLoading = false;
+    var msg = (e && e.message) || 'failed';
+    // No longer theirs (T2.39): the copy on the phone must not stand in for it.
+    if (/^NO_CLOSEOUT_WORK/.test(msg)){
+      CO.jobErr = co('notYoursWork');
+      if (CO.job && CO.job.id === jobId) CO.job = null;
+      try { localStorage.removeItem('dbtc_co_job_' + jobId); } catch(e2){}
+      coRender();
+      return;
+    }
+    CO.jobErr = msg; coRestoreJob(jobId); failed('close out · job', e, true); coRender();
+  });
 }
 /* A repair this phone finished that the server lists open again (T2.34,
    audit D32: "A repair the office reopens still reads Done on that phone for
@@ -9692,11 +9787,13 @@ function coSendItemNow(it){
     if (r.status === 410) return { done: false, reject: true, err: co('itemGone') };
     if (r.status === 409) return { done: false, hold: true, err: (r.body && r.body.error) || 'waiting on an earlier item' };
     if (r.status === 401) return { done: false, stop: true, err: 'the server rejected the app’s key — ask the office' };
+    // Their sign-in not on Close Out's list yet (T2.39): kept, Retry sends it once it is.
+    if (r.reason === 'not-listed') return { done: false, reject: true, err: co('notListed').replace('{email}', myEmail()) };
     if (r.status >= 400 && r.status < 500) return { done: false, reject: true, err: (r.body && r.body.error) || ('refused (' + r.status + ')') };
     return { done: false, stop: true, err: r.reason === 'not-configured' ? co('notConfigured') : ((r.body && r.body.error) || r.reason || 'no answer') };
   }, function(e){
     if (e && e.auth) return { done: false, stop: true, auth: true, err: co('signedOutWait') };
-    if (/^NO_CLOSEOUT/.test(String(e && e.message))) return { done: false, reject: true, err: co('notYours') };
+    if (/^NO_CLOSEOUT/.test(String(e && e.message))) return { done: false, reject: true, err: co(/^NO_CLOSEOUT_WORK/.test(String(e.message)) ? 'notYoursWork' : 'notYours') };
     return { done: false, stop: true, err: (e && e.message) || 'no answer' };
   });
 }
@@ -9905,7 +10002,7 @@ function coQueueCard(j){
     // a service or warranty call had no way onto the clock from here, so the
     // video sent Yahir to the Clock tab first). Someone else's repairs still
     // only open, and the job screen offers the clock from there.
-    var nRep = (j.openPunchCount || '') + ' ' + co('repairs').toLowerCase();
+    var nRep = (j.openPunchCount || '') + ' ' + (j.openPunchCount === 1 ? co('repairOne') : co('repairs').toLowerCase());
     if (k === 'repairs' && j.mine && canTab('job')){ var here = S.open && S.job && S.job.id === j.id && !onTravel();   // driving here is not started yet (T2.22)
       act = '<button class="jact warn" data-costart="' + esc(j.id) + '"><span class="a1">' + esc(here ? co('cont') : co('start')) + '</span><span class="a2">' + esc(nRep) + '</span></button>'; }
     else if (k === 'repairs') act = '<button class="jact warn" data-cojob="' + esc(j.id) + '"><span class="a1">' + esc(nRep) + '</span><span class="a2">' + esc(co2('repairs')) + '</span></button>';
@@ -9990,6 +10087,7 @@ function coQueueHtml(){
   var h = '';
   if (CO.reason === 'not-yours') return '<div class="jempty">' + esc(co('notYours')) + '</div>';
   if (CO.reason === 'not-configured') return '<div class="jempty">' + esc(co('notConfigured')) + '</div>';
+  if (CO.reason === 'not-listed') return '<div class="jempty">' + esc(co('notListed').replace('{email}', myEmail())) + '</div>';
   if (!CO.jobs && CO.loading) return '<div class="jempty">' + esc(co('checkingJt')) + '</div>';
   // Could not reach Close Out (T2.29). With nothing saved to show, say so:
   // "Nothing ready to inspect today" here sent a crew home from an outage.
@@ -9997,15 +10095,16 @@ function coQueueHtml(){
   var down = !!CO.reason && !CO.loading;
   if (down && !(CO.jobs || []).length) return coDownHtml();
   if (down) h += '<button class="btn btn-out" data-coreload="1" style="margin:0 0 12px;min-height:52px">' + esc(co('tryAgain')) + '</button>';
+  if (coMineOnly()) CO.filter = 'mine';
   var found = coSearchMatches(CO.jobs || [], CO.search), jobs = found.filter(function(j){ return CO.filter === 'all' || j.mine; });
   // Yahir's partner box (T2.21), where Yahir's day starts: the same box as the clock's.
   if (S.partner && canTab('job')) h += '<button class="pairrow' + (S.partnerOn ? ' on' : '') + '" data-copartner="1" style="margin:0 0 12px;border:1px solid var(--line);border-radius:6px"><span class="box">' + CK_TICK + '</span><span class="lbl">' +
     esc((S.lang === 'es' ? 'Marcar a ' + S.partner.name + ' contigo' : 'Clock ' + S.partner.name + ' in and out with you')) + '</span></button>';
-  if (!jobs.length && coSearchWords(CO.search).length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && found.length ? co('noMatchMine') : co('noMatch')) + '</div>';
-  else if (!jobs.length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && (CO.jobs || []).length ? co('nothingForYou') : co('noJobs')) + (CO.err && !(CO.jobs || []).length ? '<br><span style="color:var(--ckamber)">' + esc(CO.err) + '</span>' : '') + '</div>';
+  if (!jobs.length && coSearchWords(CO.search).length) h += '<div class="jempty">' + esc(CO.filter === 'mine' && found.length && !coMineOnly() ? co('noMatchMine') : co('noMatch')) + '</div>';
+  else if (!jobs.length) h += '<div class="jempty">' + esc(coMineOnly() ? co('noneAssigned') : CO.filter === 'mine' && (CO.jobs || []).length ? co('nothingForYou') : co('noJobs')) + (CO.err && !(CO.jobs || []).length ? '<br><span style="color:var(--ckamber)">' + esc(CO.err) + '</span>' : '') + '</div>';
   else if (CO.filter === 'mine' && coHasDays()) h += coDayGroupsHtml(jobs);
   else h += jobs.map(coQueueCard).join('');
-  h += '<div class="foot" style="margin-top:18px">' + esc(co('queueNote')) + '<br>' + esc(co('queueNote2')) + '</div>';
+  h += '<div class="foot" style="margin-top:18px">' + (coMineOnly() ? esc(co('mineOnlyNote')) + '<br>' + esc(co2('mineOnlyNote')) : esc(co('queueNote')) + '<br>' + esc(co('queueNote2'))) + '</div>';
   h += coOutboxLine(null);
   return h;
 }
@@ -10073,11 +10172,15 @@ function coJobHtml(){
     // "Anything below starts a new visit" is only true with the checklist below.
     h += '<div class="rvcard" style="margin-top:0"><div class="rvstory"><span class="rk">' + esc(co('sent')) + ' · ' + esc(clockLabel(v.sentAt)) + '</span><span class="rt">' + esc(co('sentSub')) + '</span></div></div>';
   }
+  // Their own work only, all of it done (T2.39): said, and no clock-in offered for it.
+  var partDone = j.scope === 'assigned' && !j.myInspect && !(j.myRepairs > 0);
+  if (partDone && !(CO.receipt && CO.receipt.jobId === j.id))
+    h += '<div class="rvcard" style="margin-top:0" id="coMyPartDone"><div class="rvstory"><span class="rk">' + esc(co('myPartDone')) + '</span><span class="rt">' + esc(co('myPartDoneSub')) + '</span></div></div>';
   // Tell the PM, from any Close Out job (T2.27).
   h += '<div class="jcard"><button class="jtile" data-cotellpm="1"><span class="bi"><span class="es">' + esc(co('tellPm')) + '</span><span class="en">' + esc(co('tellPmSub')) + '</span></span>' + ico('msg', 22) + '</button></div>';
   var pending = coOutboxFor(j.id);
   if (pending.length) h += coOutboxLine(j.id);
-  if (k !== 'review' && !(CO.receipt && CO.receipt.jobId === j.id)) h += coClockHereHtml(j);
+  if (k !== 'review' && !partDone && !(CO.receipt && CO.receipt.jobId === j.id)) h += coClockHereHtml(j);
   // A job at PM Review is the PM's now (T2.8.2, Carl 13 Oct 2026). The last
   // repair closing moves it there by itself, and on a job whose inspection
   // the rep did on site the crew never had an inspection to send — yet this
@@ -10633,7 +10736,7 @@ function coRender(){
   var sc = CO.screen, j = CO.job || coJobById(CO.jobId), queue = sc === 'queue';
   $('coQueueHead').classList.toggle('hidden', !queue);
   $('coHead').classList.toggle('hidden', queue);
-  $('coSeg').classList.toggle('hidden', !(queue || sc === 'repairs'));
+  $('coSeg').classList.toggle('hidden', !(queue || sc === 'repairs') || coMineOnly());
   $('coSearchWrap').classList.toggle('hidden', !queue);
   // The strip stays on All too — "your days" — so switching the list never
   // moves the search box under a thumb; a tap on a day goes to Assigned.
@@ -11147,6 +11250,7 @@ document.addEventListener('visibilitychange', function(){
   obWake();
   refreshDay().then(render);
   clockReread(false);
+  coMineLoad(false);
 });
 
 /* The clock as JobTread has it now (T2.33, audit D29): read again when the

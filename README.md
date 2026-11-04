@@ -62,6 +62,9 @@ The role decides the tabs. The API decides the role (`roleFor_` in
 | Service | Clock · Close Out | Alberto and Yahir (seeded by membership id), and `carl.bledsoe@deitemeyerbrothers.com` to test their view |
 | Operations | all of those, plus **People** | `operations@deitemeyerbrothers.com` — `OPS_EMAILS` in `Code.gs`, nowhere else |
 
+Since T2.39 a crew member or site manager with close-out work assigned to them
+in JobTread gets a **Close Out** tab too, showing that work only (below).
+
 **The store is DB Hub** (T2.3). A person's level is the DB Crew column of
 the hub's App access panel, published on the feed this app already reads at
 the door. Six levels there, mapped one to one:
@@ -1535,6 +1538,61 @@ deploy`, no new permission), then `firebase deploy --only hosting`. No board
 change. An older Apps Script would put a kept drive or clock-out at the moment
 it arrived, so a phone that knows its API is older than T2.38 keeps neither
 and holds every move for the clock-in as T2.31 did.
+
+**Close Out for anyone the work is assigned to** (T2.39, 4 Nov 2026). I13 of
+the second audit, its first step (Carl: *"go, start I13"*). Close Out was the
+service crew's and Operations' tab, so a repair or a final inspection the board
+gave anybody else reached nobody's phone — and the board does give them to
+others: a service call's final inspection goes to whoever worked its last
+visit (26 Oct), and on 4 Nov that was Scott Rice, on the construction bench,
+for 26-1355 Bricker.
+
+- **Anyone with close-out work assigned to them in JobTread gets the Close Out
+  tab** beside their own (crew or site manager), for as long as the work is
+  theirs. It shows that work only: the jobs where something is theirs, their
+  repairs (never a partner's on the same job), the inspection that is theirs (a
+  service call's, or one work area's on a roof with gutters) — no All, no
+  Mine / Everyone, no other area's checklist. A repair of theirs on a job still
+  at Final Inspection opens on the repair, never on the roof's checklist.
+- **What is theirs is JobTread's answer, read through their own membership**
+  (one small query), never the Close Out server's match on names. The Apps
+  Script refuses anything else whatever a phone sends — a job with nothing of
+  theirs, somebody else's repair, an inspection that is not theirs: *"This isn't
+  assigned to you any more — ask the office."*, and a send like that is kept in
+  Waiting to send as refused, with those words.
+- **The phone asks once a launch** (and when it comes back to the front, at
+  most every half hour) and keeps the answer, so the tab is there at once next
+  time. Nothing assigned: their phone is exactly as it was, and the Close Out
+  server is never asked.
+- **They are told by push** when work is given to them, moved or taken away,
+  like the service crew (T2.34). The hourly sweep reads JobTread first and asks
+  the Close Out server only for someone with work, or with something to settle,
+  so the first repair anyone ever gives them is news.
+- **Their part done**: the job says so (*Your part of this job is done*) and
+  offers no clock-in for it; the tab stays while they are on it and goes once
+  they leave it with nothing left.
+- **Most of the field crew are on personal addresses in JobTread** (the
+  construction bench, Kodey, the two site managers on Gmail — Scott Rice is
+  `…@gmail.com`), and the Close Out server used to act only for company
+  addresses and its own allowed list. It now also acts for anyone JobTread has
+  as one of the company's own people (an internal membership with that
+  address), which is the rule DB Crew's own sign-in already follows — so no
+  second list to keep in step. A sign-in it still will not act for is told
+  so, naming the address, rather than "can't reach Close Out"; what they saved
+  stays on the phone for Retry.
+- The service crew and Operations: unchanged. One card wording fixed for
+  everyone: *1 repair*, not *1 repairs*.
+
+`dev/t239-test.mjs` walks it (a site manager with nothing assigned, with a
+repair beside a partner's, a service call's inspection, one work area of two, a
+job the name match calls theirs and JobTread does not, Spanish, a push before
+the phone knew, an unknown Gmail sign-in, the service crew unchanged);
+`apps-script/code-test.mjs` has the gates, the queue and the push.
+**Deploys**: DB CheckOut first (its door, `bledsoecw/DB-CheckOut`), then the
+Apps Script (`clasp push -f` then `clasp deploy`, no new permission), then
+`firebase deploy --only hosting`. DB CheckOut first is safe on its own: the
+Apps Script live before T2.39 only calls it for the service crew and
+Operations. No board change.
 
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a

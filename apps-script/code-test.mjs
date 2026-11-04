@@ -1353,7 +1353,8 @@ delete props.ACCESS_FEED_URL; delete props.ACCESS_FEED_KEY; delete props.ROLES_J
 
 // ---- close out (T2.0): the door to the CheckOut server ----
 props = {}; fetched = [];
-t('a crew member is refused before any call', /^NO_CLOSEOUT/.test(refusedBy(() => sandbox.coQueue(ME))), true);
+{ const q = sandbox.coQueue(ME);
+  t('T2.39: a crew member with Close Out unset is told so too, and nothing is fetched — not even JobTread', [q.reason, q.scope, fetched.length], ['not-configured', 'assigned', 0]); }
 t('unconfigured -> says so, no fetch', [sandbox.coQueue(ALBERTO).reason, fetched.length], ['not-configured', 0]);
 props = { CLOSEOUT_API_URL: 'https://closeout.example.com/', CLOSEOUT_SECRET: 'co-secret' };
 fetchImpl = () => ({ code: 200, body: '[{"id":"j1"}]' });
@@ -1417,6 +1418,128 @@ t('…while a partner on the repair, whose snapshot still has the day, is told',
 delete props['cop_u2'];
 sandbox.coBlocked(ALBERTO, 'pt7', 'j1', 'material', 'Short 2 bundles', 'cb_9');
 t('…no snapshot yet (no phone registered for push): nothing is written', props['cop_u2'], undefined);
+
+// ---- T2.39 (audit I13): Close Out for anyone the work is assigned to ----
+// Outside the service crew and Operations a person sees, and may act on, only
+// the close-out work JobTread has assigned to them — read through their own
+// membership, never the Close Out server's name match.
+{
+  props = { CLOSEOUT_API_URL: 'https://closeout.example.com/', CLOSEOUT_SECRET: 'co-secret' }; cacheStore = {}; fetched = [];
+  // What JobTread has assigned to whom: membership -> [{ id, kind, job, progress?, start? }]
+  let JT = { m1: [
+    { id: 'pt1', kind: 'r', job: 'j1', start: '2026-11-04' },
+    { id: 'pt2', kind: 'r', job: 'j1' },
+    { id: 'fi2', kind: 'i', job: 'j2', start: '2026-11-05', end: '2026-11-04' },
+  ] };
+  let jtDown = false, co401 = false, coAsked = [], jtAsked = [];
+  const QUEUE = [{ id: 'j1', number: '26-0415', mine: false, openPunchCount: 0 }, { id: 'j2', number: '26-0418', mine: false }, { id: 'j3', number: '26-0421', mine: true, openPunchCount: 2 }];
+  const JOB = (id) => ({ id, number: id, status: 'Punch List', mine: false, openPunchTotal: 3,
+    punchTasks: [{ id: 'pt1', progress: 0, mine: false }, { id: 'pt2', progress: 1, mine: false }, { id: 'pt9', progress: 0, mine: true }],
+    areas: id === 'j4' ? [{ key: 'shingle', line: true, inspectionTaskId: 'fi4', inspected: false, mine: false }, { key: 'gutters', line: false, inspectionTaskId: 'fg4', inspected: false, mine: true }] : [],
+    soldScope: [{ name: 'Estimate' }] });
+  fetchImpl = (url, opts) => {
+    if (url.indexOf('closeout.example.com') > -1) {
+      coAsked.push(url.replace('https://closeout.example.com', ''));
+      if (co401) return { code: 401, body: '{"error":"Unauthorized"}' };
+      if (/\/queue$/.test(url)) return { code: 200, body: JSON.stringify(QUEUE) };
+      const m = /\/jobs\/([^/]+)$/.exec(url);
+      if (m) return { code: 200, body: JSON.stringify(JOB(m[1])) };
+      return { code: 200, body: '{"ok":true,"completedTaskId":"fi2","translations":["x"]}' };
+    }
+    const q = paveOf(opts) || {};
+    if (q.membership) {
+      jtAsked.push(q.membership.$.id);
+      if (jtDown) return { code: 503, body: '{"error":"busy"}' };
+      const a = q.membership.assignedTasks.$, parts = a.where.and;
+      const open = parts.some(p => Array.isArray(p) && p[0][0] === 'progress');
+      const jobPart = parts.find(p => Array.isArray(p) && p[0][0] === 'job' && p[0][1] === 'id');
+      const kinds = JSON.stringify(parts[0]);
+      const list = (JT[q.membership.$.id] || []).filter(t => (!open || !(t.progress >= 1)) && (!jobPart || t.job === jobPart[2]));
+      const nodes = list.map(t => ({ id: t.id, progress: t.progress || null, startDate: t.start || null, endDate: t.end || null,
+        taskType: { id: t.kind === 'r' ? '22PLePTbJVrQ' : '22PNJDrm6TsA' }, job: { id: t.job } }));
+      return { code: 200, body: JSON.stringify({ membership: { assignedTasks: { count: nodes.length, nodes, _kinds: kinds } } }) };
+    }
+    return { code: 200, body: '{}' };
+  };
+  const ALB = ALBERTO;   // seeded service: the whole of Close Out
+  // The filter is the Close Out server's own: punch to-dos, final inspections only.
+  sandbox.coMine(ME);
+  const kinds = JSON.parse(fetched[fetched.length - 1].opts.payload).query.membership.assignedTasks.$.where.and[0];
+  t('T2.39: JobTread is asked through their own membership, for punch to-dos and final inspections only',
+    [jtAsked, JSON.stringify(kinds)], [['m1'], JSON.stringify({ or: [{ and: [[['taskType', 'id'], '=', '22PLePTbJVrQ'], [['isToDo'], '=', true]] }, { and: [[['taskType', 'id'], '=', '22PNJDrm6TsA'], [['name'], 'like', 'Final inspection%']] }] })]);
+  t('…coMine says how much is theirs; the service crew and Operations see it all, with no JobTread read',
+    [sandbox.coMine(ME), sandbox.coMine(ALB), sandbox.coMine(OPS), jtAsked.length], [{ scope: 'assigned', count: 3, jobs: 2 }, { scope: 'all' }, { scope: 'all' }, 1]);
+
+  let r = sandbox.coQueue(ME);
+  t('…the queue: only the jobs holding open work of theirs, each saying what that work is (their repairs, their inspection, their days)',
+    [r.status, r.scope, r.mineCount, r.body.map(j => [j.id, j.mine, j.myRepairs, j.myInspect, j.openPunchCount, j.booked])],
+    [200, 'assigned', 3, [['j1', true, 2, false, 2, [{ start: '2026-11-04', end: '2026-11-04', kind: 'repair' }]], ['j2', true, 0, true, 0, [{ start: '2026-11-05', end: '2026-11-05', kind: 'inspection' }]]]]);
+  t('…a job the Close Out server calls theirs by name, with nothing of theirs in JobTread, is not theirs', r.body.some(j => j.id === 'j3'), false);
+  t('…the queue reads JobTread fresh, not the five-minute copy', jtAsked.length, 2);
+
+  coAsked = [];
+  JT = { m1: [] };
+  r = sandbox.coQueue(ME);
+  t('…nothing assigned: an empty list, and the Close Out server is not asked', [r.status, r.body, r.mineCount, coAsked], [200, [], 0, []]);
+  JT = { m1: [{ id: 'pt1', kind: 'r', job: 'j1' }, { id: 'pt2', kind: 'r', job: 'j1', progress: 1 }, { id: 'fi2', kind: 'i', job: 'j2' }, { id: 'fg4', kind: 'i', job: 'j4' }] };
+  cacheStore = {};
+
+  r = sandbox.coJob(ME, 'j1');
+  t('…a job of theirs: their repairs only (pt9 is somebody else\'s), what is open of them, and no inspection',
+    [r.status, r.scope, r.body.punchTasks.map(x => [x.id, x.mine]), r.body.openPunchTotal, r.body.myRepairs, r.body.myInspect, r.body.mine, r.body.soldScope.length],
+    [200, 'assigned', [['pt1', true], ['pt2', true]], 1, 1, false, true, 1]);
+  r = sandbox.coJob(ME, 'j4');
+  t('…a job with work areas: only the area whose inspection is theirs, offered through it', [r.body.areas.map(a => [a.key, a.mine]), r.body.myInspect, r.body.punchTasks.length], [[['gutters', true]], true, 0]);
+  coAsked = [];
+  t('…a job with nothing of theirs is refused, and the Close Out server never asked', [/^NO_CLOSEOUT_WORK/.test(refusedBy(() => sandbox.coJob(ME, 'j9'))), coAsked], [true, []]);
+  t('…while the service crew open any job, with no JobTread read', (() => { const n = jtAsked.length; const x = sandbox.coJob(ALB, 'j9'); return [x.status, x.scope, x.body.punchTasks.length, jtAsked.length === n]; })(), [200, undefined, 3, true]);
+
+  // Writes
+  coAsked = []; let n0 = jtAsked.length;
+  t('…Done on their repair goes, read fresh from JobTread', [sandbox.coComplete(ME, 'pt1', 'j1', 'sealed', 'ob_1').status, coAsked, jtAsked.length - n0], [200, ['/tasks/pt1/complete'], 1]);
+  t('…Done on a repair they finished already still goes (a send that landed and goes again)', sandbox.coComplete(ME, 'pt2', 'j1', 'x', 'ob_2').status, 200);
+  coAsked = [];
+  t('…Done and Can\'t finish on somebody else\'s repair are refused, never sent',
+    [/^NO_CLOSEOUT_WORK/.test(refusedBy(() => sandbox.coComplete(ME, 'pt9', 'j1', 'x', 'ob_3'))), /^NO_CLOSEOUT_WORK/.test(refusedBy(() => sandbox.coBlocked(ME, 'pt9', 'j1', 'access', 'x', 'ob_4'))), coAsked], [true, true, []]);
+  t('…with no job named, outside the service crew, there is nothing to check against: refused', /Missing job id/.test(refusedBy(() => sandbox.coComplete(ME, 'pt1', null, 'x', 'ob_5'))), true);
+  t('…the service crew still may (the server decides)', sandbox.coComplete(ALB, 'pt9', null, 'x', 'ob_6').status, 200);
+  coAsked = [];
+  t('…a repair\'s photo for their repair goes; an inspection photo on a job where no inspection is theirs does not',
+    [sandbox.coPhoto(ME, 'j1', { taskId: 'pt1', label: 'AFTER', imageBase64: 'data:x' }, 'ob_7').status, /^NO_CLOSEOUT_WORK/.test(refusedBy(() => sandbox.coPhoto(ME, 'j1', { label: 'INSPECTION', imageBase64: 'data:x' }, 'ob_8'))), coAsked],
+    [200, true, ['/jobs/j1/photos']]);
+  t('…a problem report wants an inspection of theirs on the job', [sandbox.coReport(ME, 'j2', { location: 'Rear' }, 'ob_9').status, /^NO_CLOSEOUT_WORK/.test(refusedBy(() => sandbox.coReport(ME, 'j1', { location: 'Rear' }, 'ob_10')))], [200, true]);
+  n0 = jtAsked.length;
+  [1, 2, 3].forEach(i => sandbox.coPhoto(ME, 'j2', { label: 'INSPECTION', imageBase64: 'data:x' }, 'ob_p' + i));
+  t('…ten site photos are not ten JobTread reads: the kept copy answers', jtAsked.length - n0, 0);
+  n0 = jtAsked.length;
+  t('…closing the inspection reads JobTread fresh, and goes', [sandbox.coClose(ME, 'j2', { answers: {} }, 'ob_11').status, jtAsked.length - n0], [200, 1]);
+  t('…closing a work area that is not theirs is refused', /^NO_CLOSEOUT_WORK/.test(refusedBy(() => sandbox.coCloseArea(ME, 'j1', { area: 'gutters' }, 'ob_12'))), true);
+  JT.m1.push({ id: 'pt5', kind: 'r', job: 'j1' });
+  t('…a repair given to them since the kept copy: a miss reads JobTread again, and it goes', sandbox.coPhoto(ME, 'j1', { taskId: 'pt5', label: 'BEFORE', imageBase64: 'data:x' }, 'ob_13').status, 200);
+  jtDown = true; cacheStore = {};
+  t('…JobTread not answering is an error the phone tries again — never read as "not yours"',
+    [(() => { const m = refusedBy(() => sandbox.coComplete(ME, 'pt1', 'j1', 'x', 'ob_14')); return m !== '' && !/^NO_CLOSEOUT/.test(m); })(), sandbox.coQueue(ME).reason, sandbox.coMine(ME).count], [true, 'unreachable', null]);
+  jtDown = false; cacheStore = {};
+  coAsked = [];
+  t('…the translator: theirs while work is theirs', [sandbox.coTranslate(ME, ['hola'], 'en').status, coAsked], [200, ['/translate']]);
+  JT = { m1: [] }; cacheStore = {};
+  t('…and not once nothing is', /^NO_CLOSEOUT_WORK/.test(refusedBy(() => sandbox.coTranslate(ME, ['hola'], 'en'))), true);
+  t('…somebody with no JobTread membership has nothing assigned, and JobTread is not asked', (() => { const n = jtAsked.length; return [sandbox.coMine({ ...ME, userId: 'u7', membershipId: '' }).count, jtAsked.length === n]; })(), [0, true]);
+
+  // A site manager on Gmail whom the Close Out server does not know: its 401, said as what it is.
+  JT = { m1: [{ id: 'pt1', kind: 'r', job: 'j1' }] }; cacheStore = {}; co401 = true;
+  r = sandbox.coQueue({ ...ME, email: 'tylermohr94@gmail.com' });
+  t('…a Gmail sign-in the Close Out server will not act for is told so, as a refusal — never as the server being down',
+    [r.status, r.reason, /tylermohr94@gmail\.com/.test(r.body.error), /GOOGLE_ALLOWED_EMAILS/.test(r.body.error)], [403, 'not-listed', true, true]);
+  t('…while a company address answered 401 is the server\'s key, as before', [sandbox.coQueue(ALB).status, sandbox.coQueue(ALB).reason], [401, 'http-401']);
+  co401 = false;
+  // Every Close Out function the phone can call decides who may, before anything is sent.
+  const fnSrc = (name) => { const i = src.indexOf('function ' + name + '('); let d = 0, j = src.indexOf('{', i); for (let k = j; k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) return src.slice(i, k + 1); } return ''; };
+  const coFns = Object.keys(sandbox).filter(k => /^co[A-Z]/.test(k) && typeof sandbox[k] === 'function' && new RegExp(k + ': ' + k + '\\b').test(src));
+  const ungated = coFns.filter(k => { const b = fnSrc(k), g = Math.min(...['coGate_(', 'coScopeOf_('].map(x => b.indexOf(x)).filter(x => x > -1)), f = b.indexOf('coFetch_('); return f > -1 && !(g < f); });
+  t('…every Close Out function the phone can call decides who may before anything is sent', [coFns.length >= 11, ungated], [true, []]);
+  props = {}; cacheStore = {}; fetchImpl = () => ({ code: 200, body: '{}' });
+}
 
 // ---- T2.19: left the site without clocking out ----
 // The block ends at the time they say they left, with no photo; its notes say
@@ -1945,14 +2068,22 @@ t('D26: the missing-start-photo push no longer says the office was copied',
   fetchImpl = (url, opts) => {
     if (url.indexOf('oauth2.googleapis.com/token') > -1) return { code: 200, body: '{"access_token":"at","expires_in":3600}' };
     if (url.indexOf('fcm.googleapis.com') > -1) { pushes.push(JSON.parse(opts.payload).message); return fcmAnswer(); }
-    if (url.indexOf('closeout.example.com/assigned') > -1) { asked.push({ url, who: opts.headers['X-Acting-Email'] }); return { code: coCode, body: JSON.stringify(coCode === 200 ? assigned : { error: 'JobTread did not answer for the whole list' }) }; }
+    if (url.indexOf('closeout.example.com/assigned') > -1) { asked.push({ url, who: opts.headers['X-Acting-Email'] });
+      const ans = opts.headers['X-Acting-Email'] === 't@deitemeyerbrothers.com' ? tylerAssigned : assigned;
+      return { code: coCode, body: JSON.stringify(coCode === 200 ? ans : { error: 'JobTread did not answer for the whole list' }) }; }
+    // T2.39: how much close-out work JobTread holds for each membership.
+    const q = paveOf(opts) || {};
+    if (q.membership) { jtOpenAsked.push(q.membership.$.id); return { code: 200, body: JSON.stringify({ membership: { assignedTasks: { count: jtOpen[q.membership.$.id] || 0, nodes: [] } } }) }; }
     return { code: 200, body: '{}' };
   };
+  const jtOpen = {}, jtOpenAsked = [];
+  let tylerAssigned = { items: [], gone: [] };
   let sw = sandbox.sweepSchedulePushes();
   t('I16: Close Out runs with the board unset, and says so beside the schedule pushes', [sw.skipped, sw.closeout.people, sw.closeout.pushes], ['board not configured', 1, 0]);
   t('…the first run only takes the snapshot: no push, asked as Alberto with nothing known', [pushes.length, asked.length, asked[0].url, asked[0].who],
     [0, 1, 'https://closeout.example.com/assigned', 'alberto@deitemeyerbrothers.com']);
-  t('…the crew member is never asked: Close Out is not theirs', asked.some(a => a.who === 't@deitemeyerbrothers.com'), false);
+  t('T2.39: the crew member with nothing assigned: JobTread asked once through their membership, the Close Out server never, and an empty snapshot kept as their starting point',
+    [jtOpenAsked, asked.some(a => a.who === 't@deitemeyerbrothers.com'), props['cop_u1']], [['m1'], false, '{}']);
   t('…the snapshot holds kind, day and the job per task', JSON.parse(props['cop_u2']), { tR1: 'r2026-11-03|Turner Roof', tI1: 'i2026-11-03|Lane Roof', tR2: 'r|Turner Roof', tR3: 'r2026-11-05|Moss Roof' });
   sw = sandbox.sweepSchedulePushes();
   t('…nothing changed: nothing is said', [sw.closeout.pushes, pushes.length], [0, 0]);
@@ -2027,12 +2158,26 @@ t('D26: the missing-start-photo push no longer says the office was copied',
   props.ROLES_JSON = JSON.stringify({ 'alberto@deitemeyerbrothers.com': { role: 'crew' } });
   const before = asked.length;
   sandbox.sweepSchedulePushes();
-  t('…moved off the service crew: not asked any more, and the snapshot goes', [asked.length === before, props['cop_u2'] == null], [true, true]);
+  t('…moved off the service crew (T2.39): nothing open in JobTread, but a snapshot to settle — asked once, so what went is said',
+    [asked.length - before, props['cop_u2'] != null], [1, true]);
+  jtOpen['22PdPUpWzpHy'] = 2; cacheStore = {};
+  const before2 = asked.length;
+  sandbox.sweepSchedulePushes();
+  t('…and asked again while JobTread holds work of his', [asked.length - before2, props['cop_u2'] != null], [1, true]);
   delete props.ROLES_JSON;
   sandbox.unregisterPushToken(ALB);
   props['cop_u2'] = '{"x":"r"}';
   sandbox.sweepSchedulePushes();
   t('…a snapshot whose phone signed out is cleared', props['cop_u2'] == null, true);
+  // T2.39: the first repair anyone ever gives a crew member is news, not a snapshot.
+  jtOpen.m1 = 1; cacheStore = {};
+  tylerAssigned = { items: [{ id: 'tR40', kind: 'repair', name: 'Tyler — Reseal the pipe boot', jobId: 'j8', jobNumber: '26-1355', jobName: '261355 Bricker_Service', date: '2026-11-06' }], gone: [] };
+  const pushesBefore = pushes.length;
+  sw = sandbox.sweepSchedulePushes();
+  t('T2.39: a crew member given a repair is told the next hour, on their own phone, as Close Out',
+    [pushes.length - pushesBefore, pushes[pushes.length - 1].token, pushes[pushes.length - 1].notification.body, pushes[pushes.length - 1].webpush.fcmOptions.link],
+    [1, 'tok-tyler', 'New repair at Bricker Service: Reseal the pipe boot · Fri 11/6', 'https://db-time-clock.web.app/?tab=co']);
+  t('…and their snapshot holds it', JSON.parse(props['cop_u1']), { tR40: 'r2026-11-06|Bricker Service' });
   sandbox.unregisterPushToken(ME);
 
   // The schedule sweep: one phone whose send throws must not stop the rest.

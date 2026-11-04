@@ -1138,3 +1138,140 @@ regeneration, Linux only.
   already live and app.js is unchanged", and the API deployment's GET answers
   "Opening DB Crew" (an unapproved one answers "Authorization is required").
   No board change.
+
+## T2.39 (4 Nov 2026) — Close Out for anyone assigned (audit I13, step 1), what the README does not say
+
+- **Two scopes, decided by role** (`coScopeOf_` in `Code.gs`): `all` for the
+  service crew and Operations (everything, as before), `assigned` for everyone
+  else. `closeOutAllowed_` now means "the whole of Close Out" and only the push
+  sweep reads it. **Every Close Out function the phone can call gates itself
+  before `coFetch_`** (`coGate_`, or `coScopeOf_` for the queue, `coMine` and
+  the translator) — `coFetch_` no longer checks the role. code-test fails on a
+  `co*` function registered in `WITH_USER` that calls `coFetch_` without one,
+  so a new route cannot go out open.
+- **What is theirs is `membership.assignedTasks`**, verified live (read-only,
+  4 Nov 2026): it takes `where`, `size` and `count`, filtered server-side, with
+  the Close Out server's own task kinds (`coTaskWhere_`: punch to-dos, and
+  Inspection-typed `Final inspection%`). That day four people had open
+  close-out work: Yahir 46, Alberto 46, Carl 1, Scott Rice 1 (26-1355
+  Bricker_Service, the board's service-call rule). Never the Close Out server's
+  `mine`, which matches names: a job it calls theirs with nothing of theirs in
+  JobTread is left out.
+- **Two kept copies, per person**: `coO_<userId>` (their open work by job, 5
+  minutes — the tab, the push sweep, the translator) and
+  `coJ_<userId>_<jobId>` (one job's tasks of theirs, open or done, 6 hours —
+  CacheService's limit — written only when it holds something). A gate that
+  misses reads JobTread once more before refusing. The job read, the queue,
+  Done, Can't finish and closing an inspection read fresh; photos, reports and
+  the scope summary ride the copy (ten site photos, one read). **Done tasks
+  still count as theirs**: an after photo sent after the Done, or a send that
+  landed and goes again, must be answered, never refused. JobTread not
+  answering throws a Pave error (the phone tries again), never `NO_CLOSEOUT_WORK`.
+- **What the assigned scope is sent** (`coQueueMine_`, `coOnlyMine_`): rows and
+  the job carry `mine`, `myRepairs` (open), `myInspect` (open) and `scope:
+  'assigned'`; `punchTasks` and `areas` are cut to theirs. On a job with work
+  areas an inspection counts only through its area — a task no area names can
+  never open the roof's checklist. The phone's `coKindOf` reads `myInspect` /
+  `myRepairs` first: only an inspection → `inspect`; no inspection → `repairs`
+  (done reads as their repairs, never an inspection to start again); both →
+  the stage, as before.
+- **The refusal** is `NO_CLOSEOUT_WORK: …` — it still matches `^NO_CLOSEOUT`, so
+  an older phone treats it as a refusal too, in its old words. A refused
+  `coLoadJob` drops the phone's copy of that job, so a stale copy cannot stand
+  in for work taken away.
+- **The phone's tab** is `TABS_BY_ROLE` plus `co` while `coAssignedTab()`:
+  `S.coMine` (`dbtc_comine`, `{ who, scope, count, at }`) is this signed-in
+  person's, scope `assigned`, and count > 0 — or they are on the tab, so
+  finishing the last repair never pulls the screen away. Asked by `coMine` at
+  launch and on coming to the front (30 minutes stale), never for the service
+  crew or Operations, never with Close Out unset. A `count` it gets back
+  (also on every queue answer, `mineCount`) loads the list behind the clock so
+  Today and the arrival see it. `dbtc_comine` is not in `OWN_KEEP_KEYS`, so a
+  handover clears it; the `who` check covers the rest. A `?tab=co` push before
+  the phone knew sets `CO.wanted` and asks at once.
+- **The push sweep** asks JobTread first for anyone outside the service crew:
+  nothing open and no snapshot (or `'{}'`) → no Close Out call, and `'{}'` is
+  written as their starting point, so the first work anyone gives them is a
+  push, not a snapshot. Nothing open but a non-empty snapshot → the Close Out
+  server is asked once more, to say what went. Moving someone off the service
+  crew no longer deletes their snapshot: the work JobTread gives them is still
+  theirs to be told about.
+- **The field crew are on personal addresses in JobTread** (read-only, 4 Nov
+  2026: the whole construction bench — Brian Bowers on Hotmail, Ian Poe on
+  Yahoo, the rest Gmail — plus Kodey, Nick Sowers, Lexi, Rick Bright, Drew,
+  Aiden, and Tyler and Kenton; only the office, the PMs, sales, Yahir, Alberto
+  and Chris Blue are on the company domain). DB CheckOut acted for
+  `@deitemeyerbrothers.com` and its own `GOOGLE_ALLOWED_EMAILS` only, so it
+  would have refused nearly everyone I13 is for. Its door now also acts for an
+  address JobTread has as an internal membership (`actingPerson` /
+  `isInternalMemberEmail` in DB CheckOut, exact match after `=` then `like`,
+  ten minutes per instance, a 503 "try again" when JobTread does not answer)
+  — DB Crew's own sign-in rule, so no second list. `GOOGLE_ALLOWED_EMAILS`
+  stays (Sensitive on db-check-out Production since late Aug 2026; its
+  contents cannot be read from here) and still works as before.
+- **`not-listed`**: a 401 from DB CheckOut for an acting address off the domain
+  comes back from `coFetch_` as `{ status: 403, reason: 'not-listed' }` with
+  the address in the words — what a DB CheckOut older than this round answers
+  the bench — and the phone says so, keeping their work for Retry. A company
+  address's 401 is still the key's (`http-401`).
+- **Construction is step 2.** DB CheckOut sends no `areas` on a job that is not
+  roofing and `jobFormKey()` answers the roof form for every job, so a
+  construction final inspection assigned to someone would open the roof's
+  checklist — exactly as it does for the service crew today. Nothing assigns
+  one yet (the board's defaults are roofing and service only); the form comes
+  first.
+- **The mock grew**: `__MOCK_CO_ASSIGNED` (`{ <jobId>: { repairs: [ids],
+  inspect: true | '<inspection task id>' } }`, read the way Code.gs reads
+  JobTread), `__MOCK_CO_NOTLISTED`, a `coMine` handler, and the gates on every
+  Close Out handler. `window.__CALLS` is the mock's list of every call;
+  `window.__CO` records only the writes, `coMine` and `coTranslate` — a test
+  that asks whether the queue was fetched reads `__CALLS`.
+- **A suite moved with the rule**: code-test's *a crew member is refused before
+  any call* became *a crew member with Close Out unset is told so too*, and
+  the push sweep's *the crew member is never asked* / *moved off the service
+  crew: the snapshot goes* became the JobTread-first rules above.
+- **Not done on purpose**: letting the office or Operations release work held
+  for somebody else on a shared phone (T2.37) is still Carl's (#7 below), and
+  the training videos (Carl's "Do not recreate videos yet" stands; the
+  Close Out tab now appears for more people).
+
+## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
+
+Asked with I13 (the report: https://claude.ai/artifact/FB4xEquJajG6UtLuarxmZr),
+his words, then what each is read as. A reading marked *assumed* is to be
+confirmed when its round starts.
+
+1. **I11 — time corrections**: *"Manager of the person approves them, before
+   payroll, ops dir daily list come by email."* Corrections (Already left,
+   Started earlier, kept clock-ins, partner moves) are approved by the
+   person's manager before payroll runs, and the Ops Director gets the daily
+   list by email. *Assumed*: "the person's manager" needs a mapping the app
+   does not have (the division PM? DB Hub's Manager level?), and "approved"
+   means JobTread's own `approved` flag on the time entry. Both to ask.
+2. **D28 — Already left to a job with no travel line**: *"Drive is paid,
+   travel line should be on the job they traveled to."* The gap between
+   leaving and the next block is paid drive time, on the destination job's
+   travel line. *Assumed*: a destination with no travel line of its own —
+   the case D28 is about — needs a fallback (the shop's travel line, or ask).
+3. **D30 — "Wrong job, I was never at …"**: *"app move the hours already
+   clocked to the right job and tell the PM."* The wrong block ends where it
+   began and the right job opens at that start, in one write, with a notice to
+   the PM (the report's own proposal).
+4. **D39 — sign-in length**: *"As long as possible 90+."* A session renews
+   until at least 90 days after the last Google sign-in; the allow-list and DB
+   Hub are re-checked when it renews.
+5. **I13 step 2 — construction final inspections**: *"Construction PM or Sales
+   Rep assigned to the job."* The board assigns a construction job's final
+   inspection to its Project Manager or Sales Rep (the job's own fields).
+   *Open*: the form they answer (Neal's to write with Carl), and which of the
+   two when both are set.
+6. **I15 — warranty coverage**: *"Construction Sales Manager approves warranty,
+   Roofing Sales manager approves warranty."* By division. *Open*: who each
+   is, by name or JobTread role.
+7. **D31 release** — asked to explain further (the hand-back of T2.39).
+8. **A break taken with no signal**: *"break taken with no signal count at the
+   phone's time."* Kept like every other clock change since T2.38 (it still
+   waits for signal today, `CQ_HOLDS`). JobTread takes a break only as
+   `endNow: { breakDuration }` — now or never — so a kept break is written as
+   the block ending at the moment the break began and the next opening when it
+   ended, the same two-entry shape a break has always left in JobTread.
