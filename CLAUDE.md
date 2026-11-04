@@ -1251,6 +1251,16 @@ regeneration, Linux only.
   JobTread query the new door sends was run read-only against the live org
   first (Scott Rice's Gmail found exactly and in capitals, Ian Poe's `_`
   address finds Ian Poe himself, a made-up address finds nobody).
+- **T2.39 is live in all four places**: Carl ran the chain (`clasp deploy …
+  -d "T2.39"`, `firebase deploy --only hosting`) after the Close Out server,
+  and his Diagnostics read App and API both T2.39 (4 Nov 2026). By 16:45Z
+  db-crews.web.app served `index.html`, `sw.js` and `app.js?b=T2.39`
+  identical to the branch at 2cd4644 (line endings aside), `/` and
+  `/index.html` `no-cache` with the report-only policy, `check-build.mjs`
+  against the live site says "T2.39 is already live and app.js is
+  unchanged", and the API deployment's GET answers "Opening DB Crew". The
+  Close Out server showed no runtime errors from its deploy to 16:43Z. No
+  board change.
 
 ## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
 
@@ -1280,12 +1290,16 @@ confirmed when its round starts.
 5. **I13 step 2 — construction final inspections**: *"Construction PM or Sales
    Rep assigned to the job."* The board assigns a construction job's final
    inspection to its Project Manager or Sales Rep (the job's own fields).
-   *Open*: the form they answer (Neal's to write with Carl), and which of the
-   two when both are set.
+   Both open questions answered 4 Nov 2026: *"both for now, Rep is primary,
+   but PM is available if Rep is busy or already on site"* — both go on the
+   inspection, the rep first — and the form is *"notes a photos for now"*.
 6. **I15 — warranty coverage**: *"Construction Sales Manager approves warranty,
    Roofing Sales manager approves warranty."* By division. *Open*: who each
    is, by name or JobTread role.
-7. **D31 release** — asked to explain further (the hand-back of T2.39).
+7. **D31 release** — asked to explain further. Explained in T2.39's
+   hand-back with three options (leave it as it is; Operations sends it for
+   them, at the time they made it, through I11's approval; Operations lets it
+   go), recommending the second and third built with I11. Awaiting his pick.
 8. **A break taken with no signal**: *"break taken with no signal count at the
    phone's time."* Kept like every other clock change since T2.38 (it still
    waits for signal today, `CQ_HOLDS`). JobTread takes a break only as
