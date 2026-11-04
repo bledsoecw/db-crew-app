@@ -1331,6 +1331,24 @@ regeneration, Linux only.
   construction-specific checklist (Neal's, with Carl) would replace `notes`
   with a form served the way the gutters' is; and the training videos
   (Carl's "Do not recreate videos yet" stands).
+- **The server half is live**: at 21:36Z on 4 Nov 2026 (4:36pm in Ohio;
+  Carl: *"go, deploy the server now"*) DB CheckOut's `main` was
+  fast-forwarded to de31482 after its 207 tests and typecheck ran clean on
+  that commit. `dpl_HvHZ8w7vvDVrGdS32gKxVspYHjsC` was ready at 21:36:46Z on
+  closeout.deitemeyerbrothers.com with no alias error, and `/health`
+  answered `{"source":"3239ced62585","on":"vercel","commit":"de31482"}` with
+  `"crewApp":true` and `"contract":5` by 21:36:53Z. With no token, `/queue`,
+  `/jobs`, `/assigned`, `POST /tasks/x/blocked` and `POST
+  /jobs/x/close-area-inspection` answer the API's own 401 JSON, and the
+  project showed no runtime errors in the 24 hours through the switch. The
+  eb2b4e4 deployment (`dpl_35UDuhNVM8vLApeYLHE6Gch5sUUw`) is the rollback.
+  **Between this and the phones' T2.40**, a construction job at Final
+  Inspection already reads as one notes-and-photos tile on a T2.39 phone
+  (the service crew and Operations, scope `all`), with the board's
+  work-area words and the T2.15 clock prompt. Its send goes through:
+  `coSendArea` is byte-identical on T2.39 and T2.40 and sends a notes area
+  with no `form`, which the construction branch takes. A T2.39 phone needs
+  contract 4 and reads 5 without a warning.
 
 ## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
 
