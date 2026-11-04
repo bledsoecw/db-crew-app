@@ -1321,6 +1321,11 @@ regeneration, Linux only.
   list in place of `true` names who is on it) and the construction branch of
   `coCloseArea` (Close Out's linear move, `sentTo` the job's PM).
   `getBuilds` reports contract 5.
+- **A suite moved with the build**: t235's two contract checks pinned level 4
+  and read it off the page now (`CO_CONTRACT_NEED`, the T2.30 lesson again).
+  The full run on T2.40: every suite passed but push-test (6/14, the same eight
+  container failures as T2.39's run, compared line by line) and t235 before
+  that fix (51/53; 53/53 after it).
 - **Not done on purpose**: construction PUNCH work still defaults to the band's
   list (nobody on the seed) — Carl's answer was about the inspection; a
   construction-specific checklist (Neal's, with Carl) would replace `notes`
