@@ -178,6 +178,7 @@ const allErrs = [];
   allErrs.push(...r.errs); await r.page.close();
   r = await boot({ role: 'siteManager', assigned: TYLERS }, ctx);
   check('the next launch, within the half hour: the tab from the answer kept, and nobody asked again', [(await visibleTabs(r.page)).includes('co'), (await calls(r.page)).includes('coMine')], [true, false]);
+  check('…and their list still fetched behind the clock', [(await calls(r.page)).includes('coQueue'), await r.page.evaluate(() => (CO.jobs || []).length)], [true, 3]);
   check('…another person signed in on this phone is not given it: the answer was about somebody else', await r.page.evaluate(() => { S.coMine.who = 'someone.else@deitemeyerbrothers.com'; return coAssignedTab(); }), false);
   allErrs.push(...r.errs); await ctx.close();
 }

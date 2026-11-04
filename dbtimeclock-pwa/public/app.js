@@ -9137,7 +9137,11 @@ function coAssignedTab(){
 function coMineLoad(force){
   if (!S.me || !coMineOnly() || !S.me.closeOut || !S.online || CO.mineAsking) return;
   var m = S.coMine;
-  if (!force && m && m.who === myEmail() && Date.now() - (m.at || 0) < CO_MINE_STALE_MS) return;
+  if (!force && m && m.who === myEmail() && Date.now() - (m.at || 0) < CO_MINE_STALE_MS){
+    // The answer kept from a launch ago still stands: the list behind the clock, as when it was asked.
+    coMineList();
+    return;
+  }
   CO.mineAsking = true;
   apiCall('coMine', [], { lane: 'reads', timeout: 30000 }).then(function(d){
     CO.mineAsking = false;
@@ -9145,13 +9149,18 @@ function coMineLoad(force){
     coMineSet(d.scope, d.count);
   }).catch(function(){ CO.mineAsking = false; });
 }
+/* Today, the drive and the arrival read their Close Out jobs from the list:
+   a live one, fetched behind the clock once a launch — the copy kept on the
+   phone (restored at start for no signal) is only last launch's. */
+function coMineList(){
+  if (coAssignedTab() && !CO.loading && CO.jobsSource !== 'live') coLoadQueue(true);
+}
 function coMineSet(scope, count){
   var had = coAssignedTab();
   S.coMine = { who: myEmail(), scope: scope, count: count, at: Date.now() };
   storeSet(CO_MINE_KEY, JSON.stringify(S.coMine), true);
   if (coAssignedTab()){
-    // Today, the drive and the arrival read their Close Out jobs from the list.
-    if (!CO.jobs && !CO.loading) coLoadQueue(false);
+    coMineList();
     // A Close Out push opened the app before the phone knew the work was theirs.
     if (CO.wanted){ CO.wanted = false; setTab('co'); return; }
   }

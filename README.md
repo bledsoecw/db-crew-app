@@ -1588,8 +1588,8 @@ repair beside a partner's, a service call's inspection, one work area of two, a
 job the name match calls theirs and JobTread does not, Spanish, a push before
 the phone knew, an unknown Gmail sign-in, the service crew unchanged);
 `apps-script/code-test.mjs` has the gates, the queue and the push.
-**Deploys**: DB CheckOut first (its door, `bledsoecw/DB-CheckOut`), then the
-Apps Script (`clasp push -f` then `clasp deploy`, no new permission), then
+**Deploys**: DB CheckOut first (its door, `bledsoecw/DB-CheckOut` eb2b4e4 —
+live since 4 Nov 2026), then the Apps Script (`clasp push -f` then `clasp deploy`, no new permission), then
 `firebase deploy --only hosting`. DB CheckOut first is safe on its own: the
 Apps Script live before T2.39 only calls it for the service crew and
 Operations. No board change.

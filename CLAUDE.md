@@ -1186,7 +1186,10 @@ regeneration, Linux only.
   launch and on coming to the front (30 minutes stale), never for the service
   crew or Operations, never with Close Out unset. A `count` it gets back
   (also on every queue answer, `mineCount`) loads the list behind the clock so
-  Today and the arrival see it. `dbtc_comine` is not in `OWN_KEEP_KEYS`, so a
+  Today and the arrival see it — a live one, once a launch (`coMineList`):
+  the copy `coRestoreQueue` puts back at start for no signal is only last
+  launch's, so a launch that trusts its kept answer and asks nothing still
+  fetches the list (the first cut skipped it whenever that copy was there). `dbtc_comine` is not in `OWN_KEEP_KEYS`, so a
   handover clears it; the `who` check covers the rest. A `?tab=co` push before
   the phone knew sets `CO.wanted` and asks at once.
 - **The push sweep** asks JobTread first for anyone outside the service crew:
@@ -1234,6 +1237,20 @@ regeneration, Linux only.
   for somebody else on a shared phone (T2.37) is still Carl's (#7 below), and
   the training videos (Carl's "Do not recreate videos yet" stands; the
   Close Out tab now appears for more people).
+- **The server half is live**: at 00:47Z on 4 Nov 2026 (7:47pm on 3 Nov in
+  Ohio; Carl: *"go, deploy the server now"*) DB CheckOut's `main` was
+  fast-forwarded to eb2b4e4, `dpl_35UDuhNVM8vLApeYLHE6Gch5sUUw`, and `/health`
+  on closeout.deitemeyerbrothers.com answered
+  `{"source":"006185e192e5","on":"vercel","commit":"eb2b4e4"}` with
+  `"crewApp":true` and `"contract":4`. `/queue`, `/jobs`, `/assigned` and `POST
+  /tasks/x/blocked` answer the API's own 401 with no token, a wrong secret
+  naming a crew member's Gmail is a 401 too, and there were no runtime errors.
+  The 414e503 deployment (`dpl_36KKNELGSejzERJQcEimcTva4aXg`) is the rollback.
+  Nothing changes for anyone until the T2.39 Apps Script is out: the one live
+  before it calls the server only for the service crew and Operations. The
+  JobTread query the new door sends was run read-only against the live org
+  first (Scott Rice's Gmail found exactly and in capitals, Ian Poe's `_`
+  address finds Ian Poe himself, a made-up address finds nobody).
 
 ## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
 
