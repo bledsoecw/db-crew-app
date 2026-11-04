@@ -1262,6 +1262,71 @@ regeneration, Linux only.
   Close Out server showed no runtime errors from its deploy to 16:43Z. No
   board change.
 
+## T2.40 (4 Nov 2026) — construction final inspections (audit I13 step 2), what the README does not say
+
+- **Three repos, one rule.** Carl (3–4 Nov): the job's sales rep does a
+  construction job's final inspection, the PM covers when the rep is busy or
+  already on site, and it is *"notes a photos for now"*. The board assigns
+  (`jobPeopleInspectors`: every name in the Sales Rep field, then the PM,
+  resolved by name to memberships), DB CheckOut lists it (one area,
+  `construction`, form `notes`, `line: false`, on the job's own "Final
+  inspection" line) and closes it (`close-area-inspection` with that area,
+  Status by Close Out's own `applyLinear`), and the phone draws it on the
+  work-area screens it already had. Contract 5 (`PHONE_CONTRACT` there,
+  `CO_CONTRACT_NEED` here).
+- **`line: false` is on purpose.** On the phone `line` means "this area's
+  inspection is the roof checklist on the job screen"; a notes area that is
+  not the line is a tile with its own screen and send. So every phone build
+  that knows areas (T2.27 on) already draws and sends the construction
+  inspection — the server deploy alone switches construction from the roof
+  checklist to notes and photos, and T2.40 only adds its words.
+- **`coIsConstr(j)`** separates the two meanings of "areas": the screens
+  (`coMultiArea`, which a notes area turns on) stay, and the words about the
+  board's loop (`areaWhatNext`, `lastClosesAreas`, *Work areas · each is
+  inspected and approved on its own*, *the PM books it on the board*) give way
+  to Close Out's linear words (`toPmReview` / `toPunch`) and the CO-T240
+  block (`constrK`, `constrSub`, `constrHint`, `constrNotBooked`).
+  `CO_AREA_ES.construction` is `['Construcción', 'la obra']`. No key
+  collided; `I18N_CLASH` stays empty.
+- **Opening a construction inspection asks nobody to clock in.** The area
+  tile's T2.15 clock prompt (`coClockHere(jobId, key)`) is skipped for
+  `construction`: the inspection is the sales rep's and the app knows of no
+  rep on the time clock, so the prompt would make a time entry for someone
+  who may not be hourly. *Assumed, and flagged to Carl* — whether reps clock
+  in for an inspection is a payroll question. "Clock in here" on the job
+  screen and Start on the card are still there for anyone who clocks (Neal
+  does). t240-test pins it: against the T2.39 phone the suite stops at the
+  code sheet that opens over the construction screen.
+- **Measured before it was built (read-only, 4 Nov 2026)**: nine
+  construction jobs at Final Inspection, none with a "Final inspection"
+  line, all moved there in the JobTread app (Amy, the Operations account,
+  Nick Girod) — so the board's button alone reaches none of them, and the
+  hourly catch-up's construction half is an Operations switch that ships off
+  (Carl's 23 Oct rule was roofing only). On five of the nine the Sales Rep
+  field also names **Kristin Holt (JobTread role Design)**; the rule takes
+  every name there, flagged rather than filtered. Justin Phillips's
+  membership has no role.
+- **Reps need DB Crew for any of this to reach them.** T2.39 gives anyone
+  with assigned close-out work the Close Out tab, and DB CheckOut acts for
+  internal members by email (all of the reps are on the company domain), but
+  a rep who has never signed in to DB Crew sees nothing but JobTread's own
+  to-do. The catch-up switch's words in Operations say to turn it on once the
+  reps have the app.
+- **The safe deploy order**: DB CheckOut, then the Apps Script and the
+  phones, then the board. The board is the half that starts putting reps on
+  inspections; out first, a rep's T2.39 phone would show the roof checklist
+  (old DB CheckOut) or ask them to clock in (old phone).
+- **The mock grew**: `__MOCK_CO_CONSTRUCTION` (a made-up construction job,
+  `co-prentice` 26-0950, at Final Inspection with the construction area; a
+  list in place of `true` names who is on it) and the construction branch of
+  `coCloseArea` (Close Out's linear move, `sentTo` the job's PM).
+  `getBuilds` reports contract 5.
+- **Not done on purpose**: construction PUNCH work still defaults to the band's
+  list (nobody on the seed) — Carl's answer was about the inspection; a
+  construction-specific checklist (Neal's, with Carl) would replace `notes`
+  with a form served the way the gutters' is; and the training videos
+  (Carl's "Do not recreate videos yet" stands).
+
 ## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
 
 Asked with I13 (the report: https://claude.ai/artifact/FB4xEquJajG6UtLuarxmZr),

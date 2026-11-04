@@ -385,6 +385,17 @@
       mason.punchTasks = []; mason.openPunchCount = 0; mason.openPunchTotal = 0;
     }
   }
+  // __MOCK_CO_CONSTRUCTION (T2.40, audit I13 step 2): a construction job at
+  // Final Inspection, its one inspection listed the way DB CheckOut lists it —
+  // the `construction` area, notes and photos, on the job's own Final
+  // inspection line — with the sales rep and the PM on it. Made-up customer.
+  if (window.__MOCK_CO_CONSTRUCTION) {
+    var cWho = window.__MOCK_CO_CONSTRUCTION === true ? ['Justin Phillips', 'Neal Deitemeyer'] : window.__MOCK_CO_CONSTRUCTION;
+    CO_JOBS.push({ id: 'co-prentice', number: '26-0950', name: '260950 Prentice_Remodel', status: 'Final Inspection', jobType: 'Construction', projectTypes: ['C-Remodel/Interior'], isService: false,
+      projectManager: 'Neal Deitemeyer', salesRep: 'Justin Phillips', address: '418 Fox Rd, Van Wert, OH 45891, USA', openPunchCount: 0, mine: true, openPunchTotal: 0, punchTasks: [],
+      areas: [{ key: 'construction', label: 'Construction', line: false, form: 'notes', inspectionTaskId: 'fi-prentice', inspectionDate: isoAdd(0), assigneeNames: cWho, mine: true, inspected: false, openRepairs: 0 }],
+      soldScope: [] });
+  }
   // The gutters' checklist as DB CheckOut serves it (packages/shared/src/forms.ts).
   var MOCK_GUTTERS_FORM = { key: 'gutters', sections: [
     { key: 'inspection', label: { es: 'Inspección', en: 'Inspection' }, items: [
@@ -993,7 +1004,7 @@
     // T2.30: what each system is running. A test sets __MOCK_BUILDS to try a
     // server behind the phone.
     getBuilds: function () {
-      return window.__MOCK_BUILDS || { api: window.__MOCK_API_BUILD || 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 4 } };
+      return window.__MOCK_BUILDS || { api: window.__MOCK_API_BUILD || 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 5 } };
     },
     markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
     exchangeSession: function () { return { token: window.__MOCK_PEOPLE_TOKENS && CUR_EMAIL ? mockToken(CUR_EMAIL) : 'h.' + payload + '.s', exp: 4102444800 }; },
@@ -1117,6 +1128,15 @@
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
       var a = j && (j.areas || []).filter(function (x) { return x.key === body.area; })[0];
       if (!a) return { status: 400, reason: 'http-400', body: { error: 'area must be one of this job\'s work areas' } };
+      // A construction job (T2.40): its own Final inspection line, and Close
+      // Out moves it the way it moves a job without areas (applyLinear).
+      if (body.area === 'construction') {
+        if (body.form != null && body.form !== 'notes') return { status: 400, reason: 'http-400', body: { error: 'The construction inspection is notes and photos' } };
+        CO_INSPECTED[jobId] = true; a.inspected = true;
+        var cFlip = j.status === 'Final Inspection' ? (body.problemsReported > 0 ? 'Punch List' : 'PM Review') : null;
+        if (cFlip) j.status = cFlip;
+        return { status: 200, body: { completedTaskId: a.inspectionTaskId || 'fi_' + jobId, made: !a.inspectionTaskId, flipped: cFlip, sentTo: j.projectManager || null } };
+      }
       if (coInspIdMock(jobId) === a.inspectionTaskId) CO_INSPECTED[jobId] = true;
       a.inspected = true; a.openRepairs += body.problemsReported || 0;
       return { status: 200, body: { completedTaskId: a.inspectionTaskId, flipped: coBoardMove(j), sentTo: CO_REVIEWER[a.key] || null } };

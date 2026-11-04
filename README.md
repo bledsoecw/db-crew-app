@@ -1594,6 +1594,33 @@ live since 4 Nov 2026), then the Apps Script (`clasp push -f` then `clasp deploy
 Apps Script live before T2.39 only calls it for the service crew and
 Operations. No board change.
 
+**A construction job's final inspection** (T2.40, 4 Nov 2026). I13's step 2,
+on Carl's answers: a construction job's final inspection goes to the job's
+own sales rep, with its PM as backup (*"Rep is primary, but PM is available
+if Rep is busy or already on site"*), and it is notes and photos (*"for
+now"*). The Production Board's Final Inspection button puts every name in the
+job's Sales Rep field, then its PM, on the job's "Final inspection" line, so
+both see it under their own name here (T2.39 gives them the Close Out tab for
+it); an Operations switch lets the board's hourly catch-up do the same for a
+job moved to Final Inspection in JobTread, and it ships off. DB CheckOut lists
+the inspection as one area, **Construction** — notes and photos, nine site
+photos and a note, on the job's own line — and the phone draws it on the
+work-area screens it already has, saying it as the job's final inspection
+(*Inspección final · notas y fotos*), not a list of work areas. Close Out moves
+the job as it moves any job without work areas: to PM Review, or Punch List
+with problems, and the PM is told. **Opening it asks nobody to clock in**:
+the app knows of no sales rep on the time clock, so the work-area screen's
+own clock prompt (T2.15) is left off for it; "Clock in here" on the job is
+still there for anyone who clocks. A construction service call still goes back
+to whoever did the work. `dev/t240-test.mjs` walks it (the rep's send, the
+receipt, Spanish, nobody on it yet, an older server's job with no areas).
+**Deploys**: DB CheckOut first (contract 5), then the Apps Script and the
+phones, then the board last. That order keeps every step safe: an older
+phone already draws a notes area and sends it, an older DB CheckOut sends no
+construction area (the job reads as before), and the board — the half that
+starts putting reps on inspections — goes out once DB CheckOut lists them as
+notes and photos and the phones no longer ask a rep to clock in for one.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

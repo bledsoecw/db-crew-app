@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.39 (2026-11-04)';
+var APP_BUILD = 'T2.40 (2026-11-04)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -1671,7 +1671,7 @@ function pushWords(){
    (T2.34): an N/A goes with its reason and every line says who answered
    it, a camera photo is filed under the time it was taken, and GET
    /assigned answers the hourly Close Out push. */
-var CO_CONTRACT_NEED = 4;   /* 4 (T2.35, audit I10): Can't finish today, and a repair says why it waits */
+var CO_CONTRACT_NEED = 5;   /* 4 (T2.35, audit I10): Can't finish today, and a repair says why it waits. 5 (T2.40, audit I13 step 2): a construction job's final inspection is one notes-and-photos area */
 function buildNum(b){ var m = /T(\d+)\.(\d+)/.exec(String(b || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
 function loadBuilds(){
   if (!S.me || !API_URL || !S.online) return Promise.resolve();
@@ -8914,6 +8914,14 @@ coAdd({
         myPartDone: 'Tu parte de este trabajo está lista', myPartDoneSub: 'No tienes nada más asignado en este trabajo.', repairOne: 'reparación',
         notListed: 'Close Out todavía no conoce {email} — pide a la oficina que lo agregue a la lista de Close Out. Lo que guardaste aquí se queda en este teléfono hasta entonces.' }
 }); /* CO-T239 */
+coAdd({
+  en: { constrK: 'Final inspection', constrSub: 'notes and photos',
+        constrHint: 'Photos of the finished work, and a note on what you saw. The sales rep does it, and the PM covers when the rep is busy or already on site — whoever is there sends it, once for both of you.',
+        constrNotBooked: 'Nobody on it yet — the office puts the sales rep and the PM on it from the board' },
+  es: { constrK: 'Inspección final', constrSub: 'notas y fotos',
+        constrHint: 'Fotos del trabajo terminado y una nota de lo que viste. La hace el vendedor, y el PM la cubre cuando el vendedor está ocupado o ya está en la obra — el que esté ahí la manda, una vez por los dos.',
+        constrNotBooked: 'Nadie asignado todavía — la oficina pone al vendedor y al PM desde el tablero' }
+}); /* CO-T240 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -9046,8 +9054,17 @@ function coKindOf(j){
    job that is not roofing, sends none and every screen reads as before.
    The template line's roof keeps the eight checks and the cleanup; the
    gutters and the siding are notes and photos (Carl: "for now"). */
-var CO_AREA_ES = { shingle: ['Techo de tejas', 'el techo de tejas'], metal: ['Techo de metal', 'el techo de metal'], flat: ['Techo plano', 'el techo plano'], siding: ['Siding', 'el siding'], gutters: ['Canales', 'los canales'] };
+var CO_AREA_ES = { shingle: ['Techo de tejas', 'el techo de tejas'], metal: ['Techo de metal', 'el techo de metal'], flat: ['Techo plano', 'el techo plano'], siding: ['Siding', 'el siding'], gutters: ['Canales', 'los canales'], construction: ['Construcción', 'la obra'] };
 function coAreas(j){ return j && Array.isArray(j.areas) ? j.areas : []; }
+/* A construction job's final inspection (T2.40, audit I13 step 2). DB
+   CheckOut lists it as one notes-and-photos area, `construction`, on the
+   job's own Final inspection line (Carl, 3–4 Nov 2026: the job's sales rep
+   does it, the PM covers when the rep is busy or already on site; "notes a
+   photos for now"). It rides the work-area screens, but it is no area of the
+   board's loop: Close Out moves the job the way it moves any job without
+   areas, so the words about the job are those, and it reads as the one
+   inspection, not a list of areas. */
+function coIsConstr(j){ return coAreas(j).some(function(a){ return a.key === 'construction'; }); }
 function coLineArea(j){ return coAreas(j).filter(function(a){ return a.line; })[0] || null; }
 function coAreaByKey(j, key){ return coAreas(j).filter(function(a){ return a.key === key; })[0] || null; }
 /* The areas are worth a list of their own once there is more than the one
@@ -9096,10 +9113,11 @@ function coAreaState(j, v, a){
     ? { t: co('areaInspected') + ' · ' + a.openRepairs + ' ' + co(a.openRepairs === 1 ? 'areaRepairOpen' : 'areaRepairsOpen'), c: 'var(--ckamber)' }
     : { t: co('areaInspected') + ' ✓ · ' + co('areaWithPm'), c: 'var(--acc)' };
   if (coAreaBooked(a)) return { t: [co('areaBooked') + (a.inspectionDate ? ' ' + coDay(a.inspectionDate) : ''), names.join(', ')].filter(Boolean).join(' · '), c: '' };
-  return { t: co('areaNotBooked'), c: 'var(--mut)' };
+  return { t: co(a.key === 'construction' ? 'constrNotBooked' : 'areaNotBooked'), c: 'var(--mut)' };
 }
 function coAreasSummaryHtml(j, v){
-  return '<div class="k" style="margin-top:14px">' + esc(co('areas')) + ' · ' + esc(co('areaSub')) + '</div><div class="rvcard" id="coAreas" style="margin-top:6px">' + coAreas(j).map(function(a){
+  var constr = coIsConstr(j);
+  return '<div class="k" style="margin-top:14px">' + esc(co(constr ? 'constrK' : 'areas')) + ' · ' + esc(co(constr ? 'constrSub' : 'areaSub')) + '</div><div class="rvcard" id="coAreas" style="margin-top:6px">' + coAreas(j).map(function(a){
     var st = coAreaState(j, v, a);
     return '<div class="rvrow" data-coareastate="' + esc(a.key) + '"><span class="rk">' + esc(coAreaName(a)) + '</span><span class="rv" style="font-size:14px' + (st.c ? ';color:' + st.c : '') + '">' + esc(st.t) + '</span></div>';
   }).join('') + '</div>';
@@ -10467,7 +10485,8 @@ function coSendHtml(){
    moves it only when every area is ready, so the words do not promise a
    Status. */
 function coWhatNext(j, problems){
-  if (coMultiArea(j)) return co(problems ? 'areaWhatNextFix' : 'areaWhatNext');
+  // A construction job is moved by Close Out like any job without areas (T2.40).
+  if (coMultiArea(j) && !coIsConstr(j)) return co(problems ? 'areaWhatNextFix' : 'areaWhatNext');
   return co(problems ? 'toPunch' : 'toPmReview');
 }
 /* "All repairs done · sent to the PM" (T2.8.3, Carl 13 Oct 2026): the last
@@ -10515,7 +10534,7 @@ function coRepairsHtml(){
            (x.done ? '<span class="en">' + esc(pend ? co('queued') : co('ready')) + '</span>' : t.mine ? '<span class="chips" style="margin-top:6px"><span class="chip" style="background:var(--total);color:var(--acc)">' + esc(co('forYou')) + '</span></span>' : (t.assigneeNames || []).length ? '<span class="en">' + esc(co('assignedTo') + ' ' + t.assigneeNames.join(', ')) + '</span>' : '') +
            '</span></button>';
   }).join('') + '</div>';
-  h += '<div class="foot" style="margin-top:14px">' + esc(co('beforeAfter')) + '<br>' + esc(co(multi ? 'lastClosesAreas' : 'lastCloses')) + '</div>';
+  h += '<div class="foot" style="margin-top:14px">' + esc(co('beforeAfter')) + '<br>' + esc(co(multi && !coIsConstr(j) ? 'lastClosesAreas' : 'lastCloses')) + '</div>';
   return h;
 }
 /* One repair (T2.27, Carl 29 Oct 2026): "Before photo is mandatory. Must
@@ -10704,7 +10723,7 @@ function coAreaHtml(){
     h += '<div class="jcard">' + coCtxTilesHtml(ctx) + '</div>';
     return h + coReviewBtnHtml(ctx, coAreaName(a));
   }
-  h += '<div class="foot" style="text-align:left;margin-top:12px">' + esc(co('areaHint')) + '</div>';
+  h += '<div class="foot" style="text-align:left;margin-top:12px">' + esc(co(a.key === 'construction' ? 'constrHint' : 'areaHint')) + '</div>';
   var target = JSON.stringify({ kind: 'area', jobId: j.id, area: a.key });
   var need = coPhotosNeed(j.id);
   h += '<div class="k" style="margin-top:14px">' + esc(co('areaPhotosK')) + ' — <span style="color:var(--ckamber)">' + esc(coPhotosAll()) + '</span> · ' + esc(co2('areaPhotosK').toLowerCase()) + '</div>';
@@ -10849,7 +10868,10 @@ function coWire(){
     var key = b.getAttribute('data-coarea'), j = CO.job || coJobById(CO.jobId), v = coVisit(CO.jobId), a = coAreas(j).filter(function(x){ return x.key === key; })[0];
     CO.areaKey = key; coGo('area');
     // Start on an area puts the clock on this job, as Start on a card does (T2.15).
-    if (a && coAreaIsOpen(j, v, a) && !coAreaStarted(v, key)) coClockHere(CO.jobId, key);
+    // Not a construction inspection (T2.40): it is the sales rep's, and the
+    // app knows of no rep on the time clock, so opening it makes no time
+    // entry by itself — "Clock in here" on the job is there for whoever clocks.
+    if (a && key !== 'construction' && coAreaIsOpen(j, v, a) && !coAreaStarted(v, key)) coClockHere(CO.jobId, key);
   });
   on('[data-coreport]', function(b){ coStartReport(b.getAttribute('data-coreport'), CO.screen, CO.ctxArea || undefined); });
   on('[data-rvtoggle]', function(b){ var k = b.getAttribute('data-rvtoggle'); CO.rvOpen = CO.rvOpen || {}; CO.rvOpen[k] = !CO.rvOpen[k]; coRender(); });
