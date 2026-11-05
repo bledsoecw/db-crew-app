@@ -1370,7 +1370,12 @@ regeneration, Linux only.
   JSON (`crew-app-auth.ts`, `cron-auth.ts`), `/signin` answers 200 and
   `/production-board` bounces to sign-in. The project's one error group in
   the 24 hours through the switch was JobTread's 25-second stall at 21:10Z
-  on 4 Nov, on the deployment before. The f8613c1 deployment
+  on 4 Nov, on the deployment before. The first hourly materials run on it
+  (01:00Z) read exactly as the last on the deployment before: 23 roofing
+  jobs at Final Inspection, 0 assigned (the line says `roofing`, the
+  construction catch-up off), 43 in close-out, 77 at final check-off,
+  nothing owed or moved, and no runtime errors from the switch to 01:06Z.
+  The f8613c1 deployment
   (`dpl_4fvcF99mwFHnNqmS3HQBPEgXpDL4`) is the rollback. The construction
   catch-up ships off, so nothing puts a rep on an inspection until the
   office moves a construction job to Final Inspection on the board or picks
