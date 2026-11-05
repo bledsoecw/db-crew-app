@@ -155,10 +155,14 @@ const allErrs = [];
   allErrs.push(...errs); await ctx.close();
 }
 
-// ---- the contract: the phone needs 5, the mock's server reports 5 ----
+// ---- the contract: the phone needs at least 5, and the mock's server says what it needs ----
+// Read off the page, never pinned (the T2.30 lesson: T2.41 raised it to 6).
 {
   const { ctx, page, errs } = await boot({ role: 'ops' });
-  check('the phone needs Close Out contract 5, and the server it talks to says 5', await page.evaluate(() => CO_CONTRACT_NEED), 5);
+  const need = await page.evaluate(() => CO_CONTRACT_NEED);
+  await page.evaluate(() => loadBuilds()); await page.waitForTimeout(500);
+  check('the phone needs Close Out contract 5 or later, and the server it talks to says at least that',
+    [need >= 5, await page.evaluate((n) => !!(S.builds && S.builds.closeOut && S.builds.closeOut.contract >= n), need)], [true, true]);
   allErrs.push(...errs); await ctx.close();
 }
 
