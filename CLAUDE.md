@@ -1349,6 +1349,40 @@ regeneration, Linux only.
   `coSendArea` is byte-identical on T2.39 and T2.40 and sends a notes area
   with no `form`, which the construction branch takes. A T2.39 phone needs
   contract 4 and reads 5 without a warning.
+- **T2.40 is live on the phones**: Carl ran the chain (`clasp deploy … -d
+  "T2.40"`, `firebase deploy --only hosting`) after the Close Out server. By
+  00:15Z on 5 Nov 2026 db-crews.web.app served `index.html`, `sw.js` and
+  `app.js?b=T2.40` identical to the branch (line endings aside), `/` and
+  `/index.html` `no-cache` with the report-only policy, `check-build.mjs`
+  against the live site says "T2.40 is already live and app.js is
+  unchanged", and the API deployment's GET answers "Opening DB Crew". The
+  API's own label was not read from here: the hand-back asked for *"go,
+  deploy the board"* once his Diagnostics read App and API both T2.40, and
+  that is the word that came.
+- **The board half is live, last of the three**: at 00:16Z on 5 Nov 2026
+  (7:16pm on 4 Nov in Ohio; Carl: *"go, deploy the board"*) the board's
+  `main` was fast-forwarded f8613c1..26827ea, with nothing on `main` the
+  branch lacked, after its 894 tests and `tsc` ran clean on that commit and
+  `eslint` ran clean on every file it touched and on all of `src/`.
+  `dpl_Fv3QYoSkHCJbJvC5fJMmfjDWaiqn` was ready at 00:16:39Z on
+  ops.deitemeyerbrothers.com with no alias error. With no token, `GET
+  /api/crew/assignments` and `GET /api/cron/materials` answer their own 401
+  JSON (`crew-app-auth.ts`, `cron-auth.ts`), `/signin` answers 200 and
+  `/production-board` bounces to sign-in. The project's one error group in
+  the 24 hours through the switch was JobTread's 25-second stall at 21:10Z
+  on 4 Nov, on the deployment before. The f8613c1 deployment
+  (`dpl_4fvcF99mwFHnNqmS3HQBPEgXpDL4`) is the rollback. The construction
+  catch-up ships off, so nothing puts a rep on an inspection until the
+  office moves a construction job to Final Inspection on the board or picks
+  who with *Pick who ›*, or Operations turns the catch-up on; the
+  construction jobs already at Final Inspection (moved there in JobTread)
+  wait for one of those. **The whole-repo `npm run lint` is red, and was
+  before this round**: four errors in two files outside the app
+  (`docs/guides/crew-app/build-deck.js` and the design handoff's
+  `support.js`, both last changed in 76a96bf on 27 Oct), which is why each
+  round lints the files it changed; Next 16's build does not lint. Telling
+  ESLint to leave `docs/` and `design/` alone rides the next board change.
+  **T2.40 is live in all four places.**
 
 ## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
 
