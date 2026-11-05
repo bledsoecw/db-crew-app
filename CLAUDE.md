@@ -1441,7 +1441,8 @@ regeneration, Linux only.
 ## I11 step 2 (5 Nov 2026) — the manager's approval, what the README does not say
 
 - **Built on the Production Board, not here** (`bledsoecw/DB_Production_Board`,
-  its branch; its CLAUDE.md has the whole of it): *Time to approve* on the
+  live from its `main` at c53a47c since 17:34Z on 5 Nov 2026; its CLAUDE.md
+  has the whole of it): *Time to approve* on the
   board, where a manager per DB Hub Teams approves the DB Crew corrections of
   their team, and the approval is one line written onto the time entry's
   notes — *"Approved by Neal Deitemeyer on the Production Board, Nov 5
@@ -1482,8 +1483,9 @@ confirmed when its round starts.
    (*I11 step 1* above). Both assumptions answered 4 Nov 2026: the manager is
    DB Hub's Teams (Manager Email), and the approval is the board's own mark on
    the entry, not JobTread's flag; only DB Crew corrections need it. Step 2,
-   the approval itself, is built on the board (*I11 step 2* above), not yet
-   deployed.
+   the approval itself, is live on the board since 17:34Z on 5 Nov 2026
+   (*I11 step 2* above); DB Hub v1.36, which names the managers, is still to
+   go out.
 2. **D28 — Already left to a job with no travel line**: *"Drive is paid,
    travel line should be on the job they traveled to."* The gap between
    leaving and the next block is paid drive time, on the destination job's
