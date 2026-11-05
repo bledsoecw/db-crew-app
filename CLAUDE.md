@@ -1384,6 +1384,46 @@ regeneration, Linux only.
   ESLint to leave `docs/` and `design/` alone rides the next board change.
   **T2.40 is live in all four places.**
 
+## I11 step 1 (4 Nov 2026) — the Ops Director's time review, what the README does not say
+
+- **Built on the Production Board, not in `Code.gs`** where the audit put it
+  (`bledsoecw/DB_Production_Board`, its branch at 5604582; its CLAUDE.md has
+  the whole of it): one email each morning to the Ops Director, listing
+  anybody still on the clock from a day before, every entry DB Crew's own
+  notes say was corrected or whose time was typed in JobTread instead of
+  clocked, and every day over 12 hours, from the past seven days, each said
+  once with a link to its job. Operations → Time review sets the days, the
+  hour and who gets it, and previews it. The board already had what that
+  needs (settings without a deploy, a preview, SMTP, the close-out reminders'
+  cron and once-a-day log). Nothing in this repo changed, so there is no
+  phone or Apps Script deploy for it.
+- **It reads DB Crew's notes word for word**: leftSite's `Ended from DB Crew
+  at …, said they left at …`, startedEarlier's `Started earlier — said they
+  started at …, clocked in from DB Crew at …`, queuedStart_/queuedEnd_'s
+  `… with no signal at … — sent from DB Crew at …`, and the phone's wrong-job
+  note `Changed from … in DB Crew — wrong job`. **Change one of those
+  sentences here and the board's `lib/time-review.ts` in the same session**,
+  or that correction drops off the Ops Director's list without a word.
+- **Measured (read-only, 4 Nov 2026), and it shaped the list**: no time entry
+  since 15 Oct carries a DB Crew note, a drive or a travel line, and the only
+  DB Crew daily log is the Operations Account's test on 25-0001. The crews
+  still clock in JobTread's own app, and the office fixes their time by hand
+  in JobTread (24 entries noted "…njw" since 15 Oct). So the list also reads
+  the times a hand edit leaves: made after the time it covers, or an end on
+  the exact minute. Run against the 26 noted entries of 21 Oct–3 Nov, it
+  caught all 17 office fixes and none of the 9 crew notes.
+- **JobTread's Approved box is time off's approval, and it is what sends an
+  entry to QuickBooks**: 747 entries approved (218 PTO, 465 worked, the
+  newest worked one on 8 Sep 2026), and every entry with a QuickBooks id is
+  approved (654, none unapproved). So nothing in DB Crew or the board sets
+  `isApproved`. Approving a corrected worked entry would most likely push
+  that one entry to QuickBooks by itself.
+- **Step 2, the manager's approval, waits on Carl**: who each person's
+  manager is, where they approve (the board, or JobTread's Approved box with
+  its QuickBooks consequence), payroll's day and pay week (so "before
+  payroll" has a deadline), and whether the office's own fixes need the
+  manager too.
+
 ## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
 
 Asked with I13 (the report: https://claude.ai/artifact/FB4xEquJajG6UtLuarxmZr),
@@ -1396,7 +1436,9 @@ confirmed when its round starts.
    person's manager before payroll runs, and the Ops Director gets the daily
    list by email. *Assumed*: "the person's manager" needs a mapping the app
    does not have (the division PM? DB Hub's Manager level?), and "approved"
-   means JobTread's own `approved` flag on the time entry. Both to ask.
+   means JobTread's own `approved` flag on the time entry. Both to ask. Step 1, the Ops Director's daily email, is built on the board (*I11 step 1*
+   above). The approval waits on both answers, and the measurement there says
+   JobTread's flag sends an entry to QuickBooks.
 2. **D28 — Already left to a job with no travel line**: *"Drive is paid,
    travel line should be on the job they traveled to."* The gap between
    leaving and the next block is paid drive time, on the destination job's
