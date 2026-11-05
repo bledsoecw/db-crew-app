@@ -1450,7 +1450,8 @@ regeneration, Linux only.
   while anything waits; the Ops Director's email says what in a pay period is
   still not approved on the days before Nick submits. DB Hub v1.36
   (`bledsoecw/DB-Hub` PR 7) adds each person's Manager Email to the access
-  feed. Nothing in this repo changed, so there is no phone or Apps Script
+  feed; its feed deployment has served it since 5 Nov 2026 (read at 19:28Z).
+  Nothing in this repo changed, so there is no phone or Apps Script
   deploy for it.
 - **Code.gs must only ever APPEND to a time entry's notes.** An approval counts
   only while nothing follows it on the notes: a correction written after it
@@ -1484,8 +1485,8 @@ confirmed when its round starts.
    DB Hub's Teams (Manager Email), and the approval is the board's own mark on
    the entry, not JobTread's flag; only DB Crew corrections need it. Step 2,
    the approval itself, is live on the board since 17:34Z on 5 Nov 2026
-   (*I11 step 2* above); DB Hub v1.36, which names the managers, is still to
-   go out.
+   (*I11 step 2* above); DB Hub v1.36, which names the managers, went out the
+   same afternoon (its feed deployment read v1.36 at 19:28Z).
 2. **D28 — Already left to a job with no travel line**: *"Drive is paid,
    travel line should be on the job they traveled to."* The gap between
    leaving and the next block is paid drive time, on the destination job's
