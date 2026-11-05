@@ -1293,7 +1293,8 @@ regeneration, Linux only.
   `construction`: the inspection is the sales rep's and the app knows of no
   rep on the time clock, so the prompt would make a time entry for someone
   who may not be hourly. *Assumed, and flagged to Carl* — whether reps clock
-  in for an inspection is a payroll question. "Clock in here" on the job
+  in for an inspection is a payroll question. Confirmed 4 Nov 2026: *"Reps do
+  not clock in for an inspection right now, but maybe in a later revision."* "Clock in here" on the job
   screen and Start on the card are still there for anyone who clocks (Neal
   does). t240-test pins it: against the T2.39 phone the suite stops at the
   code sheet that opens over the construction screen.
@@ -1423,11 +1424,19 @@ regeneration, Linux only.
   approved (654, none unapproved). So nothing in DB Crew or the board sets
   `isApproved`. Approving a corrected worked entry would most likely push
   that one entry to QuickBooks by itself.
-- **Step 2, the manager's approval, waits on Carl**: who each person's
-  manager is, where they approve (the board, or JobTread's Approved box with
-  its QuickBooks consequence), payroll's day and pay week (so "before
-  payroll" has a deadline), and whether the office's own fixes need the
-  manager too.
+- **Live**: the board's `main` at 5604582 from 01:23Z on 5 Nov 2026 (8:23pm
+  on 4 Nov in Ohio; Carl: *"go, deploy the board"*),
+  `dpl_AnBgLZfcidR2s7Jgt7XN76n6K794`, after its 919 tests and `tsc` ran
+  clean. The first email is the next weekday's 6am run.
+- **Step 2, the manager's approval — Carl's answers (4 Nov 2026)**: the
+  manager is DB Hub's Teams (each person's Manager Email on its Employees
+  tab, `bledsoecw/DB-Hub`); the approval is a tap on the board that writes
+  "Approved by …" on the time entry, never JobTread's Approved box (*"Payroll
+  runs off JT time that is input to QB"*); Nick Wade runs payroll every two
+  weeks, Monday to Sunday from 19 Oct 2026, submitted the Tuesday before the
+  Friday payday (Fri 6 Nov pays 19 Oct–1 Nov); and only what a crew member
+  says on DB Crew needs the approval. DB Hub's access feed does not carry the
+  Manager Email yet; the board's CLAUDE.md has the rest.
 
 ## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
 
@@ -1441,9 +1450,10 @@ confirmed when its round starts.
    person's manager before payroll runs, and the Ops Director gets the daily
    list by email. *Assumed*: "the person's manager" needs a mapping the app
    does not have (the division PM? DB Hub's Manager level?), and "approved"
-   means JobTread's own `approved` flag on the time entry. Both to ask. Step 1, the Ops Director's daily email, is built on the board (*I11 step 1*
-   above). The approval waits on both answers, and the measurement there says
-   JobTread's flag sends an entry to QuickBooks.
+   means JobTread's own `approved` flag on the time entry. Both to ask. Step 1, the Ops Director's daily email, is built on the board and live
+   (*I11 step 1* above). Both assumptions answered 4 Nov 2026: the manager is
+   DB Hub's Teams (Manager Email), and the approval is the board's own mark on
+   the entry, not JobTread's flag; only DB Crew corrections need it.
 2. **D28 — Already left to a job with no travel line**: *"Drive is paid,
    travel line should be on the job they traveled to."* The gap between
    leaving and the next block is paid drive time, on the destination job's
@@ -1462,6 +1472,11 @@ confirmed when its round starts.
    Both open questions answered 4 Nov 2026: *"both for now, Rep is primary,
    but PM is available if Rep is busy or already on site"* — both go on the
    inspection, the rep first — and the form is *"notes a photos for now"*.
+   Then (4 Nov 2026): Kristin Holt's *"primary role is Kitchen and Bath
+   designer, but also a Sales Rep"*, so she stays on; reps *"do not clock in
+   for an inspection right now, but maybe in a later revision"* (T2.40's
+   assumption holds); and *"turn on construction catch-up"* — Operations →
+   Close-out, Carl's click (no session can save the live roster).
 6. **I15 — warranty coverage**: *"Construction Sales Manager approves warranty,
    Roofing Sales manager approves warranty."* By division. *Open*: who each
    is, by name or JobTread role.
