@@ -1438,6 +1438,34 @@ regeneration, Linux only.
   says on DB Crew needs the approval. DB Hub's access feed does not carry the
   Manager Email yet; the board's CLAUDE.md has the rest.
 
+## I11 step 2 (5 Nov 2026) — the manager's approval, what the README does not say
+
+- **Built on the Production Board, not here** (`bledsoecw/DB_Production_Board`,
+  its branch; its CLAUDE.md has the whole of it): *Time to approve* on the
+  board, where a manager per DB Hub Teams approves the DB Crew corrections of
+  their team, and the approval is one line written onto the time entry's
+  notes — *"Approved by Neal Deitemeyer on the Production Board, Nov 5
+  9:12a."* — never JobTread's Approved box. Each manager gets a morning email
+  while anything waits; the Ops Director's email says what in a pay period is
+  still not approved on the days before Nick submits. DB Hub v1.36
+  (`bledsoecw/DB-Hub` PR 7) adds each person's Manager Email to the access
+  feed. Nothing in this repo changed, so there is no phone or Apps Script
+  deploy for it.
+- **Code.gs must only ever APPEND to a time entry's notes.** An approval counts
+  only while nothing follows it on the notes: a correction written after it
+  (Already left on an entry whose Started earlier was approved that morning)
+  makes the board ask for approval again, which is right. A write that
+  REPLACED the notes would wipe the approval without a word and make the
+  board read the entry as never approved. Every write appends today —
+  `leftSite` with ` · `, `startedEarlier` and the kept clock-out (through
+  `closeEntry_`'s fourth argument) with a space — but `closeEntry_`'s `notes`
+  argument replaces the notes outright, so a new caller must pass the old
+  notes first, as the kept clock-out does. The board's line is joined with
+  ` · ` and is left alone by every reader here.
+- The DB Crew note sentences the board reads (step 1's bullet) are now also
+  what decides whether an entry needs approving at all, so a reworded sentence
+  drops it from the approval as well as from the Ops Director's list.
+
 ## Carl's calls on the rest of Step 3 (3 Nov 2026), for the rounds that build them
 
 Asked with I13 (the report: https://claude.ai/artifact/FB4xEquJajG6UtLuarxmZr),
@@ -1453,7 +1481,9 @@ confirmed when its round starts.
    means JobTread's own `approved` flag on the time entry. Both to ask. Step 1, the Ops Director's daily email, is built on the board and live
    (*I11 step 1* above). Both assumptions answered 4 Nov 2026: the manager is
    DB Hub's Teams (Manager Email), and the approval is the board's own mark on
-   the entry, not JobTread's flag; only DB Crew corrections need it.
+   the entry, not JobTread's flag; only DB Crew corrections need it. Step 2,
+   the approval itself, is built on the board (*I11 step 2* above), not yet
+   deployed.
 2. **D28 — Already left to a job with no travel line**: *"Drive is paid,
    travel line should be on the job they traveled to."* The gap between
    leaving and the next block is paid drive time, on the destination job's
