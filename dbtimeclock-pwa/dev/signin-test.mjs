@@ -126,6 +126,31 @@ const allErrs = [];
   await ctx.close();
 }
 
+// ---- audit D39: a year since the Google sign-in ----
+{
+  const { ctx, page, errs } = await boot({ signedIn: true, role: 'crew' });
+  // A session at its year's end: renewing cannot move it, so the phone does not ask.
+  const capped = await page.evaluate(() => {
+    const now = Math.floor(Date.now() / 1000);
+    const p = { email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', iat: now - 7 * 86400, gat: now - 360 * 86400, cap: now + 3 * 86400, exp: now + 3 * 86400 };
+    authStore('h.' + btoa(JSON.stringify(p)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') + '.s');
+    return sessionAtCap();
+  });
+  const before = await fns(page, 'exchangeSession');
+  await page.evaluate(() => ensureSession(true));
+  await page.waitForTimeout(300);
+  check('D39: a session at its year\'s end is not renewed again (nothing would move)', [capped, await fns(page, 'exchangeSession') - before], [true, 0]);
+  check('…and Diagnostics says when Google is asked again', await page.evaluate(() => / · Google again by [A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(sessionWords())), true);
+  // The year is up: the API refuses, and the gate says why.
+  await page.evaluate(() => { window.__MOCK_SIGNIN_AGE = true; });
+  await page.evaluate(() => apiCall('getBuilds', []).catch(() => {}));
+  await page.waitForTimeout(600);
+  check('…when the year is up the gate says why, and that nothing saved is lost', [await gateUp(page), /a year since you signed in with Google/.test(await page.locator('#gateErr').textContent()), /nothing you saved is lost/.test(await page.locator('#gateErr').textContent())], [true, true, true]);
+  check('…and One Tap may pick the same account again (it is the right one)', await page.evaluate(() => localStorage.getItem('dbtc_pick_account')), null);
+  allErrs.push(...errs);
+  await ctx.close();
+}
+
 check('no page errors', allErrs, []);
 await browser.close();
 let passed = 0;

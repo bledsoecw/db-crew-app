@@ -5,7 +5,7 @@
    Cross-origin (the Apps Script API, JobTread's CDN, FCM): never touched.
    Since T2.32 the page's script is its own file, app.js?b=<build>: the page
    and its script are saved as a pair, never one without the other. */
-var BUILD = 'T2.40';   // index.html's data-build and app.js?b=, and APP_BUILD in app.js — one build, every deploy a new one
+var BUILD = 'T2.41';   // index.html's data-build and app.js?b=, and APP_BUILD in app.js — one build, every deploy a new one
 var CACHE = 'dbtc-' + BUILD.toLowerCase().replace(/\./g, '-');
 var NAV_WAIT_MS = 3000;
 var SCRIPT_RE = /<script src="(app\.js\?b=[^"]+)"/;

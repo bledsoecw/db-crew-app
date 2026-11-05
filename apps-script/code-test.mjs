@@ -772,6 +772,80 @@ let refused = '';
 try { sandbox.verifyIdToken_('tok-stranger'); } catch (e) { refused = e.message; }
 t('a stranger on Gmail does not', refused, 'AUTH');
 
+// ---- audit D39: a session runs at most a year from its Google sign-in ----
+// The renewal used to need nothing but the session, so one Google sign-in
+// lasted for ever and the allow-list was read only at that sign-in.
+{
+  const { createHmac } = await import('node:crypto');
+  sandbox.Utilities.computeHmacSha256Signature = (input, secret) => createHmac('sha256', secret).update(input).digest();
+  sandbox.Utilities.base64DecodeWebSafe = (s) => Buffer.from(String(s), 'base64url');
+  sandbox.Utilities.newBlob = (bytes) => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') });
+  const DAY = 86400, now = () => Math.floor(Date.now() / 1000);
+  const payloadOf = (tok) => JSON.parse(Buffer.from(tok.split('.')[1], 'base64url').toString('utf8'));
+  const sign = (payload) => {
+    const input = sandbox.b64url_({ alg: 'HS256', typ: 'JWT' }) + '.' + sandbox.b64url_(payload);
+    return input + '.' + createHmac('sha256', 'shh').update(input).digest('base64url');
+  };
+  const postT = (tok, fn) => JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: tok, fn, args: [] }) } }).getContent());
+  props = { SESSION_SECRET: 'shh', OAUTH_CLIENT_ID: 'cid' }; cacheStore = {}; fetched = [];
+  fetchImpl = (url) => /tokeninfo/.test(url) ? { code: 400, body: '{}' } : { code: 200, body: '{}' };
+
+  // A Google sign-in: the year starts now.
+  const fromGoogle = sandbox.renewSession_('google-id-token', 'tyler.b@deitemeyerbrothers.com');
+  let p = payloadOf(fromGoogle.token);
+  t('D39: a session from Google\'s token starts its year now, and lasts 30 days within it',
+    [Math.abs(p.gat - now()) <= 2, p.cap - p.gat, Math.abs(p.exp - (now() + 30 * DAY)) <= 2, fromGoogle.cap === p.cap], [true, 365 * DAY, true, true]);
+
+  // Renewed from the session: the year runs on from that same Google sign-in.
+  const gat200 = now() - 200 * DAY;
+  const mid = sign({ email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', iat: now() - 8 * DAY, gat: gat200, cap: gat200 + 365 * DAY, exp: now() + 22 * DAY });
+  const renewed = postT(mid, 'exchangeSession');
+  p = payloadOf(renewed.data.token);
+  t('…renewed from a session, it keeps the Google sign-in it came from', [renewed.ok, p.gat, p.cap], [true, gat200, gat200 + 365 * DAY]);
+
+  // Near the end of the year the session ends with the year, not 30 days on.
+  const gat360 = now() - 360 * DAY;
+  const late = sign({ email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', iat: now() - 7 * DAY, gat: gat360, cap: gat360 + 365 * DAY, exp: now() + 2 * DAY });
+  p = payloadOf(postT(late, 'exchangeSession').data.token);
+  t('…five days before the year is up, the new session ends on the day it is up', p.exp, gat360 + 365 * DAY);
+
+  // A year and a day: refused in words that say why.
+  const gat366 = now() - 366 * DAY;
+  const tooOld = sign({ email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', iat: now() - 7 * DAY, gat: gat366, exp: now() + 9 * DAY });
+  let r9 = postT(tooOld, 'exchangeSession');
+  t('…past the year, the renewal is refused: Google is asked again, and the phone says why', [r9.ok, r9.auth, r9.authWhy], [false, true, 'signin-age']);
+  const expiredOld = sign({ email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', iat: now() - 40 * DAY, gat: gat366, exp: now() - DAY });
+  r9 = postT(expiredOld, 'getBuilds');
+  t('…and a session that ran out because the year is up says so on any call', [r9.ok, r9.auth, r9.authWhy], [false, true, 'signin-age']);
+  const expiredYoung = sign({ email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', iat: now() - 40 * DAY, gat: now() - 40 * DAY, exp: now() - DAY });
+  r9 = postT(expiredYoung, 'getBuilds');
+  t('…while one that ran out inside the year is the plain "session expired"', [r9.ok, r9.auth, r9.authWhy], [false, true, undefined]);
+
+  // Made before D39 (no gat): its year counts from when it was made.
+  const iat100 = now() - 100 * DAY;
+  const preD39 = sign({ email: 'tyler.b@deitemeyerbrothers.com', iss: 'dbtc-session', iat: iat100, exp: now() + 5 * DAY });
+  p = payloadOf(postT(preD39, 'exchangeSession').data.token);
+  t('…a session made before D39 has its year counted from when it was made', p.gat, iat100);
+
+  // The allow-list is read again at every renewal.
+  props.EXTRA_ALLOWED_EMAILS = 'new.manager@gmail.com';
+  const extra = sign({ email: 'new.manager@gmail.com', iss: 'dbtc-session', iat: now() - 8 * DAY, gat: now() - 8 * DAY, exp: now() + 22 * DAY });
+  t('…someone on EXTRA_ALLOWED_EMAILS renews', postT(extra, 'exchangeSession').ok, true);
+  props.EXTRA_ALLOWED_EMAILS = '';
+  r9 = postT(extra, 'exchangeSession');
+  t('…and once they are off it, the renewal is refused and names them', [r9.ok, r9.auth, r9.authWhy, r9.email], [false, true, 'not-allowed', 'new.manager@gmail.com']);
+
+  // The four functions that answered anyone signed in, with no membership check.
+  const fresh = sandbox.mintSessionToken_('tyler.b@deitemeyerbrothers.com').token;
+  const gone = ['getJobOptions', 'getNearbyCandidates', 'getCrewOnClock', 'markNudged'].map(fn => {
+    const out = postT(fresh, fn); return [fn, out.ok, String(out.error || '').indexOf('Unknown function') > -1];
+  });
+  t('D39: getJobOptions, getNearbyCandidates, getCrewOnClock and markNudged can no longer be called from outside',
+    gone, [['getJobOptions', false, true], ['getNearbyCandidates', false, true], ['getCrewOnClock', false, true], ['markNudged', false, true]]);
+  t('…and the two that were never used inside the script are gone', [typeof sandbox.getNearbyCandidates, typeof sandbox.getCrewOnClock], ['undefined', 'undefined']);
+  props = {}; cacheStore = {}; fetched = [];
+}
+
 // ---- and memberFor_ finds them: `=` first, then `like`, as the board does ----
 props = {}; cacheStore = {}; fetched = [];
 let lookups = 0;
@@ -1668,13 +1742,155 @@ t('…no snapshot yet (no phone registered for push): nothing is written', props
     return realFetch2(url, opts); };
   cacheStore = {};
   openNow = ONSITE;
-  t('a drive on a work line of a job that has a travel line: refused', /travel line/.test(refusedBy(() => sandbox.startTravel(ME, 'j2', 'ci4', null, 'ph_e', 'Drive to 26-1045'))), true);
+  writes.length = 0;
+  t('a drive named on a work line of a job that has a travel line goes on the travel line (audit D28: every drive on it)',
+    [refusedBy(() => sandbox.startTravel(ME, 'j2', 'ci4', null, 'ph_e', 'Drive to 26-1045')), (writes.filter(w => w[0] === 'create')[0] || [])[1] && writes.filter(w => w[0] === 'create')[0][1].costItemId], ['', 'tr2']);
+  openNow = ONSITE;
   t('…on the travel line: fine', refusedBy(() => sandbox.startTravel(ME, 'j2', 'tr2', null, 'ph_e', 'Drive to 26-1045')), '');
   openNow = ONSITE;
   t('…on a line of a job without one: fine; on a line not on the job: refused', [refusedBy(() => sandbox.startTravel(ME, 'j3', 'ci5', null, 'ph_e', 'Drive to 26-1600')), /not on the job/.test(refusedBy(() => sandbox.startTravel(ME, 'j3', 'zz', null, 'ph_e', 'Drive to 26-1600')))], ['', true]);
   fetchImpl = realFetch2;
   openNow = { ...ONSITE, costItem: { id: 'tr9', name: 'Travel Related Labor', costCode: { number: '01GR-9' } } };
   t('on a drive there is nothing to get round', /A drive needs no end photo/.test(refusedBy(() => sandbox.leftSite(ME, leftAt, null, { kind: 'drive', jobId: 'j2', costItemId: 'tr2' }))), true);
+  fetchImpl = () => ({ code: 200, body: '{}' });
+}
+
+// ---- audit D28: a drive to a job with no travel line makes the line and goes on it ----
+// Carl (5 Nov 2026): "if no travel line, create one for the job and the drive
+// goes on it." 16 of 1,587 open jobs had one that day, so this is nearly every drive.
+{
+  props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+  const began = new Date(Date.now() - 4 * 3600e3).toISOString();
+  const ONSITE = { id: 'te5', startedAt: began, minutes: 240, notes: '', job: { id: 'j9', name: '261490 Courtney_Roof', number: '26-1490', location: {} }, costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1', name: 'Roofing' } } };
+  let openNow = ONSITE;
+  const writes = [], made = [];
+  // j4: a CLOCK IN ITEMS group of Clock In lines, no travel line. j5: no group at all.
+  // j6: a CLOCK IN ITEMS group holding no Clock In line. jX: JobTread will not make the line.
+  const JOBLINES = { j4: [ci('c41', 'Roofing', '07TM-1', 'Clock In', 'CLOCK IN ITEMS')], j5: [ci('c51', 'Crew Labor', '01GR', 'Labor', null)],
+                     j6: [ci('c61', 'Crew Labor', '01GR', 'Labor', null)], jX: [ci('cX1', 'Crew Labor', '01GR', 'Labor', null)] };
+  const GROUPS = { j4: [{ id: 'g4', name: 'CLOCK IN ITEMS', costItems: { count: 1 } }], j6: [{ id: 'g6', name: 'CLOCK IN ITEMS', costItems: { count: 0 } }] };
+  fetchImpl = route({ people: PEOPLE,
+    member: () => ({ code: 200, body: '{"organization":{"memberships":{"nodes":[]}}}' }),
+    comment: () => ({ code: 200, body: '{"createComment":{"createdComment":{"id":"c9"}}}' }),
+    entries: (q) => { const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } }); return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' && openNow ? [openNow] : [] } } }) }; },
+    codes: (q) => {
+      const id = q.job.$.id, nodes = (JOBLINES[id] || []).slice();
+      return { code: 200, body: JSON.stringify({ job: { costItems: { nextPage: null, nodes }, costGroups: { nodes: GROUPS[id] || [] } } }) };
+    } });
+  const realFetch = fetchImpl;
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.createCostItem) {
+      const a = q.createCostItem.$, job = a.jobId || (a.costGroupId === 'g4' ? 'j4' : a.costGroupId === 'g6' ? 'j6' : '?');
+      made.push(a);
+      if (job === 'jX') return { code: 400, body: '{"errors":["no"]}' };
+      const id = 'tr_' + job;
+      (JOBLINES[job] = JOBLINES[job] || []).push(ci(id, a.name, '01GR-9', 'Clock In', a.costGroupId ? 'CLOCK IN ITEMS' : null));
+      return { code: 200, body: JSON.stringify({ createCostItem: { createdCostItem: { id } } }) };
+    }
+    if (q.updateTimeEntry) { writes.push(['close', q.updateTimeEntry.$]); return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    if (q.createTimeEntry) { writes.push(['create', q.createTimeEntry.$]); return { code: 200, body: '{"createTimeEntry":{"createdTimeEntry":{"id":"te' + (writes.length + 10) + '"}}}' }; }
+    return realFetch(url, opts); };
+
+  // Leave for a job with a CLOCK IN ITEMS group and no travel line: the line goes in the group.
+  sandbox.startTravel(ME, 'j4', 'travel:new', null, 'ph_e', 'Drive to 26-1700 Ames');
+  let drive = writes.filter(w => w[0] === 'create').map(w => w[1])[0];
+  t('D28: leaving for a job with no travel line makes the template\'s own line, in its CLOCK IN ITEMS group',
+    made.map(a => [a.costGroupId || null, a.jobId || null, a.name, a.costCodeId, a.costTypeId, a.organizationCostItemId, a.isTaxable]),
+    [['g4', null, 'Travel Related Labor', '22Pap6LcRWJM', '22PaTg5HNX8w', '22PfmiSkthxP', false]]);
+  t('…and the drive is on it', [drive.jobId, drive.costItemId], ['j4', 'tr_j4']);
+  // The same job again: the line is there now, nothing more is made.
+  writes.length = 0; made.length = 0; openNow = ONSITE;
+  sandbox.startTravel(ME, 'j4', 'travel:new', null, 'ph_e', 'Drive to 26-1700 Ames');
+  t('…a second drive there finds it: one line, never two', [made.length, writes.filter(w => w[0] === 'create')[0][1].costItemId], [0, 'tr_j4']);
+
+  // An older phone picked one of the job's own lines (there was no travel line to pick): the drive still goes on the travel line.
+  writes.length = 0; made.length = 0; openNow = ONSITE;
+  sandbox.startTravel(ME, 'j5', 'c51', null, 'ph_e', 'Drive to 26-1701 Bell');
+  t('…a job with no group gets the line at the top of its budget, and an older phone\'s pick gives way to it',
+    [made.map(a => [a.jobId || null, a.costGroupId || null]), writes.filter(w => w[0] === 'create')[0][1].costItemId], [[['j5', null]], 'tr_j5']);
+  writes.length = 0; made.length = 0; openNow = ONSITE;
+  sandbox.startTravel(ME, 'j6', 'travel:new', null, 'ph_e', 'Drive to 26-1702 Cole');
+  t('…a CLOCK IN ITEMS group with no Clock In lines is left alone (the code list would show only the new line)', made.map(a => [a.jobId || null, a.costGroupId || null]), [['j6', null]]);
+
+  // Already left straight to a job with no travel line: the gap from leaving until now is paid on the new line.
+  writes.length = 0; made.length = 0; openNow = ONSITE; JOBLINES.j7 = [ci('c71', 'Siding', '07TM-3', 'Clock In', 'CLOCK IN ITEMS')]; GROUPS.j7 = [{ id: 'g7', name: 'CLOCK IN ITEMS', costItems: { count: 1 } }];
+  const leftAt = new Date(Date.now() - 30 * 60e3).toISOString();
+  fetchImpl = ((inner) => (url, opts) => { const q = paveOf(opts) || {}; if (q.createCostItem && q.createCostItem.$.costGroupId === 'g7') { made.push(q.createCostItem.$); (JOBLINES.j7).push(ci('tr_j7', 'Travel Related Labor', '01GR-9', 'Clock In', 'CLOCK IN ITEMS')); return { code: 200, body: '{"createCostItem":{"createdCostItem":{"id":"tr_j7"}}}' }; } return inner(url, opts); })(fetchImpl);
+  sandbox.leftSite(ME, leftAt, null, { kind: 'work', jobId: 'j7', costItemId: 'c71', travelItemId: null, startPhotoId: 'ph_s', notes: 'Drive to 26-1703 Dunn' });
+  const wk = writes.filter(w => w[0] === 'create').map(w => w[1]);
+  t('D28: Already left straight to a job with no travel line pays the drive on a new travel line, then the work from now',
+    [made.length, wk.length, wk[0].costItemId, wk[0].startedAt, !!wk[0].endedAt, wk[1].costItemId, wk[0].endedAt === wk[1].startedAt], [1, 2, 'tr_j7', leftAt, true, 'c71', true]);
+  writes.length = 0; made.length = 0; openNow = ONSITE;
+  sandbox.leftSite(ME, leftAt, null, { kind: 'drive', jobId: 'j5', costItemId: 'travel:new', notes: 'Drive to 26-1701 Bell' });
+  t('…Already left onto a drive goes on the job\'s travel line too', [made.length, writes.filter(w => w[0] === 'create')[0][1].costItemId], [0, 'tr_j5']);
+
+  // JobTread will not make the line: the clock is never stopped for it.
+  writes.length = 0; made.length = 0; openNow = ONSITE;
+  t('…when JobTread will not make the line, the drive goes on the line picked, as before', [refusedBy(() => sandbox.startTravel(ME, 'jX', 'cX1', null, 'ph_e', 'Drive to 26-1704 Eads')), writes.filter(w => w[0] === 'create')[0][1].costItemId], ['', 'cX1']);
+  writes.length = 0; openNow = ONSITE;
+  t('…and with no line picked to fall back on, the person is told to try again', /did not make the travel line/.test(refusedBy(() => sandbox.startTravel(ME, 'jX', 'travel:new', null, 'ph_e', 'Drive to 26-1704 Eads'))), true);
+  writes.length = 0; openNow = ONSITE;
+  sandbox.leftSite(ME, leftAt, null, { kind: 'work', jobId: 'jX', costItemId: 'cX1', travelItemId: null, startPhotoId: 'ph_s' });
+  t('…and Already left still ends the block and starts the work (the gap is left, as before D28)', writes.filter(w => w[0] === 'create').map(w => w[1].costItemId), ['cX1']);
+  // Never on the shop.
+  writes.length = 0; made.length = 0; openNow = ONSITE;
+  t('…and nothing is ever made on the shop', [sandbox.driveLineFor_(sandbox.SHOP_JOB.id, 'travel:new'), sandbox.driveLineFor_(sandbox.SHOP_JOB.id, 'sh1'), made.length], ['', 'sh1', 0]);
+  fetchImpl = () => ({ code: 200, body: '{}' });
+}
+
+// ---- audit D30: "Wrong job — I was never at …" moves the hours too ----
+// Carl (3 Nov 2026): "app move the hours already clocked to the right job and tell the PM."
+{
+  props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+  const H = 3600e3, at = (h) => new Date(Date.now() - h * H).toISOString();
+  const W = { id: 'jw', name: '260890 Webster_Foundation', number: '26-0890', location: {} }, OTHER = { id: 'jo', name: '261100 Hall', number: '26-1100', location: {} };
+  const ROOF = { id: 'w1', name: 'Roofing', costCode: { number: '07TM-1', name: 'Roofing' } }, HAUL = { id: 'w8', name: 'Hauling & Disposal', costCode: { number: '02ST-5', name: 'Hauling & Disposal' } };
+  const OPEN = { id: 'te_open', startedAt: at(1), minutes: 60, notes: '', job: W, costItem: ROOF };
+  // Newest first, as JobTread answers: the open block, a break's other half, a block on another code,
+  // the drive there (not moved), and a block on another job (not moved).
+  let DAY = [OPEN,
+    { id: 'te_b', startedAt: at(2.5), endedAt: at(1.5), minutes: 60, notes: '', job: W, costItem: ROOF },
+    { id: 'te_h', startedAt: at(3.5), endedAt: at(2.5), minutes: 60, notes: 'Approved by Neal Deitemeyer on the Production Board, Nov 5 9:12a.', job: W, costItem: HAUL },
+    { id: 'te_d', startedAt: at(4), endedAt: at(3.5), minutes: 30, notes: 'Drive to 26-0890 Webster', job: W, costItem: { id: 'wtr', name: 'Travel Related Labor', costCode: { number: '01GR-9' } } },
+    { id: 'te_o', startedAt: at(5), endedAt: at(4), minutes: 60, notes: '', job: OTHER, costItem: ROOF }];
+  let openNow = OPEN;
+  const writes = [];
+  fetchImpl = route({ people: PEOPLE,
+    member: () => ({ code: 200, body: '{"organization":{"memberships":{"nodes":[]}}}' }),
+    comment: (q) => { writes.push(['comment', q.createComment.$]); return { code: 200, body: '{"createComment":{"createdComment":{"id":"c9"}}}' }; },
+    entries: (q) => { const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+      return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' ? (openNow ? [openNow] : []) : k === 'day' ? DAY : [] } } }) }; },
+    codes: () => ({ code: 200, body: JSON.stringify({ job: { costItems: { nextPage: null, nodes: [ci('r1', 'Roofing', '07TM-1', 'Clock In', 'CLOCK IN ITEMS'), ci('r8', 'Hauling & Disposal', '02ST-5', 'Clock In', 'CLOCK IN ITEMS'), ci('rtr', 'Travel Related Labor', '01GR-9', 'Clock In', 'CLOCK IN ITEMS')] } } }) }) });
+  const realFetch = fetchImpl;
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.updateTimeEntry) { writes.push(['update', q.updateTimeEntry.$]); return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    if (q.createTimeEntry) { writes.push(['create', q.createTimeEntry.$]); return { code: 200, body: '{"createTimeEntry":{"createdTimeEntry":{"id":"te_new"}}}' }; }
+    return realFetch(url, opts); };
+
+  const wrongOpts = { notes: 'Changed from Webster in DB Crew — wrong job', wrongMove: true };
+  const r = sandbox.switchCode(ME, 'jr', 'r1', null, '', 'ph_s', wrongOpts);
+  const ups = writes.filter(w => w[0] === 'update').map(w => w[1]);
+  t('D30: the run on the wrong job today moves, each block in one write, oldest first — never the drive there or the job before',
+    ups.map(u => [u.id, u.jobId, u.costItemId]), [['te_h', 'jr', 'r8'], ['te_b', 'jr', 'r1'], ['te_open', 'jr', 'r1']]);
+  t('…each keeps its start and end (only job, line and notes are written), and nothing is closed or opened',
+    [ups.every(u => !('startedAt' in u) && !('endedAt' in u)), writes.filter(w => w[0] === 'create').length], [true, 0]);
+  t('…each block on the picked job\'s line with its own cost code (Hauling to Hauling), the open one on the code picked', ups.map(u => u.costItemId), ['r8', 'r1', 'r1']);
+  t('…the notes say where it was, appended after anything already there (an approval stays where it was)',
+    ups[0].notes, 'Approved by Neal Deitemeyer on the Production Board, Nov 5 9:12a. · Changed from 26-0890 260890 Webster_Foundation in DB Crew — wrong job: moved here with its hours (was 02ST-5 Hauling & Disposal).');
+  t('…in the words the board\'s time review reads, so it needs its manager\'s approval', /Changed from (.+?) in DB Crew — wrong job/.exec(ups[2].notes)[1], '26-0890 260890 Webster_Foundation');
+  const note = writes.find(w => w[0] === 'comment');
+  t('…and the right job\'s PM and the Ops Director are told how much moved', [note && note[1].targetId, note && /^⏱ Tyler B\. was on the clock at 26-0890 260890 Webster_Foundation by mistake — never there\. 3h \(3 blocks since \d+:\d\d[ap]\) moved here from DB Crew at \d+:\d\d[ap]\.$/.test(note[1].message)], ['jr', true]);
+  t('…and the phone hears what moved', [r.wrongMoved.blocks, r.wrongMoved.minutes, r.wrongMoved.from], [3, 180, '26-0890 260890 Webster_Foundation']);
+
+  // An older phone (no wrongMove): the plain switch, the hours left where they were.
+  writes.length = 0;
+  sandbox.switchCode(ME, 'jr', 'r1', null, '', 'ph_s', { notes: 'Changed from Webster in DB Crew — wrong job' });
+  t('…without wrongMove (an older phone) it is the plain switch it always was', [writes.filter(w => w[0] === 'update').length, writes.filter(w => w[0] === 'create').length], [1, 1]);
+  // A block from a day before is asked about first, never moved.
+  writes.length = 0;
+  const STALE = { ...OPEN, id: 'te_stale', startedAt: new Date(Date.now() - 30 * H).toISOString() };
+  openNow = STALE; DAY = [STALE];
+  t('…a block still open from a day before is not moved', [/^STALE_OPEN/.test(refusedBy(() => sandbox.switchCode(ME, 'jr', 'r1', null, '', 'ph_s', wrongOpts))), writes.filter(w => w[0] === 'update').length], [true, 0]);
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
 
@@ -1961,8 +2177,109 @@ t('…no snapshot yet (no phone registered for push): nothing is written', props
   const oPost = postR2('clockOut', [null, 'ph_end', kept(10)], 'rid-t238-0001');
   const oPost2 = postR2('clockOut', [null, 'ph_end', kept(10)], 'rid-t238-0001');
   t('…sent twice with one id it ends the block once, and the repeat gets the first answer', [oPost.ok, oPost2.ok, !!oPost2.repeat, closes.length], [true, true, true, 1]);
+
+  // ---- T2.41: a break taken with no signal, at the phone's time ----
+  // Carl (3 Nov 2026): "break taken with no signal count at the phone's time." The two
+  // entries a JobTread break leaves: the block ends when the break began, the next opens
+  // that moment plus its length (floored to the minute) on the same job and code.
+  reset(); openNow = entry('twb', ago(120), 'j9', 'ci1');
+  const at40 = Date.now() - 40 * 60e3;
+  const b1 = sandbox.startBreak(ME, null, 30, 'en', { queued: { at: at40, sentAt: Date.now() } });
+  const after = new Date(Date.now() - 40 * 60e3 + 30 * 60e3); after.setSeconds(0, 0);
+  t('T2.41: a break made with no signal ends the block when the break began, not when it arrived',
+    [closes[0].id, Math.abs(Date.parse(closes[0].endedAt) - at40) < 2000, /Started a break with no signal at \d+:\d\d[ap] — sent from DB Crew at \d+:\d\d[ap]\.$/.test(closes[0].notes)], ['twb', true, true]);
+  t('…and the next block opens on the same job and code, the break\'s length later (floored to the minute)',
+    [made.length, made[0].jobId, made[0].costItemId, made[0].startedAt, b1.breakEnd, b1.minutes], [1, 'j9', 'ci1', after.toISOString(), after.toISOString(), 30]);
+  t('…with its own note, so the board never reads it as typed in JobTread',
+    /^Back from a break started with no signal at \d+:\d\d[ap] — sent from DB Crew at \d+:\d\d[ap]\.$/.test(made[0].notes || ''), true);
+  t('…a break already over when it arrives leaves the clock running again, as it did by itself — no reminder kept', [isNaN(Date.parse(b1.open && b1.open.startedAt)) ? null : Date.parse(b1.open.startedAt) <= Date.now(), props['brk_u1'] || null], [true, null]);
+  reset(); openNow = entry('twb2', ago(30), 'j9', 'ci1');
+  const b2 = sandbox.startBreak(ME, null, 30, 'en', kept(5));
+  t('…still counting down when it arrives: on a break, with its reminders', [Date.parse(b2.open.startedAt) > Date.now(), !!props['brk_u1']], [true, true]);
+  reset(); openNow = entry('twb3', ago(10), 'j9', 'ci1');
+  t('…put on the clock after the break was made: refused, as data', refusal(() => sandbox.startBreak(ME, null, 15, 'en', kept(20)))[1], { why: 'since', at: openNow.startedAt });
+  reset();
+  t('…nothing on the clock any more: refused, as data', refusal(() => sandbox.startBreak(ME, null, 15, 'en', kept(20)))[1], { why: 'off' });
+  reset(); openNow = entry('twb4', ago(60), 'j9', 'ci1');
+  t('…and a break with signal is JobTread\'s own, as it always was', [(sandbox.startBreak(ME, null, 15, 'en'), closes[0].endNow && closes[0].endNow.breakDuration), made.length > 0 ? 'fallback' : 'endNow'], [15, 'fallback']);
+
+  // Back to work, kept.
+  reset(); day = [{ ...entry('tb0', ago(70), 'j9', 'ci1'), endedAt: ago(40) }];
+  openNow = entry('tplanB', new Date(Date.now() + 10 * 60e3).toISOString(), 'j9', 'ci1');
+  const at15 = Date.now() - 15 * 60e3;
+  const k1 = sandbox.endBreak(ME, 'j9', 'ci1', null, { queued: { at: at15, sentAt: Date.now() } });
+  t('T2.41: back to work early with no signal: the planned block goes, and one opens when they came back, said so',
+    [gone, made.length, Math.abs(Date.parse(made[0].startedAt) - at15) < 2000, /^Ended the break with no signal at \d+:\d\d[ap] — sent from DB Crew at \d+:\d\d[ap]\.$/.test(made[0].notes), !!k1.queued], [['tplanB'], 1, true, true, true]);
+  reset(); day = [{ ...entry('tb1', ago(70), 'j9', 'ci1'), endedAt: ago(45) }];
+  openNow = entry('tplanC', ago(15), 'j9', 'ci1');
+  const k2 = sandbox.endBreak(ME, 'j9', 'ci1', null, kept(5));
+  t('…back after the planned block began: the clock restarted by itself, nothing written', [k2.id, gone.length, made.length], ['tplanC', 0, 0]);
+  reset(); day = [];
+  openNow = entry('tother', ago(10), 'j1', 'ci5');
+  t('…a block that is not the one the break planned is never deleted: refused, as data', [refusal(() => sandbox.endBreak(ME, 'j9', 'ci1', null, kept(20)))[1].why, gone.length], ['since', 0]);
   fetchImpl = () => ({ code: 200, body: '{}' });
   function postR2(fn, args, rid) { return JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok', fn, args, rid }) } }).getContent()); }
+}
+
+// ---- audit D31: work held on a shared phone, released from the board ----
+// Carl (5 Nov 2026): Operations decides on the board — "Send it for Tyler" or
+// "Let it go" — and "sent clock times land at the time Tyler made them and go
+// on Time to approve for his manager." The board signs a "send" with
+// CREW_APP_SECRET; the write is made as its owner only when the signature
+// matches, it has not run out, and it is a kept clock change or one of the
+// other writes a release covers.
+{
+  const { createHmac } = await import('node:crypto');
+  // Apps Script's own enum, which the sandbox's Utilities did not carry.
+  sandbox.Utilities.Charset = sandbox.Utilities.Charset || { UTF_8: 'UTF-8' };
+  props = { WRITE_ENABLED: 'true', OAUTH_CLIENT_ID: 'cid', CREW_APP_SECRET: 'crew-s', BOARD_API_URL: 'https://board.test' };
+  cacheStore = {}; fetched = [];
+  const made = [], boardBodies = [];
+  const OWNER = 'owner.person@gmail.com';
+  const base = route({
+    member: (q) => {
+      const w = JSON.stringify(q.organization.memberships.$.where);
+      return w.indexOf('owner.person') > -1
+        ? { code: 200, body: JSON.stringify({ organization: { memberships: { nodes: [{ id: 'm9', role: { name: 'Crew' }, user: { id: 'u9', name: 'Owner Person' } }] } } }) }
+        : MEMBER_ME();
+    },
+    people: PEOPLE, jobs: JOBS,
+  });
+  fetchImpl = (url, opts) => {
+    if (url.indexOf('/api/crew/held') > -1) { boardBodies.push(JSON.parse(opts.payload)); return { code: 200, body: JSON.stringify({ releases: [{ id: 'rel1', owner: OWNER, action: 'send', by: 'Carl Bledsoe', exp: 1, sig: 'x' }] }) }; }
+    const q = paveOf(opts) || {};
+    if (q.createTimeEntry) { made.push(q.createTimeEntry.$); return { code: 200, body: '{"createTimeEntry":{"createdTimeEntry":{"id":"te_rel"}}}' }; }
+    return base(url, opts);
+  };
+  const exp = Date.now() + 14 * 86400e3;
+  const sigOf = (a) => createHmac('sha256', 'crew-s').update([a.release, a.phone, a.owner, 'send', a.by, String(a.exp)].join('|')).digest('hex');
+  const rel = { owner: OWNER, release: 'rel1', phone: 'ph_4f2a9c1d77', by: 'Carl Bledsoe', exp };
+  rel.sig = sigOf(rel);
+  const at = Date.now() - 3 * 3600e3;
+  const postA = (fn, args, actFor, rid) => JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok', fn, args, actFor, rid }) } }).getContent());
+  const r = postA('clockIn', ['j1', 'ci1', null, 'ph_s', { queued: { at, sentAt: Date.now() } }], rel, 'rid-rel-0001');
+  t('D31: a kept clock-in sent under a release is written as its owner, at the time they made it',
+    [r.ok, made.length, made[0] && made[0].userId, made[0] && Math.abs(Date.parse(made[0].startedAt) - at) < 2000], [true, 1, 'u9', true]);
+  t('…and its note says whose it was and who released it, for the board\'s time review',
+    /^Clocked in with no signal at \d+:\d\d[ap] — sent from DB Crew at \d+:\d\d[ap]\. Sent for Owner Person from another person’s phone — released by Carl Bledsoe on the Production Board\.$/.test((made[0] && made[0].notes) || ''), true);
+  t('…its request id is the owner\'s: sent again, it is not written twice',
+    [postA('clockIn', ['j1', 'ci1', null, 'ph_s', { queued: { at, sentAt: Date.now() } }], rel, 'rid-rel-0001').repeat, made.length], [true, 1]);
+  const bad = (a, fn, args) => { const x = postA(fn || 'clockIn', args || ['j1', 'ci1', null, 'ph_s', { queued: { at, sentAt: Date.now() } }], a); return [x.ok, String(x.error || '').slice(0, 9)]; };
+  t('…a release the board did not sign is refused, and nothing is written', [bad({ ...rel, sig: rel.sig.replace(/^./, (c) => c === 'a' ? 'b' : 'a') }), made.length], [[false, 'RELEASE: '], 1]);
+  t('…one signed for somebody else is refused', bad({ ...rel, owner: 'someone.else@gmail.com' }), [false, 'RELEASE: ']);
+  t('…one that has run out is refused', bad({ ...rel, exp: Date.now() - 1000, sig: sigOf({ ...rel, exp: Date.now() - 1000 }) }), [false, 'RELEASE: ']);
+  t('…a clock change that is not a kept one is refused (it would land when it was sent)', bad(rel, 'clockIn', ['j1', 'ci1', null, 'ph_s']), [false, 'RELEASE: ']);
+  t('…and a read is not something a release sends', bad(rel, 'getMyJobs', []), [false, 'RELEASE: ']);
+  t('…nor anything for the person signed in themselves', bad({ ...rel, owner: 't@deitemeyerbrothers.com', sig: sigOf({ ...rel, owner: 't@deitemeyerbrothers.com' }) }), [false, 'RELEASE: ']);
+  // The report: forwarded to the board with who is signed in, the decisions back.
+  const rep = postA('reportHeld', ['ph_4f2a9c1d77', [{ email: OWNER, name: 'Owner Person', items: [{ kind: 'clock', what: '7:02a clock-in', at }] }], { rel0: 'Sent 2 clock changes' }]);
+  t('D31: what the phone holds goes to the board with who is signed in on it, and the decisions come back',
+    [rep.ok, boardBodies[0] && boardBodies[0].phone, boardBodies[0] && boardBodies[0].reporter.email, boardBodies[0] && boardBodies[0].owners.length, boardBodies[0] && boardBodies[0].outcomes.rel0, rep.data.releases.length],
+    [true, 'ph_4f2a9c1d77', 't@deitemeyerbrothers.com', 1, 'Sent 2 clock changes', 1]);
+  t('D31: the signature is the board\'s own (lib/held.test.ts pins the same hex)',
+    sandbox.releaseSig_({ release: 'rel1', phone: 'ph_4f2a9c1d77', owner: 'Tyler@gmail.com', by: 'Carl Bledsoe', exp: 1794067200000 }),
+    '535f79fb97a680b3ec868c189dbef3a4901c26a3688177c98cad7e03dbbd5fc4');
+  fetchImpl = () => ({ code: 200, body: '{}' });
 }
 
 // ---- T2.33: nothing ends a block from a day before but the time they left ----

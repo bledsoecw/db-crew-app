@@ -1621,6 +1621,51 @@ construction area (the job reads as before), and the board — the half that
 starts putting reps on inspections — goes out once DB CheckOut lists them as
 notes and photos and the phones no longer ask a rep to clock in for one.
 
+**The rest of Step 3** (T2.41, 5 Nov 2026), on Carl's answers of 3 and 5 Nov:
+
+- **A year's sign-in** (audit D39; *"1 year"*). The 30-day session renews
+  itself for up to a year from the last Google sign-in, and every renewal
+  re-checks the allow-list and DB Hub, so DB Hub's `Off` still takes somebody
+  off within 30 days. At the year the gate says why it is asking again. Four
+  old functions that answered anyone who could sign in are gone from the API.
+- **A drive to a job with no travel line** (audit D28; *"if no travel line,
+  create one for the job and the drive goes on it"*). Leaving for a job, or
+  Already left with a job to go to, makes the job's **Travel Related Labor**
+  line in its CLOCK IN ITEMS group (code 01GR-9, as the template has it) when
+  the job has none, and the drive goes on it. The shop never gets one.
+- **Wrong job moves the hours too** (audit D30; *"move the hours already
+  clocked to the right job and tell the PM"*). Today's blocks on the wrong job
+  move to the right one, each where it was, with a note on each (*Changed from
+  … in DB Crew — wrong job: moved here with its hours*), and the PM is told.
+  The toast says how much moved.
+- **A break taken with no signal** (Carl: *"break taken with no signal count
+  at the phone's time"*). Kept like every other clock change: the block ends
+  when the break began, the next opens when it ends, and End break early with
+  no signal is kept too — all sent in order when there's signal. Started
+  earlier and Already left still wait for signal.
+- **What the tech found, and the warranty** (audit I15). On a service call's
+  repair: **What I found** (optional, said or typed) and **Covered by
+  warranty?** — Yes, No or Ask the office — which Done needs. *Can't finish
+  today* reads **Needs a return visit** there, with *Parts needed* and
+  *Customer not available*. A Yes or an Ask the office goes to the job's sales
+  manager on the Production Board's **Warranty to decide** (roofing: Shawn
+  Deitemeyer; construction: Carl Bledsoe), who decides it once.
+- **Work held on a shared phone** (audit D31; Carl: *"the Waiting card offers
+  'Send it for Tyler' or 'Let it go'. Sent clock times land at the time Tyler
+  made them and go on Time to approve for his manager"*). The phone tells the
+  board what it keeps for whom; Operations decides on the board (Operations →
+  **Held on phones**), and the phone carries it out the next time it is
+  opened: a send goes as that person, at their times, noted as released by
+  Operations; a let-go takes it off the phone.
+
+`dev/t241-test.mjs` walks all of it on the phone; `apps-script/code-test.mjs`
+the API's half. **Deploys**: DB CheckOut first (contract 6), then the Apps
+Script (`clasp push -f` then `clasp deploy`) and the phones, then the board.
+Each step is safe on its own: an older phone never sends the new fields, an
+older DB CheckOut ignores the warranty answer, and the phone asks for nothing
+the API before T2.41 cannot do (the break, the travel line and the report all
+wait on its build).
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

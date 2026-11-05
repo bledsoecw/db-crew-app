@@ -330,14 +330,17 @@ const allErrs = [];
   check('one repair: what to do, the after photo required, Terminado off', await page.evaluate(() => [document.querySelector('#coBody .rvstory .rt').textContent.slice(0, 12), document.querySelectorAll('.phbig.empty').length, document.getElementById('coDone').disabled]), ['ES: Rear slo', 2, true]);
   check('…not the last open repair, so the button is plain Terminado', await txt(page, '#coDone'), 'Terminado');
   // T2.27: the before photo and a note are required as well as the after.
-  check('…the before photo is required too, and Terminado says what is missing', [await page.locator('.phbig.need').count(), await txt(page, '#coDone + .foot')], [2, 'Falta: foto de antes · foto de después · una nota']);
+  check('…the before photo is required too, and Terminado says what is missing', [await page.locator('.phbig.need').count(), await txt(page, '#coDone + .foot')], [2, 'Falta: foto de antes · foto de después · una nota · di si la garantía lo cubre']);
   await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-okafor').before.pt1, null, { timeout: 10000 });
   await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-okafor').after.pt1, null, { timeout: 10000 });
   check('both photos, no note yet: still off', await page.evaluate(() => [document.querySelectorAll('.phbig.empty').length, document.getElementById('coDone').disabled]), [0, true]);
   check('More photos: the camera and the phone\'s own photos', await page.locator('#coBody [data-cophoto*="more"], #coBody [data-cogallery*="more"]').count(), 2);
   await addPhoto(page, '#coBody [data-cophoto*="more"]'); await page.waitForFunction(() => (coVisit('co-okafor').repairMore.pt1 || []).length === 1, null, { timeout: 10000 });
   await page.locator('#coRepairNote').fill('Bota nueva y sellada');
-  check('…the note unlocks Terminado', await page.evaluate(() => document.getElementById('coDone').disabled), false);
+  // Okafor is a service call: since T2.41 (audit I15) the warranty answer is required too.
+  check('…the note is in; on a service call Terminado still waits on the warranty answer', await page.evaluate(() => document.getElementById('coDone').disabled), true);
+  await tap(page, '[data-cowarr="no"]', 400);
+  check('…answered, Terminado unlocks', await page.evaluate(() => document.getElementById('coDone').disabled), false);
   await tap(page, '#coDone', 2500);
   const done = (await calls(page)).filter((c) => c.fn === 'coPhoto' || c.fn === 'coComplete');
   check('the before and after go on the task, then the completion with the note in English and as said', done.map((c) => c.fn === 'coPhoto' ? [c.fn, c.photo.label, c.photo.taskId] : [c.fn, c.taskId, c.note]),
@@ -352,6 +355,7 @@ const allErrs = [];
   await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-okafor').before.pt2, null, { timeout: 10000 });
   await addPhoto(page, '.phbig.need'); await page.waitForFunction(() => !!coVisit('co-okafor').after.pt2, null, { timeout: 10000 });
   await page.locator('#coRepairNote').fill('Downspout reconnected'); await page.locator('#coRepairNote').blur(); await page.waitForTimeout(600);
+  await tap(page, '[data-cowarr="no"]', 400);
   check('the last open repair: the button says it sends the job to the PM', [await txt(page, '#coDone'), (await txt(page, '#coDone + .foot')).startsWith('Es la última reparación del trabajo.')], ['Terminar y mandar al PM', true]);
   await tap(page, '#coDone', 2500);
   check('…and once the server moves the job, the list says so, with the time', await page.evaluate(() => [CO.screen, !!document.getElementById('coRepairsSent'), document.querySelector('#coRepairsSent .sl').textContent, document.querySelector('#coRepairsSent .ss').textContent]),
@@ -447,6 +451,7 @@ const allErrs = [];
   await pickFrom(page, '#coBody .phrow2 [data-cogallery]', [JPEG]);
   check('a BEFORE photo with no date is fine — it shows the problem, not the fix', await page.evaluate(() => [!!coVisit('co-okafor').before.pt1, coVisit('co-okafor').before.pt1.takenAt]), [true, null]);
   await page.locator('#coRepairNote').fill('Sealed'); await page.locator('#coRepairNote').blur(); await page.waitForTimeout(600);
+  await tap(page, '[data-cowarr="no"]', 400);
   await tap(page, '#coDone', 2500);
   const sent = (await calls(page)).filter((c) => c.fn === 'coPhoto').map((c) => [c.photo.label, c.photo.source, c.photo.takenAt || null]);
   check('both go to the repair marked as from the phone, the after with its time', sent, [['BEFORE', 'phone', null], ['AFTER', 'phone', taken]]);

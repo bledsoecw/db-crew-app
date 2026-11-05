@@ -197,6 +197,24 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   await ctx.close();
 }
 
+// ---- audit D30: Wrong job moves the hours already on it today, and says so ----
+{
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;');
+  await tap(page, '.tab[data-tab="jobs"]', 900);
+  await tap(page, '.jcard:has-text("Lucas") [data-go]', 600);
+  check('D30: the choice says the hours move too, and the PM is told', (await page.locator('#sheetBody [data-move="wrong"] .ss').textContent()).trim(), 'The clock and today’s hours there move to Lucas · your PM is told');
+  await tap(page, '[data-move="wrong"]', 600);
+  await tap(page, '.coderow:has-text("Final Clean")', 500);
+  await shoot(page); await settle(page);
+  const c = (await calls(page)).slice(-1)[0];
+  check('…one switch, carrying the move', [c[0], c[1], c[2], c[5], c[6]], ['switchCode', 'j2', 'ci5', 'Changed from Noah Webster in DB Crew — wrong job', true]);
+  const moved = await page.evaluate(() => window.__WRONG_MOVED);
+  check('…the 90 minutes at Webster moved to Lucas, and the clock runs on there', [moved.to, moved.blocks, moved.minutes >= 89 && moved.minutes <= 91, await page.evaluate(() => [S.open.job.id, S.job.id])], ['j2', 1, true, ['j2', 'j2']]);
+  check('…and the phone says how much moved, and who was told', /^1h 3\dm moved to Lucas · your PM and the Ops Director are told$/.test(await txt(page, '#toast span')), true);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+
 // ---- Go here instead, then Driving there · back here later: the drive, no photo, no log ----
 {
   const { ctx, page, errs } = await boot();
@@ -556,18 +574,33 @@ for (const [away, words] of [['far', 'Not at the shop or the office · your PM a
   await ctx.close();
 }
 {
-  // A job with no travel line: the drive asks which of its lines to drive on.
+  // A job with no travel line (audit D28): the drive asks nothing — the line is
+  // made for the job and the drive goes on it (Carl, 5 Nov 2026).
   const { ctx, page, errs } = await boot('window.__MOCK_KEEP_CLOCK=true;window.__MOCK_NOTRAVEL=true;');
   await tap(page, '#clockIn', 400); await tap(page, '.coderow:has-text("Masonry Labor")', 600); await shoot(page); await settle(page);
   await tap(page, '#leaveBtn', 300); await tap(page, '[data-leave="later"]', 500); await until(page, () => S.sheet === 'dest');
   await tap(page, '#destOther', 500);
   check('Another job is the job search', [await page.evaluate(() => [S.sheet, S.travelPick])], [['jobs', true]]);
-  await tap(page, '.jobrow[data-job="j2"]', 600);
-  check('no travel line there: its own lines, asked', [await txt(page, '#sheetTitle'), await page.locator('[data-tcode]').count() > 0], ['No travel line at Lucas', true]);
-  await tap(page, '[data-tcode="ci2"]', 300); await settle(page);
+  await tap(page, '.jobrow[data-job="j2"]', 600); await settle(page);
   const c = (await calls(page)).slice(-1)[0];
-  check('…and the drive goes on the line picked — still a drive, by its notes', [c[0], c[1], c[2], c[4], await page.evaluate(() => [S.job.id, onTravel()])], ['startTravel', 'j2', 'ci2', 'Drive to 26-1045 Lucas · from 26-0890 Noah Webster', ['j2', true]]);
+  check('D28: no travel line there — nothing is asked, the phone names the line to be made', [await page.locator('[data-tcode]').count(), c[0], c[1], c[2], c[4]], [0, 'startTravel', 'j2', 'travel:new', 'Drive to 26-1045 Lucas · from 26-0890 Noah Webster']);
+  check('…the line is made on that job, and the drive is on it', [await page.evaluate(() => window.__MADE_TRAVEL), await page.evaluate(() => [S.open.code.name, S.job.id, onTravel()])], [['j2'], ['Travel Related Labor', 'j2', true]]);
   check('…so it shows the arrival, not the four buttons', [await page.locator('#travelStack').isVisible(), await page.locator('#runStack').isVisible()], [true, false]);
+  check('no page errors', errs, []);
+  await ctx.close();
+}
+{
+  // Already left straight to a job with no travel line (audit D28): the drive
+  // from leaving until now is paid on the line made for it.
+  const { ctx, page, errs } = await boot('window.__MOCK_OPEN_AGO=90;window.__MOCK_NOTRAVEL=true;');
+  const plan = await page.evaluate(() => {
+    S.switching = { leftAt: new Date(Date.now() - 20 * 60e3).toISOString() }; S.pendingJob = (S.jobs || []).filter(j => j.id === 'j2')[0] || { id: 'j2', name: 'Lucas', number: '26-1045' };
+    S.gateCode = S.codes.filter(c => /Masonry/.test(c.name))[0];
+    return new Promise((res) => { const orig = window.apiCall; window.apiCall = function (fn, args, co) { if (fn === 'leftSite') { window.apiCall = orig; res(args[2]); } return orig.apply(this, arguments); }; commitStart(null, { id: 'ph_s' }); });
+  });
+  check('D28: Already left to a job with no travel line names the line to be made for the drive', [plan.kind, plan.jobId, plan.travelItemId], ['work', 'j2', 'travel:new']);
+  await settle(page);
+  check('…and the drive went on it, from when they left', await page.evaluate(() => (window.__MADE_TRAVEL || []).slice()), ['j2']);
   check('no page errors', errs, []);
   await ctx.close();
 }

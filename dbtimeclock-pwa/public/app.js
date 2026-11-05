@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.40 (2026-11-04)';
+var APP_BUILD = 'T2.41 (2026-11-05)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -116,7 +116,15 @@ function sessionWords(){
   if (!AUTH.token) return 'none';
   var left = AUTH.exp - Date.now() / 1000, p = jwtPayload(AUTH.token);
   return (authIsSession() ? 'app session' : 'Google token (not traded yet)') + ' · ' + (p.email || '?') + ' · ' +
-         (left > 86400 ? Math.floor(left / 86400) + ' days left' : left > 0 ? Math.round(left / 60) + ' min left' : 'expired');
+         (left > 86400 ? Math.floor(left / 86400) + ' days left' : left > 0 ? Math.round(left / 60) + ' min left' : 'expired') +
+         // The year since the Google sign-in (audit D39): when Google is asked again.
+         (p.cap ? ' · Google again by ' + new Date(p.cap * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
+}
+/* A session that has reached the year since its Google sign-in (audit D39)
+   cannot be renewed any further: asking again only mints the same end. */
+function sessionAtCap(){
+  var p = jwtPayload(AUTH.token);
+  return p.iss === 'dbtc-session' && !!p.cap && (Number(p.exp) || 0) >= Number(p.cap) - 60;
 }
 
 /* ---- signing in (T2.8, Carl 7 Oct 2026) ----
@@ -188,7 +196,7 @@ function ensureSession(force){
   if (!AUTH.token) return Promise.resolve();
   if (SESSION_RENEW.p) return SESSION_RENEW.p;
   var daysLeft = (AUTH.exp - Date.now() / 1000) / 86400;
-  if (authIsSession() && daysLeft > 23) return Promise.resolve();
+  if (authIsSession() && (daysLeft > 23 || sessionAtCap())) return Promise.resolve();
   if (!force && Date.now() - SESSION_RENEW.at < 60000) return Promise.resolve();
   SESSION_RENEW.at = Date.now();
   clearTimeout(SESSION_RENEW.timer);
@@ -260,6 +268,10 @@ function authRefused(j){
           'Pick your Deitemeyer Brothers account — or ask the office to add this one.';
   } else if (j && j.authWhy === 'google-check'){
     msg = 'Google didn’t answer the sign-in check — tap the button to try again.';
+  } else if (j && j.authWhy === 'signin-age'){
+    // A year since the last Google sign-in (audit D39): nothing is wrong, and
+    // nothing waiting to send is lost; Google is simply asked again.
+    msg = 'It’s been a year since you signed in with Google. Sign in again to keep using DB Crew — nothing you saved is lost.';
   }
   requireSignIn(msg);
 }
@@ -323,7 +335,7 @@ function apiAttempt(fn, args, attempt, co){
   var opts = {
     method:'POST',
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },  // avoids the CORS preflight Apps Script can't answer
-    body: JSON.stringify({ t: sentTok, fn: fn, args: args || [], partner: co.partner ? true : undefined, rid: co.rid || undefined })
+    body: JSON.stringify({ t: sentTok, fn: fn, args: args || [], partner: co.partner ? true : undefined, rid: co.rid || undefined, actFor: co.actFor || undefined })
   };
   if (ctl) opts.signal = ctl.signal;
 
@@ -663,6 +675,13 @@ function codeLabel(c){ return c ? ((c.number ? c.number + ' ' : '') + (c.name||'
 /* The job's Travel Related Labor line (01GR-9, in CLOCK IN ITEMS): the API
    says so on the code list (`travel`), and a running entry by its name. */
 function isTravelCode(c){ return !!c && (c.travel === true || (c.travel == null && /travel/i.test(c.name || ''))); }
+/* A job with no travel line (audit D28, Carl 5 Nov 2026: "if no travel line,
+   create one for the job and the drive goes on it"): the phone names the
+   line the API makes, and the API answers with the real one. 16 of 1,587
+   open jobs had one that day, so this is most drives. */
+var TRAVEL_NEW = 'travel:new';
+function travelNewCode(){ return { id: TRAVEL_NEW, name: 'Travel Related Labor', number: '01GR-9', codeName: 'Travel Related Costs', travel: true }; }
+function isShopId(id){ return !!(S.shop && id && S.shop.id === id); }
 /* Lowercases the name but keeps the code number intact, for mid-sentence use:
    "04MA masonry labor". */
 function codeInline(c){ return c ? ((c.number ? c.number + ' ' : '') + String(c.name||'').toLowerCase()) : ''; }
@@ -1671,7 +1690,7 @@ function pushWords(){
    (T2.34): an N/A goes with its reason and every line says who answered
    it, a camera photo is filed under the time it was taken, and GET
    /assigned answers the hourly Close Out push. */
-var CO_CONTRACT_NEED = 5;   /* 4 (T2.35, audit I10): Can't finish today, and a repair says why it waits. 5 (T2.40, audit I13 step 2): a construction job's final inspection is one notes-and-photos area */
+var CO_CONTRACT_NEED = 6;   /* 4 (T2.35, audit I10): Can't finish today, and a repair says why it waits. 5 (T2.40, audit I13 step 2): a construction job's final inspection is one notes-and-photos area. 6 (T2.41, audit I15): a service call's repair carries what was found and the warranty answer */
 function buildNum(b){ var m = /T(\d+)\.(\d+)/.exec(String(b || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
 function loadBuilds(){
   if (!S.me || !API_URL || !S.online) return Promise.resolve();
@@ -1871,6 +1890,8 @@ function wipePhoneState(){
   var keepQ = clockQ.filter(function(it){ return !cqMine(it); }), keepRid = cqNotMineRids();
   var me = myEmail(), theirs = function(v){ var o = ownOf(v); return !!o && !!me && o !== me; };
   var heldJson = Object.keys(held).length ? JSON.stringify(held) : '';
+  // The phone's own id and what it last told the board (T2.41, audit D31) are the phone's, not the person's.
+  var keepPhone = {}; try { ['dbtc_phone', 'dbtc_relrep'].forEach(function(k){ var v = localStorage.getItem(k); if (v != null) keepPhone[k] = v; }); } catch(e){}
   authClear();
   try {
     var keys = [];
@@ -1881,6 +1902,7 @@ function wipePhoneState(){
     if (keepQ.length) localStorage.setItem(CQ_KEY, JSON.stringify(keepQ));
   } catch(e){}
   if (heldJson) storeSet(HELD_KEY, heldJson);
+  for (var pk in keepPhone) storeSet(pk, keepPhone[pk], true);
   return idb().then(function(db){
     var coPhotos = {};
     var sweep = function(st, keep){
@@ -4165,7 +4187,7 @@ function moveHowHtml(){
       : row('data-move="drive-later"', L('Driving there · back here later'), L('The drive · no photo — you’re coming back'), 'truck') +
         row('data-move="drive"', L('Driving there · done here today'), L(logRequired() ? 'Today’s log, the end photo, then the drive' : 'End photo, then the drive'), 'camera')) +
     (cqPending() ? '' : row('data-move="left"', Lf('Already there — I left {p} at…', { p: here }), L('Say when · no photo · your PM and the Ops Director are told'), 'chev')) +
-    row('data-move="wrong"', Lf('Wrong job — I was never at {p}', { p: here }), L('The clock moves here now'), 'chev') +
+    row('data-move="wrong"', Lf('Wrong job — I was never at {p}', { p: here }), Lf('The clock and today’s hours there move to {p} · your PM is told', { p: there }), 'chev') +
   '</div>';
 }
 /* Tell the PM (T2.27, Carl 29 Oct 2026): "I want the 'Tell the pm button'
@@ -4868,7 +4890,7 @@ function ownRestore(me){
 }
 /* What the phone kept for the person signed out goes, the way Sign out takes
    it, except the sign-in just made and the work waiting for anyone. */
-var OWN_KEEP_KEYS = { dbtc_auth: 1, dbtc_held: 1, dbtc_clockq: 1, dbtc_co_seq: 1, dbtc_qretry: 1 };
+var OWN_KEEP_KEYS = { dbtc_auth: 1, dbtc_held: 1, dbtc_clockq: 1, dbtc_co_seq: 1, dbtc_qretry: 1, dbtc_phone: 1, dbtc_relrep: 1 };
 function ownWipeKept(){
   S.whereReady = false;
   try {
@@ -4930,6 +4952,231 @@ function ownOthersWords(){
     return name + '’s unsent work stays on this phone and goes when they sign in.';
   });
 }
+/* =========================================================
+   WORK HELD FOR SOMEBODY ELSE, RELEASED FROM THE BOARD (T2.41, audit D31)
+   What this phone keeps for another person (T2.37) waits until they sign in
+   on it again — for ever, if they never do. Carl (5 Nov 2026): Operations
+   decides on the Production Board, "Send it for Tyler" or "Let it go", and
+   "sent clock times land at the time Tyler made them and go on Time to
+   approve for his manager." So the phone tells the board what it holds and
+   for whom (reportHeld, through the Apps Script), at launch and coming back
+   to the front, and carries out the decisions that come back:
+   - let go: the person's work comes off the phone, all of it;
+   - send: their kept clock changes go first, in the order they made them,
+     each at its own moment and as theirs (the Apps Script checks the board's
+     signature before it writes as anybody else); then their Close Out sends,
+     site checks, pre-start lists and roll-out notices, and the photo pump
+     sends their photos. Drafts — a day log or an inspection never sent — are
+     not sent; only let go.
+   A clock change JobTread refuses is said in the words that go back to the
+   board; one that cannot go yet (no answer, or their block from a day before
+   still open) waits for the next open, and nothing behind it goes first.
+   ========================================================= */
+var PHONE_KEY = 'dbtc_phone', REL_KEY = 'dbtc_relrep', REL_BOOT_MS = window.__REL_BOOT_MS || 4000, REL_EVERY_MS = 10 * 60000;
+var REL = { busy: false, at: 0, sends: {} };
+function phoneId(){
+  var id = ''; try { id = localStorage.getItem(PHONE_KEY) || ''; } catch(e){}
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)){ id = 'ph_' + uid() + uid().slice(1, 7); storeSet(PHONE_KEY, id, true); }
+  return id;
+}
+/* A send for this person is under way on this phone: their photos may go. */
+function relSends(owner){ return !!(owner && REL.sends[owner]); }
+function relKindWord(it){
+  var k = cqKind(it);
+  return k === 'out' ? 'clock-out' : k === 'travel' ? 'drive' : k === 'code' ? 'code change' : k === 'arrive' ? 'arrival'
+       : k === 'break' ? 'break' : k === 'back' ? 'end of a break' : 'clock-in';
+}
+/* What this phone holds for each other person, in the board's words (the board is English). */
+function relSummary(){
+  var me = myEmail(), by = {}, order = [];
+  var add = function(o, name, kind, what, at){
+    o = String(o || '').toLowerCase(); if (!o || o === me) return;
+    var b = by[o]; if (!b){ b = by[o] = { email: o, name: '', items: [] }; order.push(o); }
+    if (!b.name && name) b.name = name;
+    b.items.push({ kind: kind, what: String(what || kind).slice(0, 160), at: Number(at) || null });
+  };
+  clockQ.forEach(function(x){ if (!x.refused && !cqMine(x)) add(x.owner, x.ownerName, 'clock', clockLabel(x.at) + ' ' + relKindWord(x) + (x.job && x.job.number ? ' · ' + x.job.number : ''), x.at); });
+  (S.qOthers || []).forEach(function(x){ add(x.owner, x.ownerName, 'photo', photoWhat(x), x.at); });
+  ((window.CO && CO.others) || []).forEach(function(it){ if (it.status !== 'rejected') add(ownOf(it), it.ownerName, 'closeout', 'Close Out · ' + (it.label || it.kind), it.at); });
+  Object.keys(held).forEach(function(o){
+    var h = held[o] || {}, name = h.name || '';
+    Object.keys(h.ck || {}).forEach(function(k){ add(o, name, 'checks', 'site checks · ' + ((h.ck[k] && h.ck[k].jobLabel) || k), h.ck[k] && h.ck[k].at); });
+    Object.keys(h.pr || {}).forEach(function(k){ add(o, name, 'prestart', 'pre-start · ' + ((h.pr[k] && h.pr[k].jobLabel) || k), h.pr[k] && h.pr[k].at); });
+    Object.keys(h.roll || {}).forEach(function(k){
+      var p = ownRollPending(h.roll[k]);
+      if (p.length) p.forEach(function(kind){ add(o, name, 'rollout', (kind === 'daily' ? 'shop checks' : 'roll-out notice') + ' · ' + k, null); });
+      else add(o, name, 'draft', 'roll-out notes · ' + k, null);
+    });
+    Object.keys(h.dl || {}).forEach(function(k){ add(o, name, 'draft', 'day log · ' + k, null); });
+    Object.keys(h.co || {}).forEach(function(k){ add(o, name, 'draft', 'Close Out in progress · ' + k, null); });
+  });
+  return order.map(function(o){ var b = by[o]; if (!b.name) b.name = ownName(o); return b; });
+}
+function relSig(owners){ return JSON.stringify(owners.map(function(o){ return [o.email, o.items.length]; })); }
+/* Say what is held. Quiet when nothing is and nothing was; at most every ten
+   minutes when nothing changed. `noApply`: the report that follows carrying
+   decisions out, whose answer is not acted on again in the same breath. */
+function relReport(force, outcomes, noApply){
+  if (REL.busy || !S.me || !S.online || !API_URL || OWN.frozen || !apiAtLeast(2041)) return Promise.resolve();
+  REL.busy = true;
+  return Promise.all([idbAll().then(qKeep).catch(function(){}), coRefreshOutbox().catch(function(){})]).then(function(){
+    var owners = relSummary(), sig = relSig(owners), prev = '';
+    try { prev = localStorage.getItem(REL_KEY) || ''; } catch(e){}
+    if (!force && !owners.length && (!prev || prev === '[]')){ REL.busy = false; return; }
+    if (!force && sig === prev && Date.now() - REL.at < REL_EVERY_MS){ REL.busy = false; return; }
+    REL.at = Date.now();
+    return apiCall('reportHeld', [phoneId(), owners, outcomes || {}], { lane: 'reads', timeout: 30000 }).then(function(r){
+      storeSet(REL_KEY, sig, true);
+      REL.busy = false;
+      var rels = ((r && r.releases) || []).filter(function(x){ return x && x.owner && (x.action === 'drop' || (x.action === 'send' && x.sig)); });
+      if (rels.length && !noApply) return relApply(rels);
+    }, function(){ REL.busy = false; });
+  });
+}
+function relApply(rels){
+  var outcomes = {};
+  return rels.reduce(function(chain, rel){
+    return chain.then(function(){
+      var o = String(rel.owner).toLowerCase(), who = String(rel.ownerName || ownName(o)).split(/\s+/)[0];
+      if (o === myEmail()) return;
+      if (rel.action === 'drop') return relDrop(o).then(function(words){
+        outcomes[rel.id] = words; delete REL.sends[o];
+        toast(Lf('Operations let {name}’s unsent work go from this phone', { name: who }));
+      });
+      REL.sends[o] = rel;
+      return relSend(o, rel).then(function(words){
+        outcomes[rel.id] = words;
+        toast(Lf('Operations sent {name}’s work from this phone', { name: who }));
+      });
+    });
+  }, Promise.resolve()).then(function(){
+    render();
+    if (S.sheet === 'waiting') openSheet('waiting');
+    return relReport(true, outcomes, true);
+  });
+}
+function relWords(verb, n){
+  var parts = [];
+  if (n.clock) parts.push(n.clock + ' clock change' + (n.clock > 1 ? 's' : ''));
+  if (n.closeout) parts.push(n.closeout + ' Close Out send' + (n.closeout > 1 ? 's' : ''));
+  if (n.lists) parts.push(n.lists + ' list' + (n.lists > 1 ? 's' : '') + ' and notice' + (n.lists > 1 ? 's' : ''));
+  if (n.photo) parts.push(n.photo + ' photo' + (n.photo > 1 ? 's' : ''));
+  if (n.other) parts.push(n.other + ' other thing' + (n.other > 1 ? 's' : ''));
+  var out = parts.length ? verb + ' ' + parts.join(', ') : verb + ' nothing yet';
+  if (n.refused && n.refused.length) out += '. Refused: ' + n.refused.slice(0, 3).join('; ');
+  if (n.waiting) out += '. Still waiting: ' + n.waiting;
+  return out.slice(0, 400);
+}
+/* Let go: everything this phone keeps for `o` comes off it. */
+function relDrop(o){
+  var n = { clock: 0, photo: 0, closeout: 0, other: 0 };
+  clockQ = clockQ.filter(function(it){ if (!cqMine(it) && ownOf(it) === o){ n.clock++; return false; } return true; });
+  cqPersist();
+  if (held[o]){ n.other += ownHeldCount(o); delete held[o]; heldPersist(); }
+  return idbAll().then(function(items){
+    return Promise.all(items.filter(function(x){ return !ownMine(x) && ownOf(x) === o; }).map(function(x){ n.photo++; return idbDel(x.id); }));
+  }).then(coObAll).then(function(items){
+    return Promise.all(items.filter(function(x){ return !ownMine(x) && ownOf(x) === o; }).map(function(x){ n.closeout++; return coObDel(x.id); }));
+  }).then(function(){ return Promise.all([idbAll().then(qKeep), coRefreshOutbox()]); }).catch(function(){}).then(function(){
+    return relWords('Let go', n);
+  });
+}
+/* Send: their clock changes in order, as theirs; then the rest. */
+function relSend(o, rel){
+  var act = { owner: o, release: rel.id, phone: phoneId(), by: rel.by, exp: rel.exp, sig: rel.sig };
+  var n = { clock: 0, closeout: 0, lists: 0, photo: 0, refused: [], waiting: '' }, stop = false;
+  var refusedWhy = function(e){ return String((e && e.message) || e || '').replace(/^[A-Z_]+:\s*/, '').slice(0, 120); };
+  var chain = clockQ.filter(function(it){ return !it.refused && !cqMine(it) && ownOf(it) === o; });
+  return chain.reduce(function(p, it){
+    return p.then(function(){
+      if (stop) return;
+      var opts = {}; for (var k in (it.opts || {})) opts[k] = it.opts[k];
+      opts.queued = { at: it.at, sentAt: Date.now() };
+      var co = { rid: it.rid, actFor: act, beforeSend: function(){ opts.queued.sentAt = Date.now(); } };
+      return cqCall(it, opts, co).then(function(r){
+        clockQ = clockQ.filter(function(x){ return x.rid !== it.rid; }); cqPersist();
+        var open = it.kind === 'out' ? null : it.kind === 'break' ? ((r && r.open) || null) : r;
+        CQ_DONE[it.rid] = { id: open && open.id ? open.id : '', code: open ? open.code : null };
+        cqReleasePhoto(it.rid, open);
+        n.clock++;
+      }, function(e){
+        var msg = String((e && e.message) || e || '');
+        // Refused for good: said to the board, and off the phone. No answer, the
+        // API busy, a JobTread hiccup, or their block from a day before still
+        // open: it waits for the next open, and nothing behind it goes first.
+        if (e && e.answered && !e.busy && !e.stale && !/^Pave|^RELEASE/.test(msg)){
+          clockQ = clockQ.filter(function(x){ return x.rid !== it.rid; }); cqPersist();
+          n.refused.push(clockLabel(it.at) + ' ' + relKindWord(it) + ' — ' + refusedWhy(e));
+        } else { stop = true; n.waiting = (e && e.stale) ? 'their clock from a day before is still open in JobTread — end it there' : (msg.slice(0, 120) || 'no answer'); }
+      });
+    });
+  }, Promise.resolve()).then(function(){
+    if (stop) return;
+    // Close Out sends, as theirs, in the order they were made.
+    return coObAll().then(function(items){
+      var mine = items.filter(function(x){ return !ownMine(x) && ownOf(x) === o && x.status !== 'rejected'; }).sort(function(a, b){ return (a.seq || 0) - (b.seq || 0); });
+      return mine.reduce(function(p, it){
+        return p.then(function(){
+          if (stop) return;
+          return coSendItemNow(it, act).then(function(res){
+            if (res.done){ n.closeout++; return coObDel(it.id); }
+            if (res.reject){ n.refused.push('Close Out ' + (it.label || it.kind) + ' — ' + String(res.err || '').slice(0, 120)); return coObDel(it.id); }
+            stop = true; n.waiting = String(res.err || 'no answer').slice(0, 120);
+          });
+        });
+      }, Promise.resolve());
+    });
+  }).then(function(){
+    if (stop) return;
+    // The lists and notices set aside for them.
+    var h = held[o]; if (!h) return;
+    var jobs = [];
+    Object.keys(h.ck || {}).forEach(function(tid){
+      var e = h.ck[tid]; if (!e || !e.state) { delete h.ck[tid]; return; }
+      var payload = ckLineSaves() && e.base ? ckDelta(e) : ckWhole(e);
+      if (!payload){ delete h.ck[tid]; return; }
+      jobs.push(function(){ return apiCall('saveSiteChecks', [tid, e.jobId, e.jobLabel, isoLocal(), payload], { actFor: act }).then(function(r){
+        if (r && r.status === 200){ n.lists++; delete h.ck[tid]; }
+        else if (r && (r.status === 400 || r.status === 403)){ n.refused.push('site checks · ' + (e.jobLabel || tid) + ' — ' + String((r.body && r.body.error) || r.status)); delete h.ck[tid]; }
+        else { stop = true; n.waiting = 'the site checks did not go'; }
+      }); });
+    });
+    Object.keys(h.pr || {}).forEach(function(tid){
+      var e = h.pr[tid]; if (!e || !e.done){ delete h.pr[tid]; return; }
+      var done = {}, was = null;
+      if (ckLineSaves() && e.base){ was = {}; prChanged(e.base, e.done).forEach(function(k){ done[k] = !!e.done[k]; was[k] = !!e.base[k]; }); }
+      else done = prCopy(e.done);
+      if (!Object.keys(done).length){ delete h.pr[tid]; return; }
+      jobs.push(function(){ return apiCall('savePrestart', was ? [tid, e.jobId, e.jobLabel, done, was] : [tid, e.jobId, e.jobLabel, done], { actFor: act }).then(function(r){
+        if (r && r.status === 200){ n.lists++; delete h.pr[tid]; }
+        else if (r && (r.status === 400 || r.status === 403)){ n.refused.push('pre-start · ' + (e.jobLabel || tid) + ' — ' + String((r.body && r.body.error) || r.status)); delete h.pr[tid]; }
+        else { stop = true; n.waiting = 'the pre-start list did not go'; }
+      }); });
+    });
+    Object.keys(h.roll || {}).forEach(function(k){
+      var d = h.roll[k];
+      ownRollPending(d).forEach(function(kind){
+        var w = d[kind];
+        jobs.push(function(){ return apiCall(kind === 'daily' ? 'rollChecked' : 'rollForgot', w.args, { rid: w.rid, actFor: act }).then(function(){ w.sent = Date.now(); n.lists++; }, function(e){
+          if (e && e.answered && !e.busy && !/^Pave|^RELEASE/.test(String(e.message))){ w.refused = true; n.refused.push((kind === 'daily' ? 'shop checks' : 'roll-out notice') + ' — ' + refusedWhy(e)); }
+          else { stop = true; n.waiting = 'a roll-out notice did not go'; }
+        }); });
+      });
+    });
+    return jobs.reduce(function(p, f){ return p.then(function(){ if (!stop) return f(); }).catch(function(){ stop = true; }); }, Promise.resolve()).then(function(){
+      Object.keys(h.roll || {}).forEach(function(k){ var d = h.roll[k]; if (!ownRollPending(d).length && !(d.tarps || d.today || d.bring)) delete h.roll[k]; });
+      ['ck', 'pr', 'roll'].forEach(function(key){ if (h[key] && !Object.keys(h[key]).length) delete h[key]; });
+      heldPersist();
+    });
+  }).then(function(){
+    return idbAll().then(function(items){ n.photo = items.filter(function(x){ return !ownMine(x) && ownOf(x) === o; }).length; });
+  }).catch(function(){}).then(function(){
+    pump();   // their photos: theirs to go now (relSends)
+    var words = relWords('Sent', { clock: n.clock, closeout: n.closeout, lists: n.lists, refused: n.refused, waiting: n.waiting });
+    return n.photo && !n.waiting ? words + '. ' + n.photo + ' photo' + (n.photo > 1 ? 's' : '') + ' going now' : words;
+  });
+}
+
 /* Every change of the clock made while one is still on the phone goes
    behind it (T2.38, audit I17): a code change, a move to another job, the
    drive, the clock-out — each with its own moment, sent in the order it was
@@ -4940,7 +5187,10 @@ function cqChain(){ return clockQ.filter(function(it){ return !it.refused && cqM
 function cqPending(){ return cqChain().length > 0; }
 /* The clock as the phone shows it meanwhile: running since it was made.
    `kept`, never `queued` — the API's own answer carries a `queued` field. */
-function cqOpen(it){ return { id: 'q:' + it.rid, job: it.job, code: it.code, startedAt: new Date(it.at).toISOString(), endedAt: null, minutes: 0, notes: it.kind === 'travel' ? (it.notes || '') : '', kept: true }; }
+function cqOpen(it){ return { id: 'q:' + it.rid, job: it.job, code: it.code, startedAt: new Date(it.kind === 'break' ? cqBreakEnd(it) : it.at).toISOString(), endedAt: null, minutes: 0, notes: it.kind === 'travel' ? (it.notes || '') : '', kept: true }; }
+/* A break kept with no signal (T2.41): the block after it starts the break's
+   length after it was taken, floored to the minute — as JobTread plans it. */
+function cqBreakEnd(it){ var d = new Date(it.at + (Number(it.minutes) || 0) * 60000); d.setSeconds(0, 0); return d.getTime(); }
 /* The last change kept is the clock the phone shows — off it, after a kept
    clock-out — at the job it was made at. After a clock-out the job is the
    person's to pick again, so it is set then only when asked (`withJob`:
@@ -4979,6 +5229,7 @@ function cqKind(it){ return it.kind === 'switch' ? (it.arrive === false ? 'code'
 /* Its words, each kind its own sentence (Spanish names each differently). */
 function cqWords(it, form){
   var k = cqKind(it), t = { t: clockLabel(new Date(it.at)) };
+  if (k === 'break' || k === 'back') return cqBreakWords(it, form, t);
   if (form === 'what') return Lf(k === 'out' ? 'Clock-out {t}' : k === 'travel' ? 'Drive {t}' : k === 'code' ? 'Code change {t}' : k === 'arrive' ? 'Arrival {t}' : 'Clock-in {t}', t);
   if (form === 'kept') return Lf(k === 'out' ? 'No signal — your {t} clock-out is saved on this phone and goes when there’s signal'
     : k === 'travel' ? 'No signal — your {t} drive is saved on this phone and goes when there’s signal'
@@ -5007,6 +5258,21 @@ function cqWords(it, form){
   if (k === 'arrive') return Lf('{t} · Start at {p} · {code}', a);
   if (k === 'travel') return it.back ? Lf('{t} · The drive back', a) : it.supply ? Lf('{t} · Supply run · {p}', a) : Lf('{t} · The drive to {p}', a);
   return Lf('{t} · {code} at {p}', a);
+}
+/* A break and the way back from it, kept (T2.41): their own sentences. */
+function cqBreakWords(it, form, t){
+  var b = it.kind === 'break';
+  if (form === 'what') return Lf(b ? 'Break {t}' : 'Back from break {t}', t);
+  if (form === 'kept') return Lf(b ? 'No signal — your {t} break is saved on this phone and goes when there’s signal' : 'No signal — your {t} return from your break is saved on this phone and goes when there’s signal', t);
+  if (form === 'landed') return Lf(b ? 'Your {t} break has reached JobTread' : 'Your {t} return from your break has reached JobTread', t);
+  if (form === 'no') return Lf(b ? 'Your {t} break wasn’t added — tap the notice to see why' : 'Your {t} return from your break wasn’t added — tap the notice to see why', t);
+  if (form === 'nudgeNo') return Lf(b ? 'Your {t} break wasn’t added — tap to see why' : 'Your {t} return from your break wasn’t added — tap to see why', t);
+  if (form === 'nudge') return Lf(b ? 'Your {t} break is on this phone — it goes when there’s signal' : 'Your {t} return from your break is on this phone — it goes when there’s signal', t);
+  if (form === 'stale') return Lf('Your clock changes go once you say when you left the day before', t);
+  if (form === 'kind') return L(b ? 'Break' : 'Back from break');
+  if (form === 'unsent') return L(b ? 'Break not sent yet' : 'Back from break not sent yet');
+  if (form === 'notAdded') return L(b ? 'Break not added' : 'Back from break not added');
+  return b ? Lf('{t} · Break · {m} min', { t: t.t, m: it.minutes }) : Lf('{t} · Back from break', t);
 }
 /* Kept: its own next try, on the outbox's backoff — a phone that still
    thinks it has signal (a bar, no data) never says "online" again — and
@@ -5052,11 +5318,18 @@ function cqSend(){
   // How long it waited is counted to the moment it leaves, not to when it
   // joined the lane (a boot call retrying ahead of it is seconds).
   var co = { rid: it.rid, partner: !!it.partner, beforeSend: function(){ opts.queued.sentAt = Date.now(); } };
-  var call = it.kind === 'switch' ? apiCall('switchCode', [it.jobId, it.costItemId, it.coords || null, it.endPhotoId || '', it.startPhotoId || '', opts], co)
+  return cqCall(it, opts, co).then(function(open){ it.inflight = false; cqLanded(it, open); }, function(e){ cqFailed(it, e); });
+}
+/* A kept change's call — the phone's own, or one sent for its owner under a
+   release from the board (audit D31). */
+function cqCall(it, opts, co){
+  return it.kind === 'switch' ? apiCall('switchCode', [it.jobId, it.costItemId, it.coords || null, it.endPhotoId || '', it.startPhotoId || '', opts], co)
     : it.kind === 'travel' ? apiCall('startTravel', [it.jobId, it.costItemId, it.coords || null, it.endPhotoId || '', it.notes || '', opts], co)
     : it.kind === 'out' ? apiCall('clockOut', [it.coords || null, it.endPhotoId || '', opts], co)
+    // A break and the way back (T2.41): at the phone's time, from an API at T2.41 or later.
+    : it.kind === 'break' ? apiCall('startBreak', [it.coords || null, it.minutes, it.lang || S.lang, opts], co)
+    : it.kind === 'back' ? apiCall('endBreak', [it.jobId, it.costItemId, it.coords || null, opts], co)
     : apiCall('clockIn', [it.jobId, it.costItemId, it.coords || null, it.startPhotoId || '', opts], co);
-  return call.then(function(open){ it.inflight = false; cqLanded(it, open); }, function(e){ cqFailed(it, e); });
 }
 function cqSchedule(){
   clearTimeout(cqTimer);
@@ -5070,7 +5343,9 @@ function cqSchedule(){
 var CQ_RUN = { n: 0, place: null };
 function cqLanded(it, r){
   clockQ = clockQ.filter(function(x){ return x.rid !== it.rid; }); cqPersist();
-  var out = it.kind === 'out', open = out ? null : r, next = cqWaiting();
+  var out = it.kind === 'out', open = out ? null : it.kind === 'break' ? ((r && r.open) || null) : r, next = cqWaiting();
+  if (it.kind === 'break' && r && r.entries) S.entries = r.entries;
+  if (it.kind === 'break' && open && S.brk && S.brk.entryId === 'q:' + it.rid) S.brk.entryId = open.id;
   if (out && r && r.entries) S.entries = r.entries;
   // More behind it: the phone's clock is still the last of them.
   if (next) cqOverlay();
@@ -5176,13 +5451,21 @@ var CQ_HOLDS = { break: 1, earlier: 1, left: 1 };
    every move wait for the clock-in as before (T2.31). An API it has not heard
    from is taken as current: the phones get T2.38 only after the API does. */
 var CQ_HOLDS_OLD = { codes: 1, jobs: 1, leave: 1, outhow: 1, break: 1, earlier: 1, left: 1, dest: 1, moveHow: 1, travelCodes: 1 };
+/* What this API can do, by its build (T2.41): an API the phone has not heard
+   from is taken as current — the phones get a build only after the API does. */
+function apiAtLeast(n){
+  var m = S.me || S.meSeen, api = (S.builds && S.builds.api) || (m && m.build) || '', b = buildNum(api);
+  return b ? b >= n : true;
+}
 function cqKeepsAll(){
   var m = S.me || S.meSeen, api = (S.builds && S.builds.api) || (m && m.build) || '', b = buildNum(api);
   return b ? b >= 2038 : true;
 }
 /* One waiting on a block from a day before (T2.33) is waiting on When did you
    leave? itself, so that one sheet is never held — or neither could ever go. */
-function cqHolds(kind){ var w = cqWaiting(), h = cqKeepsAll() ? CQ_HOLDS : CQ_HOLDS_OLD; return !!(h[kind] && w && !(w.stale && kind === 'left')); }
+/* A break is kept now (T2.41), so it waits behind nothing — from an API that lands it at its own moment. */
+var CQ_HOLDS_41 = { earlier: 1, left: 1 };
+function cqHolds(kind){ var w = cqWaiting(), h = cqKeepsAll() ? (apiAtLeast(2041) ? CQ_HOLDS_41 : CQ_HOLDS) : CQ_HOLDS_OLD; return !!(h[kind] && w && !(w.stale && kind === 'left')); }
 /* Why a kept clock-in was not added (T2.31). The API sends the reason as data
    beside its words, so it is said in the phone's language; anything it has
    no name for is the API's own words. What to do about it follows on the
@@ -5194,6 +5477,7 @@ function cqWhy(it){
   if (r.why === 'clock') return L(inK ? 'The phone’s clock changed while this clock-in waited.' : 'The phone’s clock changed while this waited.');
   if (r.why === 'old') return L(inK ? 'This clock-in waited on the phone over 16 hours.' : 'This waited on the phone over 16 hours.');
   if (r.why === 'notime') return L(inK ? 'This clock-in left the phone without its time.' : 'This left the phone without its time.');
+  if (r.why === 'off') return L('You were not on the clock any more when this was sent.');
   return it.err || L('JobTread didn’t take it.');
 }
 /* What to do about a refused one, once — each kind its own. */
@@ -5247,7 +5531,9 @@ function clockqHtml(){
          : it.tries && it.next > Date.now() ? Lf('Couldn’t send yet · tries again at {t}', { t: clockLabel(it.next) }) : L('Sends in a moment');
   return '<div class="sheetpad">' + lines +
     '<div class="body" style="margin-top:10px">' + esc(goes) + '</div>' +
-    '<div class="body" style="margin-top:10px">' + esc(L(only ? 'A break, Started earlier and Already left wait until it has gone.' : 'A break, Started earlier and Already left wait until they have gone.')) + '</div>' +
+    // A break is kept behind it now (T2.41), from an API that lands it at its moment.
+    '<div class="body" style="margin-top:10px">' + esc(L(apiAtLeast(2041) ? (only ? 'Started earlier and Already left wait until it has gone.' : 'Started earlier and Already left wait until they have gone.')
+      : (only ? 'A break, Started earlier and Already left wait until it has gone.' : 'A break, Started earlier and Already left wait until they have gone.'))) + '</div>' +
     '<div class="body" style="margin-top:10px;color:var(--mut)">' + esc(st) + (it.err && !it.inflight ? ' · ' + esc(it.err) : '') + '</div>' +
     (S.online && !it.inflight ? '<button class="btn btn-go" id="cqSend" style="margin-top:16px">' + esc(L(only ? 'Send it now' : 'Send them now')) + '</button>' : '') +
     '<button class="btn btn-out" id="cqClose" style="margin-top:12px">' + esc(L('OK')) + '</button></div>';
@@ -5262,7 +5548,9 @@ function commitStart(item, rec){
   if (!code || !target){ S.clockGate = null; clockFlowDone(); return; }
   // No photo was owed (T2.23): the same call, with none.
   var pid = rec ? rec.id : '';
-  var swOpts = sw && sw.wrong ? { notes: 'Changed from ' + sw.wrong + ' in DB Crew — wrong job' } : undefined;
+  // Wrong job (audit D30): the hours already on it today move with the clock;
+  // an API older than T2.41 ignores wrongMove and switches as before.
+  var swOpts = sw && sw.wrong ? { notes: 'Changed from ' + sw.wrong + ' in DB Crew — wrong job', wrongMove: true } : undefined;
   var rid = newRid(), madeAt = Date.now();
   busy(true, sw ? 'Switching…' : 'Clocking in…');
   withCoords(function(coords){
@@ -5284,7 +5572,8 @@ function commitStart(item, rec){
     if (keep && (!S.online || cqPending())){ startKept(keep, item, rec, code, prev); busy(false); clockFlowDone(); return; }
     // Already left the last job (T2.19): it ends when they left, the drive
     // from then to now on this job's travel line, and the work from now.
-    var travel = sw && sw.leftAt ? S.codes.filter(isTravelCode)[0] : null;
+    // …on a job with none, on the line the API makes for it (audit D28).
+    var travel = sw && sw.leftAt ? (S.codes.filter(isTravelCode)[0] || (isShopId(target.id) || !apiAtLeast(2041) ? null : travelNewCode())) : null;
     var call = sw && sw.leftAt ? apiCall('leftSite', [sw.leftAt, coords, { kind: 'work', jobId: target.id, costItemId: code.id, travelItemId: travel ? travel.id : null, startPhotoId: pid,
                                    notes: 'Drive to ' + jobWord(target) + (prev && prev.id !== target.id ? ' · from ' + (atShop() ? 'the shop' : jobWord(prev)) : '') }]).then(function(r){ if (r && r.entries) S.entries = r.entries; return r.open; })
              : sw ? apiCall('switchCode', [target.id, code.id, coords, sw.endPhotoId || '', pid, swOpts], { rid: rid })
@@ -5303,7 +5592,11 @@ function commitStart(item, rec){
         S.job = S.pendingJob; S.pendingJob = null; S.moving = false;
         S.dlJobId = S.job.id; S.jobPickedDay = isoLocal();
         if (prev && prev.id !== S.job.id) dlPromptFor(prev.id, 'switch');
-        toast(Lf('Now at {p} · {code}', { p: S.job.customer || streetOf(S.job.address) || L('the next job'), code: codeLabel(code) }));
+        var wm = open && open.wrongMoved, place = S.job.customer || streetOf(S.job.address) || L('the next job');
+        if (wm && wm.minutes > 0) toast(wm.notice && wm.notice.ok === false
+          ? Lf('{h} moved to {p} · your PM couldn’t be told — tell them yourself', { h: hm(wm.minutes * 60), p: place })
+          : Lf('{h} moved to {p} · your PM and the Ops Director are told', { h: hm(wm.minutes * 60), p: place }));
+        else toast(Lf('Now at {p} · {code}', { p: place, code: codeLabel(code) }));
       } else {
         toast(Lf(sw ? 'Now on {code}' : 'On the clock · {code}', { code: codeLabel(code) }));
       }
@@ -5511,14 +5804,18 @@ function travelCodesHtml(){
     (list.map(function(c){ return '<button class="coderow" data-tcode="' + esc(c.id) + '"><span class="cn tabular">' + esc(c.number || '') + '</span><span class="cname">' + esc(c.name) + '</span><span class="cmeta"></span></button>'; }).join('') ||
      '<div class="sheetpad"><div class="body">' + esc(L('Nothing to clock into on that job either. Ask the office to add the CLOCK IN ITEMS group to its budget.')) + '</div></div>');
 }
-/* The drive's line: the job's travel line when it has one; else Carl's
-   "then and only then" — whatever the job has, asked. */
+/* The drive's line: the job's travel line when it has one; else the line
+   the API makes for it (audit D28). The shop alone still asks which line. */
 function startTravelTo(job, back, opts){
   closeSheet();
   if (!job || !S.open) return;
   waitFor(loadCodes(job.id), back ? L('Getting the travel line…') : Lf('Getting the travel line at {p}…', { p: pw(job) })).then(function(codes){
     var t = (codes || []).filter(isTravelCode)[0];
     if (t){ commitTravel(job, t, back, codes, opts); return; }
+    // No travel line: the API makes one and the drive goes on it (audit D28).
+    // Only the shop, where nobody drives to, still asks which line.
+    // An API older than T2.41 would refuse the marker: it is asked, as before.
+    if (!isShopId(job.id) && apiAtLeast(2041)){ commitTravel(job, travelNewCode(), back, codes, opts); return; }
     S.travelTo = { job: job, back: back, codes: codes || [], opts: opts || null };
     openSheet('travelCodes');
   }).catch(function(e){ S.switching = null; S.travelTo = null; failed('getJobCodes', e); });
@@ -6058,10 +6355,22 @@ function doBreak(minutes){
   var open = S.open;
   if (!open || onBreakNow() || BREAK_CHOICES.indexOf(minutes) === -1) return;
   if (overnightFirst()) return;
-  var sec = openSeconds(), code = open.code, num = (code && code.number) || L('the code');
+  var sec = openSeconds(), code = open.code, num = (code && code.number) || L('the code'), rid = newRid(), madeAt = Date.now();
   busy(true, 'Starting your break…');
   withCoords(function(coords){
-    apiCall('startBreak', [coords, minutes, S.lang]).then(function(r){
+    // Kept with no signal, or behind a change still on the phone (T2.41):
+    // the break starts when it was taken — Carl's "count at the phone's time".
+    var keep = apiAtLeast(2041) && cqKeepsAll() ? { rid: rid, kind: 'break', minutes: minutes, lang: S.lang, at: madeAt, coords: coords || null,
+      jobId: (S.job && S.job.id) || (open.job && open.job.id), costItemId: code && code.id, job: cqJobSnap(S.job || open.job), code: code ? cqCodeSnap(code) : null,
+      partner: !!(S.partner && S.partnerOn), tries: 0 } : null;
+    var kept = function(){
+      cqKeep(keep);
+      S.open = cqOpen(keep);
+      S.brk = { entryId: S.open.id, minutes: minutes, at: madeAt, sec: sec, code: code, date: isoLocal(), kept: true };
+      savePrefs(); cqSchedule();
+    };
+    if (keep && (!S.online || cqPending())){ kept(); busy(false); render(); return; }
+    apiCall('startBreak', [coords, minutes, S.lang], { rid: rid }).then(function(r){
       if (r && r.entries) S.entries = r.entries;
       if (r && r.open && Date.parse(r.open.startedAt) > Date.now()){
         S.open = r.open;
@@ -6074,7 +6383,11 @@ function doBreak(minutes){
       }
       savePrefs();
       refreshDayLater();
-    }).catch(showErr).then(function(){ busy(false); render(); });
+    }).catch(function(e){
+      // No answer (T2.41): kept, at the moment it was taken.
+      if (keep && cqCanQueue(e)){ kept(); return; }
+      showErr(e);
+    }).then(function(){ busy(false); render(); });
   });
 }
 /* End break. Still counting down: the waiting block goes and one starts
@@ -6083,23 +6396,34 @@ function doBreak(minutes){
    stops the "break's over" reminder going out after they are back. */
 function doEndBreak(){
   if (breakOver()){
-    var since = S.open.startedAt, code = S.open.code;
+    var since = S.open.startedAt, code = S.open.code, wasKept = !!(S.brk && S.brk.kept);
     S.brk = null; savePrefs();
-    apiCall('endBreak', [S.open.job && S.open.job.id, code && code.id, null]).catch(function(){});
+    // A break kept on the phone (T2.41) set no reminder on the API: nothing to stop.
+    if (!wasKept) apiCall('endBreak', [S.open.job && S.open.job.id, code && code.id, null]).catch(function(){});
     toast(Lf('Back on · the clock restarted at {t}', { t: clockLabel(since) }));
     render();
     return;
   }
   if (!onBreakNow()){ doBackToWork(); return; }
-  var open = S.open;
+  var open = S.open, rid = newRid(), madeAt = Date.now();
   busy(true, 'Ending your break…');
   withCoords(function(coords){
-    apiCall('endBreak', [open.job && open.job.id, open.code && open.code.id, coords]).then(function(o){
+    // Back early with no signal, or behind a change still on the phone (T2.41):
+    // the clock starts again at the moment they came back.
+    var keep = apiAtLeast(2041) && cqKeepsAll() ? { rid: rid, kind: 'back', at: madeAt, coords: coords || null,
+      jobId: open.job && open.job.id, costItemId: open.code && open.code.id, job: open.job ? cqJobSnap(open.job) : null, code: open.code ? cqCodeSnap(open.code) : null,
+      partner: !!(S.partner && S.partnerOn), tries: 0 } : null;
+    var kept = function(){ cqKeep(keep); S.open = cqOpen(keep); S.brk = null; savePrefs(); cqSchedule(); };
+    if (keep && (!S.online || cqPending())){ kept(); busy(false); render(); return; }
+    apiCall('endBreak', [open.job && open.job.id, open.code && open.code.id, coords], { rid: rid }).then(function(o){
       S.open = o; S.brk = null;
       savePrefs();
       toast(Lf('Back on · {code}', { code: codeLabel((o && o.code) || open.code) }));
       refreshDayLater();
-    }).catch(showErr).then(function(){ busy(false); render(); });
+    }).catch(function(e){
+      if (keep && cqCanQueue(e)){ kept(); return; }
+      showErr(e);
+    }).then(function(){ busy(false); render(); });
   });
 }
 /* The break before T2.13: the block closed, so Back to work re-opens the
@@ -6446,8 +6770,9 @@ function pump(){
         // One whose change landed while it was still being written (T2.38) is
         // stamped now and saved again; the next run sends it, never this copy.
         if (item.waitRid){ if (!cqHas(item.waitRid)) return cqReleaseLate(item); return; }
-        // Another person's (T2.37, audit D31): theirs to send, when they sign in here.
-        if (!ownMine(item)) return;
+        // Another person's (T2.37, audit D31): theirs to send, when they sign in
+        // here — or now, when Operations has sent their work from the board (T2.41).
+        if (!ownMine(item) && !relSends(ownOf(item))) return;
         pumpCur = item.id;
         return sendOne(item).then(function(){
           if (qRetry[item.id]){ delete qRetry[item.id]; qRetrySave(); }
@@ -6485,7 +6810,7 @@ function pump(){
       // A photo waiting on its clock-in is no reason to run again: the
       // clock-in landing runs the pump.
       var soon = Infinity;
-      rest.forEach(function(it){ if (it.waitRid || !ownMine(it)) return; var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
+      rest.forEach(function(it){ if (it.waitRid || (!ownMine(it) && !relSends(ownOf(it)))) return; var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
       if (soon < Infinity) pumpTimer = setTimeout(pump, Math.max(3000, soon - Date.now()));
       dlRetryPending();
     });
@@ -7224,6 +7549,39 @@ esAdd({
 esAdd({
   'Goes when they sign in on this phone': 'Se envía cuando esa persona inicie sesión en este teléfono'
 }); /* T2.37-ES */
+/* A break kept with no signal (T2.41). */
+esAdd({
+  'Break {t}': 'Descanso {t}',
+  'Back from break {t}': 'Regreso del descanso {t}',
+  'No signal — your {t} break is saved on this phone and goes when there’s signal': 'Sin señal — tu descanso de las {t} quedó guardado en este teléfono y se envía cuando haya señal',
+  'No signal — your {t} return from your break is saved on this phone and goes when there’s signal': 'Sin señal — tu regreso del descanso de las {t} quedó guardado en este teléfono y se envía cuando haya señal',
+  'Your {t} break has reached JobTread': 'Tu descanso de las {t} ya llegó a JobTread',
+  'Your {t} return from your break has reached JobTread': 'Tu regreso del descanso de las {t} ya llegó a JobTread',
+  'Your {t} break wasn’t added — tap the notice to see why': 'Tu descanso de las {t} no se agregó — toca el aviso para ver por qué',
+  'Your {t} return from your break wasn’t added — tap the notice to see why': 'Tu regreso del descanso de las {t} no se agregó — toca el aviso para ver por qué',
+  'Your {t} break wasn’t added — tap to see why': 'Tu descanso de las {t} no se agregó — toca para ver por qué',
+  'Your {t} return from your break wasn’t added — tap to see why': 'Tu regreso del descanso de las {t} no se agregó — toca para ver por qué',
+  'Your {t} break is on this phone — it goes when there’s signal': 'Tu descanso de las {t} está en este teléfono — se envía cuando haya señal',
+  'Your {t} return from your break is on this phone — it goes when there’s signal': 'Tu regreso del descanso de las {t} está en este teléfono — se envía cuando haya señal',
+  'Back from break': 'Regreso del descanso',
+  'Break not sent yet': 'Descanso aún sin enviar',
+  'Back from break not sent yet': 'Regreso del descanso aún sin enviar',
+  'Break not added': 'Descanso no agregado',
+  'Back from break not added': 'Regreso del descanso no agregado',
+  '{t} · Break · {m} min': '{t} · Descanso · {m} min',
+  '{t} · Back from break': '{t} · Regreso del descanso',
+  'You were not on the clock any more when this was sent.': 'Ya no estabas en el reloj cuando esto se envió.'
+}); /* T2.41-ES break */
+/* Wrong job moves the hours too (T2.41, audit D30). */
+esAdd({
+  'The clock and today’s hours there move to {p} · your PM is told': 'El reloj y las horas de hoy allí pasan a {p} · se le avisa a tu PM',
+  '{h} moved to {p} · your PM and the Ops Director are told': '{h} pasaron a {p} · se les avisa a tu PM y al Director de Operaciones',
+  '{h} moved to {p} · your PM couldn’t be told — tell them yourself': '{h} pasaron a {p} · no se le pudo avisar a tu PM — avísale tú'
+}); /* T2.41-ES */
+esAdd({
+  'Operations let {name}’s unsent work go from this phone': 'Operaciones quitó de este teléfono lo que {name} no había enviado',
+  'Operations sent {name}’s work from this phone': 'Operaciones mandó desde este teléfono lo de {name}'
+}); /* T2.41-ES release */
 /* Every clock change kept behind a waiting one (T2.38, audit I17). */
 esAdd({
   'Clock-out {t}': 'Salida {t}',
@@ -7286,6 +7644,8 @@ esAdd({
   'It goes to JobTread as soon as there’s signal — your hours end at {t} either way.': 'Se envía a JobTread en cuanto haya señal — tus horas terminan a las {t} de todos modos.',
   'It goes to JobTread as soon as there’s signal — the drive starts at {t} either way.': 'Se envía a JobTread en cuanto haya señal — el viaje empieza a las {t} de todos modos.',
   'It goes to JobTread as soon as there’s signal — the change is at {t} either way.': 'Se envía a JobTread en cuanto haya señal — el cambio queda a las {t} de todos modos.',
+  'Started earlier and Already left wait until it has gone.': 'Decir que empezaste antes y decir que ya te fuiste esperan a que se haya enviado.',
+  'Started earlier and Already left wait until they have gone.': 'Decir que empezaste antes y decir que ya te fuiste esperan a que se hayan enviado.',
   'A break, Started earlier and Already left wait until it has gone.': 'Un descanso, decir que empezaste antes y decir que ya te fuiste esperan a que se haya enviado.',
   'A break, Started earlier and Already left wait until they have gone.': 'Un descanso, decir que empezaste antes y decir que ya te fuiste esperan a que se hayan enviado.',
   'Send them now': 'Enviarlos ahora',
@@ -8422,6 +8782,8 @@ function start(){
     // Anything kept in a dead spot last time goes now — after the clock's
     // own calls, never ahead of them: every lane of the outbox (T2.31).
     obWake();
+    // What this phone holds for anybody else, to the board, and its decisions back (T2.41, audit D31).
+    setTimeout(function(){ relReport(false); }, REL_BOOT_MS);
     // Re-register on every launch: FCM tokens rotate, and a stale one is a
     // nudge that silently goes nowhere. Once permission is granted this needs
     // no gesture — requestPermission is never reached — so it can run at boot
@@ -8922,6 +9284,18 @@ coAdd({
         constrHint: 'Fotos del trabajo terminado y una nota de lo que viste. La hace el vendedor, y el PM la cubre cuando el vendedor está ocupado o ya está en la obra — el que esté ahí la manda, una vez por los dos.',
         constrNotBooked: 'Nadie asignado todavía — la oficina pone al vendedor y al PM desde el tablero' }
 }); /* CO-T240 */
+coAdd({
+  en: { svcFoundK: 'What I found', svcFoundPh: 'What was wrong, what you saw', svcWarrantyK: 'Covered by warranty?',
+        svcW_yes: 'Yes', svcWS_yes: 'The sales manager confirms it on the board', svcW_no: 'No', svcWS_no: 'Not a warranty repair',
+        svcW_ask: 'Ask the office', svcWS_ask: 'Not sure — the sales manager decides', svcWarrantyNeed: 'say whether the warranty covers it',
+        svcCantBtn: 'Needs a return visit', svcCantBtnSub: 'It stays open — say why, and your PM books the next visit',
+        svcCantR_material: 'Parts needed', svcCantS_material: 'Say which parts', svcCantR_access: 'Customer not available', svcCantS_access: 'Nobody home, or no way in' },
+  es: { svcFoundK: 'Lo que encontré', svcFoundPh: 'Qué estaba mal, qué viste', svcWarrantyK: '¿Lo cubre la garantía?',
+        svcW_yes: 'Sí', svcWS_yes: 'El gerente de ventas lo confirma en el tablero', svcW_no: 'No', svcWS_no: 'No es una reparación de garantía',
+        svcW_ask: 'Preguntar a la oficina', svcWS_ask: 'No estoy seguro — decide el gerente de ventas', svcWarrantyNeed: 'di si la garantía lo cubre',
+        svcCantBtn: 'Necesita otra visita', svcCantBtnSub: 'Sigue abierta — di por qué, y tu PM programa la próxima visita',
+        svcCantR_material: 'Faltan piezas', svcCantS_material: 'Di qué piezas', svcCantR_access: 'El cliente no está', svcCantS_access: 'No hay nadie, o no se puede entrar' }
+}); /* CO-T241 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -8940,6 +9314,8 @@ function coVisit(jobId){
   v.repairMore = v.repairMore || {}; v.repairEn = v.repairEn || {};
   // Can't finish today (T2.35, audit I10): the draft per repair, and what was sent.
   v.cantReason = v.cantReason || {}; v.cantNote = v.cantNote || {}; v.cantPhotos = v.cantPhotos || {}; v.cantEn = v.cantEn || {};
+  // A service visit's record (T2.41, audit I15): what was found, and the warranty answer, per repair.
+  v.svcFound = v.svcFound || {}; v.svcWarranty = v.svcWarranty || {};
   return v;
 }
 function coCount(v, items, which){ var a = v.answers[which] || {}; return items.filter(function(i){ return !!a[i.key]; }).length; }
@@ -9781,24 +10157,25 @@ function coEnFix(it){
   }).catch(function(){});
 }
 function coEnNeed(r, said){ return said && !(r.noteSrc === said && r.noteEn) ? said : ''; }
-function coSendItem(it){
-  if (it.enFix && S.online) return coEnFix(it).then(function(){ return coSendItemNow(it); });
-  return coSendItemNow(it);
+function coSendItem(it, actFor){
+  if (it.enFix && S.online) return coEnFix(it).then(function(){ return coSendItemNow(it, actFor); });
+  return coSendItemNow(it, actFor);
 }
-function coSendItemNow(it){
-  var call;
-  if (it.kind === 'report') call = apiCall('coReport', [it.jobId, it.payload, it.id], { timeout: 60000 });
-  else if (it.kind === 'close') call = apiCall('coClose', [it.jobId, it.payload, it.id], { timeout: 60000 });
-  else if (it.kind === 'area') call = apiCall('coCloseArea', [it.jobId, it.payload, it.id], { timeout: 60000 });
-  else if (it.kind === 'complete') call = apiCall('coComplete', [it.taskId, it.jobId, it.payload.note || '', it.id], { timeout: 60000 });
-  else if (it.kind === 'blocked') call = apiCall('coBlocked', [it.taskId, it.jobId, it.payload.reason, it.payload.note || '', it.id], { timeout: 60000 });
+/* `actFor`: sent for its owner under a release from the board (audit D31). */
+function coSendItemNow(it, actFor){
+  var call, o = function(ms){ return actFor ? { timeout: ms, actFor: actFor } : { timeout: ms }; };
+  if (it.kind === 'report') call = apiCall('coReport', [it.jobId, it.payload, it.id], o(60000));
+  else if (it.kind === 'close') call = apiCall('coClose', [it.jobId, it.payload, it.id], o(60000));
+  else if (it.kind === 'area') call = apiCall('coCloseArea', [it.jobId, it.payload, it.id], o(60000));
+  else if (it.kind === 'complete') call = apiCall('coComplete', [it.taskId, it.jobId, it.payload.note || '', it.id].concat(it.payload.service ? [it.payload.service] : []), o(60000));
+  else if (it.kind === 'blocked') call = apiCall('coBlocked', [it.taskId, it.jobId, it.payload.reason, it.payload.note || '', it.id].concat(it.payload.service ? [it.payload.service] : []), o(60000));
   else if (it.kind === 'photo'){
     call = coPhotoGet(it.photoId).then(function(rec){
       if (!rec || !rec.blob) return { status: 410, body: { error: 'photo is gone from this phone' } };
       return blobToBase64(rec.blob).then(function(b64){
         var p = {}; for (var k in it.payload) p[k] = it.payload[k];
         p.imageBase64 = 'data:' + (rec.mime || 'image/jpeg') + ';base64,' + b64;
-        return apiCall('coPhoto', [it.jobId, p, it.id], { timeout: 90000 });
+        return apiCall('coPhoto', [it.jobId, p, it.id], o(90000));
       });
     });
   } else call = Promise.resolve({ status: 400, body: { error: 'unknown item' } });
@@ -9997,9 +10374,11 @@ function coFinishRepair(jobId, taskId){
     var eng = (en.noteSrc === said && en.noteEn) ? en.noteEn.trim() : said;
     var note = eng && said && eng !== said ? eng + '\n\n(' + said + ')' : eng;
     var needR = coEnNeed(en, said);
-    items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, repairArea: (t && t.area) || undefined, label: co('repairDone'), payload: { note: note },
+    var svc = coSvcOf(jobId, taskId), payload = { note: note };
+    if (svc && (svc.found || svc.warranty)) payload.service = svc;   // as said: the office reads what was found as the tech put it
+    items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, repairArea: (t && t.area) || undefined, label: co('repairDone'), payload: payload,
                  enFix: needR ? { field: 'repair', said: needR } : null });
-    v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; coPersist();
+    v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; delete v.svcFound[taskId]; delete v.svcWarranty[taskId]; coPersist();
     return coEnqueue(items).then(function(){ toast(co('repairDone')); coGo('repairs'); });
   });
 }
@@ -10546,8 +10925,23 @@ function coRepairsHtml(){
    reports have; and any more photos, from the camera or the phone's own
    photos. Done waits on all three and says which is missing. */
 function coRepairEn(v, tid){ var o = v.repairEn[tid] = v.repairEn[tid] || {}; o.note = v.repairNote[tid] || ''; return o; }
+/* A service call's repair (T2.41, audit I15): "What I found" and "Covered by
+   warranty? Yes, No, Ask the office" — the answer goes on the repair, and a
+   Yes or an Ask is the sales manager's to decide on the Production Board
+   (Shawn for roofing, Carl for construction). Only with a Close Out server
+   at contract 6, which writes them; an older one would drop them unsaid. */
+var CO_WARRANTY = ['yes', 'no', 'ask'];
+function coSvcRecord(j){ var c = S.builds && S.builds.closeOut; return !!(j && j.isService) && !(c && c.contract != null && c.contract < 6); }
+function coSvcOf(jobId, tid){
+  var j = CO.job && CO.job.id === jobId ? CO.job : coJobById(jobId);
+  if (!coSvcRecord(j)) return null;
+  var v = coVisit(jobId), found = String(v.svcFound[tid] || '').trim(), w = v.svcWarranty[tid] || '';
+  return { found: found, warranty: CO_WARRANTY.indexOf(w) > -1 ? w : '' };
+}
 function coRepairMissing(v, tid){
-  return [v.before[tid] ? '' : co('needBefore'), v.after[tid] ? '' : co('needAfter'), (v.repairNote[tid] || '').trim() ? '' : co('needNote')].filter(Boolean);
+  var svc = coSvcOf(CO.jobId, tid);
+  return [v.before[tid] ? '' : co('needBefore'), v.after[tid] ? '' : co('needAfter'), (v.repairNote[tid] || '').trim() ? '' : co('needNote'),
+          svc && !svc.warranty ? co('svcWarrantyNeed') : ''].filter(Boolean);
 }
 /* The repair is not on the job (T2.34, audit D32): read from the server and
    not on its list, the office took it off — said, with the way back, never
@@ -10591,6 +10985,19 @@ function coRepairHtml(){
   h += '<div class="photos">' + more.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(tm) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
        '<button class="ph add" data-cophoto=\'' + esc(tm) + '\'>' + ico('camera', 26) + esc(more.length ? co('anotherPhoto') : co('photo')) + '</button>' +
        '<button class="ph add gal" data-cogallery=\'' + esc(tm) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
+  // A service call (T2.41, audit I15): what was found, and whether the warranty covers it.
+  if (coSvcRecord(j)){
+    var found = v.svcFound[t.id] || '', war = v.svcWarranty[t.id] || '';
+    h += '<div class="k" style="margin-top:22px">' + esc(co('svcFoundK')) + ' — <span>' + esc(co('optional')) + '</span></div>';
+    h += '<div class="talkrow">' + recBtnHtml('coSvcFound', 'coSvcFoundRec') + '</div>';
+    h += '<div class="story' + (found ? ' has' : '') + '" style="margin-top:10px"><textarea id="coSvcFound" placeholder="' + esc(co('svcFoundPh')) + '" rows="2">' + esc(found) + '</textarea></div>';
+    h += '<div class="reccap hidden" data-reccap="coSvcFound"></div>';
+    h += '<div class="k" style="margin-top:22px">' + esc(co('svcWarrantyK')) + ' — <span style="color:var(--ckamber)">' + esc(co('required')) + '</span></div>';
+    h += '<div class="jcard" id="coSvcWarranty" style="margin-top:6px">' + CO_WARRANTY.map(function(w){
+      var on = war === w;
+      return '<button class="jtile cantopt' + (on ? ' on' : '') + '" data-cowarr="' + w + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="bi"><span class="es">' + esc(co('svcW_' + w)) + '</span><span class="en">' + esc(co('svcWS_' + w)) + '</span></span>' + (on ? CK_TICK_SM : '') + '</button>';
+    }).join('') + '</div>';
+  }
   var miss = coRepairMissing(v, t.id), can = !miss.length, last = coIsLastRepair(j, v, t.id), tar = coMultiArea(j) && t.area ? coAreaByKey(j, t.area) : null;
   var lastSub = tar ? co('doneLastAreaSub').replace('{the}', coAreaThe(tar)) : co('doneLastSub');
   h += '<button class="ctaBig" id="coDone" style="margin-top:22px' + (can ? '' : ';background:var(--surf2);color:var(--lab)') + '"' + (can ? '' : ' disabled') + '>' + esc(co(last ? 'doneLast' : 'done')) + '</button>';
@@ -10598,8 +11005,10 @@ function coRepairHtml(){
   // Can't finish today (T2.35, audit I10): open, with the reason, to the PM —
   // never beside a Done this phone has already sent or is still sending.
   if (coCanSayWaiting() && !v.doneTasks[t.id]){
-    h += '<button class="btn btn-out" id="coCant" style="margin-top:18px">' + ico('alert', 20) + esc(co(wt ? 'cantAgain' : 'cantBtn')) + '</button>';
-    h += '<div class="foot">' + esc(co('cantBtnSub')) + '</div>';
+    // On a service call it is the return visit (T2.41, audit I15): parts, or the customer not there.
+    var sv = coSvcRecord(j);
+    h += '<button class="btn btn-out" id="coCant" style="margin-top:18px">' + ico('alert', 20) + esc(co(wt ? 'cantAgain' : sv ? 'svcCantBtn' : 'cantBtn')) + '</button>';
+    h += '<div class="foot">' + esc(co(sv ? 'svcCantBtnSub' : 'cantBtnSub')) + '</div>';
   }
   return h;
 }
@@ -10647,7 +11056,8 @@ function coCantHtml(){
   h += '<div class="k" style="margin-top:16px">' + esc(co('cantWhyK')) + '</div>';
   h += '<div class="jcard" style="margin-top:6px">' + CO_CANT_REASONS.map(function(r){
     var on = why === r;
-    return '<button class="jtile cantopt' + (on ? ' on' : '') + '" data-cocant="' + r + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="bi"><span class="es">' + esc(co('cantR_' + r)) + '</span><span class="en">' + esc(co('cantS_' + r)) + '</span></span>' + (on ? CK_TICK_SM : '') + '</button>';
+    var sv = coSvcRecord(j) && (r === 'material' || r === 'access');   // parts, and the customer not there (T2.41)
+    return '<button class="jtile cantopt' + (on ? ' on' : '') + '" data-cocant="' + r + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="bi"><span class="es">' + esc(co((sv ? 'svcCantR_' : 'cantR_') + r)) + '</span><span class="en">' + esc(co((sv ? 'svcCantS_' : 'cantS_') + r)) + '</span></span>' + (on ? CK_TICK_SM : '') + '</button>';
   }).join('') + '</div>';
   if (why){
     h += '<div class="k" style="margin-top:22px">' + esc(co('cantNoteK_' + why)) + ' — <span style="color:var(--ckamber)">' + esc(co(CO_CANT_NOTE[why] ? 'required' : 'optional')) + '</span></div>';
@@ -10685,7 +11095,9 @@ function coSendCant(jobId, taskId){
   var eng = (en.noteSrc === said && en.noteEn) ? en.noteEn.trim() : said;
   var note = eng && said && eng !== said ? eng + '\n\n(' + said + ')' : eng;
   var needR = coEnNeed(en, said);
-  items.push({ id: ref, kind: 'blocked', jobId: jobId, taskId: taskId, label: co('cantBtn'), said: said, payload: { reason: why, note: note },
+  var svc = coSvcOf(jobId, taskId), payload = { reason: why, note: note };
+  if (svc && (svc.found || svc.warranty)) payload.service = svc;
+  items.push({ id: ref, kind: 'blocked', jobId: jobId, taskId: taskId, label: co(svc ? 'svcCantBtn' : 'cantBtn'), said: said, payload: payload,
                enFix: needR ? { field: 'cant', said: needR } : null });
   delete v.cantReason[taskId]; delete v.cantNote[taskId]; delete v.cantPhotos[taskId]; delete v.cantEn[taskId];
   coPersist();
@@ -10833,7 +11245,7 @@ function coRender(){
   // Never rebuild under a finger typing — the note boxes commit on input.
   var ae = document.activeElement;
   if (ae && ae.tagName === 'TEXTAREA' && body.contains(ae) && body.__co === html) return;
-  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coCantNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote' || ae.id === 'coFinal') && body.contains(ae)){
+  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coSvcFound' || ae.id === 'coCantNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote' || ae.id === 'coFinal') && body.contains(ae)){
     // keep the field; repaint only what sits around it
     var keep = ae.id, pos = ae.selectionStart, val = ae.value;
     body.innerHTML = html; body.__co = html; coWire();
@@ -10923,6 +11335,8 @@ function coWire(){
     note.onblur = function(){ var v = coVisit(CO.jobId), i = CO.reportIdx; coAfterTap(function(){ coEnglishFor(v, i); coRender(); }); }; autoGrow(note); }
   var wt = $('coWhereText'); if (wt) wt.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.locationText = wt.value; coLocationWords(r); coPersist(); };
   var ln = $('coListNote'); if (ln) ln.oninput = function(){ coCtx().notes[ln.getAttribute('data-notes')] = ln.value; coPersist(); };
+  var sf = $('coSvcFound'); if (sf){ sf.oninput = function(){ var v = coVisit(CO.jobId); v.svcFound[CO.taskId] = sf.value; coPersist(); autoGrow(sf); }; }
+  [].forEach.call($('coBody').querySelectorAll('[data-cowarr]'), function(b){ b.onclick = function(){ var v = coVisit(CO.jobId); v.svcWarranty[CO.taskId] = b.getAttribute('data-cowarr'); coPersist(); coRender(); }; });
   var rn = $('coRepairNote'); if (rn){ rn.oninput = function(){ var v = coVisit(CO.jobId); v.repairNote[CO.taskId] = rn.value; coPersist(); autoGrow(rn); coRepairDoneState(); };
     rn.onblur = function(){ var v = coVisit(CO.jobId), tid = CO.taskId; coAfterTap(function(){ coToEnglish(coRepairEn(v, tid)); coRender(); }); }; autoGrow(rn); }
   var sv = $('coSaveReport'); if (sv) sv.onclick = function(){ var v = coVisit(CO.jobId), r = v.reports[CO.reportIdx]; if (!r || !(r.photos || []).length || !r.note.trim()) return; r.saved = true; if (dlRec.want) dlRecStop(); coEnglishFor(v, CO.reportIdx); coPersist(); toast(co('reportSaved')); coBack(); };
@@ -11282,6 +11696,7 @@ document.addEventListener('visibilitychange', function(){
   refreshDay().then(render);
   clockReread(false);
   coMineLoad(false);
+  relReport(false);
 });
 
 /* The clock as JobTread has it now (T2.33, audit D29): read again when the

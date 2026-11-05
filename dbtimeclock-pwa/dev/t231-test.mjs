@@ -125,10 +125,10 @@ const clockIn = async (page) => { await tap(page, '#clockIn', 300); await tap(pa
   check('…the clock says so', [await txt(page, '#band .lbl'), /^Started \d+:\d\d[ap] · Sends when there’s signal$/.test(await txt(page, '#bandSub')), await page.locator('#earlierBtn').isVisible()], ['On the clock · saved on this phone', true, false]);
   check('…so does a notice', /^Clock-in ?Your \d+:\d\d[ap] clock-in is on this phone — it goes when there’s signal/.test(await txt(page, '#clockNudge')), true);
   check('…and the no-signal bar counts it, with its photo', await txt(page, '#offlineBar'), 'No signal · 2 items queued');
-  // T2.38 (audit I17): a clock-out goes behind it now; a break still waits.
+  // T2.38 (audit I17): a clock-out goes behind it now; T2.41: so does a break.
   await tap(page, '#breakBtn', 400);
-  check('…a break waits for it, and says why', [await page.evaluate(() => S.sheet), await txt(page, '#sheetTitle'), /A break, Started earlier and Already left wait until it has gone\./.test(await txt(page, '#sheetBody'))], ['clockq', 'Clock-in not sent yet', true]);
-  await tap(page, '#cqClose', 300);
+  check('…a break no longer waits for it (T2.41): the break sheet opens, and would be kept behind it', await page.evaluate(() => S.sheet), 'break');
+  await page.evaluate(() => closeSheet()); await page.waitForTimeout(400);
   await tap(page, '#outBtn', 400);
   check('…clocking out no longer waits: it opens as ever, and would be kept behind it (T2.38)', await page.evaluate(() => S.sheet), 'outhow');
   await page.evaluate(() => closeSheet()); await page.waitForTimeout(400);

@@ -1523,3 +1523,110 @@ confirmed when its round starts.
    `endNow: { breakDuration }` — now or never — so a kept break is written as
    the block ending at the moment the break began and the next opening when it
    ended, the same two-entry shape a break has always left in JobTread.
+   **Built in T2.41** (5 Nov 2026), as are 2, 3, 4, 6 and 7 — Carl's answers
+   that day: D28 *"if no travel line, create one for the job and the drive
+   goes on it"*; I15 *"Construction Sales Manger: Carl Bledsoe, Roofing Sales
+   Manger: Shawn Deitemeyer"*, on the Production Board; D39 one year; D31
+   Operations sends it or lets it go from the board. See *T2.41* below.
+
+## T2.41 (5 Nov 2026) — the rest of Step 3, what the README does not say
+
+Carl, 5 Nov 2026: *"I want you to build everything now. The crew is not using
+the app yet, and I need to get it into their hands soon!"* Six items, four
+repos; the board's half is in its own CLAUDE.md, DB CheckOut's in its.
+
+- **D39, a year's sign-in.** The session carries `gat` (the last real Google
+  sign-in) and `cap` (`gat` + `SIGNIN_MAX_DAYS`, 365); `exp` is
+  `min(now + 30 days, cap)`. `renewSession_` keeps `gat` from the session it
+  renews, so the year never restarts without Google, and re-checks the
+  allow-list and DB Hub every time — so DB Hub `Off` still reaches a phone
+  within 30 days. Past the year `verifySessionToken_` throws `signin-age`
+  (`authWhy`), which the gate says in words. A session from before T2.41 has
+  no `gat`; `iat` stands in. `getJobOptions`, `getNearbyCandidates`,
+  `getCrewOnClock` and `markNudged` are no longer callable (PLAIN lost the
+  first three; `markNudged` is internal only).
+- **D28, the travel line made when missing.** `driveLineFor_(jobId, picked)`:
+  the line picked, else the job's own "Travel Related Labor", else one made by
+  `ensureTravelLine_` under the script lock — in the job's CLOCK IN ITEMS group
+  when that group holds Clock In items (template shape: code 01GR-9
+  `22Pap6LcRWJM`, type Clock In `22PaTg5HNX8w`, catalog item `22PfmiSkthxP`),
+  else on the job. Never the shop. The phone sends `travel:new`
+  (`TRAVEL_NEW`, `travelNewCode()`) for "no line yet" from an API at T2.41
+  (`apiAtLeast(2041)`; an unknown build counts as current). Measured that day:
+  16 of 1,587 open jobs had the line; 701 had the group. **One live write was
+  made to prove the shape**: on the test job 25-0001, travel line
+  `22PhZR6VWYTZ` in its CLOCK IN ITEMS group. Nothing else live was written.
+- **D30, the wrong-job move.** `switchCode` with `opts.wrongMove === true`
+  moves today's run on the wrong job (`wrongRun_`) with `updateTimeEntry
+  { jobId, costItemId }` — the same cost code number on the target if it has
+  one, else the code picked; the open block takes the code picked — each with
+  ` Changed from … in DB Crew — wrong job: moved here with its hours (was
+  <code>).` appended, and posts one notice (`noticeToPm_`). The answer carries
+  `wrongMoved { from, blocks, minutes, notice }`; the toast says the hours
+  (`3h`, `3h 5m`, `45m`). The board's time review reads the sentence
+  (`WRONG_MOVED`): change the words in both places.
+- **The break kept with no signal.** `QUEUED_KINDS` gained `break` and `back`;
+  `keptBreak_` closes the block at the moment (note *Started a break with no
+  signal at … — sent from DB Crew at ….*, appended) and opens the next at that
+  moment plus the minutes, floored to the minute, **with its own note** (*Back
+  from a break started with no signal …*) — without it the board's time review
+  read a block made after its start, on the whole minute, as typed in
+  JobTread. `keptBack_` deletes the planned block and opens one at the moment
+  (*Ended the break with no signal …*). Refusals `off` and `since`. On the
+  phone `CQ_HOLDS_41` holds only Started earlier and Already left; a kept
+  break's end is `cqBreakEnd(it)`. The board reads all three notes (`Back from
+  a break started` explains a start and asks no second approval).
+- **I15, the service visit record.** Contract 6 (`CO_CONTRACT_NEED` 6). On a
+  repair of a job with `isService` (`coSvcRecord`): *What I found* (optional)
+  and *Covered by warranty?* (`yes`/`no`/`ask`, **required for Done**,
+  `coRepairMissing`). It rides Done and Can't finish as their last argument
+  (`payload.service`); Code.gs's `coService_` forwards `found` and
+  `warranty`; DB CheckOut writes `🔍 Found:` and `🛡 Warranty:` lines on the
+  repair. Can't finish reads *Needs a return visit* on a service call, with
+  *Parts needed* and *Customer not available* (`svcCant*`, CO-T241). The
+  board's *Warranty to decide* reads the lines. **Two suites moved with the
+  rule**: closeout-test and t235 use Okafor, a service call, so they answer
+  the warranty before Done and expect the return-visit words; t241 pins the
+  plain words on a repair that is not one (`co-lane`, `__MOCK_CO_DAYS`).
+- **D31, held work released from the board.** The phone has an id
+  (`dbtc_phone`, `phoneId()`) and remembers what it last reported
+  (`dbtc_relrep`), both kept through Sign out and a hand-over. `relReport`
+  runs 4 s after boot (`REL_BOOT_MS`) and on coming to the front, quiet when
+  nothing is held and nothing was, at most every ten minutes otherwise, and
+  only against an API at T2.41. The board answers the phone's open decisions;
+  `relApply` carries them out and reports back with each one's words
+  (`outcomes`). **Let go** (`relDrop`) removes the person's clock changes,
+  photos, Close Out items and everything held. **Send** (`relSend`) sends
+  their kept clock changes first, in order, through `cqCall` with
+  `actFor: { owner, release, phone, by, exp, sig }` (the transport carries it
+  on the request body); a refusal is said and dropped, no answer (or their
+  block from a day before still open) stops the walk for the next open. Then
+  their Close Out items (`coSendItemNow(it, act)`), held site checks and
+  pre-start lists (delta or whole, as `ckFlush`/`prFlush` would) and roll-out
+  notices; then the photo pump sends their photos (`relSends(owner)` lets
+  them through). Drafts are never sent. Code.gs's `releaseCheck_` recomputes
+  the HMAC (`releaseSig_`, `Utilities.Charset.UTF_8`), refuses an expired one,
+  a function not in `RELEASE_FNS`, a clock write without `queued`, or one for
+  the person signed in; then swaps `email` to the owner **before** the request
+  id is claimed, so a write the owner already landed is never done twice, and
+  `releaseNote_` appends *Sent for … from another person’s phone — released by
+  … on the Production Board.* to every released clock note. **The signature
+  formula lives in two places** — the board's `releaseSigText` and Code.gs's
+  `releaseSig_` — and both suites pin the same hex for the same release; change
+  them together.
+- **The mock grew**: `__MOCK_SIGNIN_AGE`, `__MOCK_NOTRAVEL` with
+  `__MADE_TRAVEL`, `__WRONG_MOVED`, kept `startBreak`/`endBreak`,
+  `__MOCK_CO_CONTRACT` (6 unless set), a `service` argument on `coComplete` and
+  `coBlocked` (refused as DB CheckOut refuses a bad answer), `reportHeld`
+  (`__MOCK_RELEASES`, `__MOCK_RELEASES_ONCE`, `__HELD_REPORTS`), and released
+  writes (`__ACTFOR`, `__RELEASED`, `__MOCK_REL_REFUSE`; the mock's signature
+  is `'sig-' + release`). A released write never touches the mock's own clock.
+- **Suites moved with the rules**: t231 (a break no longer waits behind a
+  clock-in), t238 (the clock-waiting sheet names only Started earlier and
+  Already left), t235 and closeout-test (the warranty on Okafor).
+- **Not done, on purpose or for want of an answer**: the warranty deciders
+  are committed (`WARRANTY_DECIDERS` in the board's `lib/warranty.ts`), not an
+  Operations setting — a change of sales manager is a deploy; a claim on a job
+  with no Job Type goes to Operations. The training videos: Carl's *"Not
+  yet"* stands (5 Nov 2026), and they are further out of date (the return
+  visit, the warranty question, the drive's line, the break with no signal).

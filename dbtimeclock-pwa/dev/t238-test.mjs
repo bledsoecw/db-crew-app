@@ -155,7 +155,8 @@ const forgotIfAsked = async (page) => { if (await page.evaluate(() => S.sheet ==
   check('…the sheet lists every one, in order, and says what still waits',
     [await txt(page, '#sheetTitle'), await page.locator('#sheetBody .body').evaluateAll((b) => b.slice(0, 5).map((x) => x.textContent.trim())),
      /They go to JobTread in order as soon as there’s signal — each at the time you made it\./.test(await txt(page, '#sheetBody')),
-     /A break, Started earlier and Already left wait until they have gone\./.test(await txt(page, '#sheetBody'))],
+     // T2.41: a break is kept too now, so only Started earlier and Already left wait.
+     /Started earlier and Already left wait until they have gone\./.test(await txt(page, '#sheetBody')) && !/A break, Started earlier/.test(await txt(page, '#sheetBody'))],
     ['Clock changes to send', ['7:02a · 04MA Masonry Labor at Noah Webster', '9:15a · Change to 02ST-1 Final Clean', '11:30a · The drive to Lucas', '11:58a · Start at Lucas · 02ST-1 Final Clean', '3:40p · Clock out'], true, true]);
   await closeSheets(page);
   await page.evaluate(() => openSheet('waiting')); await page.waitForTimeout(300);
@@ -362,7 +363,7 @@ const forgotIfAsked = async (page) => { if (await page.evaluate(() => S.sheet ==
   await ctx.close();
 }
 
-// ---- a break still waits: it is checked against the entry ----
+// ---- a break no longer waits (T2.41): kept behind the clock-in, at its own moment ----
 {
   const { ctx, page, errs } = await boot('', at('07:00'));
   await offline(page);
@@ -370,7 +371,9 @@ const forgotIfAsked = async (page) => { if (await page.evaluate(() => S.sheet ==
   await tap(page, '#clockIn', 300); await tap(page, '.coderow:has-text("Masonry Labor")', 600); await forgotIfAsked(page);
   await shoot(page); await settle(page);
   await tap(page, '#breakBtn', 400);
-  check('I17: a break waits for the clock-in, and says what else waits', [await page.evaluate(() => S.sheet), /A break, Started earlier and Already left wait until it has gone\./.test(await txt(page, '#sheetBody'))], ['clockq', true]);
+  check('T2.41: a break no longer waits for the clock-in — the break sheet opens', await page.evaluate(() => S.sheet), 'break');
+  await tap(page, '.brkopt[data-brk="30"]', 800);
+  check('…and it is kept behind the clock-in, in the order it was made', await kinds(page), ['in', 'break']);
   check('no page errors (a break)', errs, []);
   await ctx.close();
 }

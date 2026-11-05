@@ -18,6 +18,8 @@
 //   OAUTH_CLIENT_ID   the Google web client id the PWA signs in with
 //   SESSION_SECRET    long random string, signs the 30-day app session
 //   SESSION_TTL_DAYS  optional, defaults to 30
+//   SIGNIN_MAX_DAYS   optional, defaults to 365: how long a phone may go on renewing
+//                     its session before Google sign-in is asked again (audit D39)
 //   APP_URL           optional, makes the bare /exec link redirect
 //   WRITE_ENABLED     'true' to let the app post to JobTread
 //   BOARD_API_URL     the Production Board origin, for assigned jobs and site checks
@@ -58,7 +60,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.40 (2026-11-04)';
+var APP_BUILD = 'T2.41 (2026-11-05)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -312,19 +314,42 @@ function b64url_(obj) {
   return Utilities.base64EncodeWebSafe(JSON.stringify(obj)).replace(/=+$/, '');
 }
 
-function mintSessionToken_(email) {
+// ---- the session (audit D39, 5 Nov 2026) ----------------------------------
+// A session lasts SESSION_TTL_DAYS and the phone renews it once it is a week
+// old, so a phone in use stays signed in. Until D39 a renewal needed nothing
+// but the session itself, so one Google sign-in lasted for ever, and the
+// allow-list was read only at that sign-in. Now:
+//   - every session carries `gat`, when its owner last signed in with Google,
+//     and no session runs past SIGNIN_MAX_DAYS after it (Carl: one year).
+//     Then Google sign-in is asked again, in words that say why (signin-age);
+//   - a renewal reads the allow-list again, and DB Hub as every call does
+//     (assertAccess_), so taking somebody off either ends their access within
+//     a week of their phone's next use. Leaving the company is DB Hub Off;
+//   - `cap` is that limit, so the phone stops asking to renew a session
+//     that cannot be renewed any further.
+// A session minted before D39 has no `gat`: its year runs from when it was
+// made (`iat`), the earliest moment it can vouch for.
+var SIGNIN_MAX_DAYS_DEFAULT = 365;
+function signinMaxDays_() {
+  var n = Number(PropertiesService.getScriptProperties().getProperty('SIGNIN_MAX_DAYS'));
+  return n > 0 ? n : SIGNIN_MAX_DAYS_DEFAULT;
+}
+function mintSessionToken_(email, gat) {
   var secret = PropertiesService.getScriptProperties().getProperty('SESSION_SECRET');
   if (!secret) throw new Error('Server not configured: set the SESSION_SECRET Script Property.');
   var ttlDays = Number(PropertiesService.getScriptProperties().getProperty('SESSION_TTL_DAYS')) || 30;
   var now = Math.floor(Date.now() / 1000);
-  var payload = { email: email, iss: 'dbtc-session', iat: now, exp: now + ttlDays * 86400 };
+  gat = Math.min(now, Number(gat) || now);
+  var cap = gat + signinMaxDays_() * 86400;
+  var payload = { email: email, iss: 'dbtc-session', iat: now, gat: gat, cap: cap, exp: Math.min(now + ttlDays * 86400, cap) };
   var signingInput = b64url_({ alg: 'HS256', typ: 'JWT' }) + '.' + b64url_(payload);
   var sig = Utilities.base64EncodeWebSafe(
     Utilities.computeHmacSha256Signature(signingInput, secret)).replace(/=+$/, '');
-  return { token: signingInput + '.' + sig, exp: payload.exp };
+  return { token: signingInput + '.' + sig, exp: payload.exp, cap: cap };
 }
 
-function verifySessionToken_(token) {
+/** The session's payload when this server signed it, expired or not; else null. */
+function sessionPayload_(token) {
   var parts = String(token).split('.');
   if (parts.length !== 3) return null;
   var secret = PropertiesService.getScriptProperties().getProperty('SESSION_SECRET');
@@ -337,9 +362,46 @@ function verifySessionToken_(token) {
   if (expectedSig !== parts[2]) return null;
   var payload;
   try { payload = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString()); } catch (e) { return null; }
-  if (payload.iss !== 'dbtc-session') return null;
-  if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
+  if (!payload || payload.iss !== 'dbtc-session') return null;
+  return payload;
+}
+/** When the Google sign-in behind this session was (seconds). */
+function sessionGat_(payload) {
+  return Number(payload.gat) || Number(payload.iat) || 0;
+}
+function signinTooOld_(email) {
+  var old = new Error('AUTH'); old.why = 'signin-age'; old.email = email; return old;
+}
+
+function verifySessionToken_(token) {
+  var payload = sessionPayload_(token);
+  if (!payload) return null;
+  var now = Math.floor(Date.now() / 1000);
+  if (!payload.exp || payload.exp < now) {
+    // Expired because the year since the Google sign-in is up: say so, so the
+    // phone asks for Google again in those words rather than "expired".
+    var gat = sessionGat_(payload);
+    if (gat && now - gat >= signinMaxDays_() * 86400) throw signinTooOld_(String(payload.email || '').toLowerCase());
+    return null;
+  }
   return String(payload.email || '').toLowerCase();
+}
+
+/**
+ * exchangeSession: a fresh session for the caller. From Google's own token
+ * the year starts now; from a session it runs on from that session's Google
+ * sign-in, and the allow-list is read again either way.
+ */
+function renewSession_(token, email) {
+  var now = Math.floor(Date.now() / 1000);
+  var payload = sessionPayload_(token);
+  var gat = payload ? (sessionGat_(payload) || now) : now;
+  if (now - gat >= signinMaxDays_() * 86400) throw signinTooOld_(email);
+  if (!emailAllowed_(email)) {
+    var no = new Error('AUTH'); no.why = 'not-allowed'; no.email = email;
+    throw no;
+  }
+  return mintSessionToken_(email, gat);
 }
 
 // The last calls the API answered, for the Build panel. A phone that timed
@@ -425,6 +487,16 @@ function doPost(e) {
     tAuth = Date.now();
     fn = String(body.fn || '');
     var args = Object.prototype.toString.call(body.args) === '[object Array]' ? body.args : [];
+    // Work held on a shared phone, released by Operations on the board (audit
+    // D31): checked first, then made as the person whose work it is — their
+    // request ids, their time entries, their name. Never with a partner.
+    var release = null;
+    if (body.actFor) {
+      var owner = releaseCheck_(fn, args, body.actFor, email);
+      release = { by: String(body.actFor.by || 'Operations').replace(/\s+/g, ' ').slice(0, 80), from: email };
+      email = owner;
+      body.partner = false;
+    }
 
     // Every write is stamped with the caller resolved from the verified token,
     // never with a user id sent by the client.
@@ -458,6 +530,8 @@ function doPost(e) {
       // Roles (Operations only — enforced inside each)
       getPeople: getPeople,
       setRole: setRole,
+      // What this phone holds for somebody else, and the board's decisions on it (D31)
+      reportHeld: reportHeld,
       // Close Out, forwarded to the DB CheckOut server: the whole of it for
       // the service crew and Operations, anyone else their own work (T2.39)
       coMine: coMine,
@@ -472,16 +546,18 @@ function doPost(e) {
       coBlocked: coBlocked,
       coTranslate: coTranslate
     };
+    // Four more answered here until audit D39 (getJobOptions,
+    // getNearbyCandidates, getCrewOnClock, markNudged): the phone had long
+    // stopped calling them, and they answered anyone who could sign in, with
+    // no membership check — one handed back 200 recent jobs with customers'
+    // names, addresses and map points. The two still used inside this script
+    // stay as functions; none of the four can be called from outside.
     var PLAIN = {
-      getJobOptions: getJobOptions,
-      getNearbyCandidates: getNearbyCandidates,
       searchJobs: searchJobs,
       getJobCodes: getJobCodes,
       createCaptureUploadRequest: createCaptureUploadRequest,
       finalizeCaptureUpload: finalizeCaptureUpload,
-      uploadCapture: uploadCapture,
-      getCrewOnClock: getCrewOnClock,
-      markNudged: markNudged
+      uploadCapture: uploadCapture
     };
 
     // A write sent again (T2.31, D15): the first answer, never a second write.
@@ -491,13 +567,16 @@ function doPost(e) {
     else {
       var data;
       if (fn === 'getBoot') data = getBootFor_(email);
-      else if (fn === 'exchangeSession') data = mintSessionToken_(email);
+      else if (fn === 'exchangeSession') data = renewSession_(body.t, email);
       else if (WITH_USER[fn]) {
         var me = memberFor_(email);
         tMember = Date.now();
         // Yahir's "Clock in Alberto too" (T2.21): the same write for the partner.
-        data = body.partner === true && PARTNER_FNS[fn] ? withPartner_(me, WITH_USER[fn], fn, args)
-                                                         : WITH_USER[fn].apply(null, [me].concat(args));
+        try {
+          RELEASE_ = release ? { by: release.by, name: me.name } : null;
+          data = body.partner === true && PARTNER_FNS[fn] ? withPartner_(me, WITH_USER[fn], fn, args)
+                                                           : WITH_USER[fn].apply(null, [me].concat(args));
+        } finally { RELEASE_ = null; }
       }
       else if (PLAIN[fn]) data = PLAIN[fn].apply(null, args);
       else throw new Error('Unknown function: ' + fn);
@@ -773,40 +852,6 @@ function jobsFrom_(data) {
 }
 function fetchJobs_(where, size) {
   return jobsFrom_(pave(jobsQuery_(where, size)));
-}
-
-// Flat job list with coordinates, for the client's haversine "nearest job".
-function getNearbyCandidates() {
-  var out = [], page = null;
-  for (var i = 0; i < 2; i++) {
-    var arg = { sortBy: [{ field: 'createdAt', order: 'desc' }], size: 100 };
-    if (page) arg.page = page;
-    var d = pave({
-      organization: {
-        '$': { id: ORG },
-        jobs: {
-          '$': arg,
-          nextPage: {},
-          nodes: { id: {}, name: {}, number: {}, location: { formattedAddress: {}, latitude: {}, longitude: {}, account: { name: {} } } }
-        }
-      }
-    });
-    var conn = ((d.organization || {}).jobs) || {};
-    var nodes = conn.nodes || [];
-    for (var n = 0; n < nodes.length; n++) {
-      var j = nodes[n], loc = j.location || {};
-      out.push({
-        id: j.id, name: j.name || '', number: j.number || '',
-        customer: (loc.account && loc.account.name) || '',
-        address: loc.formattedAddress || '',
-        lat: (loc.latitude == null ? null : loc.latitude),
-        lng: (loc.longitude == null ? null : loc.longitude)
-      });
-    }
-    page = conn.nextPage;
-    if (!page || out.length >= 150) break;
-  }
-  return out;
 }
 
 // ===========================================================
@@ -2603,7 +2648,10 @@ function clockIn(me, jobId, costItemId, coords, startPhotoId, opts) {
 var QUEUED_MAX_MS = 16 * 3600 * 1000, QUEUED_SAME_MS = 5 * 60 * 1000;
 // What was kept, for its words and its note (T2.38, audit I17): a clock-in, a
 // change of code or job (an arrival included), or the drive to the next job.
-var QUEUED_KINDS = { in: ['clock-in', 'Clocked in'], change: ['change', 'Started'], drive: ['drive', 'Started the drive'], out: ['clock-out', 'Clocked out'] };
+var QUEUED_KINDS = { in: ['clock-in', 'Clocked in'], change: ['change', 'Started'], drive: ['drive', 'Started the drive'], out: ['clock-out', 'Clocked out'],
+                     // A break and the way back from it, kept too (T2.41): Carl, 3 Nov 2026,
+                     // "break taken with no signal count at the phone's time."
+                     break: ['break', 'Started a break'], back: ['return from the break', 'Ended the break'] };
 /** The moment a kept write was made, checked: counted back from now by how
  *  long the phone says it waited, never more than 16 hours back. */
 function queuedMoment_(q, kind) {
@@ -2633,7 +2681,7 @@ function queuedStart_(me, q, jobId, costItemId, open, kind) {
   if (clash) throw queuedNo_('until', 'Your day already has time on the clock until ' + clockWords_(new Date(Date.parse(clash.endedAt))) + '.',
                              clash.endedAt);
   return { start: start, waited: waited,
-           note: (QUEUED_KINDS[kind] || QUEUED_KINDS['in'])[1] + ' with no signal at ' + said + ' — sent from DB Crew at ' + clockWords_(new Date(now)) + '.' };
+           note: releaseNote_((QUEUED_KINDS[kind] || QUEUED_KINDS['in'])[1] + ' with no signal at ' + said + ' — sent from DB Crew at ' + clockWords_(new Date(now)) + '.') };
 }
 /** A clock-out made with no signal (T2.38, audit I17): the block ends when
  *  the phone says. Never before the block began — the office putting them on
@@ -2645,7 +2693,7 @@ function queuedEnd_(q, open) {
     throw queuedNo_('since', 'You were put on the clock at ' + clockWords_(new Date(Date.parse(open.startedAt))) +
                     ' while that clock-out waited.', open.startedAt);
   return { end: m.at, waited: m.waited,
-           note: 'Clocked out with no signal at ' + clockWords_(new Date(m.at)) + ' — sent from DB Crew at ' + clockWords_(new Date(m.now)) + '.' };
+           note: releaseNote_('Clocked out with no signal at ' + clockWords_(new Date(m.at)) + ' — sent from DB Crew at ' + clockWords_(new Date(m.now)) + '.') };
 }
 
 /** Why a kept clock-in was not added: the reason in words, and as data the
@@ -2757,6 +2805,13 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId, opt
   assertWrite_(jobId);
   // An arrival made with no signal (T2.31): the drive ends, and the work
   // starts, when the phone says.
+  // "Wrong job — I was never at …" (audit D30): the hours move with the clock.
+  var wrongRun = opts && opts.wrongMove === true ? wrongRun_(me, open, jobId) : [];
+  if (wrongRun.length) {
+    var moved = wrongJobMove_(me, jobId, costItemId, open, wrongRun);
+    if (moved && !startPhotoId) markNudged(moved.id);
+    return moved;
+  }
   var q = queuedStart_(me, opts && opts.queued, jobId, costItemId, open, 'change');
   if (q && q.already) return q.already;
   var notes = [opts && opts.notes ? String(opts.notes).trim().slice(0, 200) : '', q ? q.note : ''].filter(Boolean).join(' ') || null;
@@ -2764,6 +2819,64 @@ function switchCode(me, jobId, costItemId, coords, endPhotoId, startPhotoId, opt
   if (e && !startPhotoId) markNudged(e.id);
   if (e && q) e.queued = { start: new Date(q.start).toISOString(), waited: q.waited };
   return e;
+}
+
+// ---- "Wrong job — I was never at …" (audit D30) ----------------------------
+// Carl (3 Nov 2026): "app move the hours already clocked to the right job and
+// tell the PM." Until D30 the choice moved the clock from now on and left the
+// hours already on the wrong job there, with a note, for the office to move.
+// Now the run of blocks on the wrong job today moves to the job picked: the
+// open block and every block before it back to the last drive, or the last
+// block on another job — a break's two blocks are both in the run. Each moves
+// in one updateTimeEntry, keeping its start and its end, onto the picked
+// job's line with the same cost code (else the code picked); the open block
+// keeps running, on the code picked. Every moved block's notes say where it
+// was, appended (never replaced — an approval on the notes must survive),
+// in the words the board's time review reads ("Changed from … in DB Crew —
+// wrong job"), so each needs its manager's approval like any correction (I11).
+// One comment on the right job tells its PM and the Ops Director. A block
+// still open from a day before is asked about first (T2.33), never moved.
+// Nothing on the wrong job today (an older phone, a block that was not work):
+// the switch is the plain one it always was.
+function wrongRun_(me, open, jobId) {
+  if (!open || !isWorkEntry_(open) || !open.job || open.job.id === jobId) return [];
+  var day = getMyDay(me), run = [], seenOpen = false;   // newest first
+  for (var i = 0; i < day.length; i++) {
+    var e = day[i];
+    if (!seenOpen) { if (e.id === open.id) { seenOpen = true; run.push(e); } continue; }
+    if (!e.job || e.job.id !== open.job.id || !isWorkEntry_(e)) break;
+    run.push(e);
+  }
+  if (!seenOpen) run = [open];
+  return run.reverse();   // oldest first
+}
+function wrongJobMove_(me, jobId, costItemId, open, run) {
+  assertNotStale_(open, 0);
+  assertWrite_(open.job.id);
+  var codes = [];
+  try { codes = getJobCodes(jobId) || []; } catch (e) { codes = []; }
+  var lineFor = function (b) {
+    if (b.id === open.id) return costItemId;
+    var num = (b.code && b.code.number) || '';
+    var same = num ? codes.filter(function (c) { return c.number === num && !c.travel; })[0] : null;
+    return same ? same.id : costItemId;
+  };
+  var label = function (j) { return j ? [j.number, j.name].filter(Boolean).join(' ') : 'the job'; };
+  var codeLabel = function (c) { return c ? [c.number, c.name].filter(Boolean).join(' ') : ''; };
+  var from = label(open.job), minutes = 0;
+  run.forEach(function (b) {
+    var said = 'Changed from ' + from + ' in DB Crew — wrong job: moved here with its hours' + (b.code ? ' (was ' + codeLabel(b.code) + ')' : '') + '.';
+    pave({ updateTimeEntry: { '$': { id: b.id, jobId: jobId, costItemId: lineFor(b), notes: [b.notes, said].filter(Boolean).join(' · ').slice(0, 500) } } });
+    var end = b.endedAt ? Date.parse(b.endedAt) : Date.now();
+    minutes += Math.max(0, Math.round((end - Date.parse(b.startedAt)) / 60000));
+  });
+  var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '', quiet = !!(PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet);
+  var hours = minutes >= 60 ? Math.floor(minutes / 60) + 'h' + (minutes % 60 ? ' ' + (minutes % 60) + 'm' : '') : minutes + 'm';
+  var notice = quiet ? null : noticeToPm_(jobId, '⏱ ' + me.name + (also ? ' and ' + also + ' were' : ' was') + ' on the clock at ' + from + ' by mistake — never there. ' +
+    hours + ' (' + run.length + (run.length === 1 ? ' block' : ' blocks') + ' since ' + clockWords_(new Date(Date.parse(run[0].startedAt))) + ') moved here from DB Crew at ' + clockWords_(new Date()) + '.', opsDirector_());
+  var now = openEntryFor_(me.userId);
+  if (now) now.wrongMoved = { from: from, blocks: run.length, minutes: minutes, notice: notice };
+  return now;
 }
 
 // ---- the drive (T2.18, Carl 28 Oct 2026) ----------------------------------
@@ -2924,8 +3037,17 @@ function leftSite(me, leftAt, coords, plan) {
   if (kind === 'work' && !plan.startPhotoId && startPhotoOwed_(me, plan.jobId, null)) requirePhoto_(plan.startPhotoId, 'A start photo is required to start the next code.');
   assertWrite_(open.job && open.job.id);
   if (kind !== 'out') assertWrite_(plan.jobId);
-  if (kind === 'drive') assertDriveLine_(plan.jobId, plan.costItemId);
-  if (kind === 'work' && plan.travelItemId) assertDriveLine_(plan.jobId, plan.travelItemId, true);
+  // The drive goes on the travel line of the job driven to, made if it has
+  // none (audit D28): the drive itself (kind drive), or the gap from leaving
+  // to now before the work (kind work), which on a job with no travel line
+  // used to be paid on no line at all. A line that cannot be made never costs
+  // the person their Already left: the drive opens on their pick as before,
+  // and the gap is left as it always was.
+  if (kind === 'drive') { plan.costItemId = driveLineFor_(plan.jobId, plan.costItemId); assertDriveLine_(plan.jobId, plan.costItemId); }
+  if (kind === 'work') {
+    try { plan.travelItemId = driveLineFor_(plan.jobId, plan.travelItemId || TRAVEL_NEW); } catch (te) { plan.travelItemId = plan.travelItemId === TRAVEL_NEW ? '' : plan.travelItemId; }
+    if (plan.travelItemId) assertDriveLine_(plan.jobId, plan.travelItemId, true);
+  }
   // Who else to name, or to stay quiet for, is withPartner_'s to say — never
   // the phone's (PARTNER_NOTICE_).
   var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '', quiet = !!(PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet);
@@ -3032,6 +3154,78 @@ function withPartner_(me, f, fn, args) {
   return data;
 }
 
+// ---- work held on a shared phone, released from the board (audit D31) ----
+// Since T2.37 a phone keeps the last person's unsent work for them when
+// somebody else signs in, and sends it only when they sign in there again.
+// Carl (5 Nov 2026): Operations decides on the Production Board — "Send it
+// for Tyler" or "Let it go" — and "sent clock times land at the time Tyler
+// made them and go on Time to approve for his manager." The phone reports
+// what it holds (reportHeld, below) and the board hands back its decisions,
+// each "send" signed with CREW_APP_SECRET over releaseSigText's fields (the
+// board's lib/held.ts: change the two together). A write carrying `actFor`
+// is made as that person only when the signature matches, it has not run out,
+// and it is one of the writes a release covers; a clock change under one is
+// always a kept one, at the moment its owner made it, and its note says who
+// released it, which the board's time review reads.
+var RELEASE_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, startBreak: 1, endBreak: 1,
+                    saveSiteChecks: 1, savePrestart: 1, rollForgot: 1, rollChecked: 1,
+                    coReport: 1, coPhoto: 1, coClose: 1, coCloseArea: 1, coComplete: 1, coBlocked: 1 };
+var CLOCK_RELEASE_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, startBreak: 1, endBreak: 1 };
+var RELEASE_ = null;   // { by, name } while a released write runs
+function hex_(bytes) {
+  var out = [];
+  for (var i = 0; i < bytes.length; i++) { var b = bytes[i]; if (b < 0) b += 256; out.push((b < 16 ? '0' : '') + b.toString(16)); }
+  return out.join('');
+}
+function releaseSig_(a) {
+  var secret = boardConfig_().secret;
+  if (!secret) return '';
+  var text = [a.release, a.phone, String(a.owner || '').toLowerCase(), 'send', a.by, String(a.exp)].join('|');
+  return hex_(Utilities.computeHmacSha256Signature(text, secret, Utilities.Charset.UTF_8));
+}
+function releaseCheck_(fn, args, a, signedIn) {
+  if (!a || typeof a !== 'object') throw new Error('RELEASE: bad release.');
+  if (!RELEASE_FNS[fn]) throw new Error('RELEASE: ' + fn + ' is not something a release sends.');
+  var owner = String(a.owner || '').toLowerCase();
+  if (!owner || owner === String(signedIn || '').toLowerCase()) throw new Error('RELEASE: that release is not for somebody else.');
+  if (!(Number(a.exp) > Date.now())) throw new Error('RELEASE: that release has run out — ask Operations to decide again on the board.');
+  var want = releaseSig_(a), sig = String(a.sig || '');
+  if (!want || sig.length !== want.length || sig !== want) throw new Error('RELEASE: that release is not one the board gave.');
+  if (CLOCK_RELEASE_FNS[fn]) {
+    var opts = args[args.length - 1];
+    if (!opts || typeof opts !== 'object' || !opts.queued) throw new Error('RELEASE: a clock change sent for somebody else goes at the time they made it.');
+  }
+  return owner;
+}
+/** The words a released clock write adds to its note: whose it was, and who let it go. */
+function releaseNote_(note) {
+  if (!RELEASE_) return note;
+  return note + ' Sent for ' + RELEASE_.name + ' from another person’s phone — released by ' + RELEASE_.by + ' on the Production Board.';
+}
+/** What this phone holds for somebody else, to the board; its decisions back. */
+function reportHeld(me, phone, owners, outcomes) {
+  var cfg = boardConfig_();
+  if (!cfg.url || !cfg.secret) return { releases: [], why: 'the Production Board is not set up on this deployment' };
+  try {
+    var resp = UrlFetchApp.fetch(cfg.url + '/api/crew/held', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ phone: String(phone || ''), reporter: { email: me.email, name: me.name },
+                                owners: Object.prototype.toString.call(owners) === '[object Array]' ? owners.slice(0, 20) : [],
+                                outcomes: outcomes && typeof outcomes === 'object' ? outcomes : {} }),
+      headers: { Authorization: 'Bearer ' + cfg.secret },
+      muteHttpExceptions: true,
+      followRedirects: false
+    });
+    var code = resp.getResponseCode(), body = null;
+    try { body = JSON.parse(resp.getContentText()); } catch (pe) { body = null; }
+    if (code === 200 && body) return { releases: body.releases || [] };
+    return { releases: [], why: (body && body.error) || ('the board answered ' + code) };
+  } catch (e) {
+    return { releases: [], why: 'the board could not be reached' };
+  }
+}
+
 var DRIVE_NOTES = /^(drive (to|back)|supply run)\b/i;
 function isTravelEntry_(open) {
   // The travel line, or — on a job with none — the line a drive was put on,
@@ -3039,10 +3233,79 @@ function isTravelEntry_(open) {
   // A supply run (T2.23) is a drive that comes back: "Supply run · …".
   return !!(open && !isFuture_(open.startedAt) && ((open.code && /travel/i.test(open.code.name || '')) || DRIVE_NOTES.test(open.notes || '')));
 }
+// ---- the travel line, made when the job has none (audit D28) -------------
+// Carl (3 Nov 2026): "Drive is paid, travel line should be on the job they
+// traveled to." (5 Nov): "if no travel line, create one for the job and the
+// drive goes on it." Measured that day: 16 of 1,587 open jobs carried a
+// Travel Related Labor line — the CLOCK IN ITEMS template gained it on 28 Oct,
+// and 701 jobs carry the group without it — so nearly every drive went on
+// another of the job's lines with a "Drive to …" note, and Already left
+// straight to such a job paid no drive at all. Now every drive goes on the
+// job's travel line, and a job with none gets the template's own line: the
+// same name, cost code 01GR-9 Travel Related Costs, cost type Clock In, from
+// the catalog item, no quantity or cost (proven on the test job 25-0001,
+// 5 Nov 2026). It goes in the job's CLOCK IN ITEMS group when the group
+// holds Clock In lines — the code list reads that group — and otherwise at
+// the top of the budget, where a job with no such group lists every line
+// anyway. A group with no Clock In lines would list nothing but the new line,
+// so it is left alone. Never on the shop: nobody drives to 25-0011.
+var TRAVEL_LINE = { name: 'Travel Related Labor', costCodeId: '22Pap6LcRWJM', costTypeId: '22PaTg5HNX8w', organizationCostItemId: '22PfmiSkthxP' };
+var TRAVEL_NEW = 'travel:new';   // what a phone sends for a job that had no travel line to pick
+var TRAVEL_KNOWN = {};          // lines this execution found or made as a travel line: no second read to prove it
+function travelLineOf_(jobId) {
+  // Read fresh, never the cached code list: the line may be a second old.
+  var d = pave({ job: { '$': { id: jobId },
+    costItems: { '$': { where: { and: [['name', 'like', '%Travel%'], [['costType', 'name'], 'in', ['Labor', 'Clock In']]] }, size: 10 },
+                 nodes: { id: {}, name: {}, document: { id: {} }, jobCostItem: { id: {} } } },
+    costGroups: { '$': { where: ['name', 'like', '%CLOCK IN%'], size: 5 },
+                  nodes: { id: {}, name: {}, costItems: { '$': { where: [['costType', 'name'], '=', 'Clock In'], size: 1 }, count: {} } } } } });
+  var job = d.job || {};
+  var line = (((job.costItems || {}).nodes) || []).filter(function (ci) {
+    return !ci.document && !ci.jobCostItem && /travel/i.test(ci.name || '');
+  })[0];
+  var group = (((job.costGroups || {}).nodes) || []).filter(function (g) {
+    return CLOCK_IN_GROUP.test(g.name || '') && Number(((g.costItems || {}).count) || 0) > 0;
+  })[0];
+  if (line) TRAVEL_KNOWN[line.id] = 1;
+  return { id: line ? line.id : '', groupId: group ? group.id : '' };
+}
+function ensureTravelLine_(jobId) {
+  if (!jobId || jobId === shopJobId_()) return '';
+  var found = travelLineOf_(jobId);
+  if (found.id) return found.id;
+  // Two phones of one crew leaving together must not make two lines.
+  var lock = null, got = false;
+  try { lock = LockService.getScriptLock(); got = lock.tryLock(10000); } catch (e) {}
+  try {
+    if (got) { found = travelLineOf_(jobId); if (found.id) return found.id; }
+    var args = { name: TRAVEL_LINE.name, costCodeId: TRAVEL_LINE.costCodeId, costTypeId: TRAVEL_LINE.costTypeId,
+                 organizationCostItemId: TRAVEL_LINE.organizationCostItemId, isTaxable: false };
+    if (found.groupId) args.costGroupId = found.groupId; else args.jobId = jobId;
+    var made = pave({ createCostItem: { '$': args, createdCostItem: { id: {} } } });
+    var id = (((made.createCostItem || {}).createdCostItem) || {}).id;
+    if (!id) throw new Error('createCostItem answered without an id: ' + JSON.stringify(made).slice(0, 200));
+    TRAVEL_KNOWN[id] = 1;
+    try { CacheService.getScriptCache().remove('jc3_' + jobId); } catch (e2) {}
+    console.log('travel line made on ' + jobId + (found.groupId ? ' in CLOCK IN ITEMS' : ' at the top of the budget') + ': ' + id);
+    return id;
+  } finally { if (got) { try { lock.releaseLock(); } catch (e3) {} } }
+}
+/* The line a drive to `jobId` goes on: the job's travel line, made if it has
+   none. A JobTread that will not make one never stops the clock — the drive
+   then goes on the line the phone picked, as before D28, and the log says so. */
+function driveLineFor_(jobId, picked) {
+  if (!jobId || jobId === shopJobId_()) return picked === TRAVEL_NEW ? '' : picked;
+  try { var id = ensureTravelLine_(jobId); if (id) return id; }
+  catch (e) { console.warn('travel line on ' + jobId + ' not made: ' + ((e && e.message) || e) + ' — the drive goes on the line picked'); }
+  if (picked && picked !== TRAVEL_NEW) return picked;
+  throw new Error('JobTread did not make the travel line for that job — try again in a minute.');
+}
+
 /* The drive goes on the job's travel line; on a job with none, on one of its
    own lines — never on a line the phone made up. `travelOnly`: the line must
    be the travel line. JobTread unread is no reason to stop a clock. */
 function assertDriveLine_(jobId, costItemId, travelOnly) {
+  if (TRAVEL_KNOWN[costItemId]) return;   // just found or made as the job's travel line (D28)
   var codes = null;
   try { codes = getJobCodes(jobId); } catch (e) { return; }
   if (!codes || !codes.length) return;
@@ -3064,6 +3327,9 @@ function startTravel(me, jobId, costItemId, coords, endPhotoId, notes, opts) {
   // none. A phone older than T2.23 sends no doneHere and always a photo.
   if (opts && opts.doneHere && endPhotoOwed_(open)) requirePhoto_(endPhotoId, 'An end photo of the site is required when you leave it for the day.');
   assertWrite_(jobId);
+  // Every drive on the job's travel line, made if it has none (audit D28) —
+  // whatever line an older phone picked on a job that had none.
+  costItemId = driveLineFor_(jobId, costItemId);
   assertDriveLine_(jobId, costItemId);
   // The notes are what make a drive on a job with no travel line a drive.
   notes = String(notes || '').trim();
@@ -3155,8 +3421,10 @@ function afterBreak_(me, open, day) {
   });
 }
 
-function startBreak(me, coords, minutes, lang) {
+function startBreak(me, coords, minutes, lang, opts) {
   var open = openEntryFor_(me.userId);
+  // Taken with no signal (T2.41): at the phone's time.
+  if (opts && opts.queued && minutes != null && minutes !== '') return keptBreak_(me, open, coords, Number(minutes), lang, opts.queued);
   // An older phone sends no length: the block closes and Back to work
   // re-opens the code (the build before T2.13).
   if (minutes == null || minutes === '') {
@@ -3210,9 +3478,10 @@ function startBreak(me, coords, minutes, lang) {
 // code here would start a block with no photo and nobody told (T2.33, audit
 // D29) — refused, and the phone reads its clock again. A phone older than
 // T2.13 took breaks that closed the block; none is left in use.
-function endBreak(me, jobId, costItemId, coords) {
+function endBreak(me, jobId, costItemId, coords, opts) {
   var open = openEntryFor_(me.userId);
   forgetBreak_(me.userId);
+  if (opts && opts.queued) return keptBack_(me, open, jobId, costItemId, coords, opts.queued);
   if (open && isFuture_(open.startedAt)) {
     assertWrite_(open.job && open.job.id);
     var job = open.job ? open.job.id : jobId, code = open.code ? open.code.id : costItemId;
@@ -3231,6 +3500,73 @@ function endBreak(me, jobId, costItemId, coords) {
   }
   if (open) return open;
   throw notOnClock_();
+}
+
+// ---- a break taken with no signal (T2.41) ---------------------------------
+// Carl, 3 Nov 2026: "break taken with no signal count at the phone's time."
+// JobTread takes a break only as endNow: { breakDuration } — now or never —
+// so a kept break is written as the two entries a break has always left in
+// JobTread: the block ends at the moment the break began, and the next one
+// opens on the same job and code that moment plus the break's length
+// (floored to the minute, as JobTread floors it). A break whose end has gone
+// by when it is sent opens a block already running, which is what the clock
+// did by itself. The block it ends carries the note the board's time review
+// reads ("Started a break with no signal at … — sent from DB Crew at …"),
+// appended. Refused as data, like any kept write: nothing running, put on the
+// clock after the break was made, or a block from a day before (asked first).
+function keptBreak_(me, open, coords, minutes, lang, q) {
+  if (BREAK_CHOICES.indexOf(minutes) === -1) throw new Error('Pick a break of 15, 30, 45 or 60 minutes.');
+  var m = queuedMoment_(q, 'break');
+  if (!open) throw queuedNo_('off', 'You were not on the clock any more when that break was sent.');
+  // Already on one (sent twice, or a break taken in the JobTread app): it stands.
+  if (isFuture_(open.startedAt)) return { ok: true, open: open, breakEnd: open.startedAt, minutes: null, entries: getMyDay(me) };
+  if (Date.parse(open.startedAt) > m.at)
+    throw queuedNo_('since', 'You were put on the clock at ' + clockWords_(new Date(Date.parse(open.startedAt))) + ' while that break waited.', open.startedAt);
+  assertNotStale_(open, m.at);
+  assertWrite_(open.job && open.job.id);
+  var note = releaseNote_('Started a break with no signal at ' + clockWords_(new Date(m.at)) + ' — sent from DB Crew at ' + clockWords_(new Date(m.now)) + '.');
+  closeEntry_(open.id, coords, m.at, [open.notes, note].filter(Boolean).join(' · '));
+  var start = new Date(m.at + minutes * 60000);
+  start.setSeconds(0, 0);
+  // Its own note too, or the board's time review would read a block made after
+  // its start, on the whole minute, as one typed in JobTread (T2.41).
+  var d = pave({ createTimeEntry: { '$': { organizationId: ORG, jobId: open.job.id, userId: me.userId, costItemId: open.code && open.code.id,
+    startedAt: start.toISOString(), type: open.type || ENTRY_TYPE,
+    notes: releaseNote_('Back from a break started with no signal at ' + clockWords_(new Date(m.at)) + ' — sent from DB Crew at ' + clockWords_(new Date(m.now)) + '.') },
+    createdTimeEntry: { id: {} } } });
+  var id = (((d.createTimeEntry || {}).createdTimeEntry) || {}).id;
+  if (!id) throw new Error('The break was written but the clock after it could not be set: ' + JSON.stringify(d).slice(0, 200));
+  markNudged(id);
+  var next = openEntryFor_(me.userId);
+  if (next && isFuture_(next.startedAt)) rememberBreak_(me, next, minutes, lang);
+  return { ok: true, closed: open.id, open: next, breakEnd: start.toISOString(), minutes: minutes, entries: getMyDay(me),
+           queued: { start: new Date(m.at).toISOString(), waited: m.waited } };
+}
+/* Back to work, kept: they came back before the planned block began — it goes,
+   and one opens at the moment they came back, with its note. Back after it
+   began: the clock restarted by itself, nothing to write. A block that is not
+   the one the break planned is never deleted: said, as a kept clock-in is. */
+function keptBack_(me, open, jobId, costItemId, coords, q) {
+  var m = queuedMoment_(q, 'back');
+  if (!open) throw queuedNo_('off', 'You were not on the clock any more when that was sent.');
+  var began = Date.parse(open.startedAt);
+  if (!isFuture_(open.startedAt) && began <= m.at) return open;
+  if (!isFuture_(open.startedAt) && !afterBreak_(me, open, getMyDay(me)))
+    throw queuedNo_('since', 'You were put on the clock at ' + clockWords_(new Date(began)) + ' while that waited.', open.startedAt);
+  assertWrite_(open.job && open.job.id);
+  var job = open.job ? open.job.id : jobId, code = open.code ? open.code.id : costItemId;
+  deleteEntry_(open.id);
+  var args = { organizationId: ORG, jobId: job, userId: me.userId, costItemId: code, startedAt: new Date(m.at).toISOString(), type: open.type || ENTRY_TYPE,
+               notes: releaseNote_('Ended the break with no signal at ' + clockWords_(new Date(m.at)) + ' — sent from DB Crew at ' + clockWords_(new Date(m.now)) + '.') };
+  var sc = coordArg_(coords);
+  if (sc) args.startCoordinates = sc;
+  var d = pave({ createTimeEntry: { '$': args, createdTimeEntry: { id: {} } } });
+  var id = (((d.createTimeEntry || {}).createdTimeEntry) || {}).id;
+  if (!id) throw new Error('createTimeEntry failed: ' + JSON.stringify(d).slice(0, 200));
+  markNudged(id);
+  var now = openEntryFor_(me.userId);
+  if (now) now.queued = { start: new Date(m.at).toISOString(), waited: m.waited };
+  return now;
 }
 
 // ---- the two break reminders ---------------------------------------------
@@ -3349,9 +3685,6 @@ function crewFrom_(d) {
       code: (cc.number ? cc.number + ' ' : '') + (ci.name || '')
     };
   });
-}
-function getCrewOnClock() {
-  return crewFrom_(pave(crewOnClockQuery_()));
 }
 
 // ===========================================================
@@ -4836,9 +5169,23 @@ function coCloseArea(me, jobId, body, ref) {
   coGate_(me, { job: jobId, inspect: true, fresh: true });
   return coFetch_(me, 'post', '/jobs/' + jobId + '/close-area-inspection', body, ref);
 }
-function coComplete(me, taskId, jobId, note, ref) {
+// A service visit's record (T2.41, audit I15): what was found and the warranty
+// answer ride the Done and the Can't finish; DB CheckOut (contract 6) writes
+// them on the repair, where the board's Warranty to decide list reads them.
+var CO_WARRANTY = { yes: 1, no: 1, ask: 1 };
+function coService_(body, service) {
+  if (!service || typeof service !== 'object') return;
+  var found = String(service.found || '').trim();
+  if (found) body.found = found.slice(0, 2000);
+  if (service.warranty != null && service.warranty !== '') {
+    if (!CO_WARRANTY[service.warranty]) throw new Error('Say whether the warranty covers it: Yes, No or Ask the office.');
+    body.warranty = service.warranty;
+  }
+}
+function coComplete(me, taskId, jobId, note, ref, service) {
   var id = coId_(taskId, 'task id'), body = { note: String(note || '').slice(0, 2000) };
   if (jobId) body.jobId = coId_(jobId, 'job id');
+  coService_(body, service);
   coGate_(me, { job: body.jobId, task: id, fresh: true });
   return coFetch_(me, 'post', '/tasks/' + id + '/complete', body, ref);
 }
@@ -4846,12 +5193,13 @@ function coComplete(me, taskId, jobId, note, ref) {
 // reason, and the area's PM is told. The server checks the reason and the
 // words; this only passes them on.
 var CO_WAIT_REASONS = { material: 1, access: 1, weather: 1, decision: 1, other: 1 };
-function coBlocked(me, taskId, jobId, reason, note, ref) {
+function coBlocked(me, taskId, jobId, reason, note, ref, service) {
   reason = String(reason || '');
   if (!CO_WAIT_REASONS[reason]) throw new Error('Pick why it could not be finished.');
   var id = coId_(taskId, 'task id');
   var body = { reason: reason, note: String(note || '').slice(0, 2000) };
   if (jobId) body.jobId = coId_(jobId, 'job id');
+  coService_(body, service);
   coGate_(me, { job: body.jobId, task: id, fresh: true });
   var r = coFetch_(me, 'post', '/tasks/' + id + '/blocked', body, ref);
   // DB CheckOut takes the repair's day off, so the PM books it again. The

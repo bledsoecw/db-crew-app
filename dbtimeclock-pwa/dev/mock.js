@@ -106,6 +106,20 @@
     var base = String(id).split('@')[0], c = CODES.concat(SHOP_CODES).filter(function (x) { return x.id === base; })[0];
     return c && base !== id ? Object.assign({}, c, { id: id }) : c;
   }
+  // Audit D28: a drive named on 'travel:new' (the job had no travel line) —
+  // the line is made, as Code.gs makes it, and the drive goes on it.
+  // window.__MADE_TRAVEL lists the jobs it was made on.
+  var TRAVEL_CODE = { id: 'ci11', name: 'Travel Related Labor', number: '01GR-9', codeName: 'Travel Related Costs', travel: true };
+  function travelFor(jobId, picked) {
+    if (jobId === SHOP.id) return picked === 'travel:new' ? '' : picked;
+    var have = codesFor(jobId).filter(function (c) { return c.travel; })[0];
+    if (!have) {
+      CODES = CODES.concat([TRAVEL_CODE]);
+      (window.__MADE_TRAVEL = window.__MADE_TRAVEL || []).push(jobId);
+      have = codesFor(jobId).filter(function (c) { return c.travel; })[0];
+    }
+    return have.id;
+  }
 
   // ---- assigned jobs, as the Production Board returns them ----
   // Shapes match CREW-ASSIGNMENTS-API.md: Visit joined to BoardJob, plus the
@@ -783,10 +797,32 @@
       return ST.open;
     },
     switchCode: function (jobId, costItemId, coords, endPhotoId, startPhotoId, opts) {
-      (window.__CLOCK = window.__CLOCK || []).push(['switchCode', jobId, costItemId, endPhotoId || null, startPhotoId || null, (opts && opts.notes) || null]);
+      (window.__CLOCK = window.__CLOCK || []).push(['switchCode', jobId, costItemId, endPhotoId || null, startPhotoId || null, (opts && opts.notes) || null].concat(opts && opts.wrongMove ? [true] : []));
       // Nothing open and not a kept arrival: the clock ended elsewhere (T2.33).
       if (!ST.open && !(opts && opts.queued)) throw HANDLERS.__notOn();
       if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to start work at this job.');
+      // Wrong job (audit D30), as Code.gs does it: the run on the wrong job today —
+      // the open block and every block before it back to the last drive or other
+      // job — moves to the job picked, keeping its times; the open one keeps running.
+      if (opts && opts.wrongMove && ST.open && ST.open.job && ST.open.job.id !== jobId && !HANDLERS.__driving() && Date.parse(ST.open.startedAt) <= Date.now()) {
+        var wrong = ST.open.job, run = [], seen = false, from = [wrong.number, wrong.name].filter(Boolean).join(' ');
+        for (var i = 0; i < ST.entries.length; i++) {
+          var e = ST.entries[i];
+          if (!seen) { if (e === ST.open) { seen = true; run.push(e); } continue; }
+          if (!e.job || e.job.id !== wrong.id || HANDLERS.__isDrive(e)) break;
+          run.push(e);
+        }
+        if (!seen) run = [ST.open];
+        var mins = 0;
+        run.forEach(function (b) {
+          b.job = jobById(jobId) || JOB;
+          if (b === ST.open) b.code = code(costItemId);
+          b.notes = [b.notes, 'Changed from ' + from + ' in DB Crew — wrong job: moved here with its hours.'].filter(Boolean).join(' · ');
+          mins += Math.max(0, Math.round(((b.endedAt ? Date.parse(b.endedAt) : Date.now()) - Date.parse(b.startedAt)) / 60000));
+        });
+        window.__WRONG_MOVED = { to: jobId, blocks: run.length, minutes: mins };
+        return Object.assign({}, ST.open, { wrongMoved: { from: from, blocks: run.length, minutes: mins, notice: window.__MOCK_NOTICEFAIL ? { ok: false, error: 'JobTread did not answer' } : { ok: true } } });
+      }
       var q = HANDLERS.__queued(opts, jobId, costItemId, 'change');
       if (q && q.already) return q.already;
       var e = HANDLERS.__open(jobId, costItemId, [opts && opts.notes, q && q.note].filter(Boolean).join(' '), q ? q.start : 0);
@@ -825,10 +861,11 @@
         ST.entries = [e].concat(ST.entries);
         return e;
       };
-      if (plan.kind === 'drive') ST.open = add(plan.jobId, plan.costItemId, new Date(at).toISOString(), null, plan.notes);
+      if (plan.kind === 'drive') ST.open = add(plan.jobId, travelFor(plan.jobId, plan.costItemId), new Date(at).toISOString(), null, plan.notes);
       if (plan.kind === 'work') {
         var now = new Date().toISOString();
-        if (plan.travelItemId) add(plan.jobId, plan.travelItemId, new Date(at).toISOString(), now, plan.notes);
+        var travelId = travelFor(plan.jobId, plan.travelItemId || 'travel:new');
+        if (travelId) add(plan.jobId, travelId, new Date(at).toISOString(), now, plan.notes);
         ST.open = add(plan.jobId, plan.costItemId, now, null);
       }
       return { ok: true, open: ST.open, entries: ST.entries, notice: (window.__MOCK_NOTICEFAIL ? { ok: false, error: 'JobTread did not answer' } : { ok: true }) };
@@ -849,12 +886,14 @@
     },
     // The drive (T2.18): from work it carries the end photo of what is left;
     // from a drive nothing. Opens on the line named, saying where to.
+    __isDrive: function (e) { return !!(e && ((e.code && /travel/i.test(e.code.name || '')) || /^(drive (to|back)|supply run)\b/i.test(e.notes || ''))); },
     __driving: function () { return !!(ST.open && Date.parse(ST.open.startedAt) <= Date.now() && ((ST.open.code && /travel/i.test(ST.open.code.name || '')) || /^(drive (to|back)|supply run)\b/i.test(ST.open.notes || ''))); },
     startTravel: function (jobId, costItemId, coords, endPhotoId, notes, opts) {
       (window.__CLOCK = window.__CLOCK || []).push(['startTravel', jobId, costItemId, endPhotoId || null, notes || '', !!(opts && opts.doneHere)]);
       // Kept with no signal (T2.38) it may open with nothing running, as Code.gs's does.
       if (!ST.open && !(opts && opts.queued)) throw new Error('You are not on the clock. Clock in first — the drive starts from where you are.');
       if (!endPhotoId && opts && opts.doneHere && HANDLERS.__endOwed()) throw new Error('PHOTO_REQUIRED: An end photo of the site is required when you leave it for the day.');
+      costItemId = travelFor(jobId, costItemId) || costItemId;
       var q = HANDLERS.__queued(opts, jobId, costItemId, 'drive');
       if (q && q.already) return q.already;
       var e = HANDLERS.__open(jobId, costItemId, [notes, q && q.note].filter(Boolean).join(' · '), q ? q.start : 0);
@@ -891,8 +930,22 @@
     // the next is waiting, starting when the break ends (floored to the
     // minute). __MOCK_OLD_BREAK plays an Apps Script from before T2.13,
     // which only closed the block.
-    startBreak: function (coords, minutes, lang) {
-      (window.__CLOCK = window.__CLOCK || []).push(['startBreak', minutes == null ? null : minutes, lang || null]);
+    startBreak: function (coords, minutes, lang, opts) {
+      (window.__CLOCK = window.__CLOCK || []).push(['startBreak', minutes == null ? null : minutes, lang || null].concat(opts && opts.queued ? [true] : []));
+      // Kept with no signal (T2.41), as Code.gs writes it: the block ends when the
+      // break began, the next opens that moment plus its length.
+      if (opts && opts.queued && minutes != null) {
+        var kq = opts.queued, kat = Date.now() - (Number(kq.sentAt) - Number(kq.at));
+        (window.__QUEUED = window.__QUEUED || []).push({ at: kq.at, sentAt: kq.sentAt, kind: 'break', minutes: Number(minutes) });
+        if (!ST.open) { var ke = new Error('You were not on the clock any more when that break was sent.'); ke.refuse = { why: 'off' }; throw ke; }
+        if (Date.parse(ST.open.startedAt) > Date.now()) return { ok: true, open: ST.open, breakEnd: ST.open.startedAt, minutes: null, entries: ST.entries };
+        var kwas = ST.open; kwas.endedAt = new Date(kat).toISOString();
+        kwas.notes = [kwas.notes, 'Started a break with no signal at ' + new Date(kat).toLocaleTimeString() + ' — sent from DB Crew.'].filter(Boolean).join(' · ');
+        var kst = new Date(kat + Number(minutes) * 60000); kst.setSeconds(0, 0);
+        ST.open = { id: 'open' + (++ST.n), startedAt: kst.toISOString(), endedAt: null, minutes: 0, job: kwas.job, code: kwas.code };
+        ST.entries = [ST.open].concat(ST.entries); ST.brkId = ST.open.id;
+        return { ok: true, closed: kwas.id, open: ST.open, breakEnd: ST.open.startedAt, minutes: Number(minutes), entries: ST.entries, queued: { start: new Date(kat).toISOString() } };
+      }
       if (window.__MOCK_OLD_BREAK || minutes == null) {
         if (ST.open) ST.open.endedAt = new Date().toISOString();
         ST.open = null;
@@ -909,8 +962,21 @@
       ST.brkId = ST.open.id;   // the block this break planned (T2.33: never moved back by Started earlier)
       return { ok: true, closed: was.id, open: ST.open, breakEnd: ST.open.startedAt, minutes: minutes, entries: ST.entries };
     },
-    endBreak: function (jobId, costItemId) {
-      (window.__CLOCK = window.__CLOCK || []).push(['endBreak', jobId, costItemId]);
+    endBreak: function (jobId, costItemId, coords, opts) {
+      (window.__CLOCK = window.__CLOCK || []).push(['endBreak', jobId, costItemId].concat(opts && opts.queued ? [true] : []));
+      // Back to work kept with no signal (T2.41): early, the planned block goes and one
+      // opens when they came back; after it began, nothing is written.
+      if (opts && opts.queued) {
+        var bq = opts.queued, bat = Date.now() - (Number(bq.sentAt) - Number(bq.at));
+        (window.__QUEUED = window.__QUEUED || []).push({ at: bq.at, sentAt: bq.sentAt, kind: 'back' });
+        if (!ST.open) { var be = new Error('You were not on the clock any more when that was sent.'); be.refuse = { why: 'off' }; throw be; }
+        if (Date.parse(ST.open.startedAt) <= bat) return ST.open;
+        HANDLERS.__dropPlanned();
+        if (ST.open && Date.parse(ST.open.startedAt) > bat) { var gone = ST.open.id; ST.entries = ST.entries.filter(function (e) { return e.id !== gone; }); ST.open = null; }
+        ST.open = { id: 'open' + (++ST.n), startedAt: new Date(bat).toISOString(), endedAt: null, minutes: 0, notes: 'Ended the break with no signal — sent from DB Crew.', job: jobById(jobId) || JOB, code: code(costItemId) };
+        ST.entries = [ST.open].concat(ST.entries);
+        return Object.assign({}, ST.open, { queued: { start: ST.open.startedAt } });
+      }
       if (ST.open && Date.parse(ST.open.startedAt) <= Date.now()) return ST.open;   // the break already ran out
       // Nothing open is no break (T2.33): refused, unless this plays a server from before T2.13.
       if (!ST.open && !window.__MOCK_OLD_BREAK) throw HANDLERS.__notOn();
@@ -1004,9 +1070,8 @@
     // T2.30: what each system is running. A test sets __MOCK_BUILDS to try a
     // server behind the phone.
     getBuilds: function () {
-      return window.__MOCK_BUILDS || { api: window.__MOCK_API_BUILD || 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: 5 } };
+      return window.__MOCK_BUILDS || { api: window.__MOCK_API_BUILD || 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: window.__MOCK_CO_CONTRACT != null ? window.__MOCK_CO_CONTRACT : 6 } };
     },
-    markNudged: function (entryId) { ST.nudged = entryId; return { ok: true }; },
     exchangeSession: function () { return { token: window.__MOCK_PEOPLE_TOKENS && CUR_EMAIL ? mockToken(CUR_EMAIL) : 'h.' + payload + '.s', exp: 4102444800 }; },
 
     // ---- Close Out (T2.0): Code.gs forwards to the DB CheckOut server and
@@ -1141,11 +1206,13 @@
       a.inspected = true; a.openRepairs += body.problemsReported || 0;
       return { status: 200, body: { completedTaskId: a.inspectionTaskId, flipped: coBoardMove(j), sentTo: CO_REVIEWER[a.key] || null } };
     },
-    coComplete: function (taskId, jobId, note, ref) {
+    coComplete: function (taskId, jobId, note, ref, service) {
       coGateMock(jobId, taskId);
       if (coNotListedMock()) return coNotListedMock();
-      window.__CO.push({ fn: 'coComplete', taskId: taskId, jobId: jobId, note: note, ref: ref });
+      window.__CO.push({ fn: 'coComplete', taskId: taskId, jobId: jobId, note: note, ref: ref, service: service || null });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      // T2.41 (audit I15): DB CheckOut's own check on the warranty answer.
+      if (service && service.warranty && ['yes', 'no', 'ask'].indexOf(service.warranty) === -1) return { status: 400, reason: 'http-400', body: { error: 'warranty must be yes, no or ask' } };
       // T2.33 (audit D23): __MOCK_CO_GONE names a repair JobTread no longer has
       // (410); __MOCK_CO_502 names one JobTread keeps refusing (an old server's 502).
       if (window.__MOCK_CO_GONE === taskId) return { status: 410, reason: 'http-410', body: { error: 'That repair is no longer in JobTread', gone: true } };
@@ -1164,10 +1231,11 @@
       return { status: 200, body: { ok: true, flipped: flipped } };
     },
     // T2.35 (audit I10): Can't finish today, as DB CheckOut answers it.
-    coBlocked: function (taskId, jobId, reason, note, ref) {
+    coBlocked: function (taskId, jobId, reason, note, ref, service) {
       coGateMock(jobId, taskId);
-      window.__CO.push({ fn: 'coBlocked', taskId: taskId, jobId: jobId, reason: reason, note: note, ref: ref });
+      window.__CO.push({ fn: 'coBlocked', taskId: taskId, jobId: jobId, reason: reason, note: note, ref: ref, service: service || null });
       if (window.__MOCK_CO_DOWN) return { status: 0, reason: 'unreachable', body: null };
+      if (service && service.warranty && ['yes', 'no', 'ask'].indexOf(service.warranty) === -1) return { status: 400, reason: 'http-400', body: { error: 'warranty must be yes, no or ask' } };
       if (window.__MOCK_CO_GONE === taskId) return { status: 410, reason: 'http-410', body: { error: 'That repair is no longer in JobTread', gone: true } };
       if (CO_DONE[taskId]) return { status: 422, reason: 'http-422', body: { error: 'That repair is already marked done — nothing was changed.', done: true } };
       if (['material', 'decision', 'other'].indexOf(reason) !== -1 && !String(note || '').trim()) return { status: 400, reason: 'http-400', body: { error: 'Say what is needed, so the PM can act on it.' } };
@@ -1178,6 +1246,15 @@
       var j = CO_JOBS.filter(function (x) { return x.id === jobId; })[0];
       var t = j && j.punchTasks.filter(function (x) { return x.id === taskId; })[0];
       return { status: 200, body: { ok: true, waiting: { reason: reason, note: tail }, sentTo: (t && t.area && CO_REVIEWER[t.area]) || 'Dave Elick' } };
+    },
+    // T2.41 (audit D31): what the phone holds for somebody else, to the board;
+    // its decisions back. __MOCK_RELEASES is what the board hands out (once,
+    // with __MOCK_RELEASES_ONCE); every report is kept in __HELD_REPORTS.
+    reportHeld: function (phone, owners, outcomes) {
+      (window.__HELD_REPORTS = window.__HELD_REPORTS || []).push({ phone: phone, owners: owners, outcomes: outcomes });
+      var r = window.__MOCK_RELEASES || [];
+      if (window.__MOCK_RELEASES_ONCE) window.__MOCK_RELEASES = [];
+      return { releases: r };
     },
     // ---- People (T2.0): Operations only, as Code.gs enforces ----
     getPeople: function () {
@@ -1219,6 +1296,32 @@
   // every call and upload fails before it reaches anything. __MOCK_LOSTREPLY
   // = N: the next N writes that carry an id are done, and their answers lost
   // on the way back, the way a dropped connection loses them.
+  // ---- T2.41 (audit D31): work released from the board, written as its owner ----
+  var REL_CLOCK = { clockIn: 1, switchCode: 1, startTravel: 1, clockOut: 1, startBreak: 1, endBreak: 1 };
+  var REL_OTHER = { saveSiteChecks: 1, savePrestart: 1, rollForgot: 1, rollChecked: 1, coReport: 1, coPhoto: 1, coClose: 1, coCloseArea: 1, coComplete: 1, coBlocked: 1 };
+  function releasedWrite(fn, args, act) {
+    if (!REL_CLOCK[fn] && !REL_OTHER[fn]) throw new Error('RELEASE: ' + fn + ' is not something a release sends.');
+    if (!act.sig || act.sig !== 'sig-' + act.release) throw new Error('RELEASE: that release is not one the board gave.');
+    var rec = (window.__RELEASED = window.__RELEASED || []);
+    if (REL_CLOCK[fn]) {
+      var opts = args[args.length - 1];
+      if (!opts || typeof opts !== 'object' || !opts.queued) throw new Error('RELEASE: a clock change sent for somebody else goes at the time they made it.');
+      if (Number(window.__MOCK_REL_REFUSE) > 0) {
+        window.__MOCK_REL_REFUSE--;
+        var e = new Error('You were put on the clock at 8:00a while that clock-in waited.'); e.refuse = { why: 'since', at: new Date().toISOString() }; throw e;
+      }
+      rec.push({ fn: fn, owner: act.owner, at: opts.queued.at });
+      var id = 'te_rel' + rec.length, at = new Date(opts.queued.at).toISOString();
+      if (fn === 'clockOut') return { ok: true, closed: id };
+      if (fn === 'startBreak') return { ok: true, open: { id: id, startedAt: at } };
+      return { id: id, startedAt: at, job: { id: args[0] }, code: { id: args[1] } };
+    }
+    rec.push({ fn: fn, owner: act.owner });
+    if (/^co/.test(fn)) return { status: 200, body: { ok: true, completedTaskId: 'fi_rel' } };
+    if (fn === 'saveSiteChecks') return { status: 200, body: { checks: { done: {} } } };
+    if (fn === 'savePrestart') return { status: 200, body: { prestart: { done: {} } } };
+    return { ok: true };
+  }
   var __RIDS = window.__RIDS = [], RID_SEEN = {};
   var noNet = function () { return Promise.reject(new TypeError('Failed to fetch')); };
   var realFetch = window.fetch.bind(window);
@@ -1252,6 +1355,8 @@
       if (!body.t) return authNo();
       // __MOCK_EXPIRED: the session ran out — every call is refused as signed out (T2.33).
       if (window.__MOCK_EXPIRED) return authNo();
+      // __MOCK_SIGNIN_AGE (audit D39): a year since the Google sign-in — refused in words that say so.
+      if (window.__MOCK_SIGNIN_AGE) return authNo({ authWhy: 'signin-age', email: tokEmail(body.t) });
       if (/BAD/.test(body.t)) return authNo({ authWhy: 'not-allowed', email: 'yahir.personal@gmail.com' });
       if (body.fn === 'exchangeSession' && Number(window.__MOCK_EXCHANGE_FAIL) > 0) {
         window.__MOCK_EXCHANGE_FAIL--;
@@ -1267,6 +1372,14 @@
       var fn = HANDLERS[body.fn];
       var out;
       try {
+        // T2.41 (audit D31): a write sent for somebody else under a release from
+        // the board. Checked the way Code.gs checks it (the mock's signature is
+        // 'sig-' + the release id), recorded in __ACTFOR, and kept apart from
+        // the signed-in person's own clock: __RELEASED holds what it wrote.
+        if (body.actFor) {
+          (window.__ACTFOR = window.__ACTFOR || []).push([body.fn, body.actFor.owner, body.actFor.release, body.actFor.sig]);
+          out = { ok: true, data: releasedWrite(body.fn, body.args || [], body.actFor) };
+        } else
         out = fn ? { ok: true, data: fn.apply(null, body.args || []) }
                  : { ok: false, error: 'Unknown function: ' + body.fn };
         // T2.21: a write marked for the partner. __MOCK_PARTNER_AWAY plays a

@@ -809,3 +809,70 @@ Response — 200, whether or not a text went:
 read fails. The Apps Script never fails the note for any of these: the phone's
 toast says who was texted, or that it is on the job in JobTread and why there
 was no text.
+
+## Work held on a shared phone (added 2026-11-05)
+
+Audit D31. Since T2.37 a phone keeps the last person's unsent work for them
+when somebody else signs in, and sends it only when they sign in on that phone
+again. Carl (5 Nov 2026): *"Signed in as Operations on the production board,
+operations can remotely, the Waiting card offers 'Send it for Tyler' or 'Let
+it go'. Sent clock times land at the time Tyler made them and go on Time to
+approve for his manager."*
+
+### `POST /api/crew/held`
+
+Same door as every `/api/crew` route: `Authorization: Bearer $CREW_APP_SECRET`.
+The Apps Script's `reportHeld` sends what the phone holds for whom, at launch
+and coming back to the front, with how any decision it carried out went:
+
+```json
+{
+  "phone": "ph_t4f2a9c1d77",
+  "reporter": { "email": "yahir@deitemeyerbrothers.com", "name": "Yahir Gonzalez" },
+  "owners": [
+    { "email": "tyler@gmail.com", "name": "Tyler Mohr", "items": [
+      { "kind": "clock", "what": "7:02a clock-in · 26-1591", "at": 1793876520000 },
+      { "kind": "photo", "what": "start photo · 26-1591", "at": 1793876520000 },
+      { "kind": "draft", "what": "day log · j2|2026-11-05", "at": null } ] }
+  ],
+  "outcomes": { "relmh3x1a2b": "Sent 1 clock change, 1 list and notice" }
+}
+```
+
+- `phone` is the phone's own id, kept through sign-outs; `kind` is one of
+  `clock`, `photo`, `closeout`, `checks`, `prestart`, `rollout`, `draft`.
+- The board keeps the phone's latest report (a private blob), and marks a
+  decision done when the report shows it carried out: a let-go once the person
+  is gone from the phone, a send once only drafts are left. A phone not heard
+  from in 60 days, with nothing open, is forgotten.
+
+Response — 200, the decisions this phone still has to carry out:
+
+```json
+{ "releases": [
+  { "id": "relmh3x1a2b", "owner": "tyler@gmail.com", "ownerName": "Tyler Mohr", "action": "send",
+    "by": "Carl Bledsoe", "exp": 1795295520000, "sig": "535f79fb97a6…" }
+] }
+```
+
+- Operations makes them on the board (Operations → Held on phones): `send` or
+  `drop`. A new one for the same phone and person replaces one still open;
+  Undo takes back one the phone has not carried out. Each is good for 14 days.
+- **A send is signed**: `sig` is HMAC-SHA256, hex, with `CREW_APP_SECRET`, of
+  `id|phone|owner|send|by|exp` (the board's `releaseSigText`). A drop carries
+  none; the phone needs no permission to take work off itself.
+- The phone sends the person's work with `actFor: { owner, release, phone, by,
+  exp, sig }` on each call. The Apps Script recomputes the signature and, only
+  when it matches and has not run out, makes the call **as the owner**: their
+  request ids, their time entries. It covers the kept clock writes (always at
+  the moment the owner made them — a clock write without `queued` is refused),
+  Close Out's writes, site checks, the pre-start and the roll-out notices;
+  nothing else. A released clock write's note ends *"Sent for Tyler Mohr from
+  another person’s phone — released by Carl Bledsoe on the Production
+  Board."*, which the board's time review reads as a DB Crew correction for
+  the owner's manager to approve.
+
+400 for a report that is not one (no phone id, no reporter), 401 without the
+secret, 502 when the board cannot keep it. The Apps Script answers the phone
+`{ "releases": [] }` with a reason when the board is not set up or cannot be
+reached; the phone just keeps the work, as before.

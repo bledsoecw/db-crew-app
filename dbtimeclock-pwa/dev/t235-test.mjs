@@ -62,7 +62,9 @@ const calls = (page, fn) => page.evaluate((f) => (window.__CO || []).filter((x) 
   await openRepair(page, 'pt1');
   check('I10: a repair has a second way out, under Done, saying what happens',
     [await txt(page, '#coCant'), (await page.locator('#coCant').evaluate((b) => b.nextElementSibling.textContent)).trim(), await page.locator('#coDone').count()],
-    ['Can’t finish today', 'It stays open — say why, and your PM books it again', 1]);
+    // Okafor is a service call, so since T2.41 (audit I15) the button is the
+    // return visit; t241-test pins the plain words on a repair that is not one.
+    ['Needs a return visit', 'It stays open — say why, and your PM books the next visit', 1]);
   const box = await page.locator('#coCant').boundingBox();
   check('…a 44-pixel target at least', box && box.height >= 44, true);
   await tap(page, '#coCant', 400);
@@ -72,7 +74,7 @@ const calls = (page, fn) => page.evaluate((f) => (window.__CO || []).filter((x) 
   check('…five reasons, in order, none picked; Send waits on why',
     [await page.evaluate(() => [...document.querySelectorAll('[data-cocant]')].map((b) => [b.getAttribute('data-cocant'), b.getAttribute('aria-pressed'), b.querySelector('.es').textContent])),
      await sendState(page)],
-    [[['material', 'false', 'Waiting on material'], ['access', 'false', 'No access'], ['weather', 'false', 'The weather'], ['decision', 'false', 'Needs a decision'], ['other', 'false', 'Something else']],
+    [[['material', 'false', 'Parts needed'], ['access', 'false', 'Customer not available'], ['weather', 'false', 'The weather'], ['decision', 'false', 'Needs a decision'], ['other', 'false', 'Something else']],
      [true, 'Missing: why']]);
   check('…no note box until a reason is picked', await page.locator('#coCantNote').count(), 0);
 
@@ -210,10 +212,10 @@ const calls = (page, fn) => page.evaluate((f) => (window.__CO || []).filter((x) 
   await coOpen(page, 'co-okafor');
   await openRepair(page, 'pt1');
   check('Spanish: the button and what it does', [await txt(page, '#coCant'), (await page.locator('#coCant').evaluate((b) => b.nextElementSibling.textContent)).trim()],
-    ['No puedo terminar hoy', 'Sigue abierta — di por qué, y tu PM la vuelve a programar']);
+    ['Necesita otra visita', 'Sigue abierta — di por qué, y tu PM programa la próxima visita']);
   await tap(page, '#coCant', 300);
   check('…the five reasons', await page.evaluate(() => [...document.querySelectorAll('[data-cocant] .es')].map((b) => b.textContent)),
-    ['Falta material', 'No hay acceso', 'El clima', 'Hay que decidir algo', 'Otra cosa']);
+    ['Faltan piezas', 'El cliente no está', 'El clima', 'Hay que decidir algo', 'Otra cosa']);
   await tap(page, '[data-cocant="decision"]', 300);
   check('…a decision needs words', [await page.evaluate(() => [...document.querySelectorAll('#coBody .k')].map((k) => k.textContent.replace(/\s+/g, ' ').trim())[1]), await sendState(page)],
     ['¿Qué hay que decidir? — obligatoria', [true, 'Falta: una nota']]);

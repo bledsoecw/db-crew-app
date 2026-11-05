@@ -80,6 +80,7 @@ In Apps Script > Project Settings > **Script Properties**:
 | `OAUTH_CLIENT_ID` | the client id from step 3 |
 | `SESSION_SECRET` | a long random string (`openssl rand -hex 32`). Signs the 30-day app session so the crew isn't re-prompted every hour. Rotating it invalidates every session immediately. |
 | `SESSION_TTL_DAYS` | optional, defaults to 30 |
+| `SIGNIN_MAX_DAYS` | optional, defaults to 365 (T2.41, audit D39; Carl: *"As long as possible 90+"*, then *"1 year"*). A session renews itself for at most this many days after the last real Google sign-in; after that the phone asks for Google again, once. Every renewal also re-checks the allow-list and DB Hub, so **taking somebody off** is DB Hub's App access set to `Off` (or a left status) — their next renewal, within 30 days, is refused — and rotating `SESSION_SECRET` signs **everybody** out at once. |
 | `APP_URL` | optional, `https://db-crews.web.app` — makes the bare `/exec` link redirect to the app, and is where a tapped push notification opens |
 | `WRITE_ENABLED` | **leave unset until you are ready.** `true` lets the app post time entries, photos and notes to JobTread. |
 | `WRITE_JOB_ALLOWLIST` | optional, a comma-separated list of job ids. While set, writes are refused for any other job — useful for a contained first test. |
