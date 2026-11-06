@@ -1807,3 +1807,23 @@ extras — *"Add 'Extra work to bill'"*. Four repos: this one, DB CheckOut
   numbers became Operations' settings (*"go with (c)"*, the board's notes), and
   this repo's README and *How each answer is read* above say so; nothing in the
   phone or the Apps Script changed.
+- **T2.42 is live on the phones**: Carl ran the chain (`clasp deploy … -d
+  "T2.42"`, `firebase deploy --only hosting`) after the Close Out server. By
+  13:18Z on 6 Nov 2026 db-crews.web.app served `index.html`, `sw.js` and
+  `app.js?b=T2.42` identical to the branch (line endings aside), `/` and
+  `/index.html` `no-cache` with the report-only policy, `check-build.mjs`
+  against the live site says "T2.42 is already live and app.js is
+  unchanged", and the API deployment's GET answers "Opening DB Crew". The
+  API's own label was not read from here: the hand-back asked for *"go,
+  deploy the board"* once his Diagnostics read App and API both T2.42, and
+  that is the word that came.
+- **The board half is live, last of the three**: at 13:20:01Z on 6 Nov 2026
+  (8:20am in Ohio; Carl: *"go, deploy the board"*) the board's `main` was
+  fast-forwarded 09962e9..9f094ac — T2.42's half plus the long-day settings —
+  after its 980 tests, `tsc` and `eslint src/` ran clean on that commit.
+  `dpl_qLvcBrro77HB3nbmw2gmv2gqYP6z` was ready at 13:20:47Z on
+  ops.deitemeyerbrothers.com with no alias error, its pages and session
+  routes bounce to sign-in and the crew, cron and held-phone doors answer
+  their own 401 with no secret, and there were no runtime errors through the
+  switch. The rollback is 09962e9 (`dpl_9NdXDZirDsbFcg35Dqcg4YvhtkAY`); the
+  board's notes have the rest. **T2.42 is live in all four places.**
