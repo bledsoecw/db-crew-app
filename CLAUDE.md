@@ -1905,3 +1905,7 @@ times"*, and *"will turn construction on soon"*.
   break (a request that lands on Time to approve). Today they tell the manager.
 - **The training videos are further out of date** (the sign-in words, Started
   earlier, the overnight cap). Carl's *"Not yet"* stands.
+- **The full run on T2.43**: every suite passed but push-test (6/14, the same
+  eight container failures as T2.42's run, compared line by line); code-test
+  627, t243 15. Run against the T2.42 phone, t243 fails 8 of its 15 — every
+  check of the phone's own change.
