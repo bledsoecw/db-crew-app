@@ -60,7 +60,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.41 (2026-11-05)';
+var APP_BUILD = 'T2.42 (2026-11-06)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -476,6 +476,51 @@ function ridDone_(email, rid, out) {
   try { cache.remove(key); } catch (e2) {}
 }
 
+// ---- one clock change at a time per person (T2.42, the audit's smaller defect)
+// A request id stops the SAME change twice; nothing stopped two DIFFERENT
+// ones: two phones signed in as one person, or a phone and a release from the
+// board, could each read "nothing open" before either wrote, and open two
+// entries at once. A clock write now holds a mark for its person while it
+// runs (in the cache, set under the script lock). A second one for the same
+// person waits for it — up to CLOCK_WAIT_MS, inside the phone's own 25-second
+// ceiling — and then reads the clock as the first left it. Still at work after
+// that, it answers "still saving" with `busy`, which the phone's lanes try
+// again and never treat as a refusal. The mark is let go when the write ends,
+// and lapses by itself after CLOCK_LOCK_S if an execution dies holding it.
+// Keyed by JobTread user id, so a partner's half (Clock Alberto too) takes
+// Alberto's mark, not Yahir's.
+var CLOCK_FNS = { clockIn: 1, switchCode: 1, clockOut: 1, startTravel: 1, leftSite: 1, startedEarlier: 1, startBreak: 1, endBreak: 1 };
+var CLOCK_LOCK_S = 60, CLOCK_WAIT_MS = 15000, CLOCK_PARTNER_WAIT_MS = 5000;
+function clockKey_(userId) { return 'clk|' + String(userId || ''); }
+/** True when the mark was free and is now this request's. */
+function clockTake_(userId) {
+  var cache = CacheService.getScriptCache(), key = clockKey_(userId), lock = null, got = false;
+  try { lock = LockService.getScriptLock(); got = lock.tryLock(5000); } catch (e) {}
+  try {
+    if (cache.get(key)) return false;
+    cache.put(key, String(Date.now()), CLOCK_LOCK_S);
+    return true;
+  } finally { if (got) { try { lock.releaseLock(); } catch (e3) {} } }
+}
+/** Waits for the person's mark; throws `busy` when it is still held. */
+function clockLock_(userId, waitMs) {
+  if (!userId) return false;
+  var until = Date.now() + (waitMs == null ? CLOCK_WAIT_MS : waitMs);
+  for (;;) {
+    if (clockTake_(userId)) return true;
+    if (Date.now() >= until) {
+      var e = new Error('Still saving your last clock change — give it a moment.');
+      e.busy = true;
+      throw e;
+    }
+    Utilities.sleep(500);
+  }
+}
+function clockFree_(userId) {
+  if (!userId) return;
+  try { CacheService.getScriptCache().remove(clockKey_(userId)); } catch (e) {}
+}
+
 function doPost(e) {
   var t0 = Date.now(), tAuth = 0, tMember = 0, fn = '', email = '', out, rid = '', ridHit = false;
   PAVE_T.n = 0; PAVE_T.ms = 0;
@@ -515,6 +560,7 @@ function doPost(e) {
       startBreak: startBreak,
       endBreak: endBreak,
       getMyDay: getMyDay,
+      getSentThisWeek: getSentThisWeek,
       getMyJobs: getMyJobs,
       saveSiteChecks: saveSiteChecks,
       saveMaterialLoaded: saveMaterialLoaded,
@@ -572,11 +618,12 @@ function doPost(e) {
         var me = memberFor_(email);
         tMember = Date.now();
         // Yahir's "Clock in Alberto too" (T2.21): the same write for the partner.
+        var locked = CLOCK_FNS[fn] ? clockLock_(me.userId) : false;
         try {
           RELEASE_ = release ? { by: release.by, name: me.name } : null;
           data = body.partner === true && PARTNER_FNS[fn] ? withPartner_(me, WITH_USER[fn], fn, args)
                                                            : WITH_USER[fn].apply(null, [me].concat(args));
-        } finally { RELEASE_ = null; }
+        } finally { RELEASE_ = null; if (locked) clockFree_(me.userId); }
       }
       else if (PLAIN[fn]) data = PLAIN[fn].apply(null, args);
       else throw new Error('Unknown function: ' + fn);
@@ -591,6 +638,7 @@ function doPost(e) {
     if (err && err.refuse) out.refuse = err.refuse;   // a kept clock-in not added, as data (T2.31)
     if (err && err.stale) out.stale = err.stale;      // a block still open from a day before (T2.33)
     if (err && err.notOn) out.notOn = true;           // the phone thought they were on the clock (T2.33)
+    if (err && err.busy) out.busy = true;             // another clock change of theirs still at work (T2.42)
   }
   // Where the time went, on every reply — the sign-in check, the membership
   // lookup, the work itself and JobTread inside it — so a phone that waited
@@ -1193,7 +1241,7 @@ function jobPeopleQuery_(jobIds) {
       jobs: {
         '$': { where: { and: [['id', 'in', jobIds]] }, size: 50 },
         nodes: {
-          id: {},
+          id: {}, number: {}, name: {},
           customFieldValues: {
             '$': { size: 10, where: [['customField', 'id'], 'in', [CF_PROJECT_MANAGER, CF_SALES_REP]] },
             nodes: { customField: { id: {} }, value: {} }
@@ -1213,7 +1261,7 @@ function jobPeopleFrom_(d) {
       if (id === CF_PROJECT_MANAGER) { if (!pm) pm = val; }
       else if (id === CF_SALES_REP && reps.indexOf(val) === -1) reps.push(val);
     });
-    out[j.id] = { pm: pm, reps: reps };
+    out[j.id] = { pm: pm, reps: reps, label: [j.number, j.name].filter(Boolean).join(' ').trim() };
   });
   return out;
 }
@@ -1471,11 +1519,25 @@ function sendDailyLog(me, log) {
   var people = { pm: '', reps: [] };
   var anyFields = !!(log.fields && typeof log.fields === 'object' && Object.keys(log.fields).length > 0);
   var wantFields = anyFields || (story && log.safety === true);
-  var qs = [jobPeopleQuery_([jobId])];
-  if (wantFields && !cacheGet_(LOG_FIELDS_KEY)) qs.push(dailyLogFieldsQuery_());
+  // A log sent after its day (T2.42, the audit's smaller defect): the phone
+  // carries the hours only for today, so a log sent after midnight went with
+  // none. That day's own entries are read from JobTread instead, in the same
+  // round trip.
+  var hoursMissing = date < isoDay_(new Date()) &&
+    !(log.hours || []).some(function (h) { return h && (Number(h.minutes) || 0) > 0; });
+  var qs = [jobPeopleQuery_([jobId])], fieldsAt = -1, hoursAt = -1;
+  if (wantFields && !cacheGet_(LOG_FIELDS_KEY)) { fieldsAt = qs.length; qs.push(dailyLogFieldsQuery_()); }
+  if (hoursMissing && me.userId) { hoursAt = qs.length; qs.push(dayHoursQuery_(me.userId, jobId, date)); }
   var rs = paveAll_(qs);
   if (!rs[0].error) { try { people = jobPeopleFrom_(rs[0].data)[jobId] || people; } catch (e0) {} }
-  if (rs[1] && !rs[1].error) { try { dailyLogFieldsFrom_(rs[1].data); } catch (e00) {} }
+  if (fieldsAt > 0 && rs[fieldsAt] && !rs[fieldsAt].error) { try { dailyLogFieldsFrom_(rs[fieldsAt].data); } catch (e00) {} }
+  if (hoursAt > 0 && rs[hoursAt] && !rs[hoursAt].error) {
+    try { var dayHrs = dayHoursFrom_(rs[hoursAt].data, date); if (dayHrs.length) log.hours = dayHrs; } catch (e01) {}
+  }
+  // The label the phone could only give as the job's id (found on 25-0001's
+  // log of 2 Nov: the heading read "22PeAtLNqcQG"): the job's own number and
+  // name instead.
+  if (idLikeLabel_(log.jobLabel, jobId) && people.label) log.jobLabel = people.label;
   var who = assigneesFor_([people.pm].concat(people.reps || []));
   var fields = dailyLogFieldValues_(story ? storyFieldsRaw_(log) : log.fields, log.fieldNames, log.fieldText);
 
@@ -1512,6 +1574,48 @@ function sendDailyLog(me, log) {
   } catch (e4) { /* the log is in; the memory of it is best effort */ }
   return { ok: true, dailyLogId: id, date: date, assigned: who.assigned, unresolved: who.unresolved,
            flag: flag, commented: commented, photos: files.length, fields: fields.filled.length };
+}
+
+/** A label that is only an id: empty, the job's own id, or one word of
+ *  letters and digits the shape of a JobTread id. */
+function idLikeLabel_(label, jobId) {
+  var l = String(label || '').trim();
+  return !l || l === String(jobId || '') || /^(?=.*\d)(?=.*[A-Za-z])[A-Za-z0-9]{10,14}$/.test(l);
+}
+/** The person's entries on one job that began on one office day: the window
+ *  is wide on both sides and the day is picked by isoDay_, so the script's
+ *  own time zone decides, as getMyDay's does. */
+function dayHoursQuery_(userId, jobId, date) {
+  return {
+    organization: {
+      '$': { id: ORG },
+      timeEntries: {
+        '$': {
+          where: { and: [[['user', 'id'], userId], [['job', 'id'], jobId],
+            { '>=': [{ field: 'startedAt' }, { value: addDays_(date, -1) + 'T00:00:00Z' }] },
+            { '<': [{ field: 'startedAt' }, { value: addDays_(date, 2) + 'T00:00:00Z' }] }] },
+          sortBy: [{ field: 'startedAt', order: 'asc' }],
+          size: 100
+        },
+        nodes: { id: {}, startedAt: {}, endedAt: {}, costItem: { id: {}, name: {}, costCode: { number: {} } } }
+      }
+    }
+  };
+}
+/** Minutes per code, the way the phone counts them: summed, rounded once.
+ *  A block still open (a missed clock-out) is not hours yet and is left out. */
+function dayHoursFrom_(d, date) {
+  var by = {}, order = [];
+  ((((d.organization || {}).timeEntries || {}).nodes) || []).forEach(function (e) {
+    if (!e || !e.startedAt || isoDay_(new Date(e.startedAt)) !== date) return;
+    var s = Date.parse(e.startedAt), f = e.endedAt ? Date.parse(e.endedAt) : NaN;
+    if (!(f > s)) return;
+    var ci = e.costItem || {}, k = ci.id || '-';
+    if (!by[k]) { by[k] = { number: (ci.costCode || {}).number || '', name: ci.name || '', minutes: 0 }; order.push(k); }
+    by[k].minutes += (f - s) / 60000;
+  });
+  return order.map(function (k) { var h = by[k]; h.minutes = Math.round(h.minutes); return h; })
+    .filter(function (h) { return h.minutes > 0; });
 }
 
 /** What needs a decision: '' when nothing does. A story log pings on a
@@ -2495,6 +2599,77 @@ function getMyDay(me) {
   return myDayFrom_(pave(myDayQuery_(me.userId)));
 }
 
+// ---- what I sent this week, per job (T2.42, audit I19) ----------------------
+// "Did that go?" without calling the office. Read back from JobTread, never the
+// phone's own copy, so it answers for what was sent from another phone too:
+// the person's time on the job since Monday (the script's own week), the
+// photos filed for those entries (a DB Crew photo names its entry, #TE:), and
+// their day logs (each opens "Site manager's log — <name> · <day>"). Close
+// Out's inspections and repairs are not here: DB CheckOut writes them under its
+// own key, so JobTread cannot say who sent them; the phone lists its own.
+// Each part says whether JobTread answered it, so a part it could not read
+// is never shown as "nothing sent".
+var SENT_WEEK_MAX = 100;
+function mondayOf_(iso) {
+  var d = new Date(iso + 'T12:00:00Z');
+  return addDays_(iso, -((d.getUTCDay() + 6) % 7));
+}
+function sentWeekQueries_(me, jobId, monday) {
+  var from = addDays_(monday, -1) + 'T00:00:00Z';
+  return [
+    { organization: { '$': { id: ORG }, timeEntries: {
+        '$': { where: { and: [[['user', 'id'], me.userId], [['job', 'id'], jobId], { '>=': [{ field: 'startedAt' }, { value: from }] }] },
+               sortBy: [{ field: 'startedAt', order: 'asc' }], size: SENT_WEEK_MAX },
+        nodes: { id: {}, startedAt: {}, endedAt: {}, minutes: {}, costItem: { name: {}, costCode: { number: {} } } } } } },
+    { job: { '$': { id: jobId },
+        files: { '$': { where: { and: [['description', 'like', '%#TE:%'], { '>=': [{ field: 'createdAt' }, { value: from }] }] },
+                        sortBy: [{ field: 'createdAt', order: 'asc' }], size: SENT_WEEK_MAX },
+                 nodes: { id: {}, name: {}, description: {}, createdAt: {} } },
+        dailyLogs: { '$': { where: { '>=': [{ field: 'date' }, { value: monday }] }, sortBy: [{ field: 'date', order: 'asc' }], size: 30 },
+                     nodes: { id: {}, date: {}, createdAt: {}, notes: {} } } } }
+  ];
+}
+function getSentThisWeek(me, jobId) {
+  jobId = String(jobId || '').trim();
+  if (!jobId) throw new Error('Missing job id.');
+  var today = isoDay_(new Date()), monday = mondayOf_(today);
+  var rs = paveAll_(sentWeekQueries_(me, jobId, monday));
+  var out = { jobId: jobId, from: monday, to: today, entries: [], photos: [], logs: [], more: false,
+              read: { time: !rs[0].error, photos: !rs[1].error, logs: !rs[1].error } };
+  var mine = {};
+  if (!rs[0].error) {
+    var ens = (((rs[0].data.organization || {}).timeEntries || {}).nodes) || [];
+    if (ens.length >= SENT_WEEK_MAX) out.more = true;
+    ens.forEach(function (e) {
+      if (!e || !e.startedAt || isFuture_(e.startedAt)) return;   // a planned block after a break is not sent time
+      var day = isoDay_(new Date(e.startedAt));
+      if (day < monday) return;
+      mine[e.id] = day;
+      var ci = e.costItem || {}, open = !e.endedAt;
+      var mins = open ? Math.max(0, Math.round((Date.now() - Date.parse(e.startedAt)) / 60000))
+                      : (Number(e.minutes) || Math.max(0, Math.round((Date.parse(e.endedAt) - Date.parse(e.startedAt)) / 60000)));
+      out.entries.push({ id: e.id, day: day, startedAt: e.startedAt, endedAt: e.endedAt || null, minutes: mins, open: open,
+                         code: [(ci.costCode || {}).number, ci.name].filter(Boolean).join(' ') });
+    });
+  }
+  if (!rs[1].error) {
+    var j = rs[1].data.job || {}, fs = ((j.files || {}).nodes) || [];
+    if (fs.length >= SENT_WEEK_MAX) out.more = true;
+    fs.forEach(function (f) {
+      var desc = String(f.description || ''), te = /#TE:([A-Za-z0-9]+)/.exec(desc);
+      if (!te || !mine[te[1]]) return;   // another person's photo, or an entry from before Monday
+      var tag = /^#(PHONE\s+)?([A-Z]+)/.exec(desc);
+      out.photos.push({ id: f.id, day: mine[te[1]], name: f.name || '', tag: tag ? tag[2] : '', fromPhone: !!(tag && tag[1]), at: f.createdAt || '' });
+    });
+    var head = "Site manager's log — " + me.name + ' · ';
+    (((j.dailyLogs || {}).nodes) || []).forEach(function (l) {
+      if (String(l.notes || '').indexOf(head) !== 0) return;
+      out.logs.push({ id: l.id, date: l.date, at: l.createdAt || '' });
+    });
+  }
+  return out;
+}
+
 function coordArg_(c) {
   if (!c || c.lat == null || c.lng == null) return null;
   return { latitude: Number(c.lat), longitude: Number(c.lng) };
@@ -2570,20 +2745,42 @@ function milesWords_(m) {
   var mi = m / 1609.344;
   return (mi < 10 ? Math.round(mi * 10) / 10 : Math.round(mi)) + (mi >= 0.95 && mi < 1.05 ? ' mile' : ' miles');
 }
+// How sure the phone was of where it was (T2.42, the audit's smaller defect:
+// the clock-in waited 2.4 s without asking for a precise fix and threw the
+// accuracy away). Metres, 0 when the phone said nothing.
+var COORD_ACC_MAX_M = 5000;
+function coordAcc_(c) {
+  var a = c ? Number(c.acc) : NaN;
+  return a > 0 && isFinite(a) ? Math.min(a, COORD_ACC_MAX_M) : 0;
+}
+// The most of that doubt counted in the crew's favour. A rough fix a few
+// hundred metres off — a phone indoors, on cell towers alone — is not "away
+// from the shop", and the PM and the Ops Director are not told about it; a
+// fix the phone was unsure of by miles still is, and the notice says how sure.
+var SHOP_DOUBT_MAX_M = 1000;
 function nearestShopPlace_(coords) {
   var c = coordArg_(coords);
   if (!c) return null;
-  var here = { lat: c.latitude, lng: c.longitude };
-  return SHOP_PLACES.map(function (p) { return { place: p, m: metersBetween_(here, p) }; })
+  var here = { lat: c.latitude, lng: c.longitude }, acc = coordAcc_(coords);
+  return SHOP_PLACES.map(function (p) { return { place: p, m: metersBetween_(here, p), acc: acc }; })
     .sort(function (a, b) { return a.m - b.m; })[0];
+}
+// At the shop when the shop is inside the phone's own uncertainty, counted up
+// to SHOP_DOUBT_MAX_M.
+function atShop_(near) { return !!near && near.m - Math.min(near.acc || 0, SHOP_DOUBT_MAX_M) <= shopRadius_(); }
+function whereWords_(near) {
+  if (!near) return 'with no location from the phone';
+  // The PM reads miles; a rough fix says how rough, in the same words.
+  return 'about ' + milesWords_(near.m) + ' from ' + near.place.name +
+    (near.acc >= 160 ? ' (the phone could only tell to within about ' + milesWords_(near.acc) + ')' : '');
 }
 function morningCheck_(me, coords, opts) {
   try {
     var near = nearestShopPlace_(coords);
-    if (near && near.m <= shopRadius_()) return { ok: true, at: near.place.name };
+    if (atShop_(near)) return { ok: true, at: near.place.name };
     if (PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet) return { ok: false, quiet: true };
     var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '';
-    var where = near ? 'about ' + milesWords_(near.m) + ' from ' + near.place.name : 'with no location from the phone';
+    var where = whereWords_(near);
     var todayJob = String((opts && opts.todayJobId) || '').trim();
     var notice = noticeToPm_(todayJob && !isShopJob_(todayJob) ? todayJob : SHOP_JOB.id,
       '📍 ' + me.name + (also ? ' and ' + also : '') + ' clocked in for the day at ' + clockWords_(new Date()) + ' ' + where +
@@ -2602,10 +2799,10 @@ function morningCheck_(me, coords, opts) {
 function eveningCheck_(me, coords, closed, atMs) {
   try {
     var near = nearestShopPlace_(coords);
-    if (near && near.m <= shopRadius_()) return { ok: true, at: near.place.name };
+    if (atShop_(near)) return { ok: true, at: near.place.name };
     if (PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet) return { ok: false, quiet: true };
     var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '';
-    var where = near ? 'about ' + milesWords_(near.m) + ' from ' + near.place.name : 'with no location from the phone';
+    var where = whereWords_(near);
     var jobId = closed && closed.job && closed.job.id ? closed.job.id : SHOP_JOB.id;
     var on = closed && closed.code ? ' (last on ' + [closed.code.number, closed.code.name].filter(Boolean).join(' ') + ')' : '';
     var notice = noticeToPm_(jobId,
@@ -2865,7 +3062,7 @@ function wrongJobMove_(me, jobId, costItemId, open, run) {
   var codeLabel = function (c) { return c ? [c.number, c.name].filter(Boolean).join(' ') : ''; };
   var from = label(open.job), minutes = 0;
   run.forEach(function (b) {
-    var said = 'Changed from ' + from + ' in DB Crew — wrong job: moved here with its hours' + (b.code ? ' (was ' + codeLabel(b.code) + ')' : '') + '.';
+    var said = 'Changed from ' + from + ' in DB Crew — wrong job: moved here with its hours' + (b.code ? ' (was ' + codeLabel(b.code) + ')' : '') + '.' + partnerByWords_();
     pave({ updateTimeEntry: { '$': { id: b.id, jobId: jobId, costItemId: lineFor(b), notes: [b.notes, said].filter(Boolean).join(' · ').slice(0, 500) } } });
     var end = b.endedAt ? Date.parse(b.endedAt) : Date.now();
     minutes += Math.max(0, Math.round((end - Date.parse(b.startedAt)) / 60000));
@@ -2917,6 +3114,18 @@ var LEFT_SITE_DRIVE_MAX_MS = 12 * 3600 * 1000;
 // Set by withPartner_ only, for the length of one write that can post a
 // notice (leftSite, the morning clock-in): one notice naming both, not two.
 var PARTNER_NOTICE_ = null;
+// The partner's half of a correction says who made it (T2.42). Carl, 6 Nov
+// 2026: a crew fix changes a partner's time too, at once, and the manager
+// approves it on the board — and the note on Alberto's entry has to say that
+// Yahir made it with "Clock Alberto too", not read as Alberto's own word. Set
+// by withPartner_ for the partner's half only; appended, never in place of
+// the sentence the board reads (Code.gs only ever appends to a time entry's
+// notes).
+var PARTNER_BY_ = null;   // { by: <the person whose phone it was>, partner: <the partner> }
+function partnerByWords_() {
+  if (!PARTNER_BY_ || !PARTNER_BY_.by) return '';
+  return ' Made by ' + PARTNER_BY_.by + ' with Clock ' + firstName_(PARTNER_BY_.partner || '') + ' too.';
+}
 function opsDirector_() {
   var props = null;
   try { props = PropertiesService.getScriptProperties(); } catch (e) {}
@@ -3007,7 +3216,7 @@ function startedEarlier(me, startedAt) {
   if (clash) throw new Error('You were on the clock until ' + clockWords_(new Date(Date.parse(clash.endedAt))) + ' — start after that.');
   assertWrite_(open.job && open.job.id);
   var from = new Date(at), was = new Date(began);
-  var notes = [String(open.notes || '').trim(), 'Started earlier — said they started at ' + clockWords_(from) + ', clocked in from DB Crew at ' + clockWords_(was) + '.'].filter(Boolean).join(' ');
+  var notes = [String(open.notes || '').trim(), 'Started earlier — said they started at ' + clockWords_(from) + ', clocked in from DB Crew at ' + clockWords_(was) + '.' + partnerByWords_()].filter(Boolean).join(' ');
   pave({ updateTimeEntry: { '$': { id: open.id, startedAt: from.toISOString(), notes: notes } } });
   var notice = null;
   if (!(PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet) && open.job) {
@@ -3053,7 +3262,7 @@ function leftSite(me, leftAt, coords, plan) {
   var also = (PARTNER_NOTICE_ && PARTNER_NOTICE_.alsoName) || '', quiet = !!(PARTNER_NOTICE_ && PARTNER_NOTICE_.quiet);
   var leftIso = new Date(Math.min(at, now)).toISOString();
   var label = open.job ? [open.job.number, open.job.name].filter(Boolean).join(' ') : 'the job';
-  var said = 'No end photo — left the site. Ended from DB Crew at ' + clockWords_(new Date(now)) + ', said they left at ' + clockWords_(new Date(at)) + '.';
+  var said = 'No end photo — left the site. Ended from DB Crew at ' + clockWords_(new Date(now)) + ', said they left at ' + clockWords_(new Date(at)) + '.' + partnerByWords_();
   pave({ updateTimeEntry: { '$': { id: open.id, endedAt: leftIso, notes: [open.notes, said].filter(Boolean).join(' · ').slice(0, 500) } } });
   var create = function (args) {
     var d = pave({ createTimeEntry: { '$': args, createdTimeEntry: { id: {} } } });
@@ -3142,13 +3351,17 @@ function withPartner_(me, f, fn, args) {
   else if (!same) info.why = theirs ? 'on the clock at ' + [theirs.job && theirs.job.number, theirs.code && theirs.code.number].filter(Boolean).join(' · ') : 'not on the clock';
   else {
     try {
-      var pd;
-      try { PARTNER_NOTICE_ = notices ? { quiet: true } : null; pd = f.apply(null, [p].concat(args)); }
-      finally { PARTNER_NOTICE_ = null; }
+      var pd, plocked = clockLock_(p.userId, CLOCK_PARTNER_WAIT_MS);
+      try { PARTNER_NOTICE_ = notices ? { quiet: true } : null; PARTNER_BY_ = { by: me.name, partner: p.name }; pd = f.apply(null, [p].concat(args)); }
+      finally { PARTNER_NOTICE_ = null; PARTNER_BY_ = null; if (plocked) clockFree_(p.userId); }
       var pid = pd && (pd.id || (pd.open && pd.open.id));
       if (pid) markNudged(pid);
       info.followed = true;
-    } catch (e2) { info.why = String((e2 && e2.message) || e2).slice(0, 160); }
+    } catch (e2) {
+      // Their clock being changed from another phone at that moment (T2.42):
+      // said in words the phone has Spanish for, never as "your last change".
+      info.why = e2 && e2.busy ? 'another clock change of theirs was still saving' : String((e2 && e2.message) || e2).slice(0, 160);
+    }
   }
   if (data && typeof data === 'object') data.partner = info;
   return data;
@@ -3721,6 +3934,10 @@ function uploadCapture(jobId, base64Data, mime, fileName, description) {
   if (!jobId) throw new Error('Missing job id.');
   if (!base64Data) throw new Error('Missing file data.');
   assertWrite_(jobId);
+  // Filed already (sent again after the request-id window, T2.42): the same
+  // answer, and no second upload of the bytes.
+  var had = existingPhoto_(jobId, description);
+  if (had) return had;
   mime = String(mime || 'image/jpeg');
   var bytes = Utilities.base64Decode(base64Data);
   if (bytes.length > MAX_UPLOAD_BYTES) {
@@ -3749,7 +3966,29 @@ function uploadCapture(jobId, base64Data, mime, fileName, description) {
   return finalizeFileRecord_(jobId, req.id, fileName, description);
 }
 
+// Filed once (T2.42, the audit's smaller defect): a photo sent again after the
+// ten-minute request-id window — its answer lost, the phone trying again an
+// hour later — made a second file. The phone puts its own id for the photo in
+// the description (#PH:), so the job is asked before a file is made. Best
+// effort: JobTread not answering files it, as before.
+var PHOTO_MARK_RE = /#PH:([A-Za-z0-9_.:-]{4,80})/;
+function existingPhoto_(jobId, description) {
+  var m = PHOTO_MARK_RE.exec(String(description || ''));
+  if (!m || !jobId) return null;
+  try {
+    var d = pave({ job: { '$': { id: jobId }, files: { '$': { where: ['description', 'like', '%#PH:' + m[1] + '%'], size: 5 }, nodes: { id: {}, name: {}, description: {} } } } });
+    // `like` would also find a longer mark that starts with this one: the
+    // mark itself, whole, is what counts.
+    var f = (((((d.job || {}).files || {}).nodes) || []).filter(function (x) {
+      var mm = PHOTO_MARK_RE.exec(String((x && x.description) || ''));
+      return mm && mm[1] === m[1];
+    }))[0];
+    return f && f.id ? { ok: true, fileId: f.id, name: f.name || '', thumbUrl: '', again: true } : null;
+  } catch (e) { return null; }
+}
 function finalizeFileRecord_(jobId, uploadRequestId, fileName, description) {
+  var had = existingPhoto_(jobId, description);
+  if (had) return had;
   fileName = String(fileName || 'Capture').replace(/[\/\\]+/g, '-');
   var args = { uploadRequestId: uploadRequestId, targetType: 'job', targetId: jobId, name: fileName };
   if (CAPTURE_FOLDER) args.folder = CAPTURE_FOLDER;
@@ -4098,7 +4337,8 @@ function sweepBeforePhotoNudges() {
     var userId = (t.user || {}).id;
     var token = userId ? pushTokenFor_(userId) : null;
     // Mark regardless of whether we can reach the device — otherwise a crew
-    // member with no token makes the sweep retry them forever.
+    // member with no token makes the sweep retry them forever. A push that
+    // fails is un-marked again below (pushRetry_), so it is tried again.
     props.setProperty('nudged_' + t.id, String(Date.now()));
     if (!token) { skipped++; continue; }
 
@@ -4116,10 +4356,11 @@ function sweepBeforePhotoNudges() {
     } catch (e) {
       res = { ok: false, error: String(e && e.message || e) };
     }
-    if (res.ok) sent++;
+    if (res.ok) { sent++; props.deleteProperty('try_nudged_' + t.id); }
     else {
       failed++;
       if (res.stale && userId) props.deleteProperty('pt_' + userId);
+      pushRetry_(props, 'nudged_' + t.id, res);
       console.warn('push failed for ' + ((t.user || {}).name || userId) + ': ' + res.error);
     }
   }
@@ -4167,22 +4408,42 @@ function sweepEveningLeft_(open, props) {
         { kind: 'left-open', timeEntryId: t.id, jobId: (t.job || {}).id || '' },
         { tag: 'dbtc-left', link: (appUrl || '') + '/?left=1', ttl: '43200' });
     } catch (e) { res = { ok: false, error: String(e && e.message || e) }; }
-    if (res.ok) out.sent++;
+    if (res.ok) { out.sent++; props.deleteProperty('try_evening_' + t.id); }
     else {
       out.failed++;
       if (res.stale && userId) props.deleteProperty('pt_' + userId);
+      pushRetry_(props, 'evening_' + t.id, res);
       console.warn('evening push failed for ' + ((t.user || {}).name || userId) + ': ' + res.error);
     }
   }
   return out;
 }
 
+// A push is marked before it is sent, so a second sweep running alongside
+// never sends it twice and a phone with no token is not asked about for ever.
+// Until T2.42 the mark also stood when the push FAILED, so one bad minute at
+// FCM lost the start-photo nudge (and the 7pm "Still on the clock") for good
+// (the audit's smaller defect). Now a failure takes the mark off again and the
+// next sweep tries once more — NUDGE_TRIES in all, counted in try_<mark>. A
+// dead token is not tried again: it is gone, and the next sweep finds none.
+var NUDGE_TRIES = 3;
+function pushRetry_(props, mark, res) {
+  var tk = 'try_' + mark;
+  if (res && res.stale) { props.deleteProperty(tk); return false; }
+  var tries = Number(props.getProperty(tk) || 0) + 1;
+  if (tries >= NUDGE_TRIES) { props.deleteProperty(tk); return false; }
+  props.setProperty(tk, String(tries));
+  props.deleteProperty(mark);
+  return true;
+}
+
 /** Drop markers for entries that have since closed, so Script Properties
- *  don't grow without bound. */
+ *  don't grow without bound — the tries of a failed push with them. */
 function cleanupNudgeMarkers_(props, stillOpen) {
   var all = props.getProperties();
   for (var k in all) {
-    var id = k.indexOf('nudged_') === 0 ? k.slice(7) : k.indexOf('evening_') === 0 ? k.slice(8) : null;
+    var base = k.indexOf('try_') === 0 ? k.slice(4) : k;
+    var id = base.indexOf('nudged_') === 0 ? base.slice(7) : base.indexOf('evening_') === 0 ? base.slice(8) : null;
     if (id && !stillOpen[id]) props.deleteProperty(k);
   }
 }
@@ -5181,6 +5442,10 @@ function coService_(body, service) {
     if (!CO_WARRANTY[service.warranty]) throw new Error('Say whether the warranty covers it: Yes, No or Ask the office.');
     body.warranty = service.warranty;
   }
+  // Extra work to bill (T2.42, Carl 6 Nov 2026): words, written on the repair
+  // as its own line by DB CheckOut (contract 7); an older server ignores it.
+  var extra = String(service.extra || '').trim();
+  if (extra) body.extra = extra.slice(0, 2000);
 }
 function coComplete(me, taskId, jobId, note, ref, service) {
   var id = coId_(taskId, 'task id'), body = { note: String(note || '').slice(0, 2000) };

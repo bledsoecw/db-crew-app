@@ -2569,6 +2569,258 @@ t('D26: the missing-start-photo push no longer says the office was copied',
   props = {};
 }
 
+// ============================================================
+// T2.42 (6 Nov 2026): the first audit's smaller defects, I19, and Carl's
+// answers on corrections and billable extras.
+// ============================================================
+{
+  // ---- a photo sent again after the ten-minute window is filed once ----
+  props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+  const files = [];
+  let created = 0, uploads = 0, filesDown = false;
+  fetchImpl = (url, opts) => {
+    if (url.indexOf('upload.example') > -1) { uploads++; return { code: 200, body: '' }; }
+    const q = paveOf(opts) || {};
+    if (q.job && q.job.files) {
+      if (filesDown) return { code: 500, body: '{"errors":[{"message":"down"}]}' };
+      const like = String(q.job.files.$.where[2]).replace(/%/g, '');
+      const hit = files.filter(f => f.description.indexOf(like) > -1).slice(0, 5);
+      return { code: 200, body: JSON.stringify({ job: { files: { nodes: hit.map(f => ({ id: f.id, name: f.name, description: f.description })) } } }) };
+    }
+    if (q.createFile) { created++; const a = q.createFile.$; const f = { id: 'f' + created, name: a.name, description: a.description || '' }; files.push(f);
+      return { code: 200, body: JSON.stringify({ createFile: { createdFile: { id: f.id, name: f.name } } }) }; }
+    if (q.file) return { code: 200, body: '{"file":{"thumbUrl":"https://thumb.example/1"}}' };
+    if (q.createUploadRequest) return { code: 200, body: JSON.stringify({ createUploadRequest: { createdUploadRequest: { id: 'urX', url: 'https://upload.example/put', method: 'PUT', headers: {} } } }) };
+    return { code: 200, body: '{}' };
+  };
+  const desc = '#START #TE:te1 01GR Crew Labor #PH:tk3j9x0aqlo2m3b4c';
+  const a1 = sandbox.finalizeCaptureUpload('j1', 'ur1', '20261106-070101-START-TB.jpg', desc);
+  const a2 = sandbox.finalizeCaptureUpload('j1', 'ur2', '20261106-070101-START-TB.jpg', desc);
+  t('T2.42: a photo sent again after the request-id window is filed once — the first file is handed back',
+    [created, a1.fileId, a2.fileId, !!a2.again, !!a1.again], [1, 'f1', 'f1', true, false]);
+  const a3 = sandbox.uploadCapture('j1', 'aGVsbG8=', 'image/jpeg', 'x.jpg', desc);
+  t('…the fallback upload asks first too, and sends no bytes again', [created, uploads, a3.fileId], [1, 0, 'f1']);
+  const a4 = sandbox.finalizeCaptureUpload('j1', 'ur3', 'y.jpg', '#START #TE:te2 01GR Crew Labor #PH:tk3j9x0aqlo2m3b4');
+  t('…another photo is filed as always, even one whose mark the first one\'s starts with', [created, a4.fileId], [2, 'f2']);
+  const asked0 = fetched.filter(f => (paveOf(f.opts) || {}).job).length;
+  sandbox.finalizeCaptureUpload('j1', 'ur4', 'z.jpg', '#START #TE:te3 01GR');
+  t('…one from an older phone, with no mark, is filed without asking', [created, fetched.filter(f => (paveOf(f.opts) || {}).job).length - asked0], [3, 0]);
+  filesDown = true;
+  const a6 = sandbox.finalizeCaptureUpload('j1', 'ur5', 'w.jpg', desc);
+  t('…JobTread not answering the question files it, as before (best effort)', [created, a6.fileId], [4, 'f4']);
+  filesDown = false;
+
+  // ---- a start-photo push that fails is tried again (it was marked first) ----
+  props = { PUSH_ENABLED: 'true', FCM_PROJECT_ID: 'p' }; cacheStore = {}; pushes = [];
+  sandbox.registerPushToken(ME, 'tok-1', 'ios');
+  const blk = (id) => ({ id, startedAt: new Date(Date.now() - 30 * 60e3).toISOString(), minutes: 30, notes: '', user: { id: 'u1', name: 'Tyler B.' },
+    job: { id: 'j1', name: '260890 Webster_Foundation', number: '26-0890' }, costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1' } } });
+  let fcm = () => ({ code: 503, body: '{"error":{"status":"UNAVAILABLE"}}' }), openList = [blk('te_np')];
+  fetchImpl = (url, opts) => {
+    if (url.indexOf('fcm.googleapis.com') > -1) { pushes.push(JSON.parse(opts.payload).message); return fcm(); }
+    const q = paveOf(opts) || {};
+    if (q.organization && q.organization.timeEntries) return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: openList } } }) };
+    if (q.organization && q.organization.files) return { code: 200, body: '{"organization":{"files":{"nodes":[]}}}' };
+    return { code: 200, body: '{}' };
+  };
+  sandbox.__hour = 10;
+  let sw = sandbox.sweepBeforePhotoNudges();
+  t('T2.42: a start-photo push FCM refuses is not left marked as sent, so the next sweep tries again',
+    [sw.failed, props.nudged_te_np, props.try_nudged_te_np], [1, undefined, '1']);
+  sw = sandbox.sweepBeforePhotoNudges();
+  t('…once more', [sw.failed, props.nudged_te_np, props.try_nudged_te_np], [1, undefined, '2']);
+  sw = sandbox.sweepBeforePhotoNudges();
+  t('…three tries in all, then it stops trying', [sw.failed, !!props.nudged_te_np, props.try_nudged_te_np], [1, true, undefined]);
+  sw = sandbox.sweepBeforePhotoNudges();
+  t('…and asks no more', [sw.failed, sw.sent, pushes.length], [0, 0, 3]);
+  openList = [blk('te_np2')];
+  sandbox.sweepBeforePhotoNudges();
+  fcm = () => ({ code: 200, body: '{}' });
+  sw = sandbox.sweepBeforePhotoNudges();
+  t('…a try that lands is a push sent, and its count is forgotten', [sw.sent, !!props.nudged_te_np2, props.try_nudged_te_np2], [1, true, undefined]);
+  openList = [blk('te_np3')];
+  fcm = () => ({ code: 404, body: '{"error":{"status":"NOT_FOUND","details":[{"errorCode":"UNREGISTERED"}]}}' });
+  sw = sandbox.sweepBeforePhotoNudges();
+  t('…a dead token is not tried again: the phone is let go of, and the mark stays', [sw.failed, !!props.nudged_te_np3, props.try_nudged_te_np3, props.pt_u1 == null], [1, true, undefined, true]);
+  sandbox.registerPushToken(ME, 'tok-1', 'ios');
+  // The 7pm "Still on the clock" push had the same fault.
+  const P = sandbox.PropertiesService.getScriptProperties();
+  fcm = () => ({ code: 500, body: '{"error":{"status":"INTERNAL"}}' });
+  sandbox.__hour = 20;
+  let ev = sandbox.sweepEveningLeft_([{ ...blk('te_ev'), startedAt: new Date(Date.now() - 60e3).toISOString() }], P);
+  t('…the 7pm push too', [ev.failed, props.evening_te_ev, props.try_evening_te_ev], [1, undefined, '1']);
+  props.try_nudged_gone = '1'; props.try_evening_gone = '2'; props.nudged_gone = '1';
+  sandbox.cleanupNudgeMarkers_(P, { te_ev: true });
+  t('…and a block that closed takes its tries with it', [props.try_nudged_gone, props.try_evening_gone, props.nudged_gone, props.try_evening_te_ev], [undefined, undefined, undefined, '1']);
+  sandbox.__hour = null;
+
+  // ---- one clock change at a time per person ----
+  props = { WRITE_ENABLED: 'true', OAUTH_CLIENT_ID: 'cid' }; cacheStore = {}; fetched = [];
+  let openNow = null, n = 0;
+  const made = [];
+  const entry = (id, startedAt, jobId, ci) => ({ id, startedAt, endedAt: null, minutes: 0, notes: '',
+    job: { id: jobId, name: '261490 Courtney_Roof', number: '26-1490', location: {} },
+    costItem: { id: ci, name: 'Roofing', costCode: { number: '07TM-1', name: 'x' } } });
+  const base = route({ member: MEMBER_ME, people: PEOPLE,
+    entries: (q) => { const k = kindOf({ opts: { payload: JSON.stringify({ query: q }) } });
+      return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: k === 'open' || k === 'day' ? (openNow ? [openNow] : []) : [] } } }) }; } });
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
+    if (q.createTimeEntry) { const a = q.createTimeEntry.$, id = 'tl' + (++n); made.push(a); openNow = entry(id, a.startedAt, a.jobId, a.costItemId);
+      return { code: 200, body: JSON.stringify({ createTimeEntry: { createdTimeEntry: { id } } }) }; }
+    if (q.updateTimeEntry) { if (openNow && openNow.id === q.updateTimeEntry.$.id && q.updateTimeEntry.$.endedAt) openNow = null; return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    return base(url, opts); };
+  const postC = (fn, args, rid) => JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok', fn, args, rid }) } }).getContent());
+  cacheStore['clk|u1'] = String(Date.now());
+  sandbox.CLOCK_WAIT_MS = 0;
+  const b1 = postC('clockIn', ['j9', 'ci1', null, 'ph_s'], 'rid-t242-0001');
+  t('T2.42: a clock change while another of the same person\'s is still at work waits, then says so — writing nothing',
+    [b1.ok, !!b1.busy, /^Still saving your last clock change/.test(b1.error || ''), made.length], [false, true, true, 0]);
+  t('…its request id is freed, so the phone\'s next try runs', cacheStore['rid|t@deitemeyerbrothers.com|rid-t242-0001'], undefined);
+  const b0 = postC('getMyDay', []);
+  t('…a read never waits on it', b0.ok, true);
+  sandbox.CLOCK_WAIT_MS = 15000;
+  const sleep = sandbox.Utilities.sleep;
+  sandbox.Utilities.sleep = () => { delete cacheStore['clk|u1']; };
+  const b2 = postC('clockIn', ['j9', 'ci1', null, 'ph_s'], 'rid-t242-0002');
+  sandbox.Utilities.sleep = sleep;
+  t('…a second one waits for the first to let go, then runs on what the first left', [b2.ok, made.length], [true, 1]);
+  t('…and lets go of the mark when it is done', cacheStore['clk|u1'], undefined);
+  const b3 = postC('clockOut', [null, ''], 'rid-t242-0003');
+  t('…a write that is refused lets go too', [b3.ok, cacheStore['clk|u1']], [false, undefined]);
+  t('…every clock write takes it, and nothing else', [['clockIn', 'switchCode', 'clockOut', 'startTravel', 'leftSite', 'startedEarlier', 'startBreak', 'endBreak'].every(f => sandbox.CLOCK_FNS[f] === 1), Object.keys(sandbox.CLOCK_FNS).length], [true, 8]);
+
+  // ---- the partner's half: their own mark, and the note says who made it ----
+  props = { WRITE_ENABLED: 'true' }; cacheStore = {};
+  const YAHIR = { email: 'yahir@deitemeyerbrothers.com', name: 'Yahir Gonzalez', userId: 'uY', membershipId: '22PdPTwMdkzj', role: 'Crew' };
+  const on = (id, user) => ({ id, startedAt: new Date(Date.now() - 3600e3).toISOString(), minutes: 60, notes: 'Arrived', user: { id: user },
+    job: { id: 'j9', name: '261490 Courtney_Roof', number: '26-1490', location: {} }, costItem: { id: 'ci3', name: 'Roofing', costCode: { number: '07TM-1' } } });
+  let open2 = { uY: on('y1', 'uY'), uA: on('a1', 'uA') }, n2 = 0;
+  const ups = [], made2 = [];
+  fetchImpl = (url, opts) => {
+    const q = paveOf(opts) || {};
+    if (q.membership) return { code: 200, body: JSON.stringify({ membership: { id: q.membership.$.id, user: { id: 'uA', name: 'Alberto Gonzalez' } } }) };
+    if (q.createTimeEntry) { const a = q.createTimeEntry.$; made2.push([a.userId, a.jobId]); const id = 'p' + (++n2); if (!a.endedAt) open2[a.userId] = { ...on(id, a.userId), job: { id: a.jobId, name: a.jobId, number: a.jobId, location: {} }, costItem: { id: a.costItemId, name: 'Roofing', costCode: { number: '07TM-1' } } };
+      return { code: 200, body: JSON.stringify({ createTimeEntry: { createdTimeEntry: { id } } }) }; }
+    if (q.updateTimeEntry) { const a = q.updateTimeEntry.$; const who = Object.keys(open2).find(u => open2[u] && open2[u].id === a.id); ups.push([who, a.notes || '']); if (a.endedAt && who) open2[who] = null;
+      return { code: 200, body: '{"updateTimeEntry":{}}' }; }
+    if (q.createComment) return { code: 200, body: '{"createComment":{"createdComment":{"id":"c1"}}}' };
+    if (q.organization && q.organization.timeEntries) {
+      const a = q.organization.timeEntries.$, u = a.where.and ? a.where.and[0][1] : null;
+      return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: a.size === 1 ? (open2[u] ? [open2[u]] : []) : [] } } }) };
+    }
+    if (q.organization && q.organization.jobs) return { code: 200, body: '{"organization":{"jobs":{"nodes":[]}}}' };
+    return { code: 200, body: '{}' };
+  };
+  sandbox.withPartner_(YAHIR, sandbox.leftSite, 'leftSite', [new Date(Date.now() - 600e3).toISOString(), null, { kind: 'out' }]);
+  const uY = ups.find(u => u[0] === 'uY'), uA = ups.find(u => u[0] === 'uA');
+  t('T2.42: a correction made with Clock Alberto too says so on Alberto\'s entry — never as his own word',
+    [/said they left at \d+:\d\d[ap]\. Made by Yahir Gonzalez with Clock Alberto too\.$/.test(uA && uA[1]), /Made by/.test(uY && uY[1])], [true, false]);
+  t('…the sentence the board reads is still whole, the note only follows it', /Ended from DB Crew at \d+:\d\d[ap], said they left at \d+:\d\d[ap]\./.test(uA && uA[1]), true);
+  t('…and after the write, nothing says it any more', sandbox.partnerByWords_(), '');
+  // Alberto's clock changed on his own phone at that moment: his half waits, then says so.
+  open2 = { uY: null, uA: null }; made2.length = 0;
+  cacheStore['clk|uA'] = '1'; sandbox.CLOCK_PARTNER_WAIT_MS = 0;
+  let pr = sandbox.withPartner_(YAHIR, sandbox.clockIn, 'clockIn', ['j9', 'ci1', null, 'ph_s']);
+  t('…Alberto\'s own clock busy on his phone: Yahir\'s write goes, Alberto\'s is left, said in words the phone has Spanish for',
+    [made2, pr.partner], [[['uY', 'j9']], { name: 'Alberto Gonzalez', followed: false, why: 'another clock change of theirs was still saving' }]);
+  delete cacheStore['clk|uA']; sandbox.CLOCK_PARTNER_WAIT_MS = 5000;
+
+  // ---- how sure the phone was of where it was ----
+  props = { WRITE_ENABLED: 'true' };
+  const shop = sandbox.SHOP_PLACES[0];
+  const off = (m) => ({ lat: shop.lat + m / 111320, lng: shop.lng });   // m metres due north
+  t('T2.42: 700 m off on a fix good to 500 m is the shop — nobody is told about a rough fix',
+    [sandbox.atShop_(sandbox.nearestShopPlace_({ ...off(700), acc: 500 })), sandbox.atShop_(sandbox.nearestShopPlace_(off(700)))], [true, false]);
+  t('…the doubt counts only so far: two miles off on a fix good to three is still away',
+    sandbox.atShop_(sandbox.nearestShopPlace_({ ...off(3200), acc: 4800 })), false);
+  t('…and the notice says how rough it was, in miles', /^about [\d.]+ miles from the (shop on Monroe St|office on Bonnewitz Ave) \(the phone could only tell to within about 3 miles\)$/.test(sandbox.whereWords_(sandbox.nearestShopPlace_({ ...off(3200), acc: 4800 }))), true);
+  t('…a good fix says nothing more', sandbox.whereWords_(sandbox.nearestShopPlace_({ ...off(3200), acc: 12 })).indexOf('(') === -1, true);
+  t('…nonsense from the phone counts as no figure', [sandbox.coordAcc_({ acc: -5 }), sandbox.coordAcc_({ acc: 'x' }), sandbox.coordAcc_({}), sandbox.coordAcc_({ acc: 99999 })], [0, 0, 0, 5000]);
+
+  // ---- extra work to bill rides the service record to Close Out ----
+  const body = {};
+  sandbox.coService_(body, { found: 'Boot cracked', warranty: 'no', extra: '  Replaced 6 ft of drip edge — not on the order  ' });
+  t('T2.42: extra work to bill goes to Close Out beside what was found and the warranty answer', body, { found: 'Boot cracked', warranty: 'no', extra: 'Replaced 6 ft of drip edge — not on the order' });
+  const body2 = {};
+  sandbox.coService_(body2, { found: '', warranty: 'yes', extra: '   ' });
+  t('…none said, none sent', 'extra' in body2, false);
+
+  // ---- the day log: the job's own name, and a late log's hours ----
+  props = { WRITE_ENABLED: 'true' }; cacheStore = {}; fetched = [];
+  const dlCalls = [];
+  const yday = sandbox.addDays_(sandbox.isoDay_(new Date()), -1), at = (h, m) => new Date(yday + 'T' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':00-05:00').toISOString();
+  const DAY_NODES = [
+    { id: 'e1', startedAt: at(7, 2), endedAt: at(9, 20), costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1' } } },
+    { id: 'e2', startedAt: at(9, 20), endedAt: at(9, 50), costItem: { id: 'tr', name: 'Travel Related Labor', costCode: { number: '01GR-9' } } },
+    { id: 'e3', startedAt: at(9, 50), endedAt: at(15, 30), costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1' } } },
+    { id: 'e4', startedAt: at(16, 0), endedAt: null, costItem: { id: 'ci9', name: 'Site Prep Labor', costCode: { number: '02ST-1' } } },
+    { id: 'e5', startedAt: new Date(Date.parse(at(7, 0)) - 26 * 3600e3).toISOString(), endedAt: new Date(Date.parse(at(7, 0)) - 25 * 3600e3).toISOString(), costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1' } } }
+  ];
+  let entryAsks = 0;
+  fetchImpl = route({
+    people: () => ({ code: 200, body: JSON.stringify({ organization: { jobs: { nodes: [{ id: '22PeAtLNqcQG', number: '25-0001', name: 'Kay Oss_Test Job', customFieldValues: { nodes: [] } }] } } }) }),
+    entries: () => { entryAsks++; return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: DAY_NODES } } }) }; },
+    dailyLog: (q) => { dlCalls.push(q.createDailyLog.$); return { code: 200, body: '{"createDailyLog":{"createdDailyLog":{"id":"dl42"}}}' }; } });
+  sandbox.sendDailyLog(ME, { jobId: '22PeAtLNqcQG', date: yday, jobLabel: '22PeAtLNqcQG', story: 'Normal day, nothing to report.', lines: [] });
+  const lg = dlCalls[0] || {};
+  t('T2.42: a log whose label was only the job\'s id is headed with the job\'s number and name',
+    [lg.notes.split('\n')[1], lg.notes.indexOf('22PeAtLNqcQG') === -1], ['25-0001 Kay Oss_Test Job', true]);
+  t('…sent after its day, it carries that day\'s hours from JobTread: minutes per code, summed and rounded once',
+    lg.notes.split('\n').filter(l => /—\s\d|^Total|^HOURS/.test(l)), ['HOURS (Tyler)', '07TM-1 Roofing — 7h 58m', '01GR-9 Travel Related Labor — 30m', 'Total 8h 28m']);
+  t('…in the same round trip', entryAsks, 1);
+  t('…the shape the day reads by: the day before and the day after are not that day, an open block is not hours', sandbox.dayHoursFrom_({ organization: { timeEntries: { nodes: DAY_NODES } } }, yday).length, 2);
+  dlCalls.length = 0; entryAsks = 0;
+  for (const k of Object.keys(props)) if (k.indexOf('dl_') === 0) delete props[k];
+  sandbox.sendDailyLog(ME, { jobId: '22PeAtLNqcQG', date: yday, jobLabel: '25-0001 Tests Clients', story: 'x', lines: [], hours: [{ number: '07TM-1', name: 'Roofing', minutes: 60 }] });
+  t('…a label the phone named, and hours it sent, stand as sent — nothing more is asked', [dlCalls[0].notes.split('\n')[1], entryAsks, /07TM-1 Roofing — 1h 00m/.test(dlCalls[0].notes)], ['25-0001 Tests Clients', 0, true]);
+  dlCalls.length = 0; entryAsks = 0;
+  for (const k of Object.keys(props)) if (k.indexOf('dl_') === 0) delete props[k];
+  sandbox.sendDailyLog(ME, { jobId: '22PeAtLNqcQG', date: sandbox.isoDay_(new Date()), jobLabel: '', story: 'x', lines: [] });
+  t('…today\'s log asks nothing extra (the phone has today\'s hours)', [entryAsks, dlCalls[0].notes.split('\n')[1]], [0, '25-0001 Kay Oss_Test Job']);
+  t('…what reads as an id', [sandbox.idLikeLabel_('22PeAtLNqcQG', 'x'), sandbox.idLikeLabel_('', 'x'), sandbox.idLikeLabel_('j9', 'j9'), sandbox.idLikeLabel_('26-1490 Courtney', 'j9'), sandbox.idLikeLabel_('Grossnickle', 'j9')], [true, true, true, false, false]);
+
+  // ---- Sent this week, per job (I19) ----
+  cacheStore = {}; fetched = [];
+  const today = sandbox.isoDay_(new Date()), monday = sandbox.mondayOf_(today);
+  const tAt = (iso, h) => new Date(iso + 'T' + String(h).padStart(2, '0') + ':00:00-05:00').toISOString();
+  const WEEK = [
+    { id: 'w1', startedAt: tAt(monday, 7), endedAt: tAt(monday, 15), minutes: 480, costItem: { name: 'Roofing', costCode: { number: '07TM-1' } } },
+    { id: 'w0', startedAt: tAt(sandbox.addDays_(monday, -1), 9), endedAt: tAt(sandbox.addDays_(monday, -1), 10), minutes: 60, costItem: { name: 'Roofing', costCode: { number: '07TM-1' } } },
+    { id: 'wf', startedAt: new Date(Date.now() + 20 * 60e3).toISOString(), endedAt: null, minutes: 0, costItem: { name: 'Roofing', costCode: { number: '07TM-1' } } },
+    { id: 'wo', startedAt: new Date(Date.now() - 30 * 60e3).toISOString(), endedAt: null, minutes: 0, costItem: { name: 'Roofing', costCode: { number: '07TM-1' } } }
+  ];
+  let weekDown = false;
+  fetchImpl = (url, opts) => {
+    const q = paveOf(opts) || {};
+    if (q.organization && q.organization.timeEntries) return { code: 200, body: JSON.stringify({ organization: { timeEntries: { nodes: WEEK } } }) };
+    if (q.job && q.job.files) {
+      if (weekDown) return { code: 500, body: '{"errors":[{"message":"down"}]}' };
+      return { code: 200, body: JSON.stringify({ job: {
+        files: { nodes: [
+          { id: 'fa', name: 'a-START-TB.jpg', description: '#START #TE:w1 07TM-1 Roofing', createdAt: tAt(monday, 7) },
+          { id: 'fb', name: 'b-PHONE-END-TB.jpg', description: '#PHONE END #TE:wo 07TM-1 · picked from the phone\'s photos', createdAt: tAt(today, 8) },
+          { id: 'fc', name: 'c-START-XX.jpg', description: '#START #TE:someoneElse 07TM-1', createdAt: tAt(monday, 7) } ] },
+        dailyLogs: { nodes: [
+          { id: 'l1', date: monday, createdAt: tAt(monday, 16), notes: 'Site manager\'s log — Tyler B. · Mon\n26-1490 Courtney\n…' },
+          { id: 'l2', date: monday, createdAt: tAt(monday, 16), notes: 'Site manager\'s log — Somebody Else · Mon\n…' } ] } } }) };
+    }
+    return { code: 200, body: '{}' };
+  };
+  const wk = sandbox.getSentThisWeek(ME, 'j9');
+  t('I19: Sent this week reads the person\'s time on the job since Monday, from JobTread',
+    [wk.from, wk.entries.map(e => [e.id, e.code, e.open]), wk.entries[0].minutes], [monday, [['w1', '07TM-1 Roofing', false], ['wo', '07TM-1 Roofing', true]], 480]);
+  t('…the photos filed for those entries, a phone photo said as one, nobody else\'s',
+    wk.photos.map(p => [p.id, p.tag, p.fromPhone]), [['fa', 'START', false], ['fb', 'END', true]]);
+  t('…and their own day logs only', wk.logs.map(l => l.id), ['l1']);
+  t('…each part says JobTread answered it', wk.read, { time: true, photos: true, logs: true });
+  weekDown = true;
+  const wk2 = sandbox.getSentThisWeek(ME, 'j9');
+  t('…a part JobTread did not answer is said so, never shown as nothing sent', [wk2.read, wk2.photos.length, wk2.entries.length], [{ time: true, photos: false, logs: false }, 0, 2]);
+  t('…a Monday is the start of the week, whatever the day', [sandbox.mondayOf_('2026-11-06'), sandbox.mondayOf_('2026-11-02'), sandbox.mondayOf_('2026-11-08')], ['2026-11-02', '2026-11-02', '2026-11-02']);
+  t('…asked for one job, and a job must be named', /Missing job id/.test(refusedBy(() => sandbox.getSentThisWeek(ME, ''))), true);
+  props = {}; cacheStore = {}; fetchImpl = () => ({ code: 200, body: '{}' });
+}
+
 // ---- appsscript.json asks for exactly the permissions the code uses (2 Nov 2026) ----
 // The list is written out because the push now asks for firebase.messaging,
 // which Apps Script cannot work out by reading the code. Written out, Apps
