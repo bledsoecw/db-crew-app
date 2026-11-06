@@ -1694,8 +1694,12 @@ extras — *"Add 'Extra work to bill'"*. Four repos: this one, DB CheckOut
 - **How each answer is read.** *Breaks, unpaid*: nothing to build — a break has
   always been a gap with no time on it in JobTread, so it is unpaid by
   construction, and nothing is ever deducted. *8.5 hrs with 30min break*: the
-  board's time review flags a **day** over 8 hours worked, or 8 with under 30
-  minutes off the clock (it used to flag one entry over 12 hours). *16 hours as
+  board's time review flags a long **day** (it used to flag one entry over 12
+  hours). His day exactly — over 8 hours worked, or 8 with under 30 minutes
+  off — listed 56 of 98 person-days in a week, so the numbers became
+  Operations' settings on the board the same morning (*"go with (c)"*),
+  starting, as an assumption, at over 10 hours or 8 hours or more with no
+  time off at all (the board's notes have the rest). *16 hours as
   today*: `QUEUED_MAX_MS` in Code.gs (a no-signal clock change may be up to 16 hours old)
   is unchanged. *Only pm can correct times* became, on the second asking, the
   manager's **Change it** on the board's Time to approve — the approver is still
@@ -1780,3 +1784,26 @@ extras — *"Add 'Extra work to bill'"*. Four repos: this one, DB CheckOut
   board flags, people decide; and the training videos (Carl's *"Not yet"*
   stands; they are further out of date: What I sent this week, Extra work to
   bill, the install bar).
+- **The server half is live**: at 13:14:58Z on 6 Nov 2026 (8:14am in Ohio,
+  inside the morning rush on Carl's word: *"deploy the server now, don't wait
+  for 9"*) DB CheckOut's `main` was fast-forwarded adb6190..6ee8765, with
+  nothing on `main` the branch lacked, after its 213 tests and typecheck ran
+  clean on that commit. `dpl_AMNrAwbX3GQWPhMcgEDRpTrN672z` was ready at
+  13:15:10Z on closeout.deitemeyerbrothers.com with no alias error, and
+  `/health` answered `{"source":"1d62da7f7fbb","on":"vercel","commit":"6ee8765"}`
+  with `"crewApp":true` and `"contract":7` by 13:15:14Z. With no token,
+  `/queue`, `/jobs`, `/assigned`, `POST /tasks/x/complete`, `POST
+  /tasks/x/blocked` and `POST /jobs/x/close-area-inspection` answer the API's
+  own 401 JSON, the project showed no runtime errors in the 24 hours through
+  the switch, and the first JobTread webhooks on it (13:15:52Z, 13:16:04Z) ran
+  without one. The adb6190 deployment
+  (`dpl_Avj3sneQi8hQbHFr8riwKVqzAXdH`) is the rollback. Nothing changes for
+  the crews until the T2.42 Apps Script is out: a T2.41 Apps Script forwards
+  no `extra`, and a T2.41 phone needs contract 6 and reads 7 without a
+  warning. What changes at once is the repair summary's review check, which
+  now reads the board's own review names (`PM punch review`, `PM final
+  inspection review`, bare or `— X`) as well as the old ones.
+- **Two changes after the hand-back, the same morning**: the board's long-day
+  numbers became Operations' settings (*"go with (c)"*, the board's notes), and
+  this repo's README and *How each answer is read* above say so; nothing in the
+  phone or the Apps Script changed.

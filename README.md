@@ -1719,10 +1719,12 @@ correct times … yes, build it all"*):
   office under **Extra work to bill** until it is marked billed. Drawn only
   with a Close Out server at contract 7.
 
-The board's half: its time review flags a **day** over 8 hours worked, or 8
-with under half an hour off the clock (Carl's 8.5 hours with a 30-minute
-break; nothing is deducted — a break is already a gap with no time on it,
-which is what *"Breaks, unpaid"* means here), and on **Time to approve** a
+The board's half: its time review flags a long **day** — by numbers
+Operations sets under Time review → Long days, starting at over 10 hours on
+the clock or 8 hours or more with no time off at all; Carl's own day (over 8
+hours, or 8 with under half an hour off) is one button there. Nothing is
+deducted — a break is already a gap with no time on it, which is what
+*"Breaks, unpaid"* means here. And on **Time to approve** a
 manager approves a crew's correction as it is or **changes it** to the right
 time and approves that in the same tap. The crew's fix stands the moment it is
 made; the manager is told and approves or modifies it. A no-signal clock
