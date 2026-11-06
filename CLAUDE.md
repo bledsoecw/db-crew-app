@@ -1920,3 +1920,20 @@ times"*, and *"will turn construction on soon"*.
   and `index.html`): the phone and Apps Script half is Carl's chain (`clasp
   deploy … -d "T2.43"`, `firebase deploy --only hosting`), and either order
   is safe.
+- **Every crew member has an @deitemeyerbrothers.com Google account now**
+  (Carl, 6 Nov 2026, after the board deploy). The domain lets them in, but
+  `memberFor_` finds the person in JobTread by the address they sign in with,
+  and read-only at 20:10Z the same day JobTread still had all 16 field people
+  on their personal addresses (14 crew plus Tyler and Kenton; Yahir, Alberto
+  and Chris Blue were already on the domain). Signed in with the new account,
+  each would get *No JobTread user is linked to …* on every call. The fix is
+  the email on each person's EXISTING JobTread user (a new user would split
+  their hours, the board's crew links and the payroll link), and the same
+  address on DB Hub's Employees tab and App access. Pave cannot do it:
+  `updateMembership` takes no email and this grant has no `updateUser`. If
+  JobTread will not let the office change them, the fallback is a map in DB
+  Crew from the company address to the JobTread user, which DB CheckOut and
+  the board would need too. With everyone on the domain the consent screen
+  can be Internal instead of published. Published, T2.43's personal-address
+  door tells anyone who picks their personal Gmail to use the address
+  JobTread has for them; Internal, Google refuses a personal Gmail first.
