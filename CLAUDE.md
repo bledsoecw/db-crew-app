@@ -1937,3 +1937,95 @@ times"*, and *"will turn construction on soon"*.
   can be Internal instead of published. Published, T2.43's personal-address
   door tells anyone who picks their personal Gmail to use the address
   JobTread has for them; Internal, Google refuses a personal Gmail first.
+
+- **T2.43 is live on the phones**: Carl ran the chain the same evening. By
+  21:11Z on 6 Nov 2026 db-crews.web.app served `index.html`, `sw.js` and
+  `app.js?b=T2.43` identical to the branch at 04d6b05 (line endings aside;
+  last modified 20:01:27Z), `/` `no-cache`, and the API deployment's GET
+  answers "Opening DB Crew". The API's own label was not read from here (in
+  the chain `firebase deploy` only starts once `clasp deploy` has worked).
+
+## T2.44 (6 Nov 2026) — company accounts found through DB Hub's link, what the README does not say
+
+Carl, 6 Nov 2026: *"I cannot change their emails in JobTread. They all have to
+do it themselves, and thats not going to happen."* — then *"go, build it"* on
+the proposal: DB Hub links each person to their JobTread user, and the apps
+follow the link. The fallback the T2.43 notes named (a map from the company
+address to the JobTread user) is that link, kept once in DB Hub rather than
+in each app.
+
+- **The link is DB Hub's `JT User ID` column**, written by `?jobtread=link`
+  (company email, then Personal Email, then — only with
+  `?jobtread=link-names` — a unique full name; two rows on one JobTread user
+  are written for neither) and sent on the access feed as `jt` from DB Hub
+  v1.37, always present ('' when not linked) so an older feed is told apart.
+- **`memberFor_` follows it only after both address tries miss**
+  (`memberByHubLink_`): the feed row under the signed-in address, its `jt`,
+  then one `memberships` read where `isInternal` and `["user","id"]` equal it.
+  The answer is kept six hours like any other. `m.email` stays the address
+  they signed in with — the clock, request ids, waiting work, push tokens and
+  the People tab all go by it — and `m.jtEmail` is the address JobTread has.
+  `coFetch_` acts as `jtEmail || email` (lowercased): Close Out matches punch
+  assignees on the address, and since T2.39 acts for any internal one, so
+  DB CheckOut needed no change. The push token keeps `jtEmail` for the Close
+  Out sweep.
+- **Not linked is a refused sign-in with a reason** (`AUTH`, why
+  `not-linked`, `link`: `no-row` · `old-hub` · `no-link` · `gone`, copied onto
+  the reply as `link`). DB Hub's list not on hand, or JobTread not answering
+  the id read, is `busy` ("try again"), never AUTH — a missing copy has no
+  opinion (the T2.3 rule) — and the phone's boot now asks again on `busy` as
+  on no answer. So is JobTread not answering the address tries themselves
+  (`answered`): until T2.44 that fell through to *"No JobTread user is
+  linked"*, and through to the refused sign-in it would have signed a phone
+  out for a JobTread outage; code-test pins it. With `ACCESS_FEED_URL` unset there is no link to follow and
+  it reads as `no-row`. A send released for somebody else (D31) whose owner
+  cannot be found is a plain refusal, never an AUTH: that would sign out the
+  person holding the phone.
+- **DB Hub's word follows the link too** (`accessRecFor_`, `accessRecByJt_`):
+  a row under another address than the one they signed in with answers by
+  their JobTread user — Off, left, and the DB Crew level (`hubLevel_` and
+  `roleFor_` take the user id). The door reads it from memberFor_'s KEPT
+  answer only (`memberCached_`, no JobTread call); doPost checks again after
+  memberFor_ when no row is under the address, and so does `getBootFor_`. A
+  row under the signed-in address still answers first. The People tab lists
+  people by the address seen and does not follow the link (PEOPLE_JSON keeps
+  no user id) — a personal-address sign-in shows no hub level there.
+- **The durable copy of DB Hub's list is slim now** (`slimAccessFeed_`):
+  status only when it says they left, the DB Crew level, the link, and
+  `jtKnown`. The whole feed is about 230 characters a person, so past about
+  forty people it did not fit the 9KB Script Property and only the cache
+  held it — the warning `refreshAccessFeed` logs. That is computed from the
+  fields, not read from the live Executions log; the live roster's size was
+  not read from here. code-test pins 121 people inside 9000 characters.
+- **The phone**: `authRefused` has a `not-linked` branch (`notLinkedWords`,
+  English — the gate is not translated, T2.24) and sets `PICK_ACCOUNT_KEY` so
+  One Tap does not pick the account again; the not-allowed words name the
+  company account first. Diagnostics' copy adds *(JobTread user through DB
+  Hub's link)* from the profile's `jtLinked` — the JobTread address itself is
+  not sent to the phone.
+- **The mock grew**: `__MOCK_NOTLINKED` (every call refused with that
+  reason), `__MOCK_LINKBUSY = N` (the first N boots answered busy) and
+  `__MOCK_JTLINKED` (the profile's `jtLinked`).
+- **Suites moved with the rule**: t243's refused-account words, and
+  code-test's T2.43 *a like match on someone else's address is nobody* (it
+  reads the refusal's `why` and `link` now, not the old sentence).
+- **Measured, not assumed**: code-test 659/659; on the T2.43 Code.gs the
+  slim copy's checks fail and the run stops at the first lookup through the
+  link. t244 13/13; on the T2.43 phone 9 of its 13 fail — every check of the
+  phone's own change. DB Hub's planner, page and feed ran in a scratch harness
+  against stubbed sheets and JobTread (not committed — DB Hub has no suite).
+  Nothing was written to JobTread or DB Hub from here; whether the Employees
+  tab's Personal Email cells hold the addresses JobTread has is not known —
+  `?jobtread=link`'s report says, row by row.
+- **Where it is**: DB Hub v1.37 is [bledsoecw/DB-Hub#8](https://github.com/bledsoecw/DB-Hub/pull/8)
+  (its rule: real code changes go through a pull request); the board's half
+  is 8312575 on its branch.
+- **Deploy order**: DB Hub first — `clasp push -f`, `clasp deploy -i` the web
+  app, open `?jobtread=link` (then `?jobtread=link-names` after checking the
+  name matches), and a New version of the **feed** deployment in the editor
+  as operations@ (never `clasp deploy -i` on it). Then the Apps Script and
+  the phones (`clasp deploy … -d "T2.44"`, `firebase deploy --only hosting`),
+  then the board. Before DB Hub's feed carries links, a company account that
+  JobTread does not have reads *"DB Hub can't link company accounts to
+  JobTread yet"*; today it reads *"No JobTread user is linked …"* as a toast
+  over a blank clock.

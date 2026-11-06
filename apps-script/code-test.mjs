@@ -941,9 +941,11 @@ t('and resolves the membership and the JobTread role', [km.userId, km.membership
 props = {}; cacheStore = {}; fetched = []; lookups = 0;
 fetchImpl = () => { lookups++; return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes:
   lookups === 1 ? [] : [{ id: 'mX', role: { name: 'Crew' }, user: { id: 'uX', name: 'Somebody Else', emailAddress: 'poeXian@yahoo.com' } }] } } }) }; };
-let notHim = '';
-try { sandbox.memberFor_('poe_ian@yahoo.com'); } catch (e) { notHim = e.message; }
-t('T2.43: …a like match on someone else\'s address is nobody, not them', /^No JobTread user is linked to poe_ian@yahoo\.com/.test(notHim), true);
+let notHim = null;
+try { sandbox.memberFor_('poe_ian@yahoo.com'); } catch (e) { notHim = e; }
+// T2.44: "nobody" is now said as a sign-in with no JobTread user behind it,
+// and why (no DB Hub link to follow here: no feed is set up).
+t('T2.43: …a like match on someone else\'s address is nobody, not them', notHim && [notHim.message, notHim.why, notHim.email, notHim.link], ['AUTH', 'not-linked', 'poe_ian@yahoo.com', 'no-row']);
 
 
 // ============================================================
@@ -2970,6 +2972,179 @@ t('D26: the missing-start-photo push no longer says the office was copied',
   t('every Apps Script service Code.gs calls has a known permission (add a new one to appsscript.json and here)', [...unknown], []);
   t('appsscript.json lists exactly those permissions, firebase.messaging among them', [...(manifest.oauthScopes || [])].sort(), [...need].sort());
   t('…and the web app still runs as the account that deployed it, open to the phones', manifest.webapp, { executeAs: 'USER_DEPLOYING', access: 'ANYONE_ANONYMOUS' });
+}
+
+// ---- T2.44: a company account finds its JobTread user through DB Hub's link ----
+// Every crew member signs in with an @deitemeyerbrothers.com account since
+// 6 Nov 2026, and JobTread still has most of the field crew on a personal
+// address nobody can change there. DB Hub links each person to their JobTread
+// user (?jobtread=link) and its feed carries the link as `jt`.
+{
+  const ZAC = 'zac@deitemeyerbrothers.com', ZAC_JT = 'zacsmith@gmail.com';
+  const NODE = (id, uid, name, email, role) => ({ id, role: { name: role || 'Crew' }, user: { id: uid, name, emailAddress: email } });
+  const feedOf = (people) => ({ code: 200, body: JSON.stringify({ updated: '2026-11-06 12:00', people }) });
+  const FEED_URL = 'https://hub.example.com/exec?feed=k';
+  // A router: the hub's feed, Google's token check (as `who`), and JobTread's
+  // memberships by address (`byEmail`) and by user id (`byId`).
+  let who = ZAC, byEmail = {}, byId = {}, idFail = false, idAsked = [];
+  const router = (people) => (url, opts) => {
+    if (url.indexOf('hub.example.com') > -1) return feedOf(people);
+    if (url.indexOf('oauth2.googleapis.com/tokeninfo') > -1) return { code: 200, body: JSON.stringify({ aud: 'cid', email_verified: 'true', email: who, exp: Math.floor(Date.now() / 1000) + 3600 }) };
+    const q = paveOf(opts) || {};
+    const ms = q.organization && q.organization.memberships;
+    if (ms) {
+      const w = ms.$.where, ws = JSON.stringify(w);
+      if (ws.indexOf('"id"') > -1) {
+        const uid = w.and[1][1]; idAsked.push({ where: w, size: ms.$.size });
+        if (idFail) return { code: 500, body: 'JobTread is down' };
+        return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes: byId[uid] ? [byId[uid]] : [] } } }) };
+      }
+      const flat = ws.toLowerCase();
+      const hit = Object.keys(byEmail).find(e => flat.indexOf('"' + e + '"') > -1);
+      return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes: hit ? [byEmail[hit]] : [] } } }) };
+    }
+    return { code: 200, body: '{}' };
+  };
+  const load = (people, extra) => {
+    props = Object.assign({ ACCESS_FEED_URL: FEED_URL, OAUTH_CLIENT_ID: 'cid' }, extra || {});
+    cacheStore = {}; fetched = []; idAsked = []; idFail = false;
+    fetchImpl = router(people);
+    sandbox.refreshAccessFeed();
+  };
+  const refusal = (f) => { try { f(); return null; } catch (e) { return { message: e.message, why: e.why || '', link: e.link || '', busy: !!e.busy, email: e.email || '' }; } };
+
+  // The durable copy keeps only what DB Crew reads, and so fits a Script Property.
+  const many = {};
+  for (let i = 0; i < 120; i++) many['person' + i + '@deitemeyerbrothers.com'] = { status: 'Active', name: 'Person Number ' + i,
+    manager: 'neal@deitemeyerbrothers.com', jt: i % 2 ? '22PLabcdef' + i : '', portal: 'Standard', dashboard: 'View',
+    prodBoard: 'View', timeClock: i % 3 ? '' : 'Crew', dbCam: '', jtOverlay: '', jtCal: '' };
+  many['left@deitemeyerbrothers.com'] = { status: 'Left 2026-10-01', name: 'Gone Person', jt: 'u-left', timeClock: '' };
+  load(many);
+  const keptCopy = props[sandbox.ACCESS_FEED_PROP];
+  t('T2.44: the whole feed of 121 people would not fit a Script Property (it was kept in the cache alone)',
+    JSON.stringify({ at: Date.now(), feed: { people: many } }).length > 9000, true);
+  t('…the copy DB Crew keeps now does, so the door stays shut through a cache eviction', [!!keptCopy, !!keptCopy && keptCopy.length <= 9000], [true, true]);
+  const slim = keptCopy ? JSON.parse(keptCopy).feed : { people: {} };
+  t('…it keeps who has left, the DB Crew level and the JobTread link, and says the feed carries links',
+    [slim.jtKnown, slim.people['person1@deitemeyerbrothers.com'], slim.people['person0@deitemeyerbrothers.com'], slim.people['person2@deitemeyerbrothers.com'], slim.people['left@deitemeyerbrothers.com']],
+    [true, { jt: '22PLabcdef1' }, { timeClock: 'Crew' }, {}, { status: 'Left 2026-10-01', jt: 'u-left' }]);
+  cacheStore = {};
+  t('…and someone who left is still refused from that copy alone', /^NO_ACCESS/.test(refusedBy(() => sandbox.assertAccess_('left@deitemeyerbrothers.com'))), true);
+
+  // Signed in with the company account; JobTread has a personal address.
+  byEmail = { [ZAC_JT]: NODE('m-zac', 'u-zac', 'Zac Smith', ZAC_JT) };
+  byId = { 'u-zac': NODE('m-zac', 'u-zac', 'Zac Smith', 'ZacSmith@Gmail.com'), 'u-gabe': NODE('m-gabe', 'u-gabe', 'Gabe Palacios', 'gp@yahoo.com') };
+  const PEOPLE244 = { [ZAC]: { status: 'Active', jt: 'u-zac', timeClock: 'Crew' }, 'gabe@deitemeyerbrothers.com': { status: 'Active', jt: '' },
+    'gone@deitemeyerbrothers.com': { status: 'Active', jt: 'u-gone' } };
+  load(PEOPLE244);
+  const zac = sandbox.memberFor_(ZAC);
+  t('T2.44: a company account no JobTread user has is found through the user DB Hub links it to',
+    [zac.email, zac.userId, zac.membershipId, zac.name, zac.jtEmail], [ZAC, 'u-zac', 'm-zac', 'Zac Smith', ZAC_JT]);
+  t('…asked once for that user id, among the company\'s own people only', idAsked.map(a => [a.where, a.size]),
+    [[{ and: [['isInternal', '=', true], [['user', 'id'], 'u-zac']] }, 2]]);
+  const before = fetched.length;
+  t('…and kept like any other answer: the second time asks nobody', [sandbox.memberFor_(ZAC).userId, fetched.length - before], ['u-zac', 0]);
+  t('…the boot profile says it was found through the link (Diagnostics), not the address it found',
+    [sandbox.bootProfile_(zac).jtLinked, 'jtEmail' in sandbox.bootProfile_(zac), sandbox.bootProfile_(zac).email], [true, false, ZAC]);
+
+  // Not found: the sign-in has no JobTread user, and the phone is told why.
+  t('…a row DB Hub has not linked yet: a refused sign-in, "no-link"', refusal(() => sandbox.memberFor_('gabe@deitemeyerbrothers.com')),
+    { message: 'AUTH', why: 'not-linked', link: 'no-link', busy: false, email: 'gabe@deitemeyerbrothers.com' });
+  t('…an address DB Hub has no row for: "no-row"', refusal(() => sandbox.memberFor_('nobody@deitemeyerbrothers.com')).link, 'no-row');
+  t('…linked to a JobTread user who is not one of the company\'s people any more: "gone"', refusal(() => sandbox.memberFor_('gone@deitemeyerbrothers.com')).link, 'gone');
+  load({ [ZAC]: { status: 'Active', timeClock: 'Crew' } });
+  t('…a DB Hub older than v1.37 (no links on its feed at all): "old-hub"', refusal(() => sandbox.memberFor_(ZAC)).link, 'old-hub');
+  // A copy kept before this build is the whole feed with no jtKnown: its own row answers.
+  cacheStore = {}; props[sandbox.ACCESS_FEED_PROP] = JSON.stringify({ at: Date.now(), feed: { people: { 'gabe@deitemeyerbrothers.com': { status: 'Active', jt: '' } } } });
+  t('…a copy kept before T2.44 still tells no link from an old hub', refusal(() => sandbox.memberFor_('gabe@deitemeyerbrothers.com')).link, 'no-link');
+
+  // DB Hub's list or JobTread not there: try again, never a sign-out.
+  load(PEOPLE244); cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP];
+  t('T2.44: DB Hub\'s list not on hand: "try again", never a refused sign-in', refusal(() => sandbox.memberFor_(ZAC)),
+    { message: 'DB Crew couldn’t check DB Hub for your JobTread user just now — try again in a minute.', why: '', link: '', busy: true, email: '' });
+  load(PEOPLE244); idFail = true;
+  t('…JobTread not answering the lookup: the same', [refusal(() => sandbox.memberFor_(ZAC)).busy, refusal(() => sandbox.memberFor_(ZAC)).message], [true, 'JobTread didn’t answer — try again in a minute.']);
+  // JobTread down for the address tries themselves: nobody can say who this
+  // is — "try again", never a refused sign-in for an address DB Hub has no row for.
+  load({});
+  fetchImpl = (url, opts) => { const q = paveOf(opts) || {}; return q.organization && q.organization.memberships ? { code: 500, body: 'JobTread is down' } : { code: 200, body: '{}' }; };
+  t('…JobTread down for the address itself: "try again", not a sign-out, even with no DB Hub row',
+    (({ message, busy, why }) => [message, busy, why])(refusal(() => sandbox.memberFor_('tylermohr94@gmail.com'))), ['JobTread didn’t answer — try again in a minute.', true, '']);
+
+  // Through the API: the phone gets the refusal with its reason.
+  load(PEOPLE244); who = 'gabe@deitemeyerbrothers.com';
+  // A token per person: Google's answer for a token is kept, so one token
+  // reused for two people would read as the first of them.
+  const postU = (fn, args) => JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok-' + who, fn, args: args || [] }) } }).getContent());
+  let rr = postU('getBoot');
+  t('T2.44: an unlinked company account\'s boot is a refused sign-in with the reason, for the phone to say',
+    [rr.ok, rr.auth, rr.authWhy, rr.link, rr.email], [false, true, 'not-linked', 'no-link', 'gabe@deitemeyerbrothers.com']);
+  rr = postU('getMyDay', [today]);
+  t('…and the same on any call made as them', [rr.ok, rr.auth, rr.authWhy, rr.link], [false, true, 'not-linked', 'no-link']);
+  who = ZAC;
+  rr = postU('getBoot');
+  t('…a linked one boots as the company account, with the JobTread user behind it', [rr.ok, rr.data && rr.data.email, rr.data && rr.data.userId, rr.data && rr.data.jtLinked], [true, ZAC, 'u-zac', true]);
+  load(PEOPLE244); cacheStore = {}; delete props[sandbox.ACCESS_FEED_PROP];
+  rr = postU('getBoot');
+  t('…with DB Hub\'s list not on hand it is "busy" — the phone asks again — and nobody is signed out', [rr.ok, !!rr.auth, rr.busy], [false, false, true]);
+
+  // DB Hub's word reaches a person through the link, whichever address they use.
+  const TIM_JT = 'timr@gmail.com';
+  byEmail = { [TIM_JT]: NODE('m-tim', 'u-tim', 'Tim Racster', 'TimR@gmail.com', 'Crew') };
+  byId = { 'u-tim': byEmail[TIM_JT] };
+  load({ 'tim@deitemeyerbrothers.com': { status: 'Active', jt: 'u-tim', timeClock: 'Off' } });
+  who = TIM_JT;
+  t('T2.44: DB Hub keeps Tim under his company address and says Off; signed in with the Gmail JobTread has, the door has no opinion yet',
+    sandbox.assertAccess_(TIM_JT), null);
+  rr = postU('getBoot');
+  t('…his boot finds his JobTread user and, through the link, the row that says Off', [rr.ok, rr.noAccess], [false, true]);
+  rr = postU('getJobCodes', ['j1']);
+  t('…and once his JobTread user is known, the door shuts every call, even one made as nobody in particular', [rr.ok, rr.noAccess], [false, true]);
+  cacheStore = {}; load({ 'tim@deitemeyerbrothers.com': { status: 'Active', jt: 'u-tim', timeClock: 'Off' } });
+  rr = postU('getMyDay', [today]);
+  t('…a call made as him shuts too when the door could not tell yet', [rr.ok, rr.noAccess], [false, true]);
+  load({ 'tim@deitemeyerbrothers.com': { status: 'Active', jt: 'u-tim', timeClock: 'Site Manager' } });
+  t('…and his DB Crew level follows him: Site Manager, from DB Hub', sandbox.roleFor_({ email: TIM_JT, userId: 'u-tim', membershipId: 'm-tim', role: 'Crew' }), { role: 'siteManager', source: 'hub' });
+  t('…a row kept under the address he signed in with still answers first', (load({ [TIM_JT]: { timeClock: 'Service' }, 'tim@deitemeyerbrothers.com': { jt: 'u-tim', timeClock: 'Site Manager' } }),
+    sandbox.roleFor_({ email: TIM_JT, userId: 'u-tim', membershipId: 'm-tim', role: 'Crew' })), { role: 'service', source: 'hub' });
+
+  // Close Out acts as the address JobTread has.
+  props = { CLOSEOUT_API_URL: 'https://closeout.example.com/', CLOSEOUT_SECRET: 'co-secret' }; fetched = [];
+  fetchImpl = () => ({ code: 200, body: '[]' });
+  sandbox.coFetch_({ email: ZAC, jtEmail: ZAC_JT, name: 'Zac Smith', userId: 'u-zac', membershipId: 'm-zac' }, 'get', '/queue', null);
+  t('T2.44: Close Out is asked as the address JobTread has for a linked company account, by the JobTread name',
+    [fetched[0].opts.headers['X-Acting-Email'], fetched[0].opts.headers['X-Acting-Name']], [ZAC_JT, 'Zac Smith']);
+  fetched = [];
+  sandbox.coFetch_({ email: 'Alberto@deitemeyerbrothers.com', name: 'Alberto Gonzalez' }, 'get', '/queue', null);
+  t('…everyone else as the address they signed in with, as before (lowercased)', fetched[0].opts.headers['X-Acting-Email'], 'alberto@deitemeyerbrothers.com');
+  fetchImpl = () => ({ code: 401, body: '{"error":"no"}' }); fetched = [];
+  t('…a 401 for that personal address is said as Close Out not acting for it, naming it',
+    (({ status, reason, body }) => [status, reason, /zacsmith@gmail\.com/.test(body.error)])(sandbox.coFetch_({ email: ZAC, jtEmail: ZAC_JT, name: 'Zac Smith' }, 'get', '/queue', null)), [403, 'not-listed', true]);
+  props = {};
+  sandbox.registerPushToken({ email: ZAC, jtEmail: ZAC_JT, name: 'Zac Smith', userId: 'u-zac', membershipId: 'm-zac' }, 'tok-zac', 'android');
+  t('…the push token keeps it for the Close Out sweep, beside the address they sign in with',
+    (({ email, jtEmail }) => [email, jtEmail])(JSON.parse(props['pt_u-zac'])), [ZAC, ZAC_JT]);
+  sandbox.registerPushToken({ email: 'neal@deitemeyerbrothers.com', name: 'Neal', userId: 'u-neal', membershipId: 'm-neal' }, 'tok-neal', 'ios');
+  t('…and keeps nothing extra for anyone JobTread knows by the address they sign in with', 'jtEmail' in JSON.parse(props['pt_u-neal']), false);
+
+  // Work held on a shared phone for somebody DB Crew cannot find in JobTread
+  // (D31): Operations' send is refused for them; the person holding the phone
+  // is never signed out by it.
+  {
+    const { createHmac } = await import('node:crypto');
+    const OWN = 'unlinked.owner@deitemeyerbrothers.com';
+    byEmail = { 't@deitemeyerbrothers.com': NODE('m1', 'u1', 'Tyler B.', 't@deitemeyerbrothers.com') }; byId = {};
+    load({ [OWN]: { status: 'Active', jt: '' } }, { CREW_APP_SECRET: 'crew-s', BOARD_API_URL: 'https://board.test', WRITE_ENABLED: 'true' });
+    who = 't@deitemeyerbrothers.com';
+    const exp = Date.now() + 86400e3;
+    const rel = { owner: OWN, release: 'rel44', phone: 'ph_44', by: 'Carl Bledsoe', exp };
+    rel.sig = createHmac('sha256', 'crew-s').update([rel.release, rel.phone, rel.owner, 'send', rel.by, String(exp)].join('|')).digest('hex');
+    const sent = JSON.parse(sandbox.doPost({ postData: { contents: JSON.stringify({ t: 'tok-' + who, fn: 'clockIn',
+      args: ['j1', 'ci1', null, 'ph_s', { queued: { at: Date.now() - 3600e3, sentAt: Date.now() } }], actFor: rel, rid: 'rid-rel-44' }) } }).getContent());
+    t('T2.44: work sent for somebody DB Crew cannot find in JobTread is refused as that, and the phone\'s own person stays signed in',
+      [sent.ok, !!sent.auth, /^DB Crew can\u2019t find unlinked\.owner@deitemeyerbrothers\.com in JobTread \(no-link\)/.test(String(sent.error || ''))], [false, false, true]);
+  }
+  props = {}; cacheStore = {}; fetched = []; who = ZAC;
 }
 
 // ---- the API's build is never older than the phone's ----

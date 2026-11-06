@@ -525,7 +525,9 @@
                // for a JT Site Manager, so that case has to read Crew).
                role: window.__MOCK_FOREMAN ? 'Foreman' : (appRole === 'siteManager' && !window.__MOCK_NOTMANAGER ? 'Site Manager' : 'Crew'), isForeman: !!window.__MOCK_FOREMAN,
                appRole: appRole, appRoleSource: appRole === 'ops' ? 'code' : 'default', ops: appRole === 'ops', closeOut: !window.__MOCK_CO_UNSET,
-               writeEnabled: !window.__MOCK_READONLY, build: window.__MOCK_API_BUILD || 'mock' };
+               writeEnabled: !window.__MOCK_READONLY, build: window.__MOCK_API_BUILD || 'mock',
+               // T2.44: found in JobTread through DB Hub's link (__MOCK_JTLINKED).
+               jtLinked: !!window.__MOCK_JTLINKED };
     },
     getStart: function (jobId) {
       var b = HANDLERS.getBoot();
@@ -1401,6 +1403,16 @@
       // __MOCK_SIGNIN_AGE (audit D39): a year since the Google sign-in — refused in words that say so.
       if (window.__MOCK_SIGNIN_AGE) return authNo({ authWhy: 'signin-age', email: tokEmail(body.t) });
       if (/BAD/.test(body.t)) return authNo({ authWhy: 'not-allowed', email: 'yahir.personal@gmail.com' });
+      // __MOCK_NOTLINKED (T2.44): a company account with no JobTread user behind
+      // it — the API's reason ('no-link', 'no-row', 'old-hub', 'gone') rides as link.
+      if (window.__MOCK_NOTLINKED && body.fn !== 'exchangeSession') return authNo({ authWhy: 'not-linked', link: window.__MOCK_NOTLINKED, email: tokEmail(body.t) || DEFAULT_EMAIL });
+      // __MOCK_LINKBUSY = N (T2.44): the first N boots are answered "try again"
+      // (DB Hub's list not on hand) — answered, busy, never a sign-out.
+      if (body.fn === 'getStart' && Number(window.__MOCK_LINKBUSY) > 0) {
+        window.__MOCK_LINKBUSY--;
+        var lb = JSON.stringify({ ok: false, error: 'DB Crew couldn\u2019t check DB Hub for your JobTread user just now \u2014 try again in a minute.', busy: true });
+        return Promise.resolve({ ok: true, status: 200, text: function () { return Promise.resolve(lb); } });
+      }
       if (body.fn === 'exchangeSession' && Number(window.__MOCK_EXCHANGE_FAIL) > 0) {
         window.__MOCK_EXCHANGE_FAIL--;
         return Promise.resolve({ ok: false, status: 500, text: function () { return Promise.resolve('<html>busy</html>'); } });

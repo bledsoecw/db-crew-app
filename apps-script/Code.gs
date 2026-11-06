@@ -60,7 +60,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.43 (2026-11-06)';
+var APP_BUILD = 'T2.44 (2026-11-06)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -332,6 +332,7 @@ function refreshAccessFeed() {
     console.warn('access feed: refresh failed after ' + ms + 'ms (' + why + '); keeping the last good copy');
     return 'Refresh failed: ' + why;
   }
+  feed = slimAccessFeed_(feed);
   cachePut_('dbaccess_v1', feed, ACCESS_FEED_CACHE_SEC);
   var copy = JSON.stringify({ at: Date.now(), feed: feed });
   if (copy.length <= ACCESS_FEED_PROP_MAX) {
@@ -344,14 +345,64 @@ function refreshAccessFeed() {
   return 'Refreshed: ' + n + ' people in ' + ms + 'ms.';
 }
 
+/** Only what this script reads from a person's DB Hub row: whether they have
+ *  left (status), their DB Crew level (timeClock) and the JobTread user DB Hub
+ *  links them to (jt, DB Hub v1.37). The whole feed — every app's level, the
+ *  name, the manager — runs to about 230 characters a person, and past forty
+ *  people that no longer fitted the 9KB Script Property, so the durable copy
+ *  that keeps the door shut through a cache eviction was quietly never kept
+ *  (T2.44). A row with none of the three stays, as {}: it still says DB Hub
+ *  has them. `jtKnown` says the feed carries the link at all, so a DB Hub
+ *  older than v1.37 is told apart from a person who is not linked. */
+function slimAccessFeed_(feed) {
+  var out = { updated: feed.updated || '', people: {}, jtKnown: false };
+  for (var em in feed.people) {
+    var r = feed.people[em] || {}, o = {};
+    if (Object.prototype.hasOwnProperty.call(r, 'jt')) out.jtKnown = true;
+    if (/^(left|inactive|terminated)/i.test(String(r.status || ''))) o.status = String(r.status);
+    if (String(r.timeClock || '')) o.timeClock = String(r.timeClock);
+    if (String(r.jt || '').trim()) o.jt = String(r.jt).trim();
+    out.people[String(em).toLowerCase()] = o;
+  }
+  return out;
+}
+
 function dbAccessRec_(email) {
   var feed = accessFeedCopy_();
   if (!feed) return null;
   return feed.people[String(email || '').toLowerCase()] || null;
 }
 
-function assertAccess_(email) {
+/** The DB Hub row linked to this JobTread user (T2.44): how the hub's word —
+ *  Off, someone who has left, their DB Crew level — reaches a person who signs
+ *  in with an address their row is not kept under (the personal one JobTread
+ *  has, while DB Hub has the company account). Null with no copy, no user id,
+ *  or no row linked to it. */
+function accessRecByJt_(userId) {
+  userId = String(userId || '').trim();
+  if (!userId) return null;
+  var feed = accessFeedCopy_();
+  if (!feed) return null;
+  for (var em in feed.people) if (feed.people[em] && feed.people[em].jt === userId) return feed.people[em];
+  return null;
+}
+
+/** This person's DB Hub row: under the address they signed in with, else the
+ *  row linked to their JobTread user. */
+function accessRecFor_(email, userId) {
+  return dbAccessRec_(email) || accessRecByJt_(userId);
+}
+
+function assertAccess_(email, userId) {
   var rec = dbAccessRec_(email);
+  // No row under this address: the row linked to their JobTread user, when
+  // the caller knows it — or when an earlier call of theirs already found it,
+  // which the door can read without asking JobTread (T2.44).
+  if (!rec) {
+    var uid = userId;
+    if (!uid) { var mc = memberCached_(email); uid = mc && mc.userId; }
+    rec = accessRecByJt_(uid);
+  }
   if (!rec) return null;
   var gone = /^(left|inactive|terminated)/i.test(String(rec.status || ''));
   if (gone || String(rec.timeClock || '') === 'Off') {
@@ -666,7 +717,20 @@ function doPost(e) {
       if (fn === 'getBoot') data = getBootFor_(email);
       else if (fn === 'exchangeSession') data = renewSession_(body.t, email);
       else if (WITH_USER[fn]) {
-        var me = memberFor_(email);
+        var me;
+        try { me = memberFor_(email); }
+        catch (eMe) {
+          // Work sent for somebody else (D31) whose JobTread user cannot be
+          // found: a refusal of that send, never a sign-out of the person
+          // holding this phone.
+          if (release && eMe && eMe.message === 'AUTH') {
+            throw new Error('DB Crew can\u2019t find ' + email + ' in JobTread (' + (eMe.link || 'not linked') + '), so their work stays on the phone.');
+          }
+          throw eMe;
+        }
+        // DB Hub's word through the JobTread link (T2.44), for someone whose
+        // row is kept under another address than the one they signed in with.
+        if (!release && !dbAccessRec_(email)) assertAccess_(email, me.userId);
         tMember = Date.now();
         // Yahir's "Clock in Alberto too" (T2.21): the same write for the partner.
         var locked = CLOCK_FNS[fn] ? clockLock_(me.userId) : false;
@@ -686,6 +750,7 @@ function doPost(e) {
       noAccess: msg.indexOf('NO_ACCESS') === 0 };
     if (err && err.why) out.authWhy = err.why;
     if (err && err.email) out.email = err.email;
+    if (err && err.link) out.link = err.link;   // why a sign-in has no JobTread user (T2.44)
     if (err && err.refuse) out.refuse = err.refuse;   // a kept clock-in not added, as data (T2.31)
     if (err && err.stale) out.stale = err.stale;      // a block still open from a day before (T2.33)
     if (err && err.notOn) out.notOn = true;           // the phone thought they were on the clock (T2.33)
@@ -772,16 +837,28 @@ function paveAll_(queries) {
 // ===========================================================
 // WHO IS CALLING
 // ===========================================================
+function memberKey_(email) {
+  return 'mem_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(email || '').toLowerCase())).slice(0, 40);
+}
+/** memberFor_'s kept answer for this address, or null. Never asks JobTread. */
+function memberCached_(email) {
+  if (!email) return null;
+  var hit = null;
+  try { hit = CacheService.getScriptCache().get(memberKey_(email)); } catch (e) { return null; }
+  if (!hit) return null;
+  try { return JSON.parse(hit); } catch (e2) { return null; }
+}
+
 function memberFor_(email) {
   email = String(email || '').toLowerCase();
   if (!email) throw new Error('AUTH');
   var cache = CacheService.getScriptCache();
-  var ck = 'mem_' + Utilities.base64EncodeWebSafe(
-    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email)).slice(0, 40);
+  var ck = memberKey_(email);
   var hit = cache.get(ck);
   if (hit) { try { return JSON.parse(hit); } catch (e) {} }
 
-  var name = '', userId = '', membershipId = '', role = '';
+  var name = '', userId = '', membershipId = '', role = '', answered = true;
   try {
     // `=` first, then `like`. JobTread keeps the address as it was typed, so a
     // capital letter in there misses an exact match against the lowercased
@@ -817,27 +894,104 @@ function memberFor_(email) {
         name = ((ns[0].user || {}).name) || '';
       }
     }
-  } catch (e) { /* fall through */ }
+  } catch (e) { answered = false; }
 
+  // JobTread did not answer: nobody can say who this is, so "try again" —
+  // never the refused sign-in below, which would sign a phone out for a
+  // JobTread outage (T2.44; until then this said "No JobTread user is
+  // linked", which was as wrong but did not sign anyone out).
+  if (!userId && !answered) {
+    var down = new Error('JobTread didn\u2019t answer \u2014 try again in a minute.');
+    down.busy = true;
+    throw down;
+  }
+
+  // No JobTread user has this address. Every crew member signs in with a
+  // company account now, and JobTread still has most of the field crew on a
+  // personal address nobody can change there, so DB Hub links each person to
+  // their JobTread user (?jobtread=link, the JT User ID column) and its feed
+  // carries the link as `jt` (T2.44, 6 Nov 2026). Who they are stays the
+  // address they signed in with — the clock, their request ids and their
+  // waiting work go by it — and jtEmail is the one JobTread has, which Close
+  // Out matches its assignees on.
+  var jtEmail = '';
   if (!userId) {
-    throw new Error('No JobTread user is linked to ' + email + '. Ask the office to add you to the organization.');
+    var linked = memberByHubLink_(email);
+    userId = linked.userId; membershipId = linked.membershipId; role = linked.role;
+    name = linked.name; jtEmail = linked.jtEmail;
   }
   if (!name) {
     name = email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
   var m = { email: email, name: name, userId: userId, membershipId: membershipId, role: role };
+  if (jtEmail) m.jtEmail = jtEmail;
   cache.put(ck, JSON.stringify(m), 21600); // 6h
   return m;
 }
+
+/** The JobTread user DB Hub links this address to, as memberFor_'s answer —
+ *  or a refusal the phone can say in words. Not linked is AUTH with why
+ *  'not-linked' (the phone signs out and says what to ask the office for,
+ *  so they can sign in with an account that works meanwhile); DB Hub's list
+ *  or JobTread not answering is "try again", never a sign-out — a missing
+ *  copy is no opinion, the T2.3 rule. `link` names which:
+ *    no-row   DB Hub has no row under this address
+ *    old-hub  DB Hub has the row but is older than v1.37 (no links at all)
+ *    no-link  the row is not linked to a JobTread user yet
+ *    gone     the row's JobTread user is not one of the company's people */
+function memberByHubLink_(email) {
+  var notLinked = function (link) {
+    var e = new Error('AUTH');
+    e.why = 'not-linked'; e.email = email; e.link = link;
+    return e;
+  };
+  var tryAgain = function (msg) { var e = new Error(msg); e.busy = true; return e; };
+  var feed = accessFeedCopy_();
+  if (!feed) {
+    if (!accessFeedUrl_()) throw notLinked('no-row');
+    throw tryAgain('DB Crew couldn\u2019t check DB Hub for your JobTread user just now \u2014 try again in a minute.');
+  }
+  var rec = feed.people[email];
+  if (!rec) throw notLinked('no-row');
+  var jt = String(rec.jt || '').trim();
+  // A copy kept before T2.44 is the whole feed, with no jtKnown: its own row
+  // says whether DB Hub sends the link.
+  var known = feed.jtKnown != null ? !!feed.jtKnown : Object.prototype.hasOwnProperty.call(rec, 'jt');
+  if (!jt) throw notLinked(known ? 'no-link' : 'old-hub');
+  var ns;
+  try {
+    var d = pave({
+      organization: {
+        '$': { id: ORG },
+        memberships: {
+          '$': { where: { and: [['isInternal', '=', true], [['user', 'id'], jt]] }, size: 2 },
+          nodes: { id: {}, role: { name: {} }, user: { id: {}, name: {}, emailAddress: {} } }
+        }
+      }
+    });
+    ns = (((d.organization || {}).memberships || {}).nodes) || [];
+  } catch (eP) {
+    throw tryAgain('JobTread didn\u2019t answer \u2014 try again in a minute.');
+  }
+  ns = ns.filter(function (n) { return String(((n || {}).user || {}).id || '') === jt; });
+  if (!ns.length) throw notLinked('gone');
+  return {
+    userId: jt, membershipId: ns[0].id || '', role: ((ns[0].role || {}).name) || '',
+    name: ((ns[0].user || {}).name) || '',
+    jtEmail: String(((ns[0].user || {}).emailAddress) || '').toLowerCase().trim()
+  };
+}
 function getBootFor_(email) {
-  return bootProfile_(memberFor_(email));
+  var m = memberFor_(email);
+  assertAccess_(email, m.userId);
+  return bootProfile_(m);
 }
 
 // One place builds the signed-in profile, so getBoot and getStart can never
 // disagree about who is a foreman.
 function bootProfile_(m) {
   var ax = null;
-  try { ax = dbAccessRec_(m.email); } catch (eAx) {}
+  try { ax = accessRecFor_(m.email, m.userId); } catch (eAx) {}
   var r = roleFor_(m);
   return {
     email: m.email,
@@ -845,6 +999,9 @@ function bootProfile_(m) {
     userId: m.userId,
     membershipId: m.membershipId,
     role: m.role,
+    // Found in JobTread through DB Hub's link, not by this address (T2.44) —
+    // for Diagnostics; the JobTread address itself stays here.
+    jtLinked: !!m.jtEmail,
     // Foreman gets the crew block. Role names are the org's own, so this is a
     // contains-match rather than an exact one; a 'Manager' grant in DB Hub's
     // App access panel unlocks it too.
@@ -4161,7 +4318,9 @@ function registerPushToken(me, token, platform, lang) {
   var props = PropertiesService.getScriptProperties();
   props.setProperty('pt_' + me.userId, JSON.stringify({
     token: token, platform: String(platform || ''), name: me.name, membershipId: me.membershipId || '',
-    email: String(me.email || '').toLowerCase(), lang: lang === 'es' ? 'es' : 'en', at: Date.now()
+    email: String(me.email || '').toLowerCase(), lang: lang === 'es' ? 'es' : 'en', at: Date.now(),
+    // The address JobTread has, when it is not the one they sign in with (T2.44).
+    jtEmail: me.jtEmail ? String(me.jtEmail).toLowerCase() : undefined
   }));
   // A phone belongs to whoever registered on it last (T2.30). The same token
   // under anyone else is a shared phone's previous person, who would go on
@@ -4700,6 +4859,7 @@ function sweepCloseoutPushes_() {
     if (!rec || !rec.token || !rec.email) continue;   // registers again with the email on the next launch
     var userId = k.slice(3), snapKey = 'cop_' + userId;
     var me = { email: rec.email, name: rec.name || '', userId: userId, membershipId: rec.membershipId || '', role: '' };
+    if (rec.jtEmail) me.jtEmail = rec.jtEmail;
     var scope = 'assigned';
     try { scope = coScopeOf_(me); } catch (eR) {}
     // Anyone outside the service crew is told about the work assigned to them
@@ -5019,14 +5179,14 @@ function defaultRole_(m) {
 // The person's Time Clock level in DB Hub ('' when the feed has no row or
 // no opinion). Never throws: the role is read on every boot and the hub
 // must not be able to break one.
-function hubLevel_(email) {
+function hubLevel_(email, userId) {
   var rec = null;
-  try { rec = dbAccessRec_(email); } catch (e) {}
+  try { rec = accessRecFor_(email, userId); } catch (e) {}
   return rec ? String(rec.timeClock || '').trim() : '';
 }
 // The app role a hub level names, or '' when it names none.
-function hubRole_(email) {
-  var lv = hubLevel_(email);
+function hubRole_(email, userId) {
+  var lv = hubLevel_(email, userId);
   return Object.prototype.hasOwnProperty.call(HUB_ROLE_BY_LEVEL, lv) ? HUB_ROLE_BY_LEVEL[lv] : '';
 }
 
@@ -5042,7 +5202,7 @@ function hubChoice_(level) {
 function roleFor_(m) {
   var email = String(m.email || '').toLowerCase();
   if (isOps_(email)) return { role: 'ops', source: 'code' };
-  var hub = hubRole_(email);
+  var hub = hubRole_(email, m.userId);
   if (hub) return { role: hub, source: 'hub' };
   var set = propJson_(ROLES_PROP)[email];
   if (set && APP_ROLES.indexOf(set.role) !== -1) return { role: set.role, source: 'set' };
@@ -5052,7 +5212,7 @@ function roleFor_(m) {
 // What the People tab shows as the choice in force: the hub's level when it
 // has one, else the choice that matches the role in force.
 function choiceFor_(m, r) {
-  var hc = hubChoice_(hubLevel_(m.email));
+  var hc = hubChoice_(hubLevel_(m.email, m.userId));
   return hc || (r.role === 'ops' ? '' : r.role);
 }
 
@@ -5408,9 +5568,14 @@ function coOnlyMine_(job, s) {
 function coFetch_(me, method, path, body, ref) {
   var cfg = closeoutConfig_();
   if (!cfg.url || !cfg.secret) return { status: 0, reason: 'not-configured', body: null, ms: 0 };
+  // The address JobTread has for them (T2.44): Close Out matches its punch
+  // items' assignees on it, and acts for anyone JobTread has as one of the
+  // company's people. A company account linked through DB Hub carries the
+  // personal one JobTread knows as jtEmail.
+  var acting = String(me.jtEmail || me.email || '').toLowerCase().trim();
   var headers = {
     Authorization: 'Bearer ' + cfg.secret,
-    'X-Acting-Email': String(me.email || ''),
+    'X-Acting-Email': acting,
     'X-Acting-Name': String(me.name || '')
   };
   if (ref && CLOSEOUT_REF.test(String(ref))) headers['X-Client-Ref'] = String(ref);
@@ -5426,7 +5591,7 @@ function coFetch_(me, method, path, body, ref) {
   // address — the two site managers on Gmail — and not on that list gets its
   // 401: said as what it is (T2.39), never as the server being down or its
   // key being wrong, and kept as refused, so Retry sends it once they are added.
-  var who = String(me && me.email || '').toLowerCase().trim();
+  var who = acting;
   if (code === 401 && who && !/@deitemeyerbrothers\.com$/.test(who)) {
     return { status: 403, reason: 'not-listed', ms: Date.now() - t0,
              body: { error: 'Close Out does not act for ' + who + ' yet — the office adds that address to the Close Out server\u2019s allowed list (GOOGLE_ALLOWED_EMAILS).' } };

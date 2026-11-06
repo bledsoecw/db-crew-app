@@ -67,8 +67,10 @@ const allErrs = [];
     const b = document.getElementById('gateErr').textContent;
     return [a, b, !document.getElementById('gate').classList.contains('hidden'), em];
   });
+  // T2.44: every crew member has a company account since 6 Nov 2026, so the
+  // words name it first (the rule moved; the suite moved with it).
   check('T2.43: an account the door turns away is told to use the address the office has for them in JobTread', said[0],
-    'Google signed you in as ' + said[3] + ', and DB Crew didn’t accept it — JobTread has nobody at the company with that address. Sign in with the address the office has for you in JobTread, or ask the office to add this one.');
+    'Google signed you in as ' + said[3] + ', and DB Crew didn’t accept it — JobTread has nobody at the company with that address. Sign in with your @deitemeyerbrothers.com account, or the address the office has for you in JobTread.');
   check('…JobTread not answering the check is "try again", never "not allowed"', said[1], 'JobTread didn’t answer the sign-in check — tap the button to try again in a minute.');
   check('…and the sign-in screen is up for it', said[2], true);
   allErrs.push(...errs);

@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.43 (2026-11-06)';
+var APP_BUILD = 'T2.44 (2026-11-06)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -265,10 +265,18 @@ function authRefused(j){
     try { localStorage.setItem(PICK_ACCOUNT_KEY, '1'); } catch(e){}
     try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch(e){}
     // Since T2.43 the door is the company domain or anyone JobTread has as
-    // one of the company's own people, so the address to use is the one the
-    // office keyed into JobTread for them — a work account or their own.
+    // one of the company's own people. Every crew member has a company
+    // account since 6 Nov 2026 (T2.44), so that is the one to pick.
     msg = (email ? 'Google signed you in as ' + email + ', and DB Crew didn’t accept it — JobTread has nobody at the company with that address. ' : 'DB Crew didn’t accept that Google account. ') +
-          'Sign in with the address the office has for you in JobTread, or ask the office to add this one.';
+          'Sign in with your @deitemeyerbrothers.com account, or the address the office has for you in JobTread.';
+  } else if (j && j.authWhy === 'not-linked'){
+    // Google is fine and the door let them in, but there is no JobTread user
+    // to be (T2.44): a company account DB Hub has not linked to the JobTread
+    // user the office keeps on their personal address. One Tap must not pick
+    // the same account again, so the one JobTread has works meanwhile.
+    try { localStorage.setItem(PICK_ACCOUNT_KEY, '1'); } catch(e){}
+    try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch(e){}
+    msg = notLinkedWords(email, j && j.link);
   } else if (j && j.authWhy === 'google-check'){
     msg = 'Google didn’t answer the sign-in check — tap the button to try again.';
   } else if (j && j.authWhy === 'jobtread-check'){
@@ -279,6 +287,16 @@ function authRefused(j){
     msg = 'It’s been a year since you signed in with Google. Sign in again to keep using DB Crew — nothing you saved is lost.';
   }
   requireSignIn(msg);
+}
+/* What a sign-in with no JobTread user behind it says (T2.44), by why the
+   API could not find one. The sign-in gate is English on purpose (T2.24). */
+function notLinkedWords(email, link){
+  var as = email ? 'Signed in as ' + email + '. ' : '';
+  var meanwhile = ' Meanwhile you can sign in with the address the office has for you in JobTread.';
+  if (link === 'no-link') return as + 'Your company account isn’t linked to your JobTread user yet — ask the office to link it in DB Hub.' + meanwhile;
+  if (link === 'old-hub') return as + 'DB Hub can’t link company accounts to JobTread yet — ask the office to update DB Hub.' + meanwhile;
+  if (link === 'gone') return as + 'DB Hub links this account to a JobTread user who isn’t one of the company’s people any more — ask the office to check the link in DB Hub.';
+  return as + 'Neither JobTread nor DB Hub has anyone under this address — ask the office to put it on your DB Hub row.' + meanwhile;
 }
 // Back from Google (or the Gmail app) with the sign-in screen still up and
 // nothing under way: ask Google again. On Android this often finishes the
@@ -9155,7 +9173,9 @@ function bootStart(lastJob, attempt){
   }).catch(function(e){
     if (e && e.auth) return;
     failed('boot', e);
-    if (attempt < BOOT_RETRY_MS.length && !(e && e.answered)){
+    // Answered, but "try again" (T2.44: DB Hub's list or JobTread not there
+    // yet for a company account) is asked again like no answer at all.
+    if (attempt < BOOT_RETRY_MS.length && (!(e && e.answered) || (e && e.busy))){
       var ms = BOOT_RETRY_MS[attempt];
       toast(Lf('The API is slow — trying again in {s}s', { s: Math.round(ms / 1000) }), true);
       setTimeout(function(){ if (!S.me) bootStart(lastJob, attempt + 1); }, ms);
@@ -11957,7 +11977,8 @@ $('copyDiagBtn').onclick = function(){
   var lines = [
     'app      ' + APP_BUILD,
     'api      ' + ((S.me && S.me.build) || 'not reached'),
-    'user     ' + ((S.me && S.me.name) || '—') + ' / ' + ((S.me && S.me.appRole) || '—') + (S.viewAs ? ' (viewing as ' + S.viewAs + ')' : '') + ' / JT ' + ((S.me && S.me.role) || '—'),
+    'user     ' + ((S.me && S.me.name) || '—') + ' / ' + ((S.me && S.me.appRole) || '—') + (S.viewAs ? ' (viewing as ' + S.viewAs + ')' : '') + ' / JT ' + ((S.me && S.me.role) || '—') +
+             (S.me && S.me.jtLinked ? ' (JobTread user through DB Hub’s link)' : ''),
     'session  ' + sessionWords(),
     'board    ' + (S.assign ? (S.assign.source + (S.assign.reason ? ' · ' + S.assign.reason : '') +
                    (S.assign.boardMs != null ? ' · ' + S.assign.boardMs + 'ms' : '')) : '—'),

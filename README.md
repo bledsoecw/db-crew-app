@@ -1778,6 +1778,43 @@ Started earlier after a break and still reads a late time as the next
 morning, and the T2.43 API refuses both in words; an older API lets in only
 the domain and the list.
 
+**The crew's company accounts** (T2.44, 6 Nov 2026). Every crew member signs
+in with an @deitemeyerbrothers.com Google account now, and JobTread still has
+16 of the field people on their personal addresses — which nobody can change
+there (Carl: *"I cannot change their emails in JobTread"*). So the address a
+person signs in with and the one JobTread has can differ, and DB Hub joins the
+two:
+
+- **DB Hub links each person to their JobTread user.** `?jobtread=link` on DB
+  Hub writes each person's JobTread user ID into the Employees tab's
+  **JT User ID** column wherever their company or personal email finds it, and
+  lists every row it could not link (`?jobtread=link-names` also writes the
+  rows only the full name matched, after somebody has checked them). DB Hub's
+  access feed carries the column as `jt` (DB Hub v1.37).
+- **DB Crew follows the link.** A company account no JobTread user has is
+  found through the user its DB Hub row links to. The person stays the address
+  they signed in with (their clock, their waiting work, their request ids);
+  the JobTread address goes to Close Out, which matches its punch items on it.
+  DB Hub's **Off** and the person's DB Crew level reach them through the link
+  too, whichever address they sign in with.
+- **Not linked says so.** The sign-in screen says why (no link yet, no DB Hub
+  row, a DB Hub too old to link, or a link to somebody no longer in JobTread)
+  and what to ask the office for, and One Tap stops picking that account so
+  the address JobTread has works meanwhile. DB Hub's list or JobTread not
+  answering is "try again": the phone asks again by itself and nobody is
+  signed out.
+- **The board** finds a person's manager (Time to approve) and a site
+  manager's right to tick the checks through the same link.
+- **Close Out** needed no change: since T2.39 it acts for any address JobTread
+  has as one of the company's people, which is the address DB Crew now sends.
+
+`dev/t244-test.mjs` walks the phone's half; `apps-script/code-test.mjs` the
+API's. **Deploys, in this order**: DB Hub (link everyone, then a new version of
+its feed deployment, made in the editor as operations@), then the Apps Script
+and the phones, then the board. The Apps Script reads the link only from a
+feed that carries it, and says "DB Hub can't link company accounts yet"
+before then.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
@@ -1790,7 +1827,8 @@ the optional `EXTRA_ALLOWED_EMAILS` Script Property), or — since T2.43 — one
 JobTread has as one of the company's own people (an internal membership with
 that address; most of the field crew are on personal addresses, and those are
 their JobTread user emails) gets you to the sign-in; a JobTread membership on
-the org gets you in. Never "any Google account": a customer's or a vendor's
+the org gets you in — found by the address, or (T2.44) through the JobTread
+user DB Hub links the address to. Never "any Google account": a customer's or a vendor's
 JobTread login is not internal. Past
 that, DB Hub's **App access** panel has the final say if `ACCESS_FEED_URL` is
 set: `Off` or a status of left/inactive/terminated closes the app with a plain
