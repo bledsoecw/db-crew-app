@@ -2021,14 +2021,36 @@ in each app.
   tab's Personal Email cells hold the addresses JobTread has is not known —
   `?jobtread=link`'s report says, row by row.
 - **Where it is**: DB Hub v1.37 is [bledsoecw/DB-Hub#8](https://github.com/bledsoecw/DB-Hub/pull/8)
-  (its rule: real code changes go through a pull request); the board's half
-  is 8312575 on its branch.
-- **Deploy order**: DB Hub first — `clasp push -f`, `clasp deploy -i` the web
-  app, open `?jobtread=link` (then `?jobtread=link-names` after checking the
-  name matches), and a New version of the **feed** deployment in the editor
-  as operations@ (never `clasp deploy -i` on it). Then the Apps Script and
-  the phones (`clasp deploy … -d "T2.44"`, `firebase deploy --only hosting`),
-  then the board. Before DB Hub's feed carries links, a company account that
-  JobTread does not have reads *"DB Hub can't link company accounts to
-  JobTread yet"*; today it reads *"No JobTread user is linked …"* as a toast
-  over a blank clock.
+  (its rule: real code changes go through a pull request), merged as 6e0a1eb;
+  v1.38 is [bledsoecw/DB-Hub#9](https://github.com/bledsoecw/DB-Hub/pull/9).
+  The board's half is 8312575 on its branch.
+- **The live link run found the assumption wrong** (6 Nov 2026, evening).
+  Carl deployed v1.37's web app and `?jobtread=link` linked 39 rows, every one
+  on an exact address. But the design assumed a DB Hub row's Email is the
+  person's company account, and nothing here said so: for fifteen of the
+  field crew (Lexi, Brian, Blake, Drew, Kenton, Nathan, Kodey, Ian, Rick,
+  Tim, Nick Sowers, Scott, Tyler, Gabe and Zac) it is the personal address
+  JobTread has, so their company accounts were nowhere on the feed and
+  `memberByHubLink_` would answer `no-row`. DB Hub v1.38 adds a **Company
+  Account** column the office fills in; the feed answers for it with a copy
+  of the row's own record (status, manager, `jt`, levels, plus `of`). Nothing
+  here changed for it: this repo's real `slimAccessFeed_` was run on the new
+  feed in DB Hub's harness, and `dbAccessRec_` and `accessRecByJt_` look
+  records up by address or by `jt`, never by enumerating. Austin Leeth
+  (company row, no JobTread user) is a former employee; his row is to be
+  archived in DB Hub, which turns every app Off.
+- **Keep the OAuth consent screen as it is until those fifteen are on the
+  feed.** Internal refuses their personal Google accounts, and their company
+  accounts reach nobody until the Company Account column is filled and the
+  feed deployment serves v1.38.
+- **Deploy order**: DB Hub first — PR 9 merged, `clasp push -f`, `clasp
+  deploy -i` the web app, the Company Account column filled in
+  (`?jobtread=1` adds it and lists who needs one), and a New version of the
+  **feed** deployment in the editor as operations@ (never `clasp deploy -i`
+  on it), done once for v1.38: it still served v1.36 at 21:46Z on 6 Nov. Then
+  the Apps Script and the phones (`clasp deploy … -d "T2.44"`, `firebase
+  deploy --only hosting`), then the board; either of those may go first, and
+  neither depends on v1.38. Before DB Hub's feed carries links, a company
+  account that JobTread does not have reads *"DB Hub can't link company
+  accounts to JobTread yet"*; today it reads *"No JobTread user is linked …"*
+  as a toast over a blank clock.

@@ -1787,10 +1787,13 @@ two:
 
 - **DB Hub links each person to their JobTread user.** `?jobtread=link` on DB
   Hub writes each person's JobTread user ID into the Employees tab's
-  **JT User ID** column wherever their company or personal email finds it, and
-  lists every row it could not link (`?jobtread=link-names` also writes the
-  rows only the full name matched, after somebody has checked them). DB Hub's
-  access feed carries the column as `jt` (DB Hub v1.37).
+  **JT User ID** column wherever their Email, Company Account or Personal
+  Email finds it, and lists every row it could not link
+  (`?jobtread=link-names` also writes the rows only the full name matched,
+  after somebody has checked them). DB Hub's access feed carries the column
+  as `jt` (DB Hub v1.37). Someone the roster still has under a personal
+  address also needs their company account in DB Hub's **Company Account**
+  column: the feed answers for it with their row (DB Hub v1.38).
 - **DB Crew follows the link.** A company account no JobTread user has is
   found through the user its DB Hub row links to. The person stays the address
   they signed in with (their clock, their waiting work, their request ids);

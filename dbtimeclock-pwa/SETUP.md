@@ -58,6 +58,9 @@ files on Firebase Hosting.
    ends the personal-address way in). A company account JobTread does not
    have is found through DB Hub's link to their JobTread user (T2.44): run
    DB Hub's `?jobtread=link` first, and re-version its feed deployment.
+   Someone DB Hub still has under a personal address (fifteen of the field
+   crew on 6 Nov 2026) also needs their company account in its **Company
+   Account** column (DB Hub v1.38) — until then, Internal locks them out.
 2. Credentials > Create Credentials > **OAuth client ID** > Web application.
    Authorized JavaScript origins: `https://db-crews.web.app` and
    `https://db-crews.firebaseapp.com` (every site the app is served from —
