@@ -45,9 +45,13 @@ files on Firebase Hosting.
    Workspace before the API ever sees the token. While the app is in
    *Testing*, add those addresses under **Test users** (up to 100, no
    verification needed); or publish it — it asks only for the basic
-   openid/email/profile scopes, which need no verification either. The API
-   still rejects every address that is not on the company domain or on its
-   explicit allow-list, so this does not open the app to anyone else.
+   openid/email/profile scopes, which need no verification either. Since
+   T2.43 most of the field crew sign in with their own Gmail, Hotmail or Yahoo
+   address (the one JobTread has for them), so **publish it** before they get
+   the app; in Testing, every one of them would have to be a test user. The
+   API still rejects every address that is not on the company domain, on its
+   explicit allow-list, or an internal JobTread membership (one of the
+   company's own people), so this does not open the app to anyone else.
 2. Credentials > Create Credentials > **OAuth client ID** > Web application.
    Authorized JavaScript origins: `https://db-crews.web.app` and
    `https://db-crews.firebaseapp.com` (every site the app is served from —

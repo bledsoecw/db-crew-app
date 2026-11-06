@@ -770,22 +770,79 @@ r = save();
 t('an open breaker does not stop a save', [fetched.length - before2, r.status], [1, 200]);
 sandbox.__now = null;
 
-// ---- the door: the company domain, plus an explicit list — never "any Google account" ----
-props = {};
+// ---- the door: the company domain, the explicit lists, or one of JobTread's own people ----
+// T2.43 (Carl, 6 Nov 2026: "go with option B"): fourteen of the field crew are
+// on personal addresses in JobTread, so the door also asks JobTread whether the
+// address is an internal membership. Never "any Google account": a customer's
+// or a vendor's JobTread login is not internal.
+// A stand-in JobTread that reads the where the way Pave does: isInternal, and
+// `like` case-insensitive with % and _ as wildcards.
+const likeRe = (pat) => new RegExp('^' + String(pat).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i');
+let doorPeople = [], doorAsked = [], doorDown = false;
+const doorFetch = (fallback) => (url, opts) => {
+  const q = paveOf(opts || {}) || {};
+  if (q.organization && q.organization.memberships && JSON.stringify(q.organization.memberships.$ || {}).indexOf('isInternal') > -1) {
+    doorAsked.push(q.organization.memberships.$);
+    if (doorDown) return { code: 503, body: '<html>busy</html>' };
+    const and = ((q.organization.memberships.$.where || {}).and) || [];
+    const internal = (and.find(c => c[0] === 'isInternal') || [])[2];
+    const like = (and.find(c => Array.isArray(c[0]) && c[0][1] === 'emailAddress') || [])[2];
+    const nodes = doorPeople.filter(p => p.internal === internal && likeRe(like).test(p.email)).map(p => ({ id: p.id, user: { emailAddress: p.email } }));
+    return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes } } }) };
+  }
+  return fallback ? fallback(url, opts) : { code: 200, body: '{}' };
+};
+props = {}; cacheStore = {}; doorAsked = []; doorDown = false;
+doorPeople = [
+  { id: 'm-rick', internal: true, email: 'R3020870@gmail.com' },      // a capital in JobTread, as Rick Bright's is
+  { id: 'm-ian', internal: true, email: 'poe_ian@yahoo.com' },        // an underscore, as Ian Poe's is
+  { id: 'm-cust', internal: false, email: 'homeowner.jones@gmail.com' } // a customer's JobTread login
+];
+fetchImpl = doorFetch();
 t('company domain allowed', sandbox.emailAllowed_('Tyler.B@deitemeyerbrothers.com'), true);
 t('the two Gmail site managers are allowed', [sandbox.emailAllowed_('tylermohr94@gmail.com'), sandbox.emailAllowed_('KentonMcComas@gmail.com')], [true, true]);
-t('any other Google account is not', [sandbox.emailAllowed_('someone@gmail.com'), sandbox.emailAllowed_('')], [false, false]);
+t('…and neither of those asks JobTread', doorAsked.length, 0);
 props = { EXTRA_ALLOWED_EMAILS: ' New.Manager@gmail.com, other@outlook.com ' };
-t('EXTRA_ALLOWED_EMAILS adds one without a deploy', [sandbox.emailAllowed_('new.manager@gmail.com'), sandbox.emailAllowed_('nope@gmail.com')], [true, false]);
+t('EXTRA_ALLOWED_EMAILS adds one without a deploy', sandbox.emailAllowed_('new.manager@gmail.com'), true);
+t('…without asking JobTread either', doorAsked.length, 0);
+props = {};
+t('T2.43: one of our own people on Gmail gets in, whatever case JobTread keeps the address in', sandbox.emailAllowed_('r3020870@gmail.com'), true);
+t('…asked of JobTread as an internal membership with that address', JSON.stringify(doorAsked[0] && doorAsked[0].where),
+  JSON.stringify({ and: [['isInternal', '=', true], [['user', 'emailAddress'], 'like', 'r3020870@gmail.com']] }));
+t('…an underscore in the address finds its own person', sandbox.emailAllowed_('poe_ian@yahoo.com'), true);
+t('…a customer\'s JobTread login on Gmail does not get in', sandbox.emailAllowed_('homeowner.jones@gmail.com'), false);
+t('…nor an address JobTread has for nobody, nor nothing', [sandbox.emailAllowed_('someone@gmail.com'), sandbox.emailAllowed_('')], [false, false]);
+doorPeople = [{ id: 'm-other', internal: true, email: 'poeXian@yahoo.com' }]; cacheStore = {};
+t('…`like` reading _ as any letter is not enough: the exact address decides', sandbox.emailAllowed_('poe_ian@yahoo.com'), false);
+doorPeople = [{ id: 'm-rick', internal: true, email: 'R3020870@gmail.com' }]; cacheStore = {}; doorAsked = [];
+sandbox.emailAllowed_('r3020870@gmail.com'); sandbox.emailAllowed_('r3020870@gmail.com');
+sandbox.emailAllowed_('someone@gmail.com'); sandbox.emailAllowed_('someone@gmail.com');
+t('…a yes and a no are each kept, so JobTread is asked once for each', doorAsked.length, 2);
+const doorKeys = Object.keys(cacheStore).filter(k => k.indexOf('door_') === 0);
+t('…kept under a digest of the address, the way memberFor_ keeps its answer', [doorKeys.length, doorKeys.some(k => /@/.test(k))], [2, false]);
+cacheStore = {}; doorDown = true; doorAsked = [];
+let doorErr = null;
+try { sandbox.emailAllowed_('r3020870@gmail.com'); } catch (e) { doorErr = e; }
+t('…JobTread not answering is "try again", never a no that would sign the phone out',
+  [doorErr && doorErr.message !== 'AUTH', doorErr && doorErr.why, Object.keys(cacheStore).some(k => k.indexOf('door_') === 0)], [true, 'jobtread-check', false]);
+doorDown = false;
+t('…and the next try asks again and gets in', sandbox.emailAllowed_('r3020870@gmail.com'), true);
 
 props = { OAUTH_CLIENT_ID: 'cid' }; cacheStore = {}; fetched = [];
-const tokeninfo = email => () => ({ code: 200, body: JSON.stringify({ aud: 'cid', email_verified: 'true', email, exp: Math.floor(Date.now() / 1000) + 3600 }) });
+const tokeninfo = email => doorFetch(() => ({ code: 200, body: JSON.stringify({ aud: 'cid', email_verified: 'true', email, exp: Math.floor(Date.now() / 1000) + 3600 }) }));
 fetchImpl = tokeninfo('TylerMohr94@gmail.com');
 t('a Gmail site manager gets through the token check, lowercased', sandbox.verifyIdToken_('tok-tyler'), 'tylermohr94@gmail.com');
+fetchImpl = tokeninfo('R3020870@gmail.com');
+t('T2.43: a crew member on Gmail whom JobTread has gets through the token check', sandbox.verifyIdToken_('tok-rick'), 'r3020870@gmail.com');
 fetchImpl = tokeninfo('stranger@gmail.com');
-let refused = '';
-try { sandbox.verifyIdToken_('tok-stranger'); } catch (e) { refused = e.message; }
-t('a stranger on Gmail does not', refused, 'AUTH');
+let refused = '', refusedWhy = '';
+try { sandbox.verifyIdToken_('tok-stranger'); } catch (e) { refused = e.message; refusedWhy = e.why; }
+t('a stranger on Gmail does not, and the phone is told why', [refused, refusedWhy], ['AUTH', 'not-allowed']);
+fetchImpl = tokeninfo('homeowner.jones@gmail.com');
+doorPeople.push({ id: 'm-cust', internal: false, email: 'homeowner.jones@gmail.com' });
+refused = '';
+try { sandbox.verifyIdToken_('tok-customer'); } catch (e) { refused = e.message; }
+t('…nor a customer whose Gmail is a JobTread login', refused, 'AUTH');
 
 // ---- audit D39: a session runs at most a year from its Google sign-in ----
 // The renewal used to need nothing but the session, so one Google sign-in
@@ -849,6 +906,16 @@ t('a stranger on Gmail does not', refused, 'AUTH');
   props.EXTRA_ALLOWED_EMAILS = '';
   r9 = postT(extra, 'exchangeSession');
   t('…and once they are off it, the renewal is refused and names them', [r9.ok, r9.auth, r9.authWhy, r9.email], [false, true, 'not-allowed', 'new.manager@gmail.com']);
+  // T2.43: one of our own people on a personal address renews as long as JobTread has them.
+  const renewFetch = fetchImpl;
+  doorPeople = [{ id: 'm-rick', internal: true, email: 'R3020870@gmail.com' }]; doorDown = false;
+  fetchImpl = doorFetch(renewFetch);
+  const crewTok = sign({ email: 'r3020870@gmail.com', iss: 'dbtc-session', iat: now() - 8 * DAY, gat: now() - 8 * DAY, exp: now() + 22 * DAY });
+  t('T2.43: a crew member on Gmail whom JobTread has renews', postT(crewTok, 'exchangeSession').ok, true);
+  doorPeople = []; Object.keys(cacheStore).filter(k => k.indexOf('door_') === 0).forEach(k => { delete cacheStore[k]; });
+  r9 = postT(crewTok, 'exchangeSession');
+  t('…and once the office takes them out of JobTread, the renewal is refused and names them', [r9.ok, r9.auth, r9.authWhy, r9.email], [false, true, 'not-allowed', 'r3020870@gmail.com']);
+  fetchImpl = renewFetch;
 
   // The four functions that answered anyone signed in, with no membership check.
   const fresh = sandbox.mintSessionToken_('tyler.b@deitemeyerbrothers.com').token;
@@ -865,11 +932,18 @@ t('a stranger on Gmail does not', refused, 'AUTH');
 props = {}; cacheStore = {}; fetched = [];
 let lookups = 0;
 fetchImpl = () => { lookups++; return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes:
-  lookups === 1 ? [] : [{ id: 'm7', role: { name: 'Site Manager' }, user: { id: 'u7', name: 'Kenton McComas' } }] } } }) }; };
+  lookups === 1 ? [] : [{ id: 'm7', role: { name: 'Site Manager' }, user: { id: 'u7', name: 'Kenton McComas', emailAddress: 'KentonMcComas@gmail.com' } }] } } }) }; };
 const km = sandbox.memberFor_('kentonmccomas@gmail.com');
 const secondWhere = JSON.parse(fetched[1].opts.payload).query.organization.memberships.$.where;
 t('an exact miss retries with like', [lookups, secondWhere[0], secondWhere[1], secondWhere[2]], [2, ['user', 'emailAddress'], 'like', 'kentonmccomas@gmail.com']);
 t('and resolves the membership and the JobTread role', [km.userId, km.membershipId, km.role], ['u7', 'm7', 'Site Manager']);
+// T2.43: `like` reads _ as any letter, so only the exact address counts from it.
+props = {}; cacheStore = {}; fetched = []; lookups = 0;
+fetchImpl = () => { lookups++; return { code: 200, body: JSON.stringify({ organization: { memberships: { nodes:
+  lookups === 1 ? [] : [{ id: 'mX', role: { name: 'Crew' }, user: { id: 'uX', name: 'Somebody Else', emailAddress: 'poeXian@yahoo.com' } }] } } }) }; };
+let notHim = '';
+try { sandbox.memberFor_('poe_ian@yahoo.com'); } catch (e) { notHim = e.message; }
+t('T2.43: …a like match on someone else\'s address is nobody, not them', /^No JobTread user is linked to poe_ian@yahoo\.com/.test(notHim), true);
 
 
 // ============================================================
@@ -1748,6 +1822,32 @@ t('…no snapshot yet (no phone registered for push): nothing is written', props
   openNow = { ...ONSITE, notes: 'Drive back · end of the day · from 26-1490', startedAt: new Date(Date.now() - 15 * 3600e3).toISOString(), costItem: { id: 'ci1', name: 'Roofing', costCode: { number: '07TM-1' } } };
   writes.length = 0;
   t('a drive left running overnight (here on a job with no travel line) ends when it ended', [refusedBy(() => sandbox.leftSite(ME, longAgo, null, { kind: 'out' })), writes.find(w => w[0] === 'close')[1].endedAt], ['', longAgo]);
+  // T2.43 (Carl, 6 Nov 2026: "no overnight work allowed"): a block ends on the
+  // day it began, by 11:59p — never the next morning, and nothing carried from
+  // before midnight runs past it.
+  {
+    const before43 = openNow;
+    // The suite's own clock is noon; its time zone four hours behind UTC.
+    const localAt = (dayOffset, h, m) => { const b = new Date(Date.now() - 4 * 3600e3);
+      return new Date(Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate() + dayOffset, h + 4, m || 0)).toISOString(); };
+    openNow = { ...ONSITE, startedAt: localAt(-1, 20) };
+    writes.length = 0;
+    t('T2.43: a block from 8:00p yesterday cannot be said to have ended at 1:00a today — no overnight work',
+      [/^No overnight work — pick a time on .+, the day this block began, by 11:59p\. If you worked past midnight, tell your manager\.$/.test(refusedBy(() => sandbox.leftSite(ME, localAt(0, 1), null, { kind: 'out' }))), writes.length], [true, 0]);
+    t('…11:59p that day is the latest, and stands', [refusedBy(() => sandbox.leftSite(ME, localAt(-1, 23, 59), null, { kind: 'out' })), (writes.find(w => w[0] === 'close') || [])[1] && writes.find(w => w[0] === 'close')[1].endedAt],
+      ['', localAt(-1, 23, 59)]);
+    // At 2:00a, a drive or the work from 11:00p last night would run past midnight.
+    const realNow = SuiteDate.now; const twoAm = Date.parse(localAt(0, 2));
+    SuiteDate.now = () => twoAm;
+    try {
+      openNow = { ...ONSITE, startedAt: localAt(-1, 21) };
+      writes.length = 0;
+      t('…at 2:00a a drive from 11:00p last night is refused, writing nothing',
+        [/^No overnight work — clock out at the time you left, then clock in where you are\.$/.test(refusedBy(() => sandbox.leftSite(ME, localAt(-1, 23), null, { kind: 'drive', jobId: 'j2', costItemId: 'tr2' }))), writes.length], [true, 0]);
+      t('…nor the work, with the drive before it', /^No overnight work/.test(refusedBy(() => sandbox.leftSite(ME, localAt(-1, 23), null, { kind: 'work', jobId: 'j2', costItemId: 'ci4', startPhotoId: 'ph' }))), true);
+    } finally { SuiteDate.now = realNow; }
+    openNow = before43;
+  }
   // The drive's line: the job's travel line, or one of its own when it has none.
   const realFetch2 = fetchImpl;
   fetchImpl = (url, opts) => { const q = paveOf(opts) || {};
@@ -1982,8 +2082,13 @@ t('…no snapshot yet (no phone registered for push): nothing is written', props
   t('started earlier: not after the clock-in', /not before you clocked in/.test(refusedBy(() => sandbox.startedEarlier(ME, new Date(Date.parse(began) + 60e3).toISOString()))), true);
   t('…not more than four hours back', /more than 4 hours/.test(refusedBy(() => sandbox.startedEarlier(ME, ago(4 * 60 + 5)))), true);
   day = [{ id: 'te6', startedAt: ago(120), endedAt: ago(20), minutes: 100, notes: '', job: { id: 'j1', name: 'Webster', number: '26-0890', location: {} }, costItem: { id: 'ci3', name: 'Crew Labor', costCode: { number: '01GR', name: 'Crew Labor' } } }];
-  t('…not over another block of the day', /on the clock until/.test(refusedBy(() => sandbox.startedEarlier(ME, ago(45)))), true);
+  t('…not over another block of the day', /on the clock earlier today, until/.test(refusedBy(() => sandbox.startedEarlier(ME, ago(45)))), true);
+  // T2.43 (Carl, 6 Nov 2026): only a manager shortens a break, so the gap after
+  // an earlier block today is not the crew member's to close — even partly.
+  t('T2.43: …nor into the time off the clock after an earlier block today: that is a break, and the manager\'s',
+    /only your manager can change the time between your blocks/.test(refusedBy(() => sandbox.startedEarlier(ME, ago(15)))), true);
   t('…and nothing was written for any of them', writes.length, 0);
+  day = [];
   const r = sandbox.startedEarlier(ME, ago(15));
   const up = writes.find(w => w[0] === 'update')[1], note = writes.find(w => w[0] === 'comment')[1];
   t('the block starts when they said, and its notes say so', [up.id, up.startedAt, /^Started earlier — said they started at \d+:\d\d[ap], clocked in from DB Crew at \d+:\d\d[ap]\.$/.test(up.notes), r.startedAt],
@@ -2371,8 +2476,12 @@ t('…no snapshot yet (no phone registered for push): nothing is written', props
   t('…nor one the server remembers starting a break', /cannot shorten a break/.test(refusedBy(() => sandbox.startedEarlier(ME, new Date(brkEnd - 10 * 60e3).toISOString()))), true);
   delete props['brk_u1'];
   day = [{ ...entry('tlunch', new Date(brkEnd - 4 * 3600e3).toISOString(), 'j9', 'ci1'), endedAt: new Date(brkEnd - 75 * 60e3).toISOString() }];
-  t('…but a clock-in after time off the clock still may (back from lunch at 12:30, clocked in at 1:15)',
-    refusedBy(() => sandbox.startedEarlier(ME, new Date(brkEnd - 30 * 60e3).toISOString())), '');
+  // T2.43 moved this one with Carl's rule (6 Nov 2026): it used to be allowed,
+  // and it shortened the lunch from 75 minutes to 30 after the fact.
+  t('T2.43: …nor a clock-in after time off the clock (back from lunch at 12:30, clocked in at 1:15): the manager changes it',
+    [/only your manager can change the time between your blocks/.test(refusedBy(() => sandbox.startedEarlier(ME, new Date(brkEnd - 30 * 60e3).toISOString()))), closes.length], [true, 0]);
+  day = [];
+  t('…while the day\'s first clock-in still may say it started earlier', refusedBy(() => sandbox.startedEarlier(ME, new Date(brkEnd - 30 * 60e3).toISOString())), '');
   fetchImpl = () => ({ code: 200, body: '{}' });
 }
 

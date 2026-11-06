@@ -1737,18 +1737,61 @@ safe alone: an older phone sends no extra work and no `#PH` mark, an older API
 ignores both, and an older DB CheckOut is never sent the extra work (the phone
 draws the field only at contract 7).
 
+**Before the crews get it** (T2.43, 6 Nov 2026), on Carl's answers of 6 Nov:
+
+- **Anyone JobTread has as one of the company's own people can sign in**
+  (*"go with option B"*). Fourteen of the field crew are on personal Gmail,
+  Hotmail and Yahoo addresses in JobTread, and the door let in only the
+  company domain and a short list. It now also lets in an address that is an
+  internal JobTread membership — the rule Close Out's door has used since
+  T2.39. A customer's or a vendor's JobTread login never is one. It is asked
+  again at every renewal, so someone the office takes out of JobTread loses
+  the app at their next renewal, and DB Hub's **Off** still closes it. A
+  Google account it turns away is told to sign in with the address the office
+  has for them in JobTread.
+- **Only a manager shortens a break** (*"no crew member can NOT shorten break
+  afterward only a manager can shorten it for them"*). Started earlier is for
+  the day's first clock-in only. After any earlier block that day, the time
+  between was off the clock (a break taken with the Break button or by
+  clocking out), so the phone does not offer it and the API refuses it. The
+  manager changes it: on the board's Time to approve when it is a DB Crew
+  correction, otherwise in JobTread. End break early still works at the time.
+- **No overnight work** (*"no overnight work allowed"*). A block ends on the
+  day it began, by 11:59p. *When did you leave?* on a block from a day before
+  reads the time on that day and takes nothing later; the API refuses an end
+  after midnight, and a drive or the work carried on from before midnight. The
+  board's Change it does the same, and its morning time review lists any entry
+  that ran past midnight (one run in JobTread's own app, or typed).
+- **Training** is paid as normal work, and practice clock-ins stay until the
+  office deletes them (Carl). Nothing in the app changed for it.
+
+The board's half: the time review's long-day default is Carl's rule — a long
+day is more than 10 hours on the clock, and a day of 10 hours or more needs at
+least 30 minutes off it — and the morning email has a section for entries that
+ran past midnight or lie over another entry of the same person (time clocked
+twice).
+
+`dev/t243-test.mjs` walks the phone's half; `apps-script/code-test.mjs` the
+API's. **Deploys**: the Apps Script (`clasp push -f` then `clasp deploy`) and
+the phones, then the board; either order is safe. An older phone still offers
+Started earlier after a break and still reads a late time as the next
+morning, and the T2.43 API refuses both in words; an older API lets in only
+the domain and the list.
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`
 on the assignments call, and Close Out says so beside a Service person the
 board would never send one).
 
-Two gates in front of all of that, in order. A Google account on `@deitemeyerbrothers.com` — or on the
+Two gates in front of all of that, in order. A Google account on `@deitemeyerbrothers.com`, on the
 short explicit allow-list beside it (`SITE_MANAGER_EMAILS` in `Code.gs`, plus
-the optional `EXTRA_ALLOWED_EMAILS` Script Property; two of the three site
-managers sign in with Gmail addresses, which are also their JobTread user
-emails) — gets you to the sign-in; a JobTread membership on the org gets you
-in. Never "any Google account". Past
+the optional `EXTRA_ALLOWED_EMAILS` Script Property), or — since T2.43 — one
+JobTread has as one of the company's own people (an internal membership with
+that address; most of the field crew are on personal addresses, and those are
+their JobTread user emails) gets you to the sign-in; a JobTread membership on
+the org gets you in. Never "any Google account": a customer's or a vendor's
+JobTread login is not internal. Past
 that, DB Hub's **App access** panel has the final say if `ACCESS_FEED_URL` is
 set: `Off` or a status of left/inactive/terminated closes the app with a plain
 message, `Manager` is crew plus the foreman's crew block, and a blank row means

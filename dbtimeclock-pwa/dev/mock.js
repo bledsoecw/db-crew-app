@@ -858,6 +858,10 @@
       var at = Date.parse(leftAt);
       if (!(at > Date.parse(ST.open.startedAt))) throw new Error('That is before this block began.');
       if (at > Date.now() + 60000) throw new Error('That time has not happened yet.');
+      // T2.43: no overnight work — a block ends on the day it began, as Code.gs says it.
+      var dayOf = function (t) { var d = new Date(t); return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); };
+      if (dayOf(at) !== dayOf(Date.parse(ST.open.startedAt))) throw new Error('No overnight work — pick a time on the day this block began, by 11:59p. If you worked past midnight, tell your manager.');
+      if ((plan.kind || 'out') !== 'out' && dayOf(at) !== dayOf(Date.now())) throw new Error('No overnight work — clock out at the time you left, then clock in where you are.');
       if (plan.kind === 'work' && !plan.startPhotoId && HANDLERS.__startOwed(plan.jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to start the next code.');
       ST.open.endedAt = new Date(at).toISOString();
       ST.open.notes = 'No end photo — left the site.';
@@ -884,7 +888,14 @@
       var at = Date.parse(startedAt), began = Date.parse(ST.open.startedAt);
       if (!(at < began)) throw new Error('That is not before you clocked in.');
       if (began - at > 4 * 3600e3) throw new Error('That is more than 4 hours before you clocked in — ask the office to fix the day.');
-      if (ST.brkId && ST.brkId === ST.open.id) throw new Error('That block started when your break ended — Started earlier cannot shorten a break. Ask the office if you came back early.');
+      if (ST.brkId && ST.brkId === ST.open.id) throw new Error('That block started when your break ended — Started earlier cannot shorten a break. Ask your manager if you came back early.');
+      // T2.43: only a manager shortens a break — the day's first clock-in only, as Code.gs.
+      var openId = ST.open.id, earlierToday = (ST.entries || []).filter(function (x) {
+        if (!x || x.id === openId || !x.endedAt) return false;
+        var end = Date.parse(x.endedAt), d0 = new Date(began);
+        return end <= began && new Date(end).toDateString() === d0.toDateString();
+      })[0];
+      if (earlierToday) throw new Error('You were on the clock earlier today — only your manager can change the time between your blocks. Ask them if you came back earlier.');
       ST.open.startedAt = new Date(at).toISOString();
       ST.open.notes = ((ST.open.notes || '') + ' Started earlier — said they started earlier.').trim();
       (window.__NOTES = window.__NOTES || []).push({ kind: 'earlier', jobId: ST.open.job && ST.open.job.id, at: startedAt });

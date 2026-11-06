@@ -69,13 +69,16 @@ async function boot(flags = '') {
   }
   check('…Clock out, Break, Change code, Leave and Change job each ask when they left that day, first', asked, Array(5).fill(['left', 'overnight']));
   check('…and none of them wrote anything', (await calls(page)).length, 0);
-  // The time is read on the day the block began, rolling past midnight only
-  // when it has to: from 7:02a, "17:30" is 5:30p that day and "01:00" is 1am the next.
-  check('…a time is read on the day the block began, and one before its start is the next morning',
+  // The time is read on the day the block began, and since T2.43 (Carl, 6 Nov
+  // 2026: "no overnight work allowed") never rolls into the next morning: from
+  // 7:02a, "17:30" is 5:30p that day, "23:59" the latest, and "01:00" is 1am
+  // that same day — before the block began, so not a time it can end.
+  check('…a time is read on the day the block began, never the next morning (T2.43: no overnight work)',
     await page.evaluate(() => {
-      const b = new Date(S.open.startedAt), at = (h, m, plus) => { const d = new Date(b); d.setDate(d.getDate() + plus); d.setHours(h, m, 0, 0); return d.getTime(); };
-      return [leftFromInput('17:30') === at(17, 30, 0), leftFromInput('01:00') === at(1, 0, 1), leftFromInput('07:02') === at(7, 2, 1)];
-    }), [true, true, true]);
+      const b = new Date(S.open.startedAt), at = (h, m) => { const d = new Date(b); d.setHours(h, m, 0, 0); return d.getTime(); };
+      return [leftFromInput('17:30') === at(17, 30), leftOk(leftFromInput('23:59')), leftFromInput('01:00') === at(1, 0), leftOk(leftFromInput('01:00')), leftOk(at(23, 59) + 2 * 60e3)];
+    }), [true, true, true, false, false]);
+  check('…and the sheet says so', /by 11:59p\. No work past midnight\./.test(await txt(page, '#sheetBody')), true);
   await page.locator('#leftTime').fill('17:30'); await page.waitForTimeout(200);
   check('…the button says the time back', await txt(page, '#leftGo'), 'I left at 5:30p');
   await tap(page, '#leftGo', 300);
@@ -186,7 +189,11 @@ async function boot(flags = '') {
     S.entries = [o, { id: 'b1', job: o.job, code: o.code, startedAt: new Date(began - 95 * 60e3).toISOString(), endedAt: new Date(began - 30 * 60e3).toISOString(), minutes: 65, notes: '' }]; render(); });
   check('D27: the block a 30-minute break planned offers no Started earlier', [await page.evaluate(() => [afterBreakBlock(S.open), earlierBlock()]), await page.locator('#earlierBtn').isVisible()], [[true, null], false]);
   await page.evaluate(() => { S.entries[1].endedAt = new Date(Date.parse(S.open.startedAt) - 7 * 60e3).toISOString(); render(); });
-  check('…a gap no break is (7 minutes) still does', await page.evaluate(() => afterBreakBlock(S.open)), false);
+  // A 7-minute gap is no break the Break button took — but since T2.43 any
+  // earlier block today means the time before this one was off the clock, so
+  // Started earlier is the day's first clock-in's only (Carl, 6 Nov 2026).
+  check('…a gap no break is (7 minutes) is not a planned break, and since T2.43 offers no Started earlier either',
+    [await page.evaluate(() => [afterBreakBlock(S.open), earlierBlock()]), await page.locator('#earlierBtn').isVisible()], [[false, null], false]);
   await page.evaluate(() => { S.brk = { entryId: S.open.id }; render(); });
   check('…nor does the block the phone itself saw a break plan', [await page.evaluate(() => [afterBreakBlock(S.open), earlierBlock()]), await page.locator('#earlierBtn').isVisible()], [[true, null], false]);
   // The API's half: its own record of the block the break planned.

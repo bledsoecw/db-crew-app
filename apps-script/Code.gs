@@ -60,7 +60,7 @@
 var GRANT_KEY = PropertiesService.getScriptProperties().getProperty('GRANT_KEY') || 'PASTE_GRANT_KEY_INTO_SCRIPT_PROPERTIES';
 var ORG = '22PBAjem8SSC';
 
-var APP_BUILD = 'T2.42 (2026-11-06)';
+var APP_BUILD = 'T2.43 (2026-11-06)';
 
 var CAPTURE_FOLDER = 'DB Cam';     // photos land beside DB Cam's, so one report covers the job
 var ENTRY_TYPE = 'Standard';       // 'Standard' is worked time; 'PTO' is the other value in use
@@ -100,15 +100,23 @@ function assertWrite_(jobId) {
 // either a Google ID token or an app session token we minted
 // after a real Google sign-in. The grant key never leaves here.
 // ===========================================================
-// Who may get past the sign-in. The company domain, plus an EXPLICIT list —
-// never "any Google account". Two of the three site managers sign in with
-// Gmail addresses, and those ARE their JobTread user emails (verified live,
-// 2026-09-15), so memberFor_ resolves them like anyone else once they are
-// through the door. Chris Blue is on the company domain and needs no line.
-// The board keeps the same two in src/auth.ts (siteManagerEmailsInCode).
+// Who may get past the sign-in — never "any Google account". The company
+// domain; the explicit lists (the two site managers below, EXTRA_ALLOWED_EMAILS);
+// and, since T2.43, anyone JobTread has as one of the company's own people: an
+// internal membership whose user has that address (internalMemberEmail_).
+// Carl, 6 Nov 2026: "go with option B". Fourteen of the field crew are on
+// personal Gmail, Hotmail and Yahoo addresses in JobTread (read 6 Nov 2026),
+// so the domain alone kept most of the bench out. It is the rule DB
+// CheckOut's door has used since T2.39. A customer's or a vendor's JobTread
+// login is never internal (592 of them on Gmail that day), so they stay out,
+// and DB Hub's Off still closes the app after this. Two of the three site
+// managers sign in with Gmail addresses, and those ARE their JobTread user
+// emails (verified live, 2026-09-15). The board keeps the same two in
+// src/auth.ts (siteManagerEmailsInCode).
 //
 // NOTE the OAuth consent screen must be "External" for a Gmail account to
-// sign in at all — an "Internal" app refuses them before this code runs.
+// sign in at all — an "Internal" app refuses them before this code runs — and
+// while it is in Testing only its listed test users can sign in.
 // See SETUP.md §3.
 var SITE_MANAGER_EMAILS = [
   'tylermohr94@gmail.com',    // Tyler Mohr — site manager (Sep 2026)
@@ -123,7 +131,50 @@ function emailAllowed_(email) {
   var extra = '';
   try { extra = PropertiesService.getScriptProperties().getProperty('EXTRA_ALLOWED_EMAILS') || ''; } catch (e) {}
   var list = extra.split(/[,\s;]+/).map(function (x) { return x.toLowerCase().trim(); }).filter(Boolean);
-  return list.indexOf(email) !== -1;
+  if (list.indexOf(email) !== -1) return true;
+  return internalMemberEmail_(email);
+}
+
+/** Is this address one of JobTread's internal memberships — one of the
+ *  company's own people? Asked with `like` because JobTread keeps an address
+ *  as it was typed (Rick Bright's starts with a capital) and `like` is
+ *  case-insensitive; then the exact address decides, because `like` also reads
+ *  `_` and `%` as wildcards (Ian Poe's address has an underscore). Kept six
+ *  hours when yes, ten minutes when no, so someone the office has just added
+ *  gets in within ten minutes. JobTread not answering is "try again", never a
+ *  no: a no signs the phone out (renewSession_ asks this at every renewal). */
+var DOOR_YES_S = 21600, DOOR_NO_S = 600;
+function internalMemberEmail_(email) {
+  email = String(email || '').toLowerCase().trim();
+  if (!email || email.indexOf('@') < 1) return false;
+  var cache = CacheService.getScriptCache();
+  var ck = 'door_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email)).slice(0, 40);
+  var hit = cache.get(ck);
+  if (hit === '1') return true;
+  if (hit === '0') return false;
+  var nodes;
+  try {
+    var d = pave({
+      organization: {
+        '$': { id: ORG },
+        memberships: {
+          '$': { where: { and: [['isInternal', '=', true], [['user', 'emailAddress'], 'like', email]] }, size: 10 },
+          nodes: { id: {}, user: { emailAddress: {} } }
+        }
+      }
+    });
+    nodes = (((d.organization || {}).memberships || {}).nodes) || [];
+  } catch (e) {
+    var busy = new Error('JobTread did not answer the sign-in check — try again in a minute.');
+    busy.why = 'jobtread-check';
+    throw busy;
+  }
+  var yes = nodes.some(function (n) {
+    return String(((n || {}).user || {}).emailAddress || '').toLowerCase().trim() === email;
+  });
+  cache.put(ck, yes ? '1' : '0', yes ? DOOR_YES_S : DOOR_NO_S);
+  return yes;
 }
 
 function verifyIdToken_(idToken) {
@@ -749,12 +800,16 @@ function memberFor_(email) {
             // and Pave rejects the whole query with "The field \"email\" does not
             // exist" — which this function's catch swallows, so every sign-in used
             // to fail as "No JobTread user is linked to ...". Verified 2026-09-14.
-            '$': { where: wheres[wi], size: 1 },
-            nodes: { id: {}, role: { name: {} }, user: { id: {}, name: {} } }
+            '$': { where: wheres[wi], size: wi ? 10 : 1 },
+            nodes: { id: {}, role: { name: {} }, user: { id: {}, name: {}, emailAddress: {} } }
           }
         }
       });
       var ns = (((d.organization || {}).memberships || {}).nodes) || [];
+      // `like` also reads _ and % as wildcards (T2.43: the field crew's own
+      // addresses, Ian Poe's among them, now get this far), so its answer
+      // counts only for the exact address.
+      if (wi) ns = ns.filter(function (n) { return String(((n || {}).user || {}).emailAddress || '').toLowerCase().trim() === email; });
       if (ns.length) {
         membershipId = ns[0].id || '';
         role = ((ns[0].role || {}).name) || '';
@@ -3207,7 +3262,20 @@ function startedEarlier(me, startedAt) {
   var day = getMyDay(me);
   // The block a break planned starts when the break ends (T2.33, audit D27):
   // moving it back would shorten an unpaid break after the fact.
-  if (afterBreak_(me, open, day)) throw new Error('That block started when your break ended — Started earlier cannot shorten a break. Ask the office if you came back early.');
+  if (afterBreak_(me, open, day)) throw new Error('That block started when your break ended — Started earlier cannot shorten a break. Ask your manager if you came back early.');
+  // Carl, 6 Nov 2026: "no crew member can NOT shorten break afterward only a
+  // manager can shorten it for them" (T2.43). The time between an earlier
+  // block of theirs today and this one is time off the clock — a break taken
+  // with the Break button or by clocking out — so Started earlier is for the
+  // day's first clock-in only. Moving this start back would shorten it; that is
+  // their manager's (Change it on the board, or JobTread).
+  var earlierToday = day.filter(function (x) {
+    if (x.id === open.id || isFuture_(x.startedAt)) return false;
+    var end = Date.parse(x.endedAt || '');
+    return !isNaN(end) && end <= began;
+  }).sort(function (a, b) { return Date.parse(b.endedAt) - Date.parse(a.endedAt); })[0];
+  if (earlierToday) throw new Error('You were on the clock earlier today, until ' + clockWords_(new Date(Date.parse(earlierToday.endedAt))) +
+    ' — only your manager can change the time between your blocks. Ask them if you came back earlier.');
   var clash = day.filter(function (x) {
     if (x.id === open.id || isFuture_(x.startedAt)) return false;
     var end = Date.parse(x.endedAt || '');
@@ -3239,9 +3307,17 @@ function leftSite(me, leftAt, coords, plan) {
   if (isNaN(at)) throw new Error('Say when you left.');
   if (at <= began) throw new Error('That is before this block began (' + clockWords_(new Date(began)) + ').');
   if (at > now + 60000) throw new Error('That time has not happened yet.');
+  // Carl, 6 Nov 2026: "no overnight work allowed" (T2.43). A block ends on the
+  // day it began — by 11:59pm in the script's time zone — so a block left
+  // open overnight is closed that day, never the next morning.
+  if (isoDay_(new Date(at)) !== isoDay_(new Date(began))) {
+    throw new Error('No overnight work — pick a time on ' + fmtDayLong_(isoDay_(new Date(began))) + ', the day this block began, by 11:59p. If you worked past midnight, tell your manager.');
+  }
   // The drive from then until now is paid travel; from last night it would
   // be a night's pay. Out at the time you left, then clock in where you are.
   if (kind !== 'out' && now - at > LEFT_SITE_DRIVE_MAX_MS) throw new Error('That was over 12 hours ago — clock out at the time you left, then clock in where you are.');
+  // …and a drive or the work from a time before midnight would run past it.
+  if (kind !== 'out' && isoDay_(new Date(at)) !== isoDay_(new Date(now))) throw new Error('No overnight work — clock out at the time you left, then clock in where you are.');
   if (kind !== 'out' && (!plan.jobId || !plan.costItemId)) throw new Error('Missing the next job or its line.');
   if (kind === 'work' && !plan.startPhotoId && startPhotoOwed_(me, plan.jobId, null)) requirePhoto_(plan.startPhotoId, 'A start photo is required to start the next code.');
   assertWrite_(open.job && open.job.id);

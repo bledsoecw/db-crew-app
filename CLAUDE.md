@@ -1827,3 +1827,81 @@ extras — *"Add 'Extra work to bill'"*. Four repos: this one, DB CheckOut
   their own 401 with no secret, and there were no runtime errors through the
   switch. The rollback is 09962e9 (`dpl_9NdXDZirDsbFcg35Dqcg4YvhtkAY`); the
   board's notes have the rest. **T2.42 is live in all four places.**
+
+## T2.43 (6 Nov 2026) — before the crews get the app, what the README does not say
+
+Carl, 6 Nov 2026, answering *"what's next before handing over to crews"*:
+*"go with option B"* (the sign-in), *"Brian, Gabe and Tim are site managers"*,
+*"Training session is paid as normal work pay, practice clock-ins remain until
+office deletes them"*, *"no crew member can NOT shorten break afterward only a
+manager can shorten it for them. no overnight work allowed"*, the long-day
+numbers (10 hours / 10 hours or more / at least 30 minutes), *"Manager corrects
+times"*, and *"will turn construction on soon"*.
+
+- **The door** (`emailAllowed_` → `internalMemberEmail_`): the company domain,
+  `SITE_MANAGER_EMAILS`, `EXTRA_ALLOWED_EMAILS`, then one Pave query —
+  `memberships` where `isInternal = true` and `user.emailAddress like <the
+  address>`, the exact address deciding (`like` is case-insensitive, which
+  Rick Bright's capital needs, and reads `_` as a wildcard, which Ian Poe's
+  underscore would otherwise abuse). Kept in CacheService under `door_<digest>`
+  six hours for a yes, ten minutes for a no. JobTread not answering throws
+  `why: 'jobtread-check'` (never `AUTH`, which would sign the phone out at a
+  renewal); the phone says *try again in a minute*. Measured read-only that
+  day: 48 internal memberships, 16 of them on personal addresses (14 crew
+  plus Tyler and Kenton, who were already on the code list), and 592
+  non-internal memberships on Gmail — customers and vendors — which the
+  `isInternal` filter is what keeps out. Jeff and Chris McGlone have no
+  JobTread user at all, so they cannot get in until the office adds them.
+  `memberFor_`'s `like` fallback (the lookup after the door) now takes only a
+  node with the exact address too: it took the first match, and with personal
+  addresses let in, an underscore could have matched somebody else's.
+- **Two more gates the code cannot open**: Google Cloud's OAuth consent
+  screen must be published (in Testing only listed test users can sign in,
+  SETUP §3), and DB Hub must not hold the person at Off. Neither is readable
+  from here.
+- **Started earlier is the day's first clock-in's only** (`earlierBlock` on
+  the phone, `startedEarlier` in Code.gs, the mock too): any block of theirs
+  that ended earlier the same day means the gap before this one was off the
+  clock. Before T2.43 a clock-out lunch could be shrunk this way (code-test's
+  *back from lunch at 12:30, clocked in at 1:15* allowed it); that test now
+  says the opposite. `afterBreak_` keeps its own words for a Break-button
+  break. A manager shortens a break on the board's Change it (DB Crew
+  corrections only) or in JobTread: the production manager roles carry
+  `updateTimeEntries` (read-only check, 6 Nov 2026).
+- **No overnight work**: `leftSite` refuses an end on a later office day than
+  the block began (`isoDay_`, the script's time zone), and a drive or work
+  carried on from before midnight; the phone's `leftFromInput` no longer rolls
+  a time into the next morning (T2.33 did, deliberately) and `leftOk` caps at
+  `leftDayEnd()` (11:59p on the block's day). t233's check of that reading
+  moved with the rule. Kept writes needed nothing: a clock change kept before
+  midnight and sent after it is already judged stale at its own moment
+  (T2.38). Nothing ends a running block at midnight by itself — the 7pm push
+  and the next morning's *When did you leave?* do that, now capped.
+- **Brian, Gabe and Tim are site managers** (Carl). The board's roster flag
+  already lets them sign site checks, but their JobTread role is Crew, so DB
+  Crew opens them as crew (no Day log, no site checks button) until their DB
+  Crew level is **Site Manager** in DB Hub's App access (or the People tab).
+  Not their JobTread role: the Site Manager role there carries
+  `updateTimeEntries`, which would let them change anyone's times in JobTread's
+  own app.
+- **DB Hub Teams** is DB Hub's Time off tab, the *Teams* panel — drawn as
+  *Teams* (everyone) for its time-off admins (the hub's ADMINS, `HR_EMAIL` =
+  operations@, Settings `TIMEOFF_ADMINS`) and *Your team* for a manager; it is
+  hidden from anyone else (`canTeam`). A crew member must be on the Employees
+  tab under the same address JobTread has for them (their personal Gmail for
+  most of the bench), or the board cannot find their manager.
+- **Double entries, the gate proposed and not made**: DB Crew writes time with
+  its own grant key (`GRANT_KEY`) and the person's `userId`, so JobTread's own
+  app is the only other way a crew member clocks. Read-only, 6 Nov 2026: the
+  Crew role carries `createTimeEntries`; Site Manager `createTimeEntries`,
+  `updateTimeEntries` and `readTimeEntries`. Taking those off at the switch-over
+  stops JobTread's app clocking them without touching DB Crew — verified
+  through the code, not tested live; the safe test is one pilot person moved
+  to a copy of the Crew role without them, clocking on DB Crew. Both apps act
+  on the same one open entry, so the doubles that can happen are a kept change
+  landing over a JobTread-app block and hours typed in over clocked ones; the
+  board's time review now lists those (*OVERNIGHT OR CLOCKED TWICE*).
+- **Not built**: a crew member asking their manager in the app to shorten a
+  break (a request that lands on Time to approve). Today they tell the manager.
+- **The training videos are further out of date** (the sign-in words, Started
+  earlier, the overnight cap). Carl's *"Not yet"* stands.

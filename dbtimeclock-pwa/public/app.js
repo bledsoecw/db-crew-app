@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.42 (2026-11-06)';
+var APP_BUILD = 'T2.43 (2026-11-06)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -264,10 +264,15 @@ function authRefused(j){
     // Never let One Tap quietly pick the refused account again.
     try { localStorage.setItem(PICK_ACCOUNT_KEY, '1'); } catch(e){}
     try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch(e){}
-    msg = (email ? 'Google signed you in as ' + email + ', and DB Crew didn’t accept it. ' : 'DB Crew didn’t accept that Google account. ') +
-          'Pick your Deitemeyer Brothers account — or ask the office to add this one.';
+    // Since T2.43 the door is the company domain or anyone JobTread has as
+    // one of the company's own people, so the address to use is the one the
+    // office keyed into JobTread for them — a work account or their own.
+    msg = (email ? 'Google signed you in as ' + email + ', and DB Crew didn’t accept it — JobTread has nobody at the company with that address. ' : 'DB Crew didn’t accept that Google account. ') +
+          'Sign in with the address the office has for you in JobTread, or ask the office to add this one.';
   } else if (j && j.authWhy === 'google-check'){
     msg = 'Google didn’t answer the sign-in check — tap the button to try again.';
+  } else if (j && j.authWhy === 'jobtread-check'){
+    msg = 'JobTread didn’t answer the sign-in check — tap the button to try again in a minute.';
   } else if (j && j.authWhy === 'signin-age'){
     // A year since the last Google sign-in (audit D39): nothing is wrong, and
     // nothing waiting to send is lost; Google is simply asked again.
@@ -5996,18 +6001,20 @@ function leftFromInput(v){
   var over = leftOvernight(), began = Date.parse(S.open.startedAt);
   var d = over ? new Date(began) : new Date();
   d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-  // From a day before, the first time it reads that after the block began
-  // (T2.33): a block from 6:00p left at 1:00 ended at 1:00 the next morning.
-  if (over && d.getTime() <= began) d.setDate(d.getDate() + 1);
+  // From a day before, the time is read on the day the block began and never
+  // rolls into the next morning (T2.43, Carl 6 Nov 2026: "no overnight work
+  // allowed"); T2.33 read 1:00 after a 6:00p start as 1am the next day.
   return d.getTime();
 }
-function leftOk(t){ return !!S.open && t > Date.parse(S.open.startedAt) && t <= Date.now() + 60000; }
+/* The last minute a block may end: 11:59p on the day it began (T2.43). */
+function leftDayEnd(){ var d = new Date(S.open.startedAt); d.setHours(23, 59, 59, 999); return d.getTime(); }
+function leftOk(t){ return !!S.open && t > Date.parse(S.open.startedAt) && t <= Date.now() + 60000 && t <= leftDayEnd(); }
 function leftHtml(){
   if (!S.open) return '';
   var over = leftOvernight(), began = new Date(S.open.startedAt);
   var h = '<div class="sheetpad" style="gap:12px">';
   h += '<div class="body">' + esc(Lf('{p} · on {code} since {t}.', { p: placeWord(S.job || S.open.job), code: codeLabel(S.open.code), t: (over ? dayWords(began) + ' ' : '') + clockLabel(began) })) + ' ' +
-       esc(over ? Lf('Still open from {d} — pick the time you left that day.', { d: dayWords(began) }) : L('Pick when you left, as near as you can.')) + '</div>';
+       esc(over ? Lf('Still open from {d} — pick the time you left that day, by 11:59p. No work past midnight.', { d: dayWords(began) }) : L('Pick when you left, as near as you can.')) + '</div>';
   if (!over) h += '<div class="brkgrid">' + leftChoices().map(function(t, i){
     var m = Math.round((Date.now() - t) / 60000);
     return '<button class="brkopt" style="min-height:76px" data-leftat="' + t + '"><span class="bt" style="font-size:20px">' + esc(m < 1 ? L('Just now') : Lf(m < 60 ? '{n} min ago' : m === 60 ? '{n} hour ago' : '{n} hours ago', { n: m < 60 ? m : m / 60 })) + '</span><span class="k9 bs">' + esc(clockLabel(new Date(t))) + '</span></button>';
@@ -6141,9 +6148,11 @@ function earlierBlock(){
   if (/Started earlier —/.test(o.notes || '')) return null;
   // Made with no signal (T2.31): its time is the phone's own, nothing to fix.
   if (o.kept || /Clocked in with no signal/.test(o.notes || '')) return null;
-  // Off the clock before it: anything else today ended a while before.
-  var floor = earlierFloor();
-  if (floor && began - floor < 3 * 60000) return null;
+  // T2.43 (Carl, 6 Nov 2026: only a manager shortens a break): any block of
+  // theirs earlier today means the time before this one was off the clock —
+  // a break, taken with the Break button or by clocking out — or a move, so
+  // Started earlier is for the day's first clock-in. The API refuses it too.
+  if (earlierFloor()) return null;
   return o;
 }
 function earlierLow(){
@@ -6164,7 +6173,7 @@ function earlierFromInput(v){
   return d.getTime();
 }
 function earlierHtml(){
-  if (!earlierBlock()) return '<div class="sheetpad"><div class="body">' + esc(L('This block can’t be moved from the phone any more — ask the office.')) + '</div></div>';
+  if (!earlierBlock()) return '<div class="sheetpad"><div class="body">' + esc(L('This block can’t be moved from the phone — ask your manager.')) + '</div></div>';
   var began = new Date(S.open.startedAt), ch = earlierChoices();
   var h = '<div class="sheetpad" style="gap:12px"><div class="body">' + esc(Lf('You clocked in at {t} on {code}. When did you start, as near as you can?', { t: clockLabel(began), code: codeLabel(S.open.code) })) + '</div>';
   if (ch.length) h += '<div class="brkgrid">' + ch.map(function(t){
@@ -6175,7 +6184,7 @@ function earlierHtml(){
   h += '<label class="k" for="earlierTime" style="margin-top:4px">' + esc(L('Another time')) + '</label>' +
        '<input id="earlierTime" type="time" style="min-height:64px;font:700 22px/1 var(--head);padding:0 14px;border-radius:6px;border:2px solid var(--line2);background:var(--surf);color:var(--fg)">';
   h += '<button class="btn btn-go" id="earlierGo" style="min-height:76px" disabled>' + esc(L('Pick a time')) + '</button>';
-  h += '<div class="fine" style="text-align:center">' + esc(L('Today only, up to 4 hours back, and not over time already on the clock. The entry says so, and your PM and the Ops Director are told on the job.')) + '</div></div>';
+  h += '<div class="fine" style="text-align:center">' + esc(L('Your first clock-in of the day only, up to 4 hours back. Time after a break is your manager’s to change. The entry says so, and your PM and the Ops Director are told on the job.')) + '</div></div>';
   return h;
 }
 function earlierPaint(){
@@ -7382,16 +7391,16 @@ esAdd({
   'This job has no Travel Related Labor line yet. Pick the line to drive on — the office can move it later.': 'Este trabajo todavía no tiene línea de Travel Related Labor. Escoge la línea para el viaje — la oficina la puede cambiar después.',
   'Nothing to clock into on that job either. Ask the office to add the CLOCK IN ITEMS group to its budget.': 'Tampoco hay nada para marcar en ese trabajo. Pide a la oficina que agregue el grupo CLOCK IN ITEMS a su presupuesto.',
   '{p} · on {code} since {t}.': '{p} · en {code} desde {t}.',
-  'Still open from {d} — pick the time you left that day.': 'Sigue abierto desde el {d} — escoge la hora en que saliste ese día.',
+  'Still open from {d} — pick the time you left that day, by 11:59p. No work past midnight.': 'Sigue abierto desde el {d} — escoge la hora en que saliste ese día, a más tardar a las 11:59p. No se trabaja pasada la medianoche.',
   'Pick when you left, as near as you can.': 'Escoge cuándo saliste, lo más cerca que puedas.',
   'Just now': 'Ahorita', '{n} min ago': 'hace {n} min', '{n} hour ago': 'hace {n} hora', '{n} hours ago': 'hace {n} horas',
   'The time you left': 'La hora en que saliste', 'Another time': 'Otra hora', 'Pick a time': 'Escoge una hora',
   'No end photo. The entry says when you left, and your PM and the Ops Director are told on the job.': 'Sin foto final. El registro dice cuándo saliste, y se le avisa a tu PM y al Director de Operaciones en el trabajo.',
   'I left at {t}': 'Salí a las {t}', 'Not while you were on it': 'No mientras estabas en eso',
-  'This block can’t be moved from the phone any more — ask the office.': 'Este bloque ya no se puede mover desde el teléfono — pregunta a la oficina.',
+  'This block can’t be moved from the phone — ask your manager.': 'Este bloque no se puede mover desde el teléfono — pregúntale a tu gerente.',
   'You clocked in at {t} on {code}. When did you start, as near as you can?': 'Marcaste entrada a las {t} en {code}. ¿Cuándo empezaste, lo más cerca que puedas?',
   '{n} min earlier': '{n} min antes', '{n} hour earlier': '{n} hora antes', '{n} hours earlier': '{n} horas antes',
-  'Today only, up to 4 hours back, and not over time already on the clock. The entry says so, and your PM and the Ops Director are told on the job.': 'Solo hoy, hasta 4 horas atrás, y no encima de tiempo ya marcado. El registro lo dice, y se le avisa a tu PM y al Director de Operaciones en el trabajo.',
+  'Your first clock-in of the day only, up to 4 hours back. Time after a break is your manager’s to change. The entry says so, and your PM and the Ops Director are told on the job.': 'Solo tu primera entrada del día, hasta 4 horas atrás. El tiempo después de un descanso lo cambia tu gerente. El registro lo dice, y se le avisa a tu PM y al Director de Operaciones en el trabajo.',
   'I started at {t}': 'Empecé a las {t}', 'That’s after you clocked in': 'Eso es después de que marcaste entrada', 'Too far back for the phone': 'Muy atrás para el teléfono',
   'day {n}': 'día {n}', 'What’s going today? (optional)': '¿Qué se lleva hoy? (opcional)', 'Saving…': 'Guardando…',
   'Material loaded for the crew': 'Material cargado para la cuadrilla',
