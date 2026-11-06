@@ -1652,3 +1652,27 @@ repos; the board's half is in its own CLAUDE.md, DB CheckOut's in its.
   hosting`); `appsscript.json` is unchanged since 3383459, so it needs no new
   approval, and the release signature reads the `CREW_APP_SECRET` Script
   Property the board calls already use.
+- **T2.41 is live on the phones**: Carl ran the chain (`clasp deploy … -d
+  "T2.41"`, `firebase deploy --only hosting`) after the Close Out server. By
+  02:25Z on 6 Nov 2026 db-crews.web.app served `index.html`, `sw.js` and
+  `app.js?b=T2.41` identical to the branch (line endings aside), `/`
+  `no-cache` with the report-only policy, `check-build.mjs` against the live
+  site says "T2.41 is already live and app.js is unchanged", and the API
+  deployment's GET answers "Opening DB Crew". The API's own label was not read
+  from here: the hand-back asked for *"go, deploy the board"* once his
+  Diagnostics read App and API both T2.41, and that is the word that came.
+- **The board half is live, last of the three**: at 02:28Z on 6 Nov 2026
+  (9:28pm on 5 Nov in Ohio; Carl: *"go, deploy the board"*) the board's
+  `main` was fast-forwarded c53a47c..09962e9, with nothing on `main` the
+  branch lacked, after its 955 tests, `tsc` and `eslint src/` ran clean on
+  that commit. `dpl_9NdXDZirDsbFcg35Dqcg4YvhtkAY` was ready at 02:28:32Z on
+  ops.deitemeyerbrothers.com with no alias error; `POST /api/crew/held` (the
+  Apps Script's `reportHeld` door) answers the board's own 401 with no
+  secret, and *Warranty to decide* and Operations → *Held on phones* bounce
+  to sign-in with no session. The warranty sweep's query was run read-only
+  against the live org first: no repair carries a warranty answer yet and no
+  warranty to-do exists, so its first hourly run writes nothing. The rollback
+  is c53a47c (`dpl_4CnD4ssJRCq4PfUP6FLAki7Wdi5Y`). **T2.41 is live in all
+  four places.** Not proven live yet: a real warranty claim, a held-phone
+  report, and a release signed with the real `CREW_APP_SECRET` (both suites
+  pin the same test hex).
