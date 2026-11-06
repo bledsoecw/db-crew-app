@@ -1909,3 +1909,14 @@ times"*, and *"will turn construction on soon"*.
   eight container failures as T2.42's run, compared line by line); code-test
   627, t243 15. Run against the T2.42 phone, t243 fails 8 of its 15 — every
   check of the phone's own change.
+- **The board half is live**: at 19:45Z on 6 Nov 2026 (Carl: *"go, deploy the
+  board"*) the board's `main` was fast-forwarded to dad981c
+  (`dpl_6cH8vCQJX9KvLC4F5Q22vjXKUWpw`, ready 19:45:35Z on
+  ops.deitemeyerbrothers.com; the rollback is 9f094ac). Carl's long-day rule
+  is the default, Change it takes no next-day end, and the morning email lists
+  entries that ran past midnight or lie over another (*OVERNIGHT OR CLOCKED
+  TWICE*) from Monday 9 Nov's 6am run. The board's notes have the checks.
+  The phones were still served T2.42 at 19:48Z (db-crews.web.app's `sw.js`
+  and `index.html`): the phone and Apps Script half is Carl's chain (`clasp
+  deploy … -d "T2.43"`, `firebase deploy --only hosting`), and either order
+  is safe.
