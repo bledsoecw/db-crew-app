@@ -131,7 +131,7 @@ const coOpen = async (page, jobId) => {
     group: document.querySelector('#sheetBody .k').textContent,
     rows: [...document.querySelectorAll('#sheetBody .obrow')].map((r) => [r.querySelector('.st').textContent, r.querySelector('.ob-t').textContent.replace(/\d+:\d\d[ap]/, 'T')]) }));
   check('…the no-signal bar opens one list, by job, each item in one of five states',
-    sheet, { sheet: 'waiting', intro: 'No signal. These are saved on this phone and go by themselves when there is signal.', group: sheet.group,
+    sheet, { sheet: 'waiting', intro: 'No signal. These are saved on this phone. They go only while DB Crew is open — open it again where there’s signal.', group: sheet.group,
       rows: [['Saved on this phone', 'Clock-in T'], ['Saved on this phone', 'Start photo TGoes after its clock-in']] });
   check('…grouped under the job it is for', /26-0890/.test(sheet.group), true);
   check('D40: the state words in that list are 13px words, not 9px capitals', [await px(page, '#sheetBody .obrow .st'),

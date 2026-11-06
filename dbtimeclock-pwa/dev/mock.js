@@ -322,6 +322,11 @@
   }
 
   var ST = { open: null, entries: [], pushToken: null, nudged: null, n: 0, files: 0 };
+  // T2.42: the photo's own mark (#PH:) remembered, as Code.gs finds it on the job.
+  var PH_SEEN = {};
+  function phMark(desc) { var m = /#PH:([A-Za-z0-9_.:-]{4,80})/.exec(String(desc || '')); return m ? m[1] : ''; }
+  function phAgain(desc) { var k = phMark(desc); return k && PH_SEEN[k] ? { ok: true, fileId: PH_SEEN[k], name: '', thumbUrl: '', again: true } : null; }
+  function phKeep(desc, ans) { var k = phMark(desc); if (k) PH_SEEN[k] = ans.fileId; return ans; }
   // The clock as JobTread holds it, for a test to change behind the phone's
   // back — another phone, or the office (T2.33).
   window.__MOCK_ST = ST;
@@ -714,6 +719,7 @@
     __endOwed: function () { return HANDLERS.__work(ST.open) && !(ST.open.job && ST.open.job.id === SHOP.id); },
     clockIn: function (jobId, costItemId, coords, startPhotoId, opts) {
       (window.__CLOCK = window.__CLOCK || []).push(['clockIn', jobId, costItemId, startPhotoId || null, (opts && opts.todayJobId) || null]);
+      (window.__COORDS = window.__COORDS || []).push(coords || null);   // T2.42: where, and how sure the phone was
       if (!startPhotoId && HANDLERS.__startOwed(jobId)) throw new Error('PHOTO_REQUIRED: A start photo is required to clock in.');
       var today = new Date(); today.setHours(0, 0, 0, 0);
       var first = jobId === SHOP.id && !ST.entries.some(function (e) { return Date.parse(e.startedAt) >= today.getTime() && Date.parse(e.startedAt) <= Date.now(); });
@@ -998,17 +1004,43 @@
     },
     // The base64 path the app falls back to when the direct PUT is refused.
     uploadCapture: function (jobId, b64, mime, name, desc) {
+      var had = phAgain(desc); if (had) return had;
       // T2.30: __MOCK_PUTFAIL (a pattern on the file name) refuses this path too.
       if (window.__MOCK_PUTFAIL && new RegExp(window.__MOCK_PUTFAIL).test(name)) throw new Error('JobTread refused the file');
       window.__VIAAPI = window.__VIAAPI || [];
       window.__VIAAPI.push({ jobId: jobId, bytes: b64.length, mime: mime, name: name });
-      (window.__FILES = window.__FILES || []).push({ name: name, desc: desc });
-      return { ok: true, fileId: 'f' + (++ST.files) };
+      (window.__FILES = window.__FILES || []).push({ name: name, desc: desc, jobId: jobId });
+      return phKeep(desc, { ok: true, fileId: 'f' + (++ST.files) });
     },
     // Every file that reaches JobTread, by either path, with its name and description.
+    // T2.42: a photo whose #PH: mark is already on the job is handed back, never filed twice.
     finalizeCaptureUpload: function (jobId, reqId, name, desc) {
-      (window.__FILES = window.__FILES || []).push({ name: name, desc: desc });
-      return { ok: true, fileId: 'f' + (++ST.files) };
+      var had = phAgain(desc); if (had) return had;
+      (window.__FILES = window.__FILES || []).push({ name: name, desc: desc, jobId: jobId });
+      return phKeep(desc, { ok: true, fileId: 'f' + (++ST.files) });
+    },
+    // T2.42 (audit I19): what this person sent on a job since Monday, read back
+    // as the Apps Script reads JobTread: the day's entries, the files filed for
+    // them, and the day logs sent. __MOCK_SENTWEEK replaces the answer (an
+    // object, or a function of the job); __MOCK_SENTWEEK_FAIL refuses it.
+    getSentThisWeek: function (jobId) {
+      if (window.__MOCK_SENTWEEK_FAIL) throw new Error('Pave error (HTTP 502): the mock says no');
+      if (window.__MOCK_SENTWEEK) return typeof window.__MOCK_SENTWEEK === 'function' ? window.__MOCK_SENTWEEK(jobId) : window.__MOCK_SENTWEEK;
+      var day = function (iso) { var d = new Date(iso); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
+      var now = new Date(), mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+      var mine = {}, entries = ST.entries.filter(function (e) { return e.job && e.job.id === jobId && Date.parse(e.startedAt) <= Date.now(); }).map(function (e) {
+        mine[e.id] = day(e.startedAt);
+        var end = e.endedAt ? Date.parse(e.endedAt) : Date.now();
+        return { id: e.id, day: day(e.startedAt), startedAt: e.startedAt, endedAt: e.endedAt || null, open: !e.endedAt,
+                 minutes: Math.max(0, Math.floor(end / 60000) - Math.floor(Date.parse(e.startedAt) / 60000)),
+                 code: [e.code && e.code.number, e.code && e.code.name].filter(Boolean).join(' ') };
+      });
+      var photos = (window.__FILES || []).map(function (f, i) {
+        var te = /#TE:([A-Za-z0-9_]+)/.exec(f.desc || ''), tag = /^#(PHONE\s+)?([A-Z]+)/.exec(f.desc || '');
+        return te && mine[te[1]] ? { id: 'f' + (i + 1), day: mine[te[1]], name: f.name, tag: tag ? tag[2] : '', fromPhone: !!(tag && tag[1]), at: '' } : null;
+      }).filter(Boolean);
+      var logs = (window.__LOGS || []).filter(function (l) { return l.jobId === jobId; }).map(function (l, i) { return { id: 'dl' + (i + 1), date: l.date, at: new Date().toISOString() }; });
+      return { jobId: jobId, from: day(mon.toISOString()), to: day(now.toISOString()), entries: entries, photos: photos, logs: logs, more: false, read: { time: true, photos: true, logs: true } };
     },
     // A note to the office; with the fourth argument it is assigned to the PM.
     postJobNote: function (jobId, message, author, assignPm) {
@@ -1070,7 +1102,7 @@
     // T2.30: what each system is running. A test sets __MOCK_BUILDS to try a
     // server behind the phone.
     getBuilds: function () {
-      return window.__MOCK_BUILDS || { api: window.__MOCK_API_BUILD || 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: window.__MOCK_CO_CONTRACT != null ? window.__MOCK_CO_CONTRACT : 6 } };
+      return window.__MOCK_BUILDS || { api: window.__MOCK_API_BUILD || 'mock', closeOut: { configured: true, ok: true, build: { source: 'mock', on: 'vercel', commit: '9a4dfd9' }, deployed: '9a4dfd9', contract: window.__MOCK_CO_CONTRACT != null ? window.__MOCK_CO_CONTRACT : 7 } };
     },
     exchangeSession: function () { return { token: window.__MOCK_PEOPLE_TOKENS && CUR_EMAIL ? mockToken(CUR_EMAIL) : 'h.' + payload + '.s', exp: 4102444800 }; },
 
@@ -1411,7 +1443,9 @@
       };
       // The first seconds of a real boot: the clock is drawn, the code list
       // and job picker are not here yet. Hard to catch by hand, easy to break.
-      var hold = (body.fn === 'getExtras' && Number(window.__MOCK_SLOWEXTRAS)) ||
+      // T2.42: __MOCK_SLOWFN ({ clockIn: 3000 }) holds any call's answer — the write done, its answer late.
+      var hold = (window.__MOCK_SLOWFN && Number(window.__MOCK_SLOWFN[body.fn])) ||
+                 (body.fn === 'getExtras' && Number(window.__MOCK_SLOWEXTRAS)) ||
                  ((body.fn === 'saveSiteChecks' || body.fn === 'saveMaterialLoaded') && Number(window.__MOCK_SLOWPUT)) ||
                  (body.fn === 'sendDailyLog' && Number(window.__MOCK_SLOWLOG)) || 0;
       if (!hold) return Promise.resolve(res);

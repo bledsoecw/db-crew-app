@@ -148,8 +148,10 @@ const forgotIfAsked = async (page) => { if (await page.evaluate(() => S.sheet ==
   // What the phone says about them.
   await page.evaluate(() => setTab('job')); await page.waitForTimeout(300);
   check('…today\'s hours read the day as it went, before any of it has gone: Masonry Labor until the code change, Final Clean before the drive and after it',
+    // In whole minutes as JobTread counts them (T2.42): the minute it ended less the minute it began.
     await page.evaluate(() => { const q = clockQ, row = (n) => [...document.querySelectorAll('#dayTbl .trow')].filter((r) => r.querySelector('.n') && r.querySelector('.n').textContent === n).map((r) => r.querySelector('.d').textContent)[0];
-      return [row('04MA') === hm((q[1].at - q[0].at) / 1000), row('02ST-1') === hm((q[2].at - q[1].at + q[4].at - q[3].at) / 1000)]; }), [true, true]);
+      const m = (a, b) => Math.floor(b / 60000) - Math.floor(a / 60000);
+      return [row('04MA') === hm(m(q[0].at, q[1].at) * 60), row('02ST-1') === hm((m(q[1].at, q[2].at) + m(q[3].at, q[4].at)) * 60)]; }), [true, true]);
   check('…the notice counts them', await page.evaluate(() => (nudgeItems().filter((n) => n.kind === 'clockq')[0] || {}).text), '5 clock changes since 7:02a are on this phone — they go in order when there’s signal');
   await page.evaluate(() => openSheet('clockq')); await page.waitForTimeout(300);
   check('…the sheet lists every one, in order, and says what still waits',

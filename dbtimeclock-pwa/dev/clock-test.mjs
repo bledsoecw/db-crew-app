@@ -332,8 +332,10 @@ const shoot = (page) => page.evaluate(() => new Promise((res) => {
   const ph = await page.evaluate(() => S.photos.slice(1).map((p) => [p.tag, p.fromPhone, p.name.replace(/-[A-Z]+\.jpg$/, '')]));
   check('two photos on the running code, from the phone, named by when they were taken', [ph[0][0], ph[0][1], ph[0][2], ph[1][1], /^\d{8}-\d{6}-PHONE-DURING$/.test(ph[1][2])], ['during', true, '20261012-141005-PHONE-DURING', true, true]);
   const files = await page.evaluate(() => (window.__FILES || []).map((f) => f.desc));
-  check('in JobTread they say so, and never look like a START photo', files.slice(1),
+  // Each ends with the photo's own mark (T2.42): the API finds a photo sent twice by it.
+  check('in JobTread they say so, and never look like a START photo', files.slice(1).map((d) => d.replace(/ #PH:[A-Za-z0-9_.:-]+$/, '')),
     ['#PHONE DURING #TE:open1 04MA Masonry Labor · picked from the phone\'s photos, taken Oct 12, 2026 2:10p', '#PHONE DURING #TE:open1 04MA Masonry Labor · picked from the phone\'s photos, time taken unknown']);
+  check('…each with its own mark, last', files.slice(1).map((d) => /#PH:t[a-z0-9]{8,}$/.test(d)), [true, true]);
   check('…and back to the clock after the last one', await page.evaluate(() => S.tab), 'job');
   check('no page errors', errs, []);
   await ctx.close();

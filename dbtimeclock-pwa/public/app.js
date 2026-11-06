@@ -7,7 +7,7 @@
    T2.32; they still ship as one build. Google sign-in -> Apps Script
    JSON API -> JobTread.
    =========================================================== */
-var APP_BUILD = 'T2.41 (2026-11-05)';
+var APP_BUILD = 'T2.42 (2026-11-06)';
 /* The page and this script are one build (T2.32, audit I5). The page names
    its build on <html data-build> and asks for app.js?b=<build>; this file
    names its own. A saved page meeting a newer script, or the other way round,
@@ -592,6 +592,7 @@ function coVisitIdle(v){
   if ((v.reports || []).some(function(r){ return !r.sentAt; })) return false;
   if (Object.keys(v.before || {}).length || Object.keys(v.after || {}).length || Object.keys(v.repairMore || {}).length) return false;
   if (Object.keys(v.cantPhotos || {}).some(function(k){ return (v.cantPhotos[k] || []).length; }) || Object.keys(v.cantNote || {}).some(function(k){ return String(v.cantNote[k] || '').trim(); })) return false;
+  if (Object.keys(v.extraPhotos || {}).some(function(k){ return (v.extraPhotos[k] || []).length; }) || Object.keys(v.svcExtra || {}).some(function(k){ return String(v.svcExtra[k] || '').trim(); })) return false;
   for (var a in (v.answers || {})) if (Object.keys(v.answers[a] || {}).length) return false;
   for (var ak in (v.areas || {})){ var av = v.areas[ak] || {}; if ((av.photos || []).length || av.note) return false; }
   return true;
@@ -841,6 +842,28 @@ function isIOS(){ return /iP(hone|ad|od)/.test(navigator.userAgent); }
 function isInstalled(){
   return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 }
+/* A phone running DB Crew in a browser tab, not from its Home Screen icon
+   (T2.42, audit I18): told so, in plain words, once a day until it is. On an
+   iPhone a tab's storage can be cleared after seven days unused — photos
+   waiting to send with it — and only the installed app gets pushes. A tap
+   puts it away for the day. A computer is never asked. */
+var INSTALL_BAR_KEY = 'dbtc_installbar';
+function isPhoneUa(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || ''); }
+function installBarDue(){
+  if (isInstalled() || !isPhoneUa()) return false;
+  var hid = ''; try { hid = localStorage.getItem(INSTALL_BAR_KEY) || ''; } catch(e){}
+  return hid !== isoLocal();
+}
+function renderInstallBar(){
+  var ib = $('installBar'); if (!ib) return;
+  var due = installBarDue();
+  ib.classList.toggle('hidden', !due);
+  if (!due) return;
+  ib.classList.add('tappable');
+  ib.onclick = function(){ storeSet(INSTALL_BAR_KEY, isoLocal(), true); renderInstallBar(); };
+  ib.innerHTML = '<span>' + esc(L('You’re in a browser tab. Open DB Crew from its Home Screen icon — a tab can lose what’s waiting to send.')) +
+    ' <b>' + esc(L(isIOS() ? 'Share › Add to Home Screen' : 'Menu › Add to Home screen')) + '</b></span>';
+}
 function pushEligible(){
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !window.Notification) {
     return isIOS() && !isInstalled() ? 'needs-install' : 'unsupported';
@@ -1002,6 +1025,7 @@ function render(){
   // Unknown until the API says (null): no bar, rather than a wrong one.
   rb.classList.toggle('hidden', S.writeEnabled !== false);
   rb.innerHTML = '<span>' + esc(L('Read-only build · hours are not posting yet')) + '</span>';
+  renderInstallBar();
 
   renderJob();
   renderJobs();
@@ -1345,9 +1369,10 @@ function waitingHtml(){
     }
     byJob[key].rows.push(i);
   });
+  // Nothing sends with the app closed (T2.42, audit I18): said plainly.
   var h = '<div class="sheetpad" style="gap:12px"><div class="body">' + esc(L(S.online
     ? 'These go by themselves. Keep the app open where there is signal until this list is empty.'
-    : 'No signal. These are saved on this phone and go by themselves when there is signal.')) + '</div>';
+    : 'No signal. These are saved on this phone. They go only while DB Crew is open — open it again where there’s signal.')) + '</div>';
   groups.forEach(function(g){
     h += '<div class="k" style="margin-top:4px">' + esc(g.label) + '</div><div class="oblist">' + g.rows.map(function(i){
       var it = items[i];
@@ -1561,6 +1586,7 @@ function dayEntries(){
     if (e.endedAt || Date.parse(e.startedAt) > first){ out.push(e); return; }
     var cut = {}; for (var k in e) cut[k] = e[k];
     cut.endedAt = new Date(first).toISOString();
+    cut.cut = true;   // ended here by the phone: JobTread's minutes are not this block's
     out.push(cut);
   });
   c.forEach(function(x, i){
@@ -1570,24 +1596,47 @@ function dayEntries(){
   });
   return out;
 }
+/* Minutes per block, counted the way JobTread counts them (T2.42, the
+   audit's smaller defect: the phone added the day up its own way, and two
+   open blocks were both counted to now). A closed block is JobTread's own
+   number — the minute it ended less the minute it started, seconds dropped,
+   which is what payroll reads — and the one running is counted the same way
+   to now. Only the latest block that has started runs; an older one JobTread
+   still shows open (two writes at once, before T2.42's lock) ends where the
+   next one starts. A planned block after a break has not started: nothing. */
+function blockMinutes(list, now){
+  now = now || Date.now();
+  var mm = function(t){ return Math.floor(t / 60000); };
+  var started = (list || []).filter(function(e){ return e && e.startedAt && Date.parse(e.startedAt) <= now; })
+    .sort(function(a, b){ return Date.parse(a.startedAt) - Date.parse(b.startedAt); });
+  return started.map(function(e, i){
+    var s = Date.parse(e.startedAt), live = false, end;
+    if (e.endedAt) end = Date.parse(e.endedAt);
+    else if (i + 1 < started.length) end = Date.parse(started[i + 1].startedAt);
+    else { end = now; live = true; }
+    var own = e.endedAt && e.minutes != null && e.minutes !== '' && !e.kept && !e.cut;
+    return { e: e, minutes: own ? Math.max(0, Number(e.minutes) || 0) : Math.max(0, mm(end) - mm(s)), live: live };
+  });
+}
 function renderDay(){
-  // Roll today's entries up by cost item; the open one counts live.
+  // Roll today's entries up by cost item, in whole minutes as JobTread counts
+  // them, so the rows add up to the total; the open one counts live.
   var by = {}, order = [];
-  dayEntries().forEach(function(e){
+  blockMinutes(dayEntries()).forEach(function(b){
+    var e = b.e;
     if (!e.code) return;
     var k = e.code.id;
-    if (!by[k]) { by[k] = { code:e.code, sec:0, live:false }; order.push(k); }
-    var sec = e.endedAt ? (new Date(e.endedAt) - new Date(e.startedAt))/1000 : 0;
-    if (!e.endedAt) { by[k].live = true; sec = Math.max(0, (Date.now() - new Date(e.startedAt))/1000); }
-    by[k].sec += sec;
+    if (!by[k]) { by[k] = { code:e.code, min:0, live:false }; order.push(k); }
+    if (b.live) by[k].live = true;
+    by[k].min += b.minutes;
   });
   var total = 0, html = '';
   order.sort(function(a,b){ return String(by[a].code.number||'').localeCompare(String(by[b].code.number||'')); });
   order.forEach(function(k){
-    var r = by[k]; total += r.sec;
+    var r = by[k]; total += r.min * 60;
     html += '<div class="trow"><span class="n tabular">' + esc(r.code.number||'') + '</span>' +
             '<span class="nm">' + esc(r.code.name||'') + (r.live ? ' ·' : '') + '</span>' +
-            '<span class="d tabular">' + hm(r.sec) + '</span></div>';
+            '<span class="d tabular">' + hm(r.min * 60) + '</span></div>';
   });
   if (!order.length) html = '<div class="trow"><span class="nm" style="text-transform:none;font-weight:400;color:var(--mut)">' + esc(L('Nothing on the clock yet today.')) + '</span></div>';
   html += '<div class="ttotal"><span class="l">' + esc(L('Total today')) + '</span><span class="v tabular">' + hm(total) + '</span></div>';
@@ -1690,7 +1739,7 @@ function pushWords(){
    (T2.34): an N/A goes with its reason and every line says who answered
    it, a camera photo is filed under the time it was taken, and GET
    /assigned answers the hourly Close Out push. */
-var CO_CONTRACT_NEED = 6;   /* 4 (T2.35, audit I10): Can't finish today, and a repair says why it waits. 5 (T2.40, audit I13 step 2): a construction job's final inspection is one notes-and-photos area. 6 (T2.41, audit I15): a service call's repair carries what was found and the warranty answer */
+var CO_CONTRACT_NEED = 7;   /* 4 (T2.35, audit I10): Can't finish today, and a repair says why it waits. 5 (T2.40, audit I13 step 2): a construction job's final inspection is one notes-and-photos area. 6 (T2.41, audit I15): a service call's repair carries what was found and the warranty answer. 7 (T2.42): it carries the extra work to bill too, and a work area's review is named as the board names it */
 function buildNum(b){ var m = /T(\d+)\.(\d+)/.exec(String(b || '')); return m ? Number(m[1]) * 1000 + Number(m[2]) : 0; }
 function loadBuilds(){
   if (!S.me || !API_URL || !S.online) return Promise.resolve();
@@ -1891,7 +1940,7 @@ function wipePhoneState(){
   var me = myEmail(), theirs = function(v){ var o = ownOf(v); return !!o && !!me && o !== me; };
   var heldJson = Object.keys(held).length ? JSON.stringify(held) : '';
   // The phone's own id and what it last told the board (T2.41, audit D31) are the phone's, not the person's.
-  var keepPhone = {}; try { ['dbtc_phone', 'dbtc_relrep'].forEach(function(k){ var v = localStorage.getItem(k); if (v != null) keepPhone[k] = v; }); } catch(e){}
+  var keepPhone = {}; try { ['dbtc_phone', 'dbtc_relrep', 'dbtc_coledger'].forEach(function(k){ var v = localStorage.getItem(k); if (v != null) keepPhone[k] = v; }); } catch(e){}
   authClear();
   try {
     var keys = [];
@@ -3971,6 +4020,7 @@ function openSheet(kind, promptKind){
             : kind==='roll' ? L('Before you roll out')
             : kind==='forgot' ? L('Shop checks not done')
             : kind==='travelCodes' ? Lf('No travel line at {p}', { p: (S.travelTo && (S.travelTo.job.customer || streetOf(S.travelTo.job.address))) || L('that job') })
+            : kind==='sentWeek' ? L('What I sent this week')
             : '';
   $('sheetTitle').textContent = title;
   $('sheet').classList.toggle('tall', kind === 'jobs');
@@ -3994,6 +4044,7 @@ function openSheet(kind, promptKind){
                             : kind==='roll' ? rollHtml()
                             : kind==='forgot' ? forgotHtml()
                             : kind==='travelCodes' ? travelCodesHtml()
+                            : kind==='sentWeek' ? sentWeekHtml()
                             : '';
   $('scrim').classList.add('on');
   wireSheet();
@@ -4329,6 +4380,7 @@ function wireSheet(){
   // Close Out's "Before you send": each row goes where that thing is dealt with.
   if ($('coPhotoKeep')) $('coPhotoKeep').onclick = closeSheet;
   // Photos waiting to send (T2.30): Try again now; Discard asks twice.
+  var swa = $('swAgain'); if (swa) swa.onclick = openSentWeek;
   [].forEach.call(document.querySelectorAll('#sheetBody [data-pqretry]'), function(b){
     b.onclick = function(){ qRetryNow(b.getAttribute('data-pqretry')); toast(L('Trying again…')); setTimeout(openPhotoQ, 500); };
   });
@@ -4890,7 +4942,7 @@ function ownRestore(me){
 }
 /* What the phone kept for the person signed out goes, the way Sign out takes
    it, except the sign-in just made and the work waiting for anyone. */
-var OWN_KEEP_KEYS = { dbtc_auth: 1, dbtc_held: 1, dbtc_clockq: 1, dbtc_co_seq: 1, dbtc_qretry: 1, dbtc_phone: 1, dbtc_relrep: 1 };
+var OWN_KEEP_KEYS = { dbtc_auth: 1, dbtc_held: 1, dbtc_clockq: 1, dbtc_co_seq: 1, dbtc_qretry: 1, dbtc_phone: 1, dbtc_relrep: 1, dbtc_coledger: 1 };   // the ledger is by owner (T2.42): each person's own comes back
 function ownWipeKept(){
   S.whereReady = false;
   try {
@@ -5290,8 +5342,9 @@ function startKept(keep, item, rec, code, prev){
   S.open = cqOpen(keep);
   if (item){
     item.entryId = ''; item.codeLabel = codeLabel(code); item.waitRid = keep.rid;
+    delete item.waitIn; delete IN_FLIGHT[keep.rid];   // kept first, before the answer (T2.42): it waits on the clock-in now
     rec.codeId = code.id; rec.waitRid = keep.rid;
-    S.photos.push(rec);
+    if (!photoRec(rec.id)) S.photos.push(rec);
   }
   S.clockGate = null; S.gateCode = null; S.switching = null; S.onBreak = null;
   if (S.pendingJob){
@@ -5421,6 +5474,27 @@ function cqReleaseLate(x){
   delete x.waitRid;
   if (d && d.id){ x.entryId = d.id; x.codeLabel = codeLabel(d.code); }
   var p = photoRec(x.id); if (p) delete p.waitRid;
+  return idbPut(x);
+}
+/* A start photo kept before its online clock-in was answered (T2.42). The
+   page that asked holds IN_FLIGHT[rid] until the answer, and stamps the
+   photo itself. When the app was closed first, the next launch's clock read
+   says which entry it is: the open block, or one from today, on that job,
+   begun within IN_MATCH_MS of the moment the photo was taken (the API starts
+   an online clock-in when the write runs). None — the clock-in never landed —
+   and it goes as it is, as a refused clock-in's photo does. */
+var IN_FLIGHT = {}, IN_MATCH_MS = 10 * 60000;
+function inRelease(x){
+  var w = x.waitIn || {}, hit = null;
+  var near = function(e){
+    return !!(e && e.id && e.job && e.job.id === w.jobId && Math.abs(Date.parse(e.startedAt) - (w.at || 0)) <= IN_MATCH_MS &&
+              (!w.costItemId || !e.code || e.code.id === w.costItemId));
+  };
+  if (near(S.open) && !S.open.kept) hit = S.open;
+  else (S.entries || []).forEach(function(e){ if (!hit && near(e)) hit = e; });
+  delete x.waitIn;
+  if (hit){ x.entryId = hit.id; x.codeLabel = codeLabel(hit.code); }
+  var p = photoRec(x.id); if (p) delete p.waitIn;
   return idbPut(x);
 }
 /* An end photo is of the block that is running. One the phone is still
@@ -5573,6 +5647,18 @@ function commitStart(item, rec){
     // Already left the last job (T2.19): it ends when they left, the drive
     // from then to now on this job's travel line, and the work from now.
     // …on a job with none, on the line the API makes for it (audit D28).
+    // The start photo is on the phone before the API is asked (T2.42, the
+    // audit's smaller defect): it lived in memory until the answer, so a phone
+    // closed in that moment had the entry and no photo. Kept marked waitIn, it
+    // is sent only once the answer has stamped it with its entry.
+    if (item){
+      item.waitIn = { rid: rid, jobId: target.id, costItemId: code.id, at: madeAt };
+      IN_FLIGHT[rid] = 1;
+      rec.codeId = code.id;
+      if (!photoRec(rec.id)) S.photos.push(rec);
+      savePrefs();
+      enqueueUpload(item);
+    }
     var travel = sw && sw.leftAt ? (S.codes.filter(isTravelCode)[0] || (isShopId(target.id) || !apiAtLeast(2041) ? null : travelNewCode())) : null;
     var call = sw && sw.leftAt ? apiCall('leftSite', [sw.leftAt, coords, { kind: 'work', jobId: target.id, costItemId: code.id, travelItemId: travel ? travel.id : null, startPhotoId: pid,
                                    notes: 'Drive to ' + jobWord(target) + (prev && prev.id !== target.id ? ' · from ' + (atShop() ? 'the shop' : jobWord(prev)) : '') }]).then(function(r){ if (r && r.entries) S.entries = r.entries; return r.open; })
@@ -5582,8 +5668,9 @@ function commitStart(item, rec){
       S.open = open;
       if (item){
         item.entryId = open.id; item.codeLabel = codeLabel(open.code);
+        delete item.waitIn;
         rec.codeId = (open.code && open.code.id) || code.id;
-        S.photos.push(rec);
+        if (!photoRec(rec.id)) S.photos.push(rec);
       }
       S.clockGate = null; S.gateCode = null; S.switching = null; S.onBreak = null;
       if (S.pendingJob){
@@ -5608,16 +5695,24 @@ function commitStart(item, rec){
       if (S.rollPending && S.rollPending === S.job.id) rollForgot(S.job.id);
       S.rollPending = null;
       savePrefs();
-      if (item) enqueueUpload(item);
+      // Saved again, stamped with its entry, and let go to the pump.
+      if (item) enqueueUpload(item).then(function(){ delete IN_FLIGHT[rid]; pump(); });
+      else delete IN_FLIGHT[rid];
       enablePush();
       refreshDayLater();
     }).catch(function(e){
       // The API wanted the photo after all: the camera, for the same start.
-      if (!rec && photoRefused(e, 'start')){ busy(false); return 'camera'; }
+      if (!rec && photoRefused(e, 'start')){ busy(false); delete IN_FLIGHT[rid]; return 'camera'; }
       // No answer (T2.31): kept on the phone with its moment and its photo,
       // sent when there is signal; the clock runs from that moment meanwhile.
       if (keep && cqCanQueue(e)){ startKept(keep, item, rec, code, prev); return; }
       // Nothing opened: the photo is not kept, and the clock is as it was.
+      delete IN_FLIGHT[rid];
+      if (item){
+        S.photos = S.photos.filter(function(p){ return p.id !== item.id; });
+        savePrefs();
+        idbDel(item.id).then(qCount, function(){}).then(function(){ render(); });
+      }
       S.clockGate = null; S.gateCode = null;
       if (S.pendingJob) cancelMove();
       if (sw && sw.leftAt) S.switching = null;
@@ -6500,14 +6595,56 @@ function showErr(e, where){
   else failed(where || 'clock', e);
 }
 
+/* Where the phone is, for a clock write (T2.42, the audit's smaller defect:
+   it waited 2.4 seconds without asking for a precise fix, and threw away how
+   sure the phone was). Now the fix is asked for precisely, its accuracy goes
+   with it (acc, metres) and the API reads it, and the hunt starts while the
+   photo is being framed (coordsWarm), so the shutter usually finds a good fix
+   waiting. The write never waits more than COORDS_WAIT_MS for one: the best
+   fix seen by then goes, or none. */
+var COORDS_WAIT_MS = 4000, COORDS_GOOD_M = 50, COORDS_OK_M = 150, COORDS_OK_AFTER_MS = 2500, COORDS_FRESH_MS = 60000, COORDS_WARM_MS = 30000;
+var fixBest = null, fixWatch = null, fixWarmT = null;
+function fixOf(p){ return { lat: p.coords.latitude, lng: p.coords.longitude, acc: Math.round(Number(p.coords.accuracy) || 0) || null, at: Date.now() }; }
+function fixKeep(f){
+  if (!f) return;
+  var stale = !fixBest || Date.now() - fixBest.at > COORDS_FRESH_MS;
+  if (stale || !fixBest.acc || (f.acc && f.acc <= fixBest.acc)) fixBest = f;
+}
+function fixFresh(){ return fixBest && Date.now() - fixBest.at <= COORDS_FRESH_MS ? fixBest : null; }
+function coordsOut(f){ return f ? (f.acc ? { lat: f.lat, lng: f.lng, acc: f.acc } : { lat: f.lat, lng: f.lng }) : null; }
+/* Start looking now; stop after COORDS_WARM_MS, or at a good fix. */
+function coordsWarm(){
+  if (!navigator.geolocation || fixWatch != null) return;
+  try {
+    fixWatch = navigator.geolocation.watchPosition(function(p){
+      fixKeep(fixOf(p));
+      if (fixBest && fixBest.acc && fixBest.acc <= COORDS_GOOD_M) coordsCool();
+    }, function(){ coordsCool(); }, { enableHighAccuracy: true, maximumAge: COORDS_FRESH_MS, timeout: COORDS_WARM_MS });
+  } catch(e){ fixWatch = null; return; }
+  clearTimeout(fixWarmT);
+  fixWarmT = setTimeout(coordsCool, COORDS_WARM_MS);
+}
+function coordsCool(){
+  clearTimeout(fixWarmT); fixWarmT = null;
+  if (fixWatch != null){ try { navigator.geolocation.clearWatch(fixWatch); } catch(e){} fixWatch = null; }
+}
 function withCoords(cb){
-  if (!navigator.geolocation) { cb(null); return; }
-  var done = false;
-  var t = setTimeout(function(){ if (!done){ done = true; cb(null); } }, 2500);
-  navigator.geolocation.getCurrentPosition(function(p){
-    if (done) return; done = true; clearTimeout(t);
-    cb({ lat:p.coords.latitude, lng:p.coords.longitude });
-  }, function(){ if (!done){ done = true; clearTimeout(t); cb(null); } }, { timeout:2400, maximumAge:60000 });
+  var have = fixFresh();
+  if (have && have.acc && have.acc <= COORDS_GOOD_M){ cb(coordsOut(have)); return; }
+  if (!navigator.geolocation) { cb(coordsOut(have)); return; }
+  var done = false, finish = function(){ if (done) return; done = true; clearTimeout(t); clearTimeout(t2); cb(coordsOut(fixFresh())); };
+  var t = setTimeout(finish, COORDS_WAIT_MS);
+  // As quick as it ever was when the fix is decent: a write waits the full
+  // four seconds only while the phone has nothing better than a rough one.
+  var t2 = setTimeout(function(){ var f = fixFresh(); if (f && f.acc && f.acc <= COORDS_OK_M) finish(); }, COORDS_OK_AFTER_MS);
+  coordsWarm();
+  try {
+    navigator.geolocation.getCurrentPosition(function(p){
+      fixKeep(fixOf(p));
+      var f = fixFresh();
+      if (f && f.acc && f.acc <= COORDS_GOOD_M) finish();
+    }, function(){ if (!fixFresh()) finish(); }, { enableHighAccuracy: true, timeout: COORDS_WAIT_MS - 100, maximumAge: COORDS_FRESH_MS });
+  } catch(e){ finish(); }
 }
 
 /* After a clock write (T2.29): the day's entries reload in the background.
@@ -6526,6 +6663,9 @@ function refreshDay(){
 var camStream = null, recorder = null, recChunks = [], recTimer = null;
 
 function startCamera(){
+  // A start or end photo is a clock write: the fix is looked for while the
+  // shot is framed (T2.42).
+  if (S.clockGate) coordsWarm();
   if (camStream) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ camFallback('This browser cannot open the camera. Tap to use the phone camera instead.'); return; }
   navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1920 } }, audio:false })
@@ -6695,21 +6835,71 @@ function idb(){
     r.onerror = function(){ rej(r.error); };
   });
 }
+/* The waiting photos, from the phone's own store. A read that FAILED is not
+   an empty queue (T2.42, audit I18): it used to answer [] either way, so a
+   phone that could not read its store said nothing was waiting — and sign-out
+   believed it. Now it answers [] and says so (S.qReadFailed): the count is
+   "unknown", sign-out waits, nothing is marked lost, and the next read tries
+   again. */
 function idbAll(){
   return idb().then(function(db){
-    return new Promise(function(res){
-      var out = [], c = db.transaction('q').objectStore('q').openCursor();
+    return new Promise(function(res, rej){
+      var out = [], c;
+      try { c = db.transaction('q').objectStore('q').openCursor(); } catch(e){ rej(e); return; }
       c.onsuccess = function(e){ var cur = e.target.result; if (cur){ out.push(cur.value); cur.continue(); } else res(out); };
-      c.onerror = function(){ res([]); };
+      c.onerror = function(){ rej(c.error || new Error('photo store unreadable')); };
     });
-  }).catch(function(){ return []; });
+  }).then(function(out){ S.qReadFailed = false; return out; }, function(e){
+    if (!S.qReadFailed) failed('photo store read', e, true);
+    S.qReadFailed = true;
+    return [];
+  });
 }
-function idbPut(item){ return idb().then(function(db){ db.transaction('q','readwrite').objectStore('q').put(item); }); }
-function idbDel(id){ return idb().then(function(db){ db.transaction('q','readwrite').objectStore('q').delete(id); }); }
+/* Done when the store has it on disk — the transaction complete — not when
+   the put was merely asked for (T2.42, audit I18). */
+function idbTx(store, fn){
+  return idb().then(function(db){
+    return new Promise(function(res, rej){
+      var tx;
+      try { tx = db.transaction(store, 'readwrite'); fn(tx.objectStore(store)); } catch(e){ rej(e); return; }
+      tx.oncomplete = function(){ res(); };
+      tx.onerror = function(){ rej(tx.error || new Error('could not save')); };
+      tx.onabort = function(){ rej(tx.error || new Error('could not save (aborted)')); };
+    });
+  });
+}
+function idbPut(item){ return idbTx('q', function(st){ st.put(item); }); }
+function idbDel(id){ return idbTx('q', function(st){ st.delete(id); }); }
 
 function enqueueUpload(item){
   ownStamp(item);   // whose photo this is (T2.37, audit D31)
-  idbPut(item).then(function(){ S.queued++; render(); pump(); });
+  // The count comes from the store once the photo is in it (T2.30's rule):
+  // a photo saved twice (kept, then stamped) is still one photo.
+  return idbPut(item).then(function(){ return qCount(); }).then(function(){ render(); pump(); }, function(e){
+    // Not saved (T2.42, audit I18): said at once, while the moment can be
+    // shot again — never found out at the end of the day.
+    var p = photoRec(item.id);
+    if (p){ p.err = 'not saved on this phone — take it again'; p.lost = true; p.pending = false; }
+    failed('photo save', e, true);
+    toast(L('This phone couldn’t save that photo — take it again.'), true);
+    savePrefs(); render();
+  });
+}
+/* Ask the browser, once, to keep this phone's store when space runs low
+   (T2.42, audit I18). The browser decides; the answer is in Diagnostics. On
+   an iPhone the Home Screen app is spared the seven-day clean-up a Safari
+   tab gets either way, which is why the app says to use the icon. */
+var PERSIST_KEY = 'dbtc_persist';
+function storagePersist(){
+  try {
+    if (!navigator.storage || !navigator.storage.persist) { S.persist = 'unsupported'; return; }
+    navigator.storage.persisted().then(function(yes){
+      if (yes){ S.persist = 'kept'; return; }
+      var asked = ''; try { asked = localStorage.getItem(PERSIST_KEY) || ''; } catch(e){}
+      if (asked){ S.persist = asked; return; }
+      return navigator.storage.persist().then(function(ok){ S.persist = ok ? 'kept' : 'not kept'; storeSet(PERSIST_KEY, S.persist, true); });
+    }).catch(function(){ S.persist = 'unknown'; });
+  } catch(e){ S.persist = 'unknown'; }
 }
 /* How many photos are waiting, from the phone's own store (T2.30). The
    upload loop is not the only one asking: it does not run without signal,
@@ -6719,7 +6909,7 @@ function qCount(){ return idbAll().then(function(items){ qKeep(items); return it
 function qKeep(items){
   var mine = qMine(items).filter(ownMine);
   S.queued = mine.length;
-  S.qItems = mine.map(function(x){ return { id: x.id, tag: x.tag, at: x.at, jobId: x.jobId, waitRid: x.waitRid || '' }; });
+  S.qItems = mine.map(function(x){ return { id: x.id, tag: x.tag, at: x.at, jobId: x.jobId, waitRid: x.waitRid || (x.waitIn && x.waitIn.rid) || '' }; });
   // Another person's photos, kept for them (T2.37, audit D31): said, never sent.
   S.qOthers = items.filter(function(x){ return !ownMine(x); }).map(function(x){ return { id: x.id, tag: x.tag, at: x.at, jobId: x.jobId, waitRid: x.waitRid || '', owner: ownOf(x), ownerName: x.ownerName || '' }; });
 }
@@ -6769,7 +6959,11 @@ function pump(){
         // landing stamps it with the entry, saves it again and runs the pump.
         // One whose change landed while it was still being written (T2.38) is
         // stamped now and saved again; the next run sends it, never this copy.
-        if (item.waitRid){ if (!cqHas(item.waitRid)) return cqReleaseLate(item); return; }
+        // Kept before its clock-in was answered (T2.42): it waits for that
+        // answer — or, the app closed first, for this launch to have read the
+        // clock and say which entry it is. Saved again, sent next run.
+        if (item.waitIn){ if (IN_FLIGHT[item.waitIn.rid] || !S.booted) return; return inRelease(item).catch(function(){}); }
+        if (item.waitRid){ if (!cqHas(item.waitRid)) return cqReleaseLate(item).catch(function(){}); return; }
         // Another person's (T2.37, audit D31): theirs to send, when they sign in
         // here — or now, when Operations has sent their work from the board (T2.41).
         if (!ownMine(item) && !relSends(ownOf(item))) return;
@@ -6787,6 +6981,9 @@ function pump(){
   }).catch(function(){}).then(function(){
     pumping = false; pumpCur = null;
     idbAll().then(function(rest){
+      // The store could not be read: nothing is known, so nothing is called
+      // lost or forgotten — the next run reads it again.
+      if (S.qReadFailed){ render(); pumpTimer = setTimeout(pump, 15000); return; }
       qKeep(rest);
       // A photo still marked pending with nothing left in the queue has no
       // upload behind it any more (an older build discarded refused uploads;
@@ -6810,7 +7007,7 @@ function pump(){
       // A photo waiting on its clock-in is no reason to run again: the
       // clock-in landing runs the pump.
       var soon = Infinity;
-      rest.forEach(function(it){ if (it.waitRid || (!ownMine(it) && !relSends(ownOf(it)))) return; var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
+      rest.forEach(function(it){ if (it.waitRid || (it.waitIn && (IN_FLIGHT[it.waitIn.rid] || !S.booted)) || (!ownMine(it) && !relSends(ownOf(it)))) return; var r = qRetry[it.id]; soon = Math.min(soon, r ? r.next : 0); });
       if (soon < Infinity) pumpTimer = setTimeout(pump, Math.max(3000, soon - Date.now()));
       dlRetryPending();
     });
@@ -6845,7 +7042,7 @@ function openPhotoQ(){
   return qCount().then(function(items){
     items = qMine(items).filter(ownMine);   // only the signed-in person's to retry or discard (T2.37)
     items.sort(function(a, b){ return (a.at || 0) - (b.at || 0); });
-    S.pqItems = items.map(function(it){ return { id: it.id, at: it.at, tag: it.tag, jobId: it.jobId, waitRid: it.waitRid || '' }; });
+    S.pqItems = items.map(function(it){ return { id: it.id, at: it.at, tag: it.tag, jobId: it.jobId, waitRid: it.waitRid || (it.waitIn && it.waitIn.rid) || '' }; });
     openSheet('photoQ');
   });
 }
@@ -6947,7 +7144,7 @@ function sendOne(item){
     .then(function(res){
       return idbDel(item.id).then(function(){
         var p = photoRec(item.id);
-        if (p){ p.pending = false; p.err = ''; p.fileId = (res && res.fileId) || p.fileId || ''; }
+        if (p){ p.pending = false; p.err = ''; p.fileId = (res && res.fileId) || p.fileId || ''; dlKeepPhoto(p); }
         savePrefs(); render();
       });
     })
@@ -6975,11 +7172,16 @@ function fileDescription(item){
   if (item.fromPhone) return '#PHONE ' + tagWord(item.tag) +
          (item.entryId ? ' #TE:' + item.entryId : '') +
          (item.codeLabel ? ' ' + item.codeLabel : '') +
-         ' · picked from the phone\'s photos, ' + (item.takenAt ? 'taken ' + phoneWhenOffice(item.takenAt) : 'time taken unknown');
+         ' · picked from the phone\'s photos, ' + (item.takenAt ? 'taken ' + phoneWhenOffice(item.takenAt) : 'time taken unknown') + photoMark(item);
   return '#' + tagWord(item.tag) +
          (item.entryId ? ' #TE:' + item.entryId : '') +
-         (item.codeLabel ? ' ' + item.codeLabel : '');
+         (item.codeLabel ? ' ' + item.codeLabel : '') + photoMark(item);
 }
+/* The photo's own id, last in its description (T2.42, the audit's smaller
+   defect): a photo sent again after the API's ten-minute request-id window
+   (its answer lost, the phone trying an hour later) is found on the job by
+   it and handed back, never filed twice. An API older than T2.42 ignores it. */
+function photoMark(item){ var id = String(item && item.id || '').replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 80); return id.length >= 4 ? ' #PH:' + id : ''; }
 
 function fileName(item){
   // A phone photo is named by when it was taken; with no time in it, by when
@@ -7582,6 +7784,27 @@ esAdd({
   'Operations let {name}’s unsent work go from this phone': 'Operaciones quitó de este teléfono lo que {name} no había enviado',
   'Operations sent {name}’s work from this phone': 'Operaciones mandó desde este teléfono lo de {name}'
 }); /* T2.41-ES release */
+/* T2.42: the photo store, the installed app, a partner's clock busy, and What I sent this week. */
+esAdd({
+  'This phone couldn’t save that photo — take it again.': 'Este teléfono no pudo guardar esa foto — tómala otra vez.',
+  'You’re in a browser tab. Open DB Crew from its Home Screen icon — a tab can lose what’s waiting to send.': 'Estás en una pestaña del navegador. Abre DB Crew desde su ícono en la pantalla de inicio — una pestaña puede perder lo que falta por enviar.',
+  'Share › Add to Home Screen': 'Compartir › Agregar a pantalla de inicio',
+  'Menu › Add to Home screen': 'Menú › Agregar a la pantalla principal',
+  'No signal. These are saved on this phone. They go only while DB Crew is open — open it again where there’s signal.': 'Sin señal. Están guardados en este teléfono. Solo se envían con DB Crew abierto — ábrelo otra vez donde haya señal.',
+  'another clock change of theirs was still saving': 'otro cambio de su reloj todavía se estaba guardando',
+  'What I sent this week': 'Lo que envié esta semana', 'What I sent this week ›': 'Lo que envié esta semana ›',
+  'Asking JobTread…': 'Preguntando a JobTread…',
+  'This list is read from JobTread — it needs signal. Open it again where there’s signal.': 'Esta lista se lee de JobTread — necesita señal. Ábrela otra vez donde haya señal.',
+  'JobTread didn’t answer just now — try again in a minute.': 'JobTread no contestó ahora — intenta otra vez en un minuto.',
+  'Nothing from you on this job since Monday.': 'Nada tuyo en este trabajo desde el lunes.',
+  'In JobTread': 'En JobTread', 'from the phone': 'del teléfono', '{n} photo': '{n} foto', 'sent {t}': 'enviado a las {t}',
+  'Sent from this phone': 'Enviado desde este teléfono', 'Close Out': 'Close Out',
+  'Start photo': 'Foto de inicio', 'End photo': 'Foto final', 'now': 'ahora',
+  'JobTread didn’t answer for your hours — they may be there; try again in a minute.': 'JobTread no contestó por tus horas — puede que estén ahí; intenta otra vez en un minuto.',
+  'JobTread didn’t answer for the photos and day logs — try again in a minute.': 'JobTread no contestó por las fotos y los registros — intenta otra vez en un minuto.',
+  'A busy week: this shows the first 100.': 'Una semana ocupada: esto muestra los primeros 100.',
+  'Hours, photos and day logs are read from JobTread. Close Out shows what this phone sent; what’s still on the phone is under Waiting to send.': 'Las horas, las fotos y los registros se leen de JobTread. Close Out muestra lo que envió este teléfono; lo que sigue en el teléfono está en Por enviar.'
+}); /* T2.42-ES */
 /* Every clock change kept behind a waiting one (T2.38, audit I17). */
 esAdd({
   'Clock-out {t}': 'Salida {t}',
@@ -7906,16 +8129,96 @@ function dlToggleOption(jobId, date, id, opt){
 
 /* ---- what the phone already knows about the day on this job ---- */
 function hoursFor(jobId){
+  // The same minutes as the day table (T2.42): JobTread's, one block live.
   var by = {}, order = [];
-  S.entries.forEach(function(en){
+  blockMinutes(S.entries).forEach(function(b){
+    var en = b.e;
     if (!en.code || !en.job || en.job.id !== jobId) return;
     var k = en.code.id;
     if (!by[k]){ by[k] = { number: en.code.number || '', name: en.code.name || '', minutes: 0, live:false }; order.push(k); }
-    var sec = en.endedAt ? (new Date(en.endedAt) - new Date(en.startedAt))/1000 : Math.max(0, (Date.now() - new Date(en.startedAt))/1000);
-    if (!en.endedAt) by[k].live = true;
-    by[k].minutes += sec / 60;
+    if (b.live) by[k].live = true;
+    by[k].minutes += b.minutes;
   });
-  return order.map(function(k){ var h = by[k]; h.minutes = Math.round(h.minutes); return h; });
+  return order.map(function(k){ return by[k]; });
+}
+/* What I sent this week, on this job (T2.42, audit I19): "did that go?"
+   without calling the office. Read back from JobTread — so it answers for
+   work sent from any phone — the person's time since Monday, the photos filed
+   for those entries, and their day logs; then what this phone sent through
+   Close Out (JobTread cannot say who sent that). A part JobTread did not
+   answer says so, never "nothing". */
+var SW = { jobId: null, loading: false, data: null, err: '' };
+function openSentWeek(){
+  var jobId = S.job && S.job.id;
+  if (!jobId) return;
+  SW = { jobId: jobId, loading: S.online, data: null, err: S.online ? '' : 'offline' };
+  openSheet('sentWeek');
+  if (!S.online) return;
+  apiCall('getSentThisWeek', [jobId], { lane: 'reads', timeout: 30000 }).then(function(d){
+    if (SW.jobId !== jobId) return;
+    SW.loading = false; SW.data = d || null; sentWeekRedraw();
+  }, function(e){
+    if (SW.jobId !== jobId) return;
+    SW.loading = false; SW.err = (e && e.message) || 'failed'; sentWeekRedraw();
+  });
+}
+function sentWeekRedraw(){ if (S.sheet === 'sentWeek') { $('sheetBody').innerHTML = sentWeekHtml(); wireSheet(); } }
+var SW_TAG = { START: 'Start photo', END: 'End photo', BEFORE: 'Start photo', AFTER: 'End photo', DURING: 'Photo' };
+function sentWeekHtml(){
+  var d = SW.data, h = '<div class="sheetpad" id="sentWeek" style="gap:12px">';
+  var place = S.job && S.job.id === SW.jobId ? jobWord(S.job) : '';
+  if (place) h += '<div class="body">' + esc(place) + '</div>';
+  if (SW.loading) return h + '<div class="jempty">' + esc(L('Asking JobTread…')) + '</div></div>';
+  if (SW.err === 'offline') h += '<div class="jempty">' + esc(L('This list is read from JobTread — it needs signal. Open it again where there’s signal.')) + '</div>';
+  else if (SW.err) h += '<div class="jempty">' + esc(L('JobTread didn’t answer just now — try again in a minute.')) + '</div><button class="btn btn-out" id="swAgain">' + esc(L('Try again')) + '</button>';
+  var days = {}, order = [], day = function(iso){ if (!days[iso]){ days[iso] = { entries: [], photos: [], logs: [], co: [] }; order.push(iso); } return days[iso]; };
+  if (d){
+    (d.entries || []).forEach(function(e){ day(e.day).entries.push(e); });
+    (d.photos || []).forEach(function(p){ day(p.day).photos.push(p); });
+    (d.logs || []).forEach(function(l){ day(l.date).logs.push(l); });
+  }
+  var since = (d && d.from) || isoLocal(new Date(Date.now() - ((new Date().getDay() + 6) % 7) * 864e5));
+  coLedgerFor(SW.jobId, since).forEach(function(x){ day(isoLocal(new Date(x.at))).co.push(x); });
+  order.sort();
+  if (d && !order.length) h += '<div class="jempty">' + esc(L('Nothing from you on this job since Monday.')) + '</div>';
+  order.forEach(function(iso){
+    var g = days[iso], mins = 0, open = false;
+    g.entries.forEach(function(e){ mins += e.minutes || 0; if (e.open) open = true; });
+    h += '<div class="k" style="margin-top:4px">' + esc(dayWords(new Date(iso + 'T12:00:00'))) + (g.entries.length ? ' · ' + esc(hm(mins * 60)) + (open ? ' ·' : '') : '') + '</div><div class="oblist">';
+    g.entries.forEach(function(e){
+      h += '<div class="obrow"><span class="st ok">' + esc(L('In JobTread')) + '</span><span class="ob-t">' + esc(clockLabel(Date.parse(e.startedAt)) + '–' + (e.open ? L('now') : clockLabel(Date.parse(e.endedAt)))) +
+           ' · ' + esc(e.code || '') + ' · ' + esc(hm((e.minutes || 0) * 60)) + '</span></div>';
+    });
+    if (g.photos.length){
+      var tags = g.photos.map(function(p){ return L(SW_TAG[p.tag] || 'Photo') + (p.fromPhone ? ' (' + L('from the phone') + ')' : ''); });
+      h += '<div class="obrow"><span class="st ok">' + esc(L('In JobTread')) + '</span><span class="ob-t">' + esc(Lf(g.photos.length === 1 ? '{n} photo' : '{n} photos', { n: g.photos.length })) + ' · ' + esc(tags.join(', ')) + '</span></div>';
+    }
+    g.logs.forEach(function(l){
+      h += '<div class="obrow"><span class="st ok">' + esc(L('In JobTread')) + '</span><span class="ob-t">' + esc(L('Day log')) + (l.at ? ' · ' + esc(Lf('sent {t}', { t: clockLabel(Date.parse(l.at)) })) : '') + '</span></div>';
+    });
+    g.co.forEach(function(x){
+      h += '<div class="obrow"><span class="st ok">' + esc(L('Sent from this phone')) + '</span><span class="ob-t">' + esc(L('Close Out')) + ' · ' + esc(x.label || '') + ' · ' + esc(clockLabel(x.at)) + '</span></div>';
+    });
+    h += '</div>';
+  });
+  if (d && d.read){
+    if (d.read.time === false) h += '<div class="foot">' + esc(L('JobTread didn’t answer for your hours — they may be there; try again in a minute.')) + '</div>';
+    if (d.read.photos === false) h += '<div class="foot">' + esc(L('JobTread didn’t answer for the photos and day logs — try again in a minute.')) + '</div>';
+  }
+  if (d && d.more) h += '<div class="foot">' + esc(L('A busy week: this shows the first 100.')) + '</div>';
+  h += '<div class="foot">' + esc(L('Hours, photos and day logs are read from JobTread. Close Out shows what this phone sent; what’s still on the phone is under Waiting to send.')) + '</div>';
+  return h + '</div>';
+}
+/* A photo that reached JobTread, kept on that day's log while it is unsent
+   (T2.42): the log then carries it however late it goes. */
+function dlKeepPhoto(p){
+  if (!p || !p.fileId || !p.jobId) return;
+  var e = dlStore[dlKey(p.jobId, isoLocal(new Date(p.at || 0)))];
+  if (!e || e.sent) return;
+  e.photoRefs = e.photoRefs || [];
+  if (e.photoRefs.some(function(r){ return r.fileId === p.fileId; })) return;
+  e.photoRefs.push({ fileId: p.fileId, name: p.name || '', tag: p.tag, time: p.time || '' });
+  dlPersist();
 }
 function photosFor(jobId, date){
   return S.photos.filter(function(p){ return p.jobId === jobId && isoLocal(new Date(p.at || 0)) === date; });
@@ -7988,9 +8291,17 @@ function dlFieldNames(e){
   return out;
 }
 function dlPayload(e){
-  var photos = photosFor(e.jobId, e.date).filter(function(p){ return p.fileId; });
+  // The day's photos: those the phone still shows, and those kept on the log
+  // itself as they reached JobTread (T2.42, the audit's smaller defect: the
+  // phone shows two days of photos, so a log sent two days late went with
+  // none).
+  var photos = photosFor(e.jobId, e.date).filter(function(p){ return p.fileId; }), have = {};
+  photos.forEach(function(p){ have[p.fileId] = 1; });
+  (e.photoRefs || []).forEach(function(r){ if (r && r.fileId && !have[r.fileId]){ have[r.fileId] = 1; photos.push(r); } });
   return {
-    jobId: e.jobId, date: e.date, jobLabel: e.jobLabel || e.jobId, alongside: e.alongside || null,
+    // A label the phone only learns later (the job loaded since) is asked for
+    // again now; failing that the API names the job itself (T2.42).
+    jobId: e.jobId, date: e.date, jobLabel: e.jobLabel || ((dlInfoFor(e.jobId) || {}).jobLabel) || e.jobId, alongside: e.alongside || null,
     story: String(e.story || '').trim(),
     lines: (e.lines || []).map(function(l){ return { time: l.time, text: l.text, pmTold: !!l.pmTold }; }),
     fields: dlFieldsOut(e),
@@ -8002,6 +8313,7 @@ function dlPayload(e){
     photos: photos.map(function(p){ return { fileId: p.fileId, name: p.name || '', tag: p.tag, time: p.time }; }),
     photosPending: e.photosPending || 0,
     photosFailed: e.photosFailed || 0,
+    // A day gone by: the API reads that day's hours from JobTread (T2.42).
     hours: e.date === isoLocal() ? hoursFor(e.jobId) : [],
     checks: checksFor(e.jobId),
     roll: rollForLog(e.jobId, e.date)
@@ -8753,6 +9065,7 @@ function start(){
   qCount().then(function(){ render(); });
   cqOrphans();
   storeEstimate();
+  storagePersist();   // the browser asked, once, to keep what the phone holds (T2.42, audit I18)
   loadLogFields();
   S.checksRO = ckLoadRO();
   restoreAssign();   // last known schedule on screen at once; refresh behind it
@@ -9296,6 +9609,12 @@ coAdd({
         svcCantBtn: 'Necesita otra visita', svcCantBtnSub: 'Sigue abierta — di por qué, y tu PM programa la próxima visita',
         svcCantR_material: 'Faltan piezas', svcCantS_material: 'Di qué piezas', svcCantR_access: 'El cliente no está', svcCantS_access: 'No hay nadie, o no se puede entrar' }
 }); /* CO-T241 */
+coAdd({
+  en: { svcExtraK: 'Extra work to bill', svcExtraPh: 'What you did beyond the repair — material, time, another spot', svcExtraPhoto: 'Photo of it',
+        svcExtraSub: 'The office bills it — say it so it gets on the invoice', svcExtraPhotoLabel: 'Extra work photo' },
+  es: { svcExtraK: 'Trabajo extra para cobrar', svcExtraPh: 'Lo que hiciste además de la reparación — material, tiempo, otro lugar', svcExtraPhoto: 'Foto de eso',
+        svcExtraSub: 'La oficina lo cobra — dilo para que entre en la factura', svcExtraPhotoLabel: 'Foto del trabajo extra' }
+}); /* CO-T242 */
 function coLabel(item){ return S.lang === 'es' ? item.es : item.en; }
 function coLabel2(item){ return S.lang === 'es' ? item.en : item.es; }
 
@@ -9316,6 +9635,8 @@ function coVisit(jobId){
   v.cantReason = v.cantReason || {}; v.cantNote = v.cantNote || {}; v.cantPhotos = v.cantPhotos || {}; v.cantEn = v.cantEn || {};
   // A service visit's record (T2.41, audit I15): what was found, and the warranty answer, per repair.
   v.svcFound = v.svcFound || {}; v.svcWarranty = v.svcWarranty || {};
+  // Extra work to bill (T2.42, Carl 6 Nov 2026): words and photos, per repair.
+  v.svcExtra = v.svcExtra || {}; v.extraPhotos = v.extraPhotos || {};
   return v;
 }
 function coCount(v, items, which){ var a = v.answers[which] || {}; return items.filter(function(i){ return !!a[i.key]; }).length; }
@@ -10012,6 +10333,7 @@ function coAddPhoto(target, file, origin){
     else if (target.kind === 'after') v.after[target.taskId] = rec;
     else if (target.kind === 'more'){ (v.repairMore[target.taskId] = v.repairMore[target.taskId] || []).push(rec); }
     else if (target.kind === 'cant'){ (v.cantPhotos[target.taskId] = v.cantPhotos[target.taskId] || []).push(rec); }
+    else if (target.kind === 'extra'){ (v.extraPhotos[target.taskId] = v.extraPhotos[target.taskId] || []).push(rec); }
     coPersist(); coRender();
   }).catch(function(e){ failed('close out · photo', e); });
 }
@@ -10019,7 +10341,7 @@ function coAddPhoto(target, file, origin){
    photos fits (a problem, the visit), one where only one belongs. */
 function coPickPhotos(target){
   CO.photoFor = target;
-  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit' || target.kind === 'area' || target.kind === 'more' || target.kind === 'cant'; g.value = ''; g.click();
+  var g = $('coGallery'); g.multiple = target.kind === 'report' || target.kind === 'visit' || target.kind === 'area' || target.kind === 'more' || target.kind === 'cant' || target.kind === 'extra'; g.value = ''; g.click();
 }
 /* An AFTER photo is the proof the repair was done (Carl, 13 Oct 2026): one
    taken before the repair was asked for cannot show the fix, and one with no
@@ -10055,6 +10377,7 @@ function coPhotoOf(target, id){
   else if (target.kind === 'after') list = v.after[target.taskId] ? [v.after[target.taskId]] : [];
   else if (target.kind === 'more') list = v.repairMore[target.taskId] || [];
   else if (target.kind === 'cant') list = v.cantPhotos[target.taskId] || [];
+  else if (target.kind === 'extra') list = v.extraPhotos[target.taskId] || [];
   return list.filter(function(p){ return p && p.id === id; })[0] || null;
 }
 /* The photo full size, with Keep it and Remove this photo (asks twice). */
@@ -10084,6 +10407,7 @@ function coRemovePhoto(target, id){
   else if (target.kind === 'after') delete v.after[target.taskId];
   else if (target.kind === 'more') v.repairMore[target.taskId] = (v.repairMore[target.taskId] || []).filter(function(p){ return p.id !== id; });
   else if (target.kind === 'cant') v.cantPhotos[target.taskId] = (v.cantPhotos[target.taskId] || []).filter(function(p){ return p.id !== id; });
+  else if (target.kind === 'extra') v.extraPhotos[target.taskId] = (v.extraPhotos[target.taskId] || []).filter(function(p){ return p.id !== id; });
   coPhotoDel(id); coPersist(); coRender();
 }
 function coPhotoPut(rec){ return idb().then(function(db){ return new Promise(function(res, rej){ var t = db.transaction('cophotos', 'readwrite'); t.objectStore('cophotos').put(rec); t.oncomplete = res; t.onerror = function(){ rej(t.error); }; }); }); }
@@ -10278,7 +10602,25 @@ function coLanded(it, body){
     CO.cantSent = { jobId: it.jobId, taskId: it.taskId, at: Date.now(), sentTo: (body && body.sentTo) || null };
     if (CO.jobId === it.jobId) coLoadJob(it.jobId); }
   if (it.kind === 'photo' && it.photoId) coPhotoDel(it.photoId);
+  coLedgerAdd(it);
   coPersist();
+}
+/* What this phone sent through Close Out, a week back (T2.42, audit I19):
+   DB CheckOut files it under its own key, so JobTread cannot say who sent
+   it; the phone's own list is the only answer, and says so. By owner, so a
+   shared phone shows each person their own. */
+var CO_LEDGER_KEY = 'dbtc_coledger', CO_LEDGER_DAYS = 8;
+var coLedger = (function(){ try { return JSON.parse(localStorage.getItem(CO_LEDGER_KEY) || '[]') || []; } catch(e){ return []; } })();
+function coLedgerAdd(it){
+  if (!it || ['close', 'area', 'complete', 'blocked'].indexOf(it.kind) === -1) return;
+  var cut = Date.now() - CO_LEDGER_DAYS * 864e5;
+  coLedger = coLedger.filter(function(x){ return x && x.at > cut; });
+  coLedger.push({ jobId: it.jobId, kind: it.kind, label: it.label || '', at: Date.now(), owner: myEmail() || '' });
+  storeSet(CO_LEDGER_KEY, JSON.stringify(coLedger), true);
+}
+function coLedgerFor(jobId, sinceIso){
+  var me = myEmail() || '', since = Date.parse(sinceIso + 'T00:00:00');
+  return coLedger.filter(function(x){ return x && x.jobId === jobId && (!x.owner || !me || x.owner === me) && x.at >= since; });
 }
 function coOutboxFor(jobId){ return CO.outbox.filter(function(it){ return !jobId || it.jobId === jobId; }); }
 function coRetryPending(){ coRefreshOutbox().then(function(){ if (CO.outbox.length) coPump(); }); }
@@ -10361,6 +10703,16 @@ function coSendArea(jobId, key){
     return coEnqueue(items).then(function(){ CO.areaSending = null; coGo('area'); });
   }).catch(function(e){ CO.areaSending = null; failed('close out · send', e); coRender(); });
 }
+/* The extra work's photos ride ahead of the Done (or the Can't finish), on
+   the repair, titled for the office: "Extra work to bill — REPAIR". The file's
+   title is JobTread's, in English whatever the phone's language. */
+function coExtraPhotoItems(v, jobId, taskId, ref, items){
+  if (!coExtraOk()) return;
+  (v.extraPhotos[taskId] || []).forEach(function(p, i){
+    items.push({ id: ref + '.x' + i, kind: 'photo', jobId: jobId, photoId: p.id, label: co('svcExtraPhotoLabel'),
+                 payload: coPayload({ label: 'REPAIR', taskId: taskId, location: 'Extra work to bill' }, p) });
+  });
+}
 function coFinishRepair(jobId, taskId){
   var v = coVisit(jobId), en = coRepairEn(v, taskId), said = (en.note || '').trim();
   // Saved at the tap (T2.33, audit D34): the note's English comes as it goes.
@@ -10370,15 +10722,17 @@ function coFinishRepair(jobId, taskId){
     if (v.before[taskId]) items.push({ id: ref + '.b', kind: 'photo', jobId: jobId, photoId: v.before[taskId].id, label: co('before'), payload: coPayload({ label: 'BEFORE', taskId: taskId }, v.before[taskId]) });
     if (v.after[taskId]) items.push({ id: ref + '.a', kind: 'photo', jobId: jobId, photoId: v.after[taskId].id, label: co('after'), payload: coPayload({ label: 'AFTER', taskId: taskId }, v.after[taskId]) });
     (v.repairMore[taskId] || []).forEach(function(p, i){ items.push({ id: ref + '.m' + i, kind: 'photo', jobId: jobId, photoId: p.id, label: co('morePhotos'), payload: coPayload({ label: 'REPAIR', taskId: taskId }, p) }); });
+    coExtraPhotoItems(v, jobId, taskId, ref, items);
     var j = CO.job || coJobById(jobId), t = j && (j.punchTasks || []).filter(function(x){ return x.id === taskId; })[0];
     var eng = (en.noteSrc === said && en.noteEn) ? en.noteEn.trim() : said;
     var note = eng && said && eng !== said ? eng + '\n\n(' + said + ')' : eng;
     var needR = coEnNeed(en, said);
     var svc = coSvcOf(jobId, taskId), payload = { note: note };
-    if (svc && (svc.found || svc.warranty)) payload.service = svc;   // as said: the office reads what was found as the tech put it
+    if (coSvcSends(svc)) payload.service = svc;   // as said: the office reads what was found as the tech put it
     items.push({ id: ref, kind: 'complete', jobId: jobId, taskId: taskId, repairArea: (t && t.area) || undefined, label: co('repairDone'), payload: payload,
                  enFix: needR ? { field: 'repair', said: needR } : null });
-    v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; delete v.svcFound[taskId]; delete v.svcWarranty[taskId]; coPersist();
+    v.doneTasks[taskId] = v.doneTasks[taskId] || 'queued'; delete v.svcFound[taskId]; delete v.svcWarranty[taskId];
+    delete v.svcExtra[taskId]; delete v.extraPhotos[taskId]; coPersist();
     return coEnqueue(items).then(function(){ toast(co('repairDone')); coGo('repairs'); });
   });
 }
@@ -10936,8 +11290,16 @@ function coSvcOf(jobId, tid){
   var j = CO.job && CO.job.id === jobId ? CO.job : coJobById(jobId);
   if (!coSvcRecord(j)) return null;
   var v = coVisit(jobId), found = String(v.svcFound[tid] || '').trim(), w = v.svcWarranty[tid] || '';
-  return { found: found, warranty: CO_WARRANTY.indexOf(w) > -1 ? w : '' };
+  var out = { found: found, warranty: CO_WARRANTY.indexOf(w) > -1 ? w : '' };
+  var extra = coExtraOk() ? String(v.svcExtra[tid] || '').trim() : '';
+  if (extra) out.extra = extra;   // as said, like what was found: the office bills what the tech put
+  return out;
 }
+/* Extra work to bill (T2.42): a line on the repair the board lists for the
+   office to invoice — only with a Close Out server at contract 7, which
+   writes it; an older one would drop it unsaid. */
+function coExtraOk(){ var c = S.builds && S.builds.closeOut; return !(c && c.contract != null && c.contract < 7); }
+function coSvcSends(svc){ return !!(svc && (svc.found || svc.warranty || svc.extra)); }
 function coRepairMissing(v, tid){
   var svc = coSvcOf(CO.jobId, tid);
   return [v.before[tid] ? '' : co('needBefore'), v.after[tid] ? '' : co('needAfter'), (v.repairNote[tid] || '').trim() ? '' : co('needNote'),
@@ -10997,6 +11359,19 @@ function coRepairHtml(){
       var on = war === w;
       return '<button class="jtile cantopt' + (on ? ' on' : '') + '" data-cowarr="' + w + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="bi"><span class="es">' + esc(co('svcW_' + w)) + '</span><span class="en">' + esc(co('svcWS_' + w)) + '</span></span>' + (on ? CK_TICK_SM : '') + '</button>';
     }).join('') + '</div>';
+    // Extra work to bill (T2.42, Carl 6 Nov 2026): optional, words and a photo,
+    // written on the repair and listed on the board for the office to invoice.
+    if (coExtraOk()){
+      var extra = v.svcExtra[t.id] || '', xp = v.extraPhotos[t.id] || [], tx = JSON.stringify({ kind: 'extra', jobId: CO.jobId, taskId: t.id });
+      h += '<div class="k" id="coSvcExtraK" style="margin-top:22px">' + esc(co('svcExtraK')) + ' — <span>' + esc(co('optional')) + '</span></div>';
+      h += '<div class="body" style="margin-top:2px">' + esc(co('svcExtraSub')) + '</div>';
+      h += '<div class="talkrow">' + recBtnHtml('coSvcExtra', 'coSvcExtraRec') + '</div>';
+      h += '<div class="story' + (extra ? ' has' : '') + '" style="margin-top:10px"><textarea id="coSvcExtra" placeholder="' + esc(co('svcExtraPh')) + '" rows="2">' + esc(extra) + '</textarea></div>';
+      h += '<div class="reccap hidden" data-reccap="coSvcExtra"></div>';
+      h += '<div class="photos" id="coSvcExtraPhotos">' + xp.map(function(p){ return '<button class="ph" style="background-image:url(' + p.thumb + ')" data-corm="' + esc(p.id) + '" data-target=\'' + esc(tx) + '\'>' + photoTileTags(p) + '<span class="rm">' + ico('x', 16) + '</span></button>'; }).join('') +
+           '<button class="ph add" data-cophoto=\'' + esc(tx) + '\'>' + ico('camera', 26) + esc(xp.length ? co('anotherPhoto') : co('svcExtraPhoto')) + '</button>' +
+           '<button class="ph add gal" data-cogallery=\'' + esc(tx) + '\'>' + ico('image', 26) + esc(co('fromPhone')) + '</button></div>';
+    }
   }
   var miss = coRepairMissing(v, t.id), can = !miss.length, last = coIsLastRepair(j, v, t.id), tar = coMultiArea(j) && t.area ? coAreaByKey(j, t.area) : null;
   var lastSub = tar ? co('doneLastAreaSub').replace('{the}', coAreaThe(tar)) : co('doneLastSub');
@@ -11096,10 +11471,12 @@ function coSendCant(jobId, taskId){
   var note = eng && said && eng !== said ? eng + '\n\n(' + said + ')' : eng;
   var needR = coEnNeed(en, said);
   var svc = coSvcOf(jobId, taskId), payload = { reason: why, note: note };
-  if (svc && (svc.found || svc.warranty)) payload.service = svc;
+  if (coSvcSends(svc)) payload.service = svc;
+  coExtraPhotoItems(v, jobId, taskId, ref, items);
   items.push({ id: ref, kind: 'blocked', jobId: jobId, taskId: taskId, label: co(svc ? 'svcCantBtn' : 'cantBtn'), said: said, payload: payload,
                enFix: needR ? { field: 'cant', said: needR } : null });
   delete v.cantReason[taskId]; delete v.cantNote[taskId]; delete v.cantPhotos[taskId]; delete v.cantEn[taskId];
+  delete v.svcExtra[taskId]; delete v.extraPhotos[taskId];
   coPersist();
   return coEnqueue(items).then(function(){ toast(co('cantQueued')); coGo('repairs'); });
 }
@@ -11245,7 +11622,7 @@ function coRender(){
   // Never rebuild under a finger typing — the note boxes commit on input.
   var ae = document.activeElement;
   if (ae && ae.tagName === 'TEXTAREA' && body.contains(ae) && body.__co === html) return;
-  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coSvcFound' || ae.id === 'coCantNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote' || ae.id === 'coFinal') && body.contains(ae)){
+  if (ae && (ae.id === 'coNote' || ae.id === 'coListNote' || ae.id === 'coRepairNote' || ae.id === 'coSvcFound' || ae.id === 'coSvcExtra' || ae.id === 'coCantNote' || ae.id === 'coWhereText' || ae.id === 'coAreaNote' || ae.id === 'coFinal') && body.contains(ae)){
     // keep the field; repaint only what sits around it
     var keep = ae.id, pos = ae.selectionStart, val = ae.value;
     body.innerHTML = html; body.__co = html; coWire();
@@ -11336,6 +11713,7 @@ function coWire(){
   var wt = $('coWhereText'); if (wt) wt.oninput = function(){ var r = coVisit(CO.jobId).reports[CO.reportIdx]; if (!r) return; r.locationText = wt.value; coLocationWords(r); coPersist(); };
   var ln = $('coListNote'); if (ln) ln.oninput = function(){ coCtx().notes[ln.getAttribute('data-notes')] = ln.value; coPersist(); };
   var sf = $('coSvcFound'); if (sf){ sf.oninput = function(){ var v = coVisit(CO.jobId); v.svcFound[CO.taskId] = sf.value; coPersist(); autoGrow(sf); }; }
+  var sx = $('coSvcExtra'); if (sx){ sx.oninput = function(){ var v = coVisit(CO.jobId); v.svcExtra[CO.taskId] = sx.value; coPersist(); autoGrow(sx); }; }
   [].forEach.call($('coBody').querySelectorAll('[data-cowarr]'), function(b){ b.onclick = function(){ var v = coVisit(CO.jobId); v.svcWarranty[CO.taskId] = b.getAttribute('data-cowarr'); coPersist(); coRender(); }; });
   var rn = $('coRepairNote'); if (rn){ rn.oninput = function(){ var v = coVisit(CO.jobId); v.repairNote[CO.taskId] = rn.value; coPersist(); autoGrow(rn); coRepairDoneState(); };
     rn.onblur = function(){ var v = coVisit(CO.jobId), tid = CO.taskId; coAfterTap(function(){ coToEnglish(coRepairEn(v, tid)); coRender(); }); }; autoGrow(rn); }
@@ -11524,6 +11902,7 @@ $('tpmBtn').onclick = function(){ tellPmOpen(S.job); };
 $('coJump').onclick = function(){ if (S.job) { S.tabTouched = true; setTab('co'); coLandJob(S.job.id); } };
 $('outBtn').onclick = function(){ if (overnightFirst()) return; if (atShop() || !S.job) leaveGo('out'); else openSheet('outhow'); };
 $('earlierBtn').onclick = function(){ if (!earlierBlock()) { render(); return; } S.earlierPick = 0; openSheet('earlier'); };
+$('sentWeekBtn').onclick = function(){ openSentWeek(); };
 $('backBtn').onclick = doEndBreak;
 $('breakOutBtn').onclick = doBreakOut;
 $('camBack').onclick = camBack;
@@ -11665,7 +12044,8 @@ function obWake(){
 var obPlural = function(n, one, many){ return n + ' ' + (n === 1 ? one : many); };
 obLane({ key: 'clock', count: function(){ return cqChain().length; }, words: function(n){ return n === 1 ? (cqKind(cqWaiting() || {}) === 'in' ? 'a clock-in' : 'a clock change') : n + ' clock changes'; },
          wake: function(){ var w = cqWaiting(); if (w) w.next = 0; cqSend(); } });
-obLane({ key: 'photos', count: function(){ return S.queued || 0; }, words: function(n){ return obPlural(n, 'photo', 'photos'); },
+obLane({ key: 'photos', count: function(){ return S.qReadFailed ? Math.max(1, S.queued || 0) : (S.queued || 0); },
+         words: function(n){ return S.qReadFailed ? 'photos this phone couldn’t read just now' : obPlural(n, 'photo', 'photos'); },
          fresh: qCount, wake: function(){ qWake(); pump(); } });
 obLane({ key: 'checks', count: function(){ var n = 0; for (var t in ckStore){ if (ckStore[t] && ckStore[t].dirty) n++; } return n; },
          words: function(n){ return obPlural(n, 'site-check save', 'site-check saves'); }, wake: ckRetryPending,

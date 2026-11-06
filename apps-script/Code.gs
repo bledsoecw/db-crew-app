@@ -1597,13 +1597,14 @@ function dayHoursQuery_(userId, jobId, date) {
           sortBy: [{ field: 'startedAt', order: 'asc' }],
           size: 100
         },
-        nodes: { id: {}, startedAt: {}, endedAt: {}, costItem: { id: {}, name: {}, costCode: { number: {} } } }
+        nodes: { id: {}, startedAt: {}, endedAt: {}, minutes: {}, costItem: { id: {}, name: {}, costCode: { number: {} } } }
       }
     }
   };
 }
-/** Minutes per code, the way the phone counts them: summed, rounded once.
- *  A block still open (a missed clock-out) is not hours yet and is left out. */
+/** Minutes per code, JobTread's own per block (the minute it ended less the
+ *  minute it started), as the phone now counts them too. A block still open
+ *  (a missed clock-out) is not hours yet and is left out. */
 function dayHoursFrom_(d, date) {
   var by = {}, order = [];
   ((((d.organization || {}).timeEntries || {}).nodes) || []).forEach(function (e) {
@@ -1612,10 +1613,9 @@ function dayHoursFrom_(d, date) {
     if (!(f > s)) return;
     var ci = e.costItem || {}, k = ci.id || '-';
     if (!by[k]) { by[k] = { number: (ci.costCode || {}).number || '', name: ci.name || '', minutes: 0 }; order.push(k); }
-    by[k].minutes += (f - s) / 60000;
+    by[k].minutes += e.minutes != null ? (Number(e.minutes) || 0) : Math.max(0, Math.floor(f / 60000) - Math.floor(s / 60000));
   });
-  return order.map(function (k) { var h = by[k]; h.minutes = Math.round(h.minutes); return h; })
-    .filter(function (h) { return h.minutes > 0; });
+  return order.filter(function (k) { return by[k].minutes > 0; }).map(function (k) { return by[k]; });
 }
 
 /** What needs a decision: '' when nothing does. A story log pings on a

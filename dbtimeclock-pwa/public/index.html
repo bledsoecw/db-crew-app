@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="T2.41">
+<html lang="en" data-build="T2.42">
 <head>
 <meta charset="utf-8">
 <title>DB Crew</title>
@@ -129,6 +129,11 @@ button[disabled]{cursor:default}
 #bandCodeName{font:700 17px/1.1 var(--head);letter-spacing:.34px;text-transform:uppercase;color:#fff}
 #bandSub{font:400 13px/1.4 var(--sans);color:rgba(255,255,255,.55)}
 #earlierBtn{display:block;min-height:44px;margin:4px -4px -10px;padding:0 4px;font:600 14px/1 var(--sans);color:#ffd84d;text-decoration:underline;text-underline-offset:3px;text-align:left}
+/* T2.42: what this person sent on the job this week, read back from JobTread (audit I19). */
+#sentWeekBtn{display:block;min-height:44px;margin-top:4px;padding:0;font:600 14px/1 var(--sans);color:var(--acc);text-decoration:underline;text-underline-offset:3px;text-align:left}
+/* T2.42: a phone running DB Crew in a browser tab is told to use the Home Screen icon (audit I18). */
+#installBar{text-transform:none;letter-spacing:0;font:600 13px/1.35 var(--sans)}
+#installBar b{font-weight:800}
 
 
 .btn{width:100%;min-height:var(--tap);display:flex;align-items:center;justify-content:center;gap:11px;border-radius:6px;font-family:var(--head);text-transform:uppercase}
@@ -855,6 +860,7 @@ html{touch-action:manipulation}
     <div id="offlineBar" class="warnbar hidden"></div>
     <div id="roBar" class="warnbar robar hidden"></div>
     <div id="viewBar" class="warnbar robar viewbar hidden"></div>
+    <div id="installBar" class="warnbar hidden"></div>
     <button id="clockNudge" class="nudge hidden"></button>
     <div class="scroll" style="padding-bottom:26px;display:flex;flex-direction:column">
       <div class="pad" style="flex:none">
@@ -932,6 +938,7 @@ html{touch-action:manipulation}
         <div class="sect">
           <div class="k" data-l="Today on this job">Today on this job</div>
           <div class="tbl" id="dayTbl"></div>
+          <button id="sentWeekBtn" data-l="What I sent this week ›">What I sent this week ›</button>
         </div>
 
         <div class="sect hidden" id="crewSect">
@@ -1185,6 +1192,6 @@ html{touch-action:manipulation}
   </div>
 </div>
 
-<script src="app.js?b=T2.41"></script>
+<script src="app.js?b=T2.42"></script>
 </body>
 </html>

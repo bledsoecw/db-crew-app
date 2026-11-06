@@ -1666,6 +1666,75 @@ older DB CheckOut ignores the warranty answer, and the phone asks for nothing
 the API before T2.41 cannot do (the break, the travel line and the report all
 wait on its build).
 
+**The rest of the audit** (T2.42, 6 Nov 2026), on Carl's answers of 6 Nov
+(*"Breaks, unpaid / 8.5 hrs with 30min break / 16 hours as today / only pm can
+correct times … yes, build it all"*):
+
+- **A start photo kept before its clock-in was answered** waits for that
+  clock-in and goes with it, and if the app was closed first, the next launch
+  finds the entry it belongs to (the open block, or one from today on that job
+  begun within ten minutes of the photo).
+- **A photo is filed once.** Each one carries its own id at the end of its
+  description (`#PH:<id>`); one sent again after the API's ten-minute window
+  (its answer lost, the phone trying an hour later) is found on the job and
+  handed back, never filed twice.
+- **The day's hours are JobTread's.** Each block counts the minute it ended
+  less the minute it started, seconds dropped — what payroll reads — and only
+  the latest block runs to now, so two open blocks are never both counted. The
+  day log's hours for a past day come from JobTread too.
+- **The day log carries its own day.** A log sent two days late still takes
+  that day's photos (they ride on the log as they reach JobTread), its hours,
+  and the job's name, never its JobTread id.
+- **Where the phone is.** The fix is asked for precisely, its accuracy goes
+  with it, and the hunt starts while the photo is framed; the clock write waits
+  at most four seconds for it. The API reads the accuracy: "at the shop" allows
+  for it, up to a kilometer, and a notice about a clock-in away from the shop
+  says how far off the phone could be (*the phone could only tell to within
+  about 2 miles*).
+- **One clock change at a time per person.** The API takes a person's clock
+  writes one after another (a 60-second hold); a second one waits up to 15
+  seconds and is then answered busy, which the phone keeps and sends again, as
+  it would with no signal. A partner's half (Clock Alberto too) waits five
+  seconds; past that the partner is not clocked and the sheet says why. A
+  correction made for a partner says who made it: *Made by Yahir Gonzalez with
+  Clock Alberto too.*
+- **The missing-photo push is tried three times** before it gives up on a
+  phone, instead of once.
+- **Telling the truth about storage and the app being closed** (audit I18).
+  On an iPhone in a Safari tab the app says, once a day, to open DB Crew from
+  its Home Screen icon (a tab's storage can be cleared after seven days unused,
+  photos with it, and only the installed app gets pushes). The phone asks the
+  browser to keep what it holds, and Diagnostics says the answer. A photo store
+  the phone cannot read is "unknown", never "nothing waiting", so sign-out
+  waits. *Waiting to send* says nothing goes while DB Crew is closed.
+- **What I sent this week** (audit I19), on the job screen: this person's time
+  since Monday, the photos filed for it and their day logs, read back from
+  JobTread — so it answers for work sent from any phone — then what this phone
+  sent through Close Out. A part JobTread did not answer says so, never
+  "nothing".
+- **Extra work to bill** (Carl: *"Add 'Extra work to bill'"*). On a service
+  call's repair, optional: what the tech did that the repair or the warranty
+  does not cover, with its own photo. It rides Done or Can't finish; DB
+  CheckOut writes it on the repair, and the Production Board lists it for the
+  office under **Extra work to bill** until it is marked billed. Drawn only
+  with a Close Out server at contract 7.
+
+The board's half: its time review flags a **day** over 8 hours worked, or 8
+with under half an hour off the clock (Carl's 8.5 hours with a 30-minute
+break; nothing is deducted — a break is already a gap with no time on it,
+which is what *"Breaks, unpaid"* means here), and on **Time to approve** a
+manager approves a crew's correction as it is or **changes it** to the right
+time and approves that in the same tap. The crew's fix stands the moment it is
+made; the manager is told and approves or modifies it. A no-signal clock
+change may still be up to 16 hours old (*"16 hours as today"*).
+
+`dev/t242-test.mjs` walks the phone's half; `apps-script/code-test.mjs` the
+API's. **Deploys**: DB CheckOut first (contract 7), then the Apps Script
+(`clasp push -f` then `clasp deploy`) and the phones, then the board. Each is
+safe alone: an older phone sends no extra work and no `#PH` mark, an older API
+ignores both, and an older DB CheckOut is never sent the extra work (the phone
+draws the field only at contract 7).
+
 A role grants nothing in JobTread. Who may tick a site checklist is still
 JobTread's Site Manager role, enforced by the board on every save; who gets a
 final inspection is still the board's roster (the board answers `inspector`

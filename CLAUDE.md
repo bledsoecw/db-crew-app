@@ -1676,3 +1676,107 @@ repos; the board's half is in its own CLAUDE.md, DB CheckOut's in its.
   four places.** Not proven live yet: a real warranty claim, a held-phone
   report, and a release signed with the real `CREW_APP_SECRET` (both suites
   pin the same test hex).
+
+## T2.42 (6 Nov 2026) — the rest of the audit, what the README does not say
+
+Carl, 6 Nov 2026, answering the payroll questions left from the audits:
+*"Breaks, unpaid / 8.5 hrs with 30min break / 16 hours as today / only pm can
+correct times / not sure what you want me to answer for "Billable extras on
+service calls" / yes, build it all"*. Then, asked again: long days — *"Flag it
+on the list"*; corrections — *"Crew still fix their own time (Already left,
+Started earlier, wrong job), and their manager approves it on the board. A
+partner's time is also changed by those; the PM still needs to approve on the
+board. However, a crew fix time should not have to wait on PM approval, the PM
+needs notified of the crew time fix and approve it or modify it."*; billable
+extras — *"Add 'Extra work to bill'"*. Four repos: this one, DB CheckOut
+(6ee8765, contract 7) and the board (its own CLAUDE.md has its half).
+
+- **How each answer is read.** *Breaks, unpaid*: nothing to build — a break has
+  always been a gap with no time on it in JobTread, so it is unpaid by
+  construction, and nothing is ever deducted. *8.5 hrs with 30min break*: the
+  board's time review flags a **day** over 8 hours worked, or 8 with under 30
+  minutes off the clock (it used to flag one entry over 12 hours). *16 hours as
+  today*: `QUEUED_MAX_MS` in Code.gs (a no-signal clock change may be up to 16 hours old)
+  is unchanged. *Only pm can correct times* became, on the second asking, the
+  manager's **Change it** on the board's Time to approve — the approver is still
+  DB Hub Teams' manager, not the job's PM: *assumed* from his second answer, and
+  to confirm if "PM" meant the job's Project Manager.
+- **The code-test suite runs at a fixed hour of today** (`SuiteDate`, the top of
+  `apps-script/code-test.mjs`): `Date` and `Date.now()` in the test file and in
+  the vm context read today at 16:00 UTC, noon in the zone the Utilities mock
+  formats in. Fixtures are built "N hours ago", the mock's midnight is 04:00
+  UTC, and a run between 04:00 and 08:00 UTC read a block opened four hours
+  earlier as a day before and stopped on STALE_OPEN (found at 04:11Z on 6 Nov
+  2026, 605/605 the same minute after). `sandbox.Date` is how the context gets
+  it; a block that needs another hour still sets `__hour`.
+- **`#PH:<photo id>` is load-bearing**: the last thing in every photo's
+  description (`photoMark`), and `existingPhoto_` finds a photo filed already
+  by it (`job.files`, five at most, the exact mark) — in `finalizeFileRecord_`
+  and early in `uploadCapture`. Never strip it from a description; clock-test
+  takes it off before comparing the words.
+- **A start photo kept before its online clock-in was answered** carries
+  `waitIn: { jobId, at, costItemId }` and `IN_FLIGHT[rid]` marks the call in
+  flight. The pump skips a `waitIn` item exactly as it skips `waitRid` (the
+  T2.31 rule: never send from the walk's own copy). `inRelease` matches it at
+  the next launch by job, cost item and ten minutes (`IN_MATCH_MS`); no match
+  and it goes as it is, as a refused clock-in's photo does.
+- **`blockMinutes` is the one day count** (the table, Today and the day log):
+  JobTread's `minutes` on a closed block — minute(end) − minute(start), seconds
+  dropped, verified on live entries (23 s → 1, 2:03 → 2, 8:33 → 9) — and the
+  same count to now for the one block that runs. An older block JobTread still
+  shows open ends where the next begins. `dayHoursFrom_` in Code.gs counts the
+  same way. t238-test's sums moved with the rule.
+- **The day log's photos ride on the log** (`dlKeepPhoto` → `photoRefs`) as
+  each reaches JobTread, so a log sent two days late still has them (the phone
+  shows only two days of `S.photos`). A past day with no hours on the phone has
+  them read by the API (`dayHoursQuery_`). A label that is a JobTread id
+  (`idLikeLabel_`) is replaced by the job's number and name on the server.
+- **Location**: `withCoords` asks for a precise fix and sends `acc` (meters);
+  `coordsWarm` starts the hunt when the camera opens; `COORDS_WAIT_MS` 4000 is
+  the most a clock write waits. Code.gs caps the accuracy at `COORD_ACC_MAX_M`
+  (5 km) and lets `atShop_` count up to `SHOP_DOUBT_MAX_M` (1 km) of it toward
+  the shop — *assumed*, so a clock-in a fuzzy fix puts just outside the yard is
+  not reported as away. `whereWords_` adds *the phone could only tell to within
+  about …* from 160 m.
+- **One clock change at a time per person** (`CLOCK_FNS`, `clockLock_`): a
+  CacheService key `clk|<userId>` taken under the script lock's `tryLock`, held
+  `CLOCK_LOCK_S` (60 s, *assumed* — longer than any clock write has run) and
+  freed in doPost's `finally`. A second write waits `CLOCK_WAIT_MS` (15 s), then
+  throws `busy`, which doPost copies onto the reply and the phone keeps
+  (`cqCanQueue`) like no signal. A partner's half waits
+  `CLOCK_PARTNER_WAIT_MS` (5 s). Tests can set the waits in the sandbox.
+- **A partner's correction says who made it**: `PARTNER_BY_` is set around the
+  partner half of `withPartner_`, and `partnerByWords_()` appends *Made by
+  Yahir Gonzalez with Clock Alberto too.* to Started earlier, Already left and
+  the wrong-job move. The board's `lib/time-review.ts` reads it
+  (`PARTNER_BY`): change the words in both places. Appended, like every note.
+- **The missing-photo push** is retried (`NUDGE_TRIES` 3, the marker's `try_`
+  prefix); a stale token is not retried; `cleanupNudgeMarkers_` strips both.
+- **I18**: the install bar (`dbtc_installbar`, phones only, once a day),
+  `storagePersist` (`dbtc_persist`, Diagnostics says kept / not kept), `idbAll`
+  rejecting instead of answering `[]` when the photo store cannot be read
+  (`S.qReadFailed`: the count is unknown and sign-out waits), and `idbTx`
+  resolving on the transaction's `oncomplete`, not the request's success.
+- **I19**: `getSentThisWeek(me, jobId)` (in `WITH_USER`): this person's time
+  since Monday (`mondayOf_`), the photos filed for those entries and their day
+  logs, each part with its own `read` flag, `SENT_WEEK_MAX` 100. Close Out's
+  sends come from the phone's own ledger (`dbtc_coledger`, eight days, by
+  owner), kept through sign-out and a hand-over (`OWN_KEEP_KEYS`,
+  `wipePhoneState`) so each person on a shared phone gets back their own.
+- **Extra work to bill** rides Done and Can't finish as `payload.service.extra`;
+  Code.gs's `coService_` forwards it (≤ 2,000 characters); its photo goes as a
+  repair photo titled *Extra work to bill*. Drawn only while `coExtraOk()`:
+  a Close Out server reporting contract below 7 would drop it unsaid; a server
+  that reports no level counts as current — *assumed*, the T2.30 rule.
+  `CO_CONTRACT_NEED` is 7.
+- **Vocab**: `esAdd({ … }) /* T2.42-ES */` and `coAdd({ … }) /* CO-T242 */`;
+  no key collided, `I18N_CLASH` stays empty.
+- **The mock grew**: `__MOCK_SENTWEEK` / `__MOCK_SENTWEEK_FAIL`,
+  `__MOCK_SLOWFN` (one function's answer held), `__COORDS` (what each clock-in
+  sent) and a `#PH` dedupe on uploads (`PH_SEEN`); contract 7 by default.
+- **Suites moved with the rules**: clock-test (the `#PH` mark), t234 (the
+  Waiting sheet's first sentence) and t238 (JobTread's minutes).
+- **Not done on purpose**: nothing is deducted for a break or a long day — the
+  board flags, people decide; and the training videos (Carl's *"Not yet"*
+  stands; they are further out of date: What I sent this week, Extra work to
+  bill, the install bar).

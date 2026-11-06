@@ -16,10 +16,25 @@ import vm from 'node:vm';
 
 const src = readFileSync(new URL('./Code.gs', import.meta.url), 'utf8');
 
+// The suite runs at the same hour whatever the container's clock says: today
+// at 16:00 UTC, noon in the zone the Utilities mock below formats in (four
+// hours behind). Fixtures are built "N hours ago" from now, and the mock's
+// midnight is 04:00 UTC, so a run between 04:00 and 08:00 UTC read a block
+// opened four hours earlier as one from a day before and stopped on
+// STALE_OPEN (6 Nov 2026). Both this file and Code.gs read this clock.
+const RealDate = Date;
+const SHIFT_MS = (() => { const n = new RealDate(); return RealDate.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate(), 16) - n.getTime(); })();
+class SuiteDate extends RealDate {
+  constructor(...a) { if (a.length) super(...a); else super(RealDate.now() + SHIFT_MS); }
+  static now() { return RealDate.now() + SHIFT_MS; }
+}
+globalThis.Date = SuiteDate;
+
 // Minimal Apps Script stubs — enough to run the assigned-jobs path.
 let props = {}, cacheStore = {}, fetched = [], trips = 0, logged = [];
 let fetchImpl = () => ({ code: 200, body: '{"crew":null,"visits":[]}' });
 const sandbox = {
+  Date: SuiteDate,
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] ?? null, setProperty: (k,v)=>{props[k]=v;},
     getProperties: () => ({ ...props }), deleteProperty: k => { delete props[k]; } }) },
   CacheService: { getScriptCache: () => ({ get: k => cacheStore[k] ?? null, put: (k,v)=>{cacheStore[k]=v;}, remove: k => { delete cacheStore[k]; } }) },
