@@ -1630,3 +1630,25 @@ repos; the board's half is in its own CLAUDE.md, DB CheckOut's in its.
   with no Job Type goes to Operations. The training videos: Carl's *"Not
   yet"* stands (5 Nov 2026), and they are further out of date (the return
   visit, the warranty question, the drive's line, the break with no signal).
+- **The server half is live**: at 02:00Z on 6 Nov 2026 (9:00pm on 5 Nov in
+  Ohio; Carl: *"go, deploy the server now"*) DB CheckOut's `main` was
+  fast-forwarded de31482..adb6190, with nothing on `main` the branch lacked,
+  after its 210 tests and typecheck ran clean on that commit.
+  `dpl_Avj3sneQi8hQbHFr8riwKVqzAXdH` was ready at 02:00:50Z on
+  closeout.deitemeyerbrothers.com with no alias error, and `/health` answered
+  `{"source":"7e041bb32267","on":"vercel","commit":"adb6190"}` with
+  `"crewApp":true` and `"contract":6` by 02:01:02Z. With no token, `/queue`,
+  `/jobs`, `/assigned`, `POST /tasks/x/complete`, `POST /tasks/x/blocked` and
+  `POST /jobs/x/close-area-inspection` answer the API's own 401 JSON, and the
+  project showed no runtime errors in the 24 hours through the switch. The
+  de31482 deployment (`dpl_HvHZ8w7vvDVrGdS32gKxVspYHjsC`) is the rollback.
+  **Nothing changes for anyone until the T2.41 Apps Script is out**: a Done or
+  Can't finish with no `found` and no `warranty` is written exactly as before
+  (`serviceRecord` answers null, and `completeTask` / `markRepairWaiting` take
+  their old path), every phone before T2.41 sends neither, and the live T2.40
+  Apps Script has no `coService_` to forward them. A T2.40 phone needs
+  contract 5 and reads 6 without a warning. The Apps Script and the phones are
+  Carl's chain (`clasp deploy … -d "T2.41"`, `firebase deploy --only
+  hosting`); `appsscript.json` is unchanged since 3383459, so it needs no new
+  approval, and the release signature reads the `CREW_APP_SECRET` Script
+  Property the board calls already use.
