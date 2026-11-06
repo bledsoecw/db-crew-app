@@ -2009,6 +2009,9 @@ in each app.
 - **Suites moved with the rule**: t243's refused-account words, and
   code-test's T2.43 *a like match on someone else's address is nobody* (it
   reads the refusal's `why` and `link` now, not the old sentence).
+- **The full run on T2.44**: every phone suite passed but push-test (6/14,
+  the same eight container failures as T2.43's run, compared line by line);
+  t244 13/13, code-test 659/659.
 - **Measured, not assumed**: code-test 659/659; on the T2.43 Code.gs the
   slim copy's checks fail and the run stops at the first lookup through the
   link. t244 13/13; on the T2.43 phone 9 of its 13 fail — every check of the
