@@ -1883,7 +1883,11 @@ times"*, and *"will turn construction on soon"*.
   Crew level is **Site Manager** in DB Hub's App access (or the People tab).
   Not their JobTread role: the Site Manager role there carries
   `updateTimeEntries`, which would let them change anyone's times in JobTread's
-  own app.
+  own app. **Carl set all three to Site Manager in App access on 7 Nov 2026**,
+  on their personal-address rows; DB Hub v1.38's Company Account copy of each
+  row carries the level to a company sign-in once the account is typed in.
+  Not read from a session (the feed needs its key, the hub its sign-in): the
+  proof is their phones opening with the Day log and site checks.
 - **DB Hub Teams** is DB Hub's Time off tab, the *Teams* panel — drawn as
   *Teams* (everyone) for its time-off admins (the hub's ADMINS, `HR_EMAIL` =
   operations@, Settings `TIMEOFF_ADMINS`) and *Your team* for a manager; it is
@@ -2037,8 +2041,10 @@ in each app.
   here changed for it: this repo's real `slimAccessFeed_` was run on the new
   feed in DB Hub's harness, and `dbAccessRec_` and `accessRecByJt_` look
   records up by address or by `jt`, never by enumerating. Austin Leeth
-  (company row, no JobTread user) is a former employee; his row is to be
-  archived in DB Hub, which turns every app Off.
+  (company row, no JobTread user) is a former employee; Carl archived his
+  row in DB Hub on 7 Nov 2026, which turns every app Off. His Status had to
+  be set to Active on the Employees tab first: App access lists only Active
+  and Provisioning rows, and his was neither (DB Hub's notes).
 - **Keep the OAuth consent screen as it is until those fifteen are on the
   feed.** Internal refuses their personal Google accounts, and their company
   accounts reach nobody until the Company Account column is filled and the
