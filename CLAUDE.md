@@ -2054,3 +2054,15 @@ in each app.
   account that JobTread does not have reads *"DB Hub can't link company
   accounts to JobTread yet"*; today it reads *"No JobTread user is linked …"*
   as a toast over a blank clock.
+- **T2.44 is live in all four places** (7 Nov 2026). DB Hub's feed deployment
+  read v1.38 at 00:48Z (its `?whoami=1`, no sign-in, so still access
+  Anyone). Carl ran the DB Crew chain with three checks in front (no local
+  changes, `config.js` present, Code.gs at T2.44 — added because his DB Hub
+  folder had turned out to sit on an old branch): db-crews.web.app has served
+  T2.44 since 01:03:45Z, `index.html`, `sw.js` and `app.js?b=T2.44`
+  identical to the branch (line endings aside), `/` `no-cache`, and the API
+  deployment's GET answers "Opening DB Crew"; in the chain `firebase deploy`
+  only starts once `clasp deploy` has worked. The board went last, 8312575
+  at 01:06Z (its notes). The API's own label was not read from here, and no
+  company-account sign-in has been watched live yet; which Company Account
+  cells Carl filled in was not read from here either.
