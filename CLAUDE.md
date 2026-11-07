@@ -802,8 +802,8 @@ regeneration, Linux only.
   at e177049, before T2.16, because every deploy pulls
   `claude/zealous-hopper-j7xy98`. A fresh clone of `main` was three weeks old
   and had no `check-build.mjs` to stop it going out. At Carl's word ("bring
-  main up to date") it was fast-forwarded to the branch, no force. Deploys
-  still pull the branch; nothing deploys when `main` moves (no workflows).
+  main up to date") it was fast-forwarded to the branch, no force. Nothing
+  deploys when `main` moves (no workflows): a deploy is Carl's chain.
 - **Standing rule: keep `main` level at the end of each round** (Carl, 2 Nov
   2026, *"keep main level at the end of each round"*). When a round is handed
   back, fast-forward `main` to the branch's last commit —
@@ -811,6 +811,14 @@ regeneration, Linux only.
   match. Never force. If `main` ever holds a commit the branch lacks, merge
   `main` into the branch first (a merge commit), then fast-forward; if both
   changed the same thing, ask Carl.
+- **Deploys pull `main` from 7 Nov 2026.** Carl asked that day for the
+  commands to merge and delete the session branches in all four repos
+  (*"give me git bash cmd for merge and delete branches"*), and a deleted
+  branch is not there to pull. With `main` kept level (above) it is the same
+  commit, so a hand-back's deploy chain starts `git checkout main && git pull
+  origin main`. A session that works on `claude/zealous-hopper-j7xy98` again
+  makes it afresh from `main`; deleting it is Carl's at the keyboard, because
+  a session cannot delete a branch (its git proxy refuses with a 403).
 
 ## T2.35 (2 Nov 2026) — Can't finish today (audit I10), what the README does not say
 
