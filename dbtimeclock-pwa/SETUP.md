@@ -38,29 +38,31 @@ files on Firebase Hosting.
 
 ## 3. OAuth client (sign-in)
 
-1. console.cloud.google.com > select the SAME project > APIs & Services >
-   OAuth consent screen > App name "DB Time Clock". User type: **External**,
-   not Internal. Two of the three site managers (Tyler, Kenton) sign in with
-   Gmail addresses, and an *Internal* app refuses any account outside the
-   Workspace before the API ever sees the token. While the app is in
-   *Testing*, add those addresses under **Test users** (up to 100, no
-   verification needed); or publish it — it asks only for the basic
-   openid/email/profile scopes, which need no verification either. Since
-   T2.43 most of the field crew sign in with their own Gmail, Hotmail or Yahoo
-   address (the one JobTread has for them), so **publish it** before they get
-   the app; in Testing, every one of them would have to be a test user. The
-   API still rejects every address that is not on the company domain, on its
-   explicit allow-list, or an internal JobTread membership (one of the
-   company's own people), so this does not open the app to anyone else.
-   Since 6 Nov 2026 every crew member also has an @deitemeyerbrothers.com
-   account, and with everyone on it the screen can be **Internal** instead
-   (Google then refuses a personal Gmail before the API sees it — which also
-   ends the personal-address way in). A company account JobTread does not
-   have is found through DB Hub's link to their JobTread user (T2.44): run
-   DB Hub's `?jobtread=link` first, and re-version its feed deployment.
-   Someone DB Hub still has under a personal address (fifteen of the field
-   crew on 6 Nov 2026) also needs their company account in its **Company
-   Account** column (DB Hub v1.38) — until then, Internal locks them out.
+1. console.cloud.google.com > the sign-in project > Google Auth Platform
+   (APIs & Services > OAuth consent screen on older screens) > App name
+   "DB Time Clock". **The live sign-in client is not in the Firebase
+   project.** It is in its own Google Cloud project, "DB Time Clock"
+   (`db-time-clock-503815`, number 1079373004925 — a client ID starts with
+   its project's number), while the Firebase project `db-time-clock` (number
+   78821137181, the Firebase config's `messagingSenderId`) has no sign-in
+   screen at all (found 7 Nov 2026). carlbledsoe@deitemeyerbrothers.com
+   opens the sign-in project and is refused on the Firebase one; operations@
+   (the Firebase CLI's account) opens the Firebase one. A fresh setup can
+   keep both in one project.
+   **User type: Internal** — it read Internal on 7 Nov 2026, after Carl
+   followed the steps to make it so (until then this step asked for
+   External). Only @deitemeyerbrothers.com accounts can sign in: Google
+   refuses a personal Gmail before the API sees it, which ends T2.43's
+   personal-address way in. Every crew member has a company account (6 Nov
+   2026). A company account JobTread does not have is found through DB Hub's
+   link to their JobTread user (T2.44); someone DB Hub still has under a
+   personal address needs their company account in its **Company Account**
+   column (DB Hub v1.38), or the API finds no JobTread user for them. Lexi
+   and Drew, part-time summer help, were left without one for now (Carl,
+   7 Nov 2026). **Make external** on the same page undoes it; External then
+   needs the app published, or every personal address has to be a test user.
+   Either way the API still rejects every address that is not on the company
+   domain, on its explicit allow-list, or an internal JobTread membership.
 2. Credentials > Create Credentials > **OAuth client ID** > Web application.
    Authorized JavaScript origins: `https://db-crews.web.app` and
    `https://db-crews.firebaseapp.com` (every site the app is served from —

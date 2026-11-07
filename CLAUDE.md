@@ -2045,10 +2045,24 @@ in each app.
   row in DB Hub on 7 Nov 2026, which turns every app Off. His Status had to
   be set to Active on the Employees tab first: App access lists only Active
   and Provisioning rows, and his was neither (DB Hub's notes).
-- **Keep the OAuth consent screen as it is until those fifteen are on the
-  feed.** Internal refuses their personal Google accounts, and their company
-  accounts reach nobody until the Company Account column is filled and the
-  feed deployment serves v1.38.
+- **The OAuth consent screen is Internal since 7 Nov 2026** (Carl: *"ignore
+  lexi and drew, they are part time summer help and will deal with them
+  later. so move passed the sign in screen to the new version"*). It is not
+  in the Firebase project: DB Crew's sign-in client (`config.js`'s
+  `clientId`) belongs to the Google Cloud project "DB Time Clock",
+  `db-time-clock-503815` (number 1079373004925, the client ID's first part),
+  while the Firebase project `db-time-clock` is 78821137181 and has no
+  sign-in screen — opened first as operations@, it read *"Google Auth
+  Platform not configured yet"*. carlbledsoe@deitemeyerbrothers.com opens
+  the sign-in project and is refused on the Firebase one. The board's Google
+  sign-in is a third project (497178783768, read off its sign-in redirect),
+  so the switch did not touch it. Google now refuses a personal Gmail before
+  the API sees it, so T2.43's personal-address door is moot; phones already
+  signed in keep their DB Crew session (a renewal asks Google nothing, D39).
+  Lexi and Drew cannot sign in until they have company accounts in DB Hub.
+  The switch is read off Carl's screenshot, not from here; not checked:
+  whether that project holds another app's client (Internal applies to all
+  of it), and a sign-in after the switch.
 - **Deploy order**: DB Hub first — PR 9 merged, `clasp push -f`, `clasp
   deploy -i` the web app, the Company Account column filled in
   (`?jobtread=1` adds it and lists who needs one), and a New version of the
